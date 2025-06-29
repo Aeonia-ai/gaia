@@ -1,0 +1,32 @@
+FROM python:3.11-slim
+
+# Install Node.js for MCP server (needed for chat service)
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Verify versions
+RUN python --version && node --version && npm --version
+
+# Install MCP filesystem server (needed for filesystem endpoints)
+RUN npm install -g @modelcontextprotocol/server-filesystem
+
+# Set up Python environment
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install requests
+
+# Copy application code
+COPY . .
+
+ENV PYTHONPATH=/app
+ENV SERVICE_NAME=gateway
+ENV SERVICE_PORT=8000
+
+# Default command for gateway service
+CMD ["uvicorn", "app.gateway.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

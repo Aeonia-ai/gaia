@@ -1,0 +1,147 @@
+version: '3.8'
+
+services:
+  # FastAPI Gateway - Main entry point for all client requests
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    ports:
+      - "8666:8000"  # Same port as LLM Platform for client compatibility
+    volumes:
+      - ./app:/app/app
+      - mcp_data:/app/data/kb
+      - ../Dendron:/app/data/wiki
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - NATS_URL=nats://nats:4222
+      - AUTH_SERVICE_URL=http://auth-service:8000
+      - ASSET_SERVICE_URL=http://asset-service:8000
+      - CHAT_SERVICE_URL=http://chat-service:8000
+    depends_on:
+      - db
+      - nats
+      - auth-service
+      - asset-service
+      - chat-service
+    networks:
+      - gaia_net
+    command: uvicorn app.gateway.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Authentication Service
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.auth
+    volumes:
+      - ./app:/app/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - NATS_URL=nats://nats:4222
+    depends_on:
+      - db
+      - nats
+    networks:
+      - gaia_net
+    command: uvicorn app.services.auth.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Asset Service (Universal Asset Server)
+  asset-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.asset
+    volumes:
+      - ./app:/app/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - NATS_URL=nats://nats:4222
+    depends_on:
+      - db
+      - nats
+    networks:
+      - gaia_net
+    command: uvicorn app.services.asset.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Chat Service (MCP-Agent powered)
+  chat-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.chat
+    volumes:
+      - ./app:/app/app
+      - mcp_data:/app/data/kb
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - NATS_URL=nats://nats:4222
+      - MCP_FILESYSTEM_ROOT=/app/data
+    depends_on:
+      - db
+      - nats
+    networks:
+      - gaia_net
+    command: uvicorn app.services.chat.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # PostgreSQL Database (same as LLM Platform)
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=llm_platform
+    ports:
+      - "5432:5432"
+    networks:
+      - gaia_net
+
+  # NATS Message Broker
+  nats:
+    image: nats:latest
+    ports:
+      - "4222:4222"
+      - "8222:8222"  # HTTP monitoring
+    networks:
+      - gaia_net
+    command: ["--jetstream", "--http_port", "8222"]
+
+  # Test service (equivalent to LLM Platform test)
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./tests:/app/tests
+      - mcp_data:/app/data/kb
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - NATS_URL=nats://nats:4222
+      - API_KEY=test_key
+      - MCP_FILESYSTEM_ROOT=/app/data
+      - GATEWAY_URL=http://gateway:8000
+    depends_on:
+      - db
+      - nats
+      - gateway
+    networks:
+      - gaia_net
+    command: bash -c "PYTHONPATH=/app pytest -v"
+
+volumes:
+  postgres_data:
+  mcp_data:
+    driver: local
+
+networks:
+  gaia_net:
+    driver: bridge
