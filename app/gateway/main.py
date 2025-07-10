@@ -306,7 +306,7 @@ async def get_personas(
     """Forward persona requests to chat service."""
     return await forward_request_to_service(
         service_name="chat",
-        path="/personas",
+        path="/personas/",  # Add trailing slash to match FastAPI routing
         method="GET",
         headers=dict(request.headers),
         params=dict(request.query_params)
