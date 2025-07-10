@@ -1,0 +1,43 @@
+# Fly.io Staging Environment Configuration
+# App: gaia-gateway-staging
+
+app = 'gaia-gateway-staging'
+primary_region = 'sjc'
+
+[build]
+  dockerfile = "Dockerfile.gateway"
+
+[env]
+  ENVIRONMENT = "staging"
+  SERVICE_NAME = "gateway"
+  LOG_LEVEL = "INFO"
+  
+  # Service URLs for staging environment
+  AUTH_SERVICE_URL = "https://gaia-auth-staging.fly.dev"
+  ASSET_SERVICE_URL = "https://gaia-asset-staging.fly.dev"
+  CHAT_SERVICE_URL = "https://gaia-chat-staging.fly.dev"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'suspend'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[deploy]
+  strategy = "canary"
+
+# Health checks for staging
+[[services.http_checks]]
+  interval = "10s"
+  grace_period = "5s"
+  method = "GET"
+  path = "/health"
+  protocol = "https"
+  timeout = "2s"

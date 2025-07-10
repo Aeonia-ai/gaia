@@ -1,0 +1,192 @@
+name: Deploy Gaia Platform
+
+on:
+  push:
+    branches:
+      - main        # Deploy to staging
+      - develop     # Deploy to dev
+      - 'release/*' # Deploy to production (with manual approval)
+  
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      service:
+        description: 'Service to deploy (all or specific service)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - gateway
+          - auth
+          - asset
+          - chat
+
+env:
+  FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+jobs:
+  determine-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      deploy_enabled: ${{ steps.env.outputs.deploy_enabled }}
+    steps:
+      - name: Determine deployment environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "deploy_enabled=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "deploy_enabled=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "deploy_enabled=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "deploy_enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "environment=none" >> $GITHUB_OUTPUT
+            echo "deploy_enabled=false" >> $GITHUB_OUTPUT
+          fi
+
+  test:
+    runs-on: ubuntu-latest
+    needs: determine-environment
+    if: needs.determine-environment.outputs.deploy_enabled == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/ -v
+
+      - name: Docker build test
+        run: |
+          docker build -f Dockerfile.gateway -t gaia-gateway-test .
+          docker build -f Dockerfile.auth -t gaia-auth-test .
+
+  deploy-dev:
+    runs-on: ubuntu-latest
+    needs: [determine-environment, test]
+    if: needs.determine-environment.outputs.environment == 'dev'
+    environment: development
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to development
+        env:
+          SERVICE: ${{ github.event.inputs.service || 'all' }}
+        run: |
+          chmod +x ./scripts/deploy-cloud.sh
+          ./scripts/deploy-cloud.sh dev $SERVICE
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [determine-environment, test]
+    if: needs.determine-environment.outputs.environment == 'staging'
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to staging
+        env:
+          SERVICE: ${{ github.event.inputs.service || 'all' }}
+        run: |
+          chmod +x ./scripts/deploy-cloud.sh
+          ./scripts/deploy-cloud.sh staging $SERVICE
+
+      - name: Run staging integration tests
+        run: |
+          # Wait for services to be ready
+          sleep 30
+          # Run integration tests against staging
+          python -m pytest tests/integration/ -v --base-url="https://gaia-gateway-staging.fly.dev"
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [determine-environment, test]
+    if: needs.determine-environment.outputs.environment == 'prod'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Production deployment dry run
+        run: |
+          chmod +x ./scripts/deploy-cloud.sh
+          ./scripts/deploy-cloud.sh prod --dry-run
+
+      - name: Deploy to production
+        env:
+          SERVICE: ${{ github.event.inputs.service || 'all' }}
+        run: |
+          ./scripts/deploy-cloud.sh prod $SERVICE
+
+      - name: Production health checks
+        run: |
+          # Wait for services to be ready
+          sleep 60
+          # Comprehensive health checks
+          curl -f https://gaia-gateway-prod.fly.dev/health
+          
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "🚀 Production deployment successful!"
+          echo "Gateway: https://gaia-gateway-prod.fly.dev"
+          echo "Monitor with: flyctl logs --app gaia-gateway-prod"
+
+  rollback:
+    runs-on: ubuntu-latest
+    if: failure() && (needs.deploy-staging.result == 'failure' || needs.deploy-production.result == 'failure')
+    needs: [determine-environment, deploy-staging, deploy-production]
+    environment: ${{ needs.determine-environment.outputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Rollback failed deployment
+        run: |
+          chmod +x ./scripts/deploy-cloud.sh
+          ./scripts/deploy-cloud.sh ${{ needs.determine-environment.outputs.environment }} --rollback

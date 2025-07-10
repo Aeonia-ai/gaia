@@ -1,14 +1,17 @@
 """
 Shared security utilities for Gaia Platform services.
 Maintains compatibility with LLM Platform authentication patterns.
+Supports both global API keys and user-associated API keys.
 """
 import jwt
 import os
 import logging
+import hashlib
 from fastapi import HTTPException, Security, Depends, status, Request
 from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Union, Dict, Any
 from datetime import datetime
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +22,13 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 class AuthenticationResult:
     """Standard authentication result across all services."""
     
-    def __init__(self, auth_type: str, user_id: Optional[str] = None, api_key: Optional[str] = None):
-        self.auth_type = auth_type  # "jwt" or "api_key"
+    def __init__(self, auth_type: str, user_id: Optional[str] = None, api_key: Optional[str] = None, 
+                 api_key_id: Optional[str] = None, scopes: Optional[list] = None):
+        self.auth_type = auth_type  # "jwt", "api_key", or "user_api_key"
         self.user_id = user_id
         self.api_key = api_key
+        self.api_key_id = api_key_id  # For user-associated API keys
+        self.scopes = scopes or []
         self.authenticated_at = datetime.now()
     
     def to_dict(self) -> Dict[str, Any]:
@@ -30,8 +36,22 @@ class AuthenticationResult:
             "auth_type": self.auth_type,
             "user_id": self.user_id,
             "api_key": self.api_key,
+            "api_key_id": self.api_key_id,
+            "scopes": self.scopes,
             "authenticated_at": self.authenticated_at.isoformat()
         }
+    
+    def has_scope(self, scope: str) -> bool:
+        """Check if the authentication has a specific scope."""
+        if self.auth_type == "jwt":
+            return True  # JWT tokens have full access
+        if not self.scopes:
+            return True  # No scopes means full access (for backward compatibility)
+        return scope in self.scopes
+
+def hash_api_key(api_key: str) -> str:
+    """Hash an API key for secure storage."""
+    return hashlib.sha256(api_key.encode()).hexdigest()
 
 def validate_api_key(api_key: Optional[str], expected_key: Optional[str]) -> bool:
     """
@@ -41,6 +61,54 @@ def validate_api_key(api_key: Optional[str], expected_key: Optional[str]) -> boo
     if not expected_key:
         return False
     return api_key == expected_key
+
+async def validate_user_api_key(api_key: str, db: Session) -> Optional[AuthenticationResult]:
+    """
+    Validate a user-associated API key from the database.
+    Returns AuthenticationResult if valid, None if invalid.
+    """
+    from sqlalchemy import text
+    
+    try:
+        # Hash the provided API key
+        key_hash = hash_api_key(api_key)
+        
+        # Look up the API key in the database using raw SQL for compatibility
+        result = db.execute(
+            text("""
+                SELECT id, user_id, permissions, is_active, expires_at, last_used_at
+                FROM api_keys
+                WHERE key_hash = :key_hash AND is_active = true
+            """),
+            {"key_hash": key_hash}
+        ).fetchone()
+        
+        if not result:
+            return None
+            
+        # Check if the key is expired
+        if result.expires_at and result.expires_at < datetime.utcnow():
+            return None
+            
+        # Update last used timestamp
+        db.execute(
+            text("UPDATE api_keys SET last_used_at = NOW() WHERE id = :id"),
+            {"id": result.id}
+        )
+        db.commit()
+        
+        # Return authentication result
+        return AuthenticationResult(
+            auth_type="user_api_key",
+            user_id=str(result.user_id),
+            api_key=api_key,
+            api_key_id=str(result.id),
+            scopes=result.permissions or []
+        )
+        
+    except Exception as e:
+        logger.error(f"Error validating user API key: {str(e)}")
+        return None
 
 def get_api_key(
     api_key_header: Optional[str] = Security(APIKeyHeader(name="X-API-Key", auto_error=False))
@@ -111,10 +179,11 @@ async def validate_supabase_jwt(
 async def get_current_auth(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Security(oauth2_scheme),
-    api_key_header: Optional[str] = Security(api_key_header)
+    api_key_header: Optional[str] = Security(api_key_header),
+    db: Session = None
 ) -> AuthenticationResult:
     """
-    Provides authentication for either JWT or API Key.
+    Provides authentication for JWT, global API keys, or user-associated API keys.
     Returns AuthenticationResult object with standardized format.
     Compatible with LLM Platform behavior.
     """
@@ -134,20 +203,32 @@ async def get_current_auth(
     # Try API key authentication
     if api_key_header:
         try:
+            # First try global API key (backward compatibility)
             expected_key = os.getenv('API_KEY')
             logger.debug(f"API Key validation attempt")
             
-            is_valid_api_key = validate_api_key(api_key_header, expected_key)
+            is_valid_global_api_key = validate_api_key(api_key_header, expected_key)
 
-            if is_valid_api_key:
-                logger.debug("Authenticated via API Key")
+            if is_valid_global_api_key:
+                logger.debug("Authenticated via global API Key")
                 return AuthenticationResult(auth_type="api_key", api_key=api_key_header)
-            else:
-                logger.warning("Invalid API Key provided.")
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Could not validate credentials"
-                )
+            
+            # If global API key failed, try user-associated API key
+            if db is not None:
+                logger.debug("Trying user-associated API key validation")
+                user_api_result = await validate_user_api_key(api_key_header, db)
+                
+                if user_api_result:
+                    logger.debug(f"Authenticated via user API key: {user_api_result.user_id}")
+                    return user_api_result
+            
+            # If both failed, raise error
+            logger.warning("Invalid API Key provided.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Could not validate credentials"
+            )
+            
         except HTTPException as e:
             if e.status_code == 500:
                 logger.error("API Key not configured.")
@@ -226,9 +307,96 @@ async def get_current_auth_legacy(
     Legacy authentication format for backward compatibility.
     Returns dict format identical to LLM Platform.
     """
-    auth_result = await get_current_auth(request, credentials, api_key_header)
+    # Get database session using proper dependency injection
+    from app.shared.database import get_db
     
-    if auth_result.auth_type == "jwt":
-        return {"auth_type": "jwt", "user_id": auth_result.user_id}
-    else:
-        return {"auth_type": "api_key", "key": auth_result.api_key}
+    # Get database session generator and use it
+    db_gen = get_db()
+    db = next(db_gen)
+    
+    try:
+        auth_result = await get_current_auth(request, credentials, api_key_header, db)
+        
+        if auth_result.auth_type == "jwt":
+            return {"auth_type": "jwt", "user_id": auth_result.user_id}
+        elif auth_result.auth_type == "user_api_key":
+            return {"auth_type": "user_api_key", "user_id": auth_result.user_id, "key": auth_result.api_key}
+        else:
+            return {"auth_type": "api_key", "key": auth_result.api_key}
+    finally:
+        # Clean up the database session
+        try:
+            next(db_gen)
+        except StopIteration:
+            pass
+
+# API Key management functions
+def generate_api_key(prefix: str = "gaia") -> str:
+    """
+    Generate a new API key with the specified prefix.
+    Format: prefix_environment_random_string
+    """
+    import secrets
+    import string
+    
+    environment = os.getenv("ENVIRONMENT", "dev")
+    random_part = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
+    
+    return f"{prefix}_{environment}_{random_part}"
+
+async def create_user_api_key(user_id: str, name: str, db: Session, 
+                            scopes: Optional[list] = None, 
+                            expires_at: Optional[datetime] = None) -> tuple[str, str]:
+    """
+    Create a new API key for a user.
+    Returns (api_key, api_key_id) tuple.
+    """
+    from app.shared.models.api_keys import APIKey
+    
+    # Generate new API key
+    api_key = generate_api_key()
+    key_hash = hash_api_key(api_key)
+    
+    # Create database record
+    api_key_record = APIKey(
+        user_id=user_id,
+        key_hash=key_hash,
+        name=name,
+        scopes=scopes or [],
+        expires_at=expires_at
+    )
+    
+    db.add(api_key_record)
+    db.commit()
+    db.refresh(api_key_record)
+    
+    return api_key, str(api_key_record.id)
+
+async def revoke_user_api_key(user_id: str, api_key_id: str, db: Session) -> bool:
+    """
+    Revoke (delete) a user's API key.
+    Returns True if successful, False if not found.
+    """
+    from app.shared.models.api_keys import APIKey
+    
+    api_key_record = db.query(APIKey).filter(
+        APIKey.id == api_key_id,
+        APIKey.user_id == user_id
+    ).first()
+    
+    if not api_key_record:
+        return False
+    
+    db.delete(api_key_record)
+    db.commit()
+    return True
+
+async def get_user_api_keys(user_id: str, db: Session) -> list:
+    """
+    Get all API keys for a user.
+    Returns list of APIKeyResponse objects.
+    """
+    from app.shared.models.api_keys import APIKey, APIKeyResponse
+    
+    api_keys = db.query(APIKey).filter(APIKey.user_id == user_id).all()
+    return [APIKeyResponse(api_key) for api_key in api_keys]

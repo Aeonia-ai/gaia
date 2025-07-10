@@ -48,9 +48,9 @@ limiter = Limiter(key_func=get_remote_address)
 
 # FastAPI application
 app = FastAPI(
-    title="Gaia Platform Gateway", 
-    description="Microservices gateway maintaining LLM Platform API compatibility",
-    version="1.0.0"
+    title="LLM Platform", 
+    description="AI-powered language model API with multi-provider support",
+    version="0.2.0"
 )
 
 # Add CORS middleware (identical to LLM Platform)
@@ -123,7 +123,19 @@ async def forward_request_to_service(
         
         # Handle different response types
         if response.headers.get("content-type", "").startswith("application/json"):
-            return response.json()
+            try:
+                return response.json()
+            except Exception as json_error:
+                # Log the raw response that's causing JSON parsing issues
+                logger.error(f"JSON parsing failed for {service_name} response")
+                logger.error(f"Response status: {response.status_code}")
+                logger.error(f"Response headers: {dict(response.headers)}")
+                logger.error(f"Raw response text: {repr(response.text)}")
+                logger.error(f"JSON error: {json_error}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Invalid JSON response from {service_name} service"
+                )
         else:
             return {"content": response.content, "content_type": response.headers.get("content-type")}
             
@@ -174,10 +186,7 @@ async def health_check():
     return {
         "status": overall_status,
         "timestamp": datetime.now().isoformat(),
-        "services": service_health,
-        "database": db_health,
-        "supabase": supabase_health,
-        "version": "1.0.0"
+        "version": "0.2.0"
     }
 
 # Root endpoint (same as LLM Platform)
@@ -187,10 +196,13 @@ async def root(request: Request):
     """Root endpoint handler with rate limiting."""
     logger.input("Received request to root endpoint")
     return {
-        "message": "Gaia Platform Gateway is running",
-        "note": "API v1 is available at /api/v1. Maintains compatibility with LLM Platform.",
-        "services": list(SERVICE_URLS.keys()),
-        "version": "1.0.0"
+        "message": "LLM Platform is running",
+        "versions": {
+            "v0.2": "Stable - Multi-provider chat completions",
+            "v1": "Latest - Enhanced features and compatibility"
+        },
+        "version": "0.2.0",
+        "timestamp": datetime.now().isoformat()
     }
 
 # ========================================================================================
@@ -198,22 +210,91 @@ async def root(request: Request):
 # ========================================================================================
 
 # Chat endpoints - forward to chat service
-@app.post("/api/v1/chat/completions", tags=["Chat"])
-async def chat_completions(
+@app.post("/api/v1/chat", tags=["Chat"])
+async def chat(
     request: Request,
     auth: dict = Depends(get_current_auth_legacy)
 ):
-    """Forward chat completion requests to chat service."""
+    """Main chat endpoint used by all clients."""
     body = await request.json()
     
     # Add authentication info to request
     body["_auth"] = auth
     
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
     return await forward_request_to_service(
         service_name="chat",
-        path="/chat/completions",
+        path="/chat",  # Route to chat endpoint
         method="POST",
         json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v1/chat/completions", tags=["Chat"])
+async def chat_completions(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """OpenAI-compatible chat completions endpoint."""
+    body = await request.json()
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat",  # Route to chat endpoint
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.get("/api/v1/chat/status", tags=["Chat"])
+async def chat_status(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get chat history status."""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/status",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.delete("/api/v1/chat/history", tags=["Chat"])
+async def clear_chat_history(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Clear chat history."""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/history",
+        method="DELETE",
+        headers=dict(request.headers)
+    )
+
+@app.post("/api/v1/chat/reload-prompt", tags=["Chat"])
+async def reload_prompt(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Reload system prompt."""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/reload-prompt",
+        method="POST",
         headers=dict(request.headers)
     )
 
@@ -378,7 +459,7 @@ async def startup_event():
     
     # Initialize NATS connection
     try:
-        logger.info("Initializing NATS connection for service coordination")
+        logger.info("Initializing NATS connection for service coordination with IP address")
         nats_client = await ensure_nats_connection()
         logger.nats("Connected to NATS for service coordination")
         
@@ -388,7 +469,7 @@ async def startup_event():
             status="starting",
             timestamp=datetime.now()
         )
-        await nats_client.publish(NATSSubjects.SERVICE_HEALTH, startup_event.dict())
+        await nats_client.publish(NATSSubjects.SERVICE_HEALTH, startup_event.model_dump_json())
         
     except Exception as e:
         logger.error(f"Failed to initialize NATS connection: {e}")
@@ -414,7 +495,7 @@ async def startup_event():
             status="healthy",
             timestamp=datetime.now()
         )
-        await nats_client.publish(NATSSubjects.SERVICE_READY, ready_event.dict())
+        await nats_client.publish(NATSSubjects.SERVICE_READY, ready_event.model_dump_json())
         logger.lifecycle("Gateway service ready and published to NATS")
         
     except Exception as e:
@@ -438,7 +519,7 @@ async def shutdown_event():
             status="stopping",
             timestamp=datetime.now()
         )
-        await nats_client.publish(NATSSubjects.SERVICE_HEALTH, shutdown_event.dict())
+        await nats_client.publish(NATSSubjects.SERVICE_HEALTH, shutdown_event.model_dump_json())
         await nats_client.disconnect()
         
     except Exception as e:

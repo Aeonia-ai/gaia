@@ -1,0 +1,38 @@
+# Fly.io Development Environment Configuration
+# App: gaia-gateway-dev
+
+app = 'gaia-gateway-dev'
+primary_region = 'sjc'
+
+[build]
+  dockerfile = "Dockerfile.gateway"
+
+[env]
+  ENVIRONMENT = "development"
+  SERVICE_NAME = "gateway"
+  LOG_LEVEL = "DEBUG"
+  
+  # Service URLs for dev environment
+  AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
+  ASSET_SERVICE_URL = "https://gaia-asset-dev.fly.dev"
+  CHAT_SERVICE_URL = "https://gaia-chat-dev.fly.dev"
+  
+  # Dev database
+  DATABASE_URL = "postgresql://postgres:password@gaia-db-dev.fly.dev:5432/llm_platform"
+  NATS_URL = "nats://gaia-nats-dev.fly.dev:4222"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[deploy]
+  strategy = "immediate"

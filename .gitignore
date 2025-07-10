@@ -178,6 +178,7 @@ Thumbs.db
 data/
 logs/
 *.log
+tmp/
 
 # Docker volumes and runtime
 docker-compose.override.yml
@@ -186,6 +187,9 @@ docker-compose.override.yml
 *.tmp
 *.temp
 *~
+*.bak
+*.orig
+*.rej
 
 # Service account keys and secrets
 *.json
@@ -197,3 +201,11 @@ docker-compose.override.yml
 .env.development
 .env.test
 .env.production
+
+# LLM Platform specific (inherited)
+llm_platform_venv/
+.gcloud/
+
+# Editor specific
+*.swp
+*.swo
