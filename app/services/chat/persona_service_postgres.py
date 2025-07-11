@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.shared.database import get_db
-from app.shared.models.persona import Persona, PersonaCreate, PersonaUpdate, UserPersonaPreference
+from app.models.persona import Persona, PersonaCreate, PersonaUpdate, UserPersonaPreference
 from app.shared.logging import logger
 
 class PostgresPersonaService:

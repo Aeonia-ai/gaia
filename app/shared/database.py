@@ -3,7 +3,7 @@ Shared database configuration for Gaia Platform services.
 Maintains compatibility with LLM Platform database schema.
 """
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -41,6 +41,9 @@ def get_database_session():
     finally:
         db.close()
 
+# Alias for backward compatibility
+get_db = get_database_session
+
 def get_database_url() -> str:
     """Get the current database URL."""
     return DATABASE_URL
@@ -49,7 +52,7 @@ def test_database_connection() -> bool:
     """Test database connectivity."""
     try:
         with engine.connect() as connection:
-            connection.execute("SELECT 1")
+            connection.execute(text("SELECT 1"))
         logger.info("Database connection successful")
         return True
     except Exception as e:
@@ -61,7 +64,7 @@ async def database_health_check() -> dict:
     """Async health check for database connectivity."""
     try:
         with engine.connect() as connection:
-            result = connection.execute("SELECT 1")
+            result = connection.execute(text("SELECT 1"))
             return {
                 "status": "healthy",
                 "database": "postgresql",

@@ -1,0 +1,58 @@
+/* Gaia Design System - Extracted from React Client */
+
+/* Main background - used on all pages */
+.gaia-bg {
+  @apply min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-slate-900;
+}
+
+/* Logo styling */
+.gaia-logo-small {
+  @apply w-8 h-8 bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 rounded-full flex items-center justify-center;
+}
+
+.gaia-logo-large {
+  @apply w-16 h-16 bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 rounded-full flex items-center justify-center;
+}
+
+/* Primary buttons */
+.gaia-btn-primary {
+  @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg font-medium;
+}
+
+/* Card styling */
+.gaia-card {
+  @apply bg-slate-900/50 border border-purple-500/20 backdrop-blur-sm rounded-lg;
+}
+
+/* Sidebar */
+.gaia-sidebar {
+  @apply w-80 bg-slate-900/50 border-r border-purple-500/20 backdrop-blur-sm;
+}
+
+/* Input styling */
+.gaia-input {
+  @apply bg-slate-800/50 border border-purple-500/30 text-white placeholder:text-purple-300 rounded-lg;
+}
+
+/* Message bubbles */
+.gaia-message-user {
+  @apply max-w-[70%] rounded-lg p-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white;
+}
+
+.gaia-message-assistant {
+  @apply max-w-[70%] rounded-lg p-4 bg-slate-800/50 text-white border border-purple-500/20;
+}
+
+/* Text colors */
+.gaia-text-primary { @apply text-white; }
+.gaia-text-secondary { @apply text-purple-300; }
+.gaia-text-accent { @apply text-purple-200; }
+
+/* Active states */
+.gaia-conversation-active {
+  @apply bg-purple-600/20 border-purple-400/50;
+}
+
+.gaia-conversation-inactive {
+  @apply bg-slate-800/30 border-purple-500/10 hover:bg-slate-800/50;
+}

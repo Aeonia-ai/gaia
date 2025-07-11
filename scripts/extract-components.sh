@@ -7,8 +7,8 @@ set -e
 
 echo "🔄 Extracting components from LLM Platform..."
 
-LLM_PLATFORM_PATH="/Users/jasonasbahr/Development/Aeonia/Server/llm-platform"
-GAIA_PATH="/Users/jasonasbahr/Development/Aeonia/Server/gaia"
+LLM_PLATFORM_PATH="/Users/jasbahr/Development/Aeonia/server/llm-platform"
+GAIA_PATH="/Users/jasbahr/Development/Aeonia/server/gaia"
 
 # Check if LLM Platform exists
 if [ ! -d "$LLM_PLATFORM_PATH" ]; then
@@ -28,15 +28,31 @@ read -p "Select task (1-5): " task
 extract_asset_service() {
     echo "📦 Extracting Asset Service components..."
     
-    # Copy asset service files
+    # Create asset service directory if it doesn't exist
+    mkdir -p "$GAIA_PATH/app/services/asset"
+    
+    # Copy asset API endpoints
     if [ -d "$LLM_PLATFORM_PATH/app/api/v1/assets" ]; then
         echo "  - Copying asset API endpoints..."
         cp -r "$LLM_PLATFORM_PATH/app/api/v1/assets/"* "$GAIA_PATH/app/services/asset/" 2>/dev/null || true
     fi
     
+    # Copy asset service logic
     if [ -d "$LLM_PLATFORM_PATH/app/services/assets" ]; then
         echo "  - Copying asset service logic..."
         cp -r "$LLM_PLATFORM_PATH/app/services/assets/"* "$GAIA_PATH/app/services/asset/" 2>/dev/null || true
+    fi
+    
+    # Copy asset models
+    if [ -d "$LLM_PLATFORM_PATH/app/models/assets" ]; then
+        echo "  - Copying asset models..."
+        mkdir -p "$GAIA_PATH/app/services/asset/models"
+        cp -r "$LLM_PLATFORM_PATH/app/models/assets/"* "$GAIA_PATH/app/services/asset/models/" 2>/dev/null || true
+    fi
+    
+    # Create __init__.py if it doesn't exist
+    if [ ! -f "$GAIA_PATH/app/services/asset/__init__.py" ]; then
+        touch "$GAIA_PATH/app/services/asset/__init__.py"
     fi
     
     echo "✅ Asset Service components extracted"

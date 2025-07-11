@@ -50,7 +50,7 @@ limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(
     title="LLM Platform", 
     description="AI-powered language model API with multi-provider support",
-    version="0.2.0"
+    version="0.2"
 )
 
 # Add CORS middleware (identical to LLM Platform)
@@ -186,7 +186,7 @@ async def health_check():
     return {
         "status": overall_status,
         "timestamp": datetime.now().isoformat(),
-        "version": "0.2.0"
+        "version": "0.2"
     }
 
 # Root endpoint (same as LLM Platform)
@@ -196,14 +196,823 @@ async def root(request: Request):
     """Root endpoint handler with rate limiting."""
     logger.input("Received request to root endpoint")
     return {
-        "message": "LLM Platform is running",
+        "message": "LLM Platform API is running",
         "versions": {
-            "v0.2": "Stable - Multi-provider chat completions",
-            "v1": "Latest - Enhanced features and compatibility"
+            "v0.2": "/api/v0.2 (recommended - unified streaming API)",
+            "v1": "/api/v1 (original endpoints)",
+            "legacy": "/ (will be deprecated)"
         },
-        "version": "0.2.0",
-        "timestamp": datetime.now().isoformat()
+        "note": "Use v0.2 for the latest OpenAI/Anthropic compatible streaming API."
     }
+
+# ========================================================================================
+# API v0.2 ENDPOINTS - Unified streaming API (recommended)
+# ========================================================================================
+
+# v0.2 API root endpoint
+@app.get("/api/v0.2/", tags=["v0.2 API"])
+async def v0_2_api_info():
+    """Get v0.2 API information"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/",
+        method="GET"
+    )
+
+@app.get("/api/v0.2/health", tags=["v0.2 API"])
+async def v0_2_health():
+    """v0.2 API health check"""
+    return await forward_request_to_service(
+        service_name="chat", 
+        path="/api/v0.2/health",
+        method="GET"
+    )
+
+# v0.2 Chat endpoints
+@app.post("/api/v0.2/chat", tags=["v0.2 Chat"])
+async def v0_2_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """v0.2 unified chat endpoint (streaming and non-streaming)"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/chat",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.get("/api/v0.2/chat/status", tags=["v0.2 Chat"])
+async def v0_2_chat_status(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get v0.2 chat status"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/chat/status",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.delete("/api/v0.2/chat/history", tags=["v0.2 Chat"])
+async def v0_2_clear_chat_history(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Clear v0.2 chat history"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/chat/history",
+        method="DELETE",
+        headers=dict(request.headers)
+    )
+
+@app.post("/api/v0.2/chat/reload-prompt", tags=["v0.2 Chat"])
+async def v0_2_reload_prompt(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Reload v0.2 system prompt"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/chat/reload-prompt",
+        method="POST",
+        headers=dict(request.headers)
+    )
+
+# v0.2 Streaming Chat endpoints  
+@app.post("/api/v0.2/chat/stream", tags=["v0.2 Streaming"])
+async def v0_2_stream_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """v0.2 streaming chat endpoint with SSE support"""
+    from fastapi.responses import StreamingResponse
+    
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    # For streaming, we need to handle the response differently
+    service_url = SERVICE_URLS["chat"]
+    full_url = f"{service_url}/api/v0.2/chat/stream"
+    
+    client = await get_http_client()
+    
+    async def stream_generator():
+        """Forward streaming response from chat service"""
+        async with client.stream("POST", full_url, json=body, headers=headers) as response:
+            response.raise_for_status()
+            async for chunk in response.aiter_bytes():
+                yield chunk
+    
+    return StreamingResponse(
+        stream_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive", 
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+@app.post("/api/v0.2/chat/stream/cache/invalidate", tags=["v0.2 Streaming"])
+async def v0_2_invalidate_streaming_cache(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Invalidate v0.2 streaming cache"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/chat/stream/cache/invalidate",
+        method="POST",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/chat/stream/cache/status", tags=["v0.2 Streaming"])
+async def v0_2_get_streaming_cache_status(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get v0.2 streaming cache status"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/chat/stream/cache/status",
+        method="GET",
+        headers=dict(request.headers)
+    )
+
+@app.get("/api/v0.2/chat/stream/status", tags=["v0.2 Streaming"])
+async def v0_2_get_streaming_status(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get v0.2 streaming status"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/chat/stream/status",
+        method="GET",
+        headers=dict(request.headers)
+    )
+
+@app.delete("/api/v0.2/chat/stream/history", tags=["v0.2 Streaming"])
+async def v0_2_clear_streaming_history(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Clear v0.2 streaming history"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/chat/stream/history",
+        method="DELETE",
+        headers=dict(request.headers)
+    )
+
+@app.get("/api/v0.2/chat/stream/models", tags=["v0.2 Streaming"])
+async def v0_2_list_streaming_models(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """List v0.2 streaming models"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/chat/stream/models",
+        method="GET",
+        headers=dict(request.headers)
+    )
+
+
+@app.get("/api/v0.2/chat/stream/models/performance", tags=["v0.2 Streaming"])
+async def v0_2_get_streaming_model_performance(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get v0.2 streaming model performance comparison"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/chat/stream/models/performance",
+        method="GET",
+        headers=dict(request.headers)
+    )
+
+# v0.2 Provider endpoints
+@app.get("/api/v0.2/providers", tags=["v0.2 Providers"])
+async def v0_2_list_providers(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """List all providers"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/providers/",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/providers/{provider}", tags=["v0.2 Providers"])
+async def v0_2_get_provider(
+    provider: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get provider details"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/api/v0.2/providers/{provider}",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/providers/{provider}/models", tags=["v0.2 Providers"])
+async def v0_2_get_provider_models(
+    provider: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get provider models"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/api/v0.2/providers/{provider}/models",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/providers/{provider}/health", tags=["v0.2 Providers"])
+async def v0_2_get_provider_health(
+    provider: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get provider health"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/api/v0.2/providers/{provider}/health",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/providers/stats", tags=["v0.2 Providers"])
+async def v0_2_get_all_provider_stats(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get stats for all providers"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/providers/stats",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/providers/{provider}/stats", tags=["v0.2 Providers"])
+async def v0_2_get_provider_stats(
+    provider: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get provider stats"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/api/v0.2/providers/{provider}/stats",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+# v0.2 Model endpoints
+@app.get("/api/v0.2/models", tags=["v0.2 Models"])
+async def v0_2_list_models(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """List all models"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/models/",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/models/{model_id}", tags=["v0.2 Models"])
+async def v0_2_get_model(
+    model_id: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get model details"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/api/v0.2/models/{model_id}",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+
+@app.get("/api/v0.2/models/capabilities", tags=["v0.2 Models"])
+async def v0_2_get_capabilities(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get model capabilities"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/models/capabilities",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/models/priorities", tags=["v0.2 Models"])
+async def v0_2_get_priorities(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get model priorities"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/models/priorities",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/models/contexts", tags=["v0.2 Models"])
+async def v0_2_get_contexts(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get model contexts"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/models/contexts",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+# ========================================================================================
+# ASSET PRICING ENDPOINTS - Revenue and cost management
+# ========================================================================================
+
+@app.get("/api/v0.2/assets/pricing/current", tags=["v0.2 Asset Pricing"])
+async def v0_2_get_current_pricing(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get current pricing for provider/category/quality"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/assets/pricing/current",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/assets/pricing/analytics", tags=["v0.2 Asset Pricing"])
+async def v0_2_get_pricing_analytics(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get cost analytics for specified period"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/assets/pricing/analytics",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.post("/api/v0.2/assets/pricing/update", tags=["v0.2 Asset Pricing"])
+async def v0_2_update_pricing(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Trigger pricing update for a provider"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/assets/pricing/update",
+        method="POST",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/assets/pricing/providers", tags=["v0.2 Asset Pricing"])
+async def v0_2_list_pricing_providers(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """List all pricing providers and capabilities"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/assets/pricing/providers",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.post("/api/v0.2/assets/pricing/cost-estimator/estimate", tags=["v0.2 Cost Estimation"])
+async def v0_2_estimate_cost(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Estimate cost before generation"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/assets/pricing/cost-estimator/estimate",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.get("/api/v0.2/assets/pricing/cost-estimator/dalle-tiers", tags=["v0.2 Cost Estimation"])
+async def v0_2_get_dalle_tiers(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get DALL-E tier information and pricing"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/assets/pricing/cost-estimator/dalle-tiers",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/assets/pricing/cost-estimator/meshy-packages", tags=["v0.2 Cost Estimation"])
+async def v0_2_get_meshy_packages(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get Meshy credit packages and costs"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/assets/pricing/cost-estimator/meshy-packages",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/assets/pricing/cost-estimator/provider-comparison", tags=["v0.2 Cost Estimation"])
+async def v0_2_compare_provider_costs(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Compare costs across providers"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/assets/pricing/cost-estimator/provider-comparison",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+# Usage tracking endpoints
+@app.get("/api/v0.2/usage/current", tags=["v0.2 Usage Tracking"])
+async def v0_2_get_current_usage(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get current month usage statistics"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/usage/current",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/usage/history", tags=["v0.2 Usage Tracking"])
+async def v0_2_get_usage_history(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get historical usage data"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/usage/history",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.post("/api/v0.2/usage/log", tags=["v0.2 Usage Tracking"])
+async def v0_2_log_usage(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Log usage data for cost tracking"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/usage/log",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.get("/api/v0.2/usage/limits", tags=["v0.2 Usage Tracking"])
+async def v0_2_get_usage_limits(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get usage limits and remaining quotas"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/usage/limits",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/usage/billing/current", tags=["v0.2 Usage Tracking"])
+async def v0_2_get_current_billing(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get current billing period information"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/usage/billing/current",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/usage/reports/monthly", tags=["v0.2 Usage Tracking"])
+async def v0_2_get_monthly_report(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Generate monthly usage and cost report"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/usage/reports/monthly",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+# ========================================================================================
+# PERSONA MANAGEMENT ENDPOINTS - User experience personalization  
+# ========================================================================================
+
+@app.get("/api/v0.2/personas", tags=["v0.2 Personas"])
+async def v0_2_list_personas(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """List all available personas"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/personas/",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/personas/current", tags=["v0.2 Personas"])
+async def v0_2_get_current_persona(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get user's current active persona"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/personas/current",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/personas/{persona_id}", tags=["v0.2 Personas"])
+async def v0_2_get_persona(
+    persona_id: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get specific persona by ID"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/api/v0.2/personas/{persona_id}",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.post("/api/v0.2/personas", tags=["v0.2 Personas"])
+async def v0_2_create_persona(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Create new persona"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/personas/",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.put("/api/v0.2/personas/{persona_id}", tags=["v0.2 Personas"])
+async def v0_2_update_persona(
+    persona_id: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Update existing persona"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/api/v0.2/personas/{persona_id}",
+        method="PUT",
+        json_data=body,
+        headers=headers
+    )
+
+@app.delete("/api/v0.2/personas/{persona_id}", tags=["v0.2 Personas"])
+async def v0_2_delete_persona(
+    persona_id: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Soft delete persona"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/api/v0.2/personas/{persona_id}",
+        method="DELETE",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.post("/api/v0.2/personas/set", tags=["v0.2 Personas"])
+async def v0_2_set_user_persona(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Set user's active persona"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/personas/set",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v0.2/personas/initialize-default", tags=["v0.2 Personas"])
+async def v0_2_initialize_default_persona(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Initialize default Mu persona"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/personas/initialize-default",
+        method="POST",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+# ========================================================================================
+# PERFORMANCE MONITORING ENDPOINTS - Operational insights and system health
+# ========================================================================================
+
+@app.get("/api/v0.2/performance/summary", tags=["v0.2 Performance"])
+async def v0_2_get_performance_summary(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get overall performance summary with request statistics"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/performance/summary",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/performance/providers", tags=["v0.2 Performance"])
+async def v0_2_get_provider_performance(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get performance metrics for all LLM providers"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/performance/providers",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/performance/stages", tags=["v0.2 Performance"])
+async def v0_2_get_stage_timing_analysis(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get timing analysis for different request processing stages"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/performance/stages",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/performance/live", tags=["v0.2 Performance"])
+async def v0_2_get_live_metrics(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get real-time metrics for currently active requests"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/performance/live",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/performance/health", tags=["v0.2 Performance"])
+async def v0_2_get_performance_health(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get performance health indicators and alerts"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/performance/health",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.delete("/api/v0.2/performance/reset", tags=["v0.2 Performance"])
+async def v0_2_reset_performance_metrics(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Reset/clear historical performance data"""
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2/performance/reset",
+        method="DELETE",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
 
 # ========================================================================================
 # API v1 ENDPOINTS - Maintain LLM Platform compatibility
@@ -228,7 +1037,7 @@ async def chat(
     
     return await forward_request_to_service(
         service_name="chat",
-        path="/chat",  # Route to chat endpoint
+        path="/chat/",  # Route to chat endpoint
         method="POST",
         json_data=body,
         headers=headers
@@ -252,7 +1061,7 @@ async def chat_completions(
     
     return await forward_request_to_service(
         service_name="chat",
-        path="/chat",  # Route to chat endpoint
+        path="/chat/",  # Route to chat endpoint
         method="POST",
         json_data=body,
         headers=headers
@@ -266,7 +1075,7 @@ async def chat_status(
     """Get chat history status."""
     return await forward_request_to_service(
         service_name="chat",
-        path="/status",
+        path="/chat/status",
         method="GET",
         headers=dict(request.headers),
         params=dict(request.query_params)
@@ -280,7 +1089,7 @@ async def clear_chat_history(
     """Clear chat history."""
     return await forward_request_to_service(
         service_name="chat",
-        path="/history",
+        path="/chat/history",
         method="DELETE",
         headers=dict(request.headers)
     )
@@ -293,7 +1102,7 @@ async def reload_prompt(
     """Reload system prompt."""
     return await forward_request_to_service(
         service_name="chat",
-        path="/reload-prompt",
+        path="/chat/reload-prompt",
         method="POST",
         headers=dict(request.headers)
     )
@@ -338,7 +1147,7 @@ async def get_assets(
     """Forward asset requests to asset service."""
     return await forward_request_to_service(
         service_name="asset",
-        path="/assets",
+        path="/api/v1/assets",
         method="GET",
         headers=dict(request.headers),
         params=dict(request.query_params)
@@ -403,6 +1212,40 @@ async def refresh_auth(request: Request):
         headers=dict(request.headers)
     )
 
+@app.post("/api/v1/auth/register", tags=["Authentication"])
+async def register_user(request: Request):
+    """Forward user registration to auth service."""
+    body = await request.json()
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="auth",
+        path="/auth/register",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v1/auth/login", tags=["Authentication"])
+async def login_user(request: Request):
+    """Forward user login to auth service."""
+    body = await request.json()
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="auth",
+        path="/auth/login",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
 # Filesystem endpoints - forward to chat service (MCP handles filesystem)
 @app.get("/api/v1/filesystem", tags=["Filesystem"])
 async def list_files(
@@ -455,7 +1298,7 @@ async def calculator_add(request: Request):
 @app.on_event("startup")
 async def startup_event():
     """Initialize gateway service and connections."""
-    log_service_startup("gateway", "1.0.0", settings.SERVICE_PORT)
+    log_service_startup("gateway", "0.2", settings.SERVICE_PORT)
     
     # Initialize NATS connection
     try:

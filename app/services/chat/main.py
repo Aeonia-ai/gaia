@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Gaia Chat Service",
     description="Multi-provider LLM orchestration with MCP tool integration",
-    version="1.0.0",
+    version="0.2",
     lifespan=lifespan
 )
 
@@ -69,7 +69,7 @@ async def health_check():
     return {
         "service": "chat",
         "status": "healthy",
-        "version": "1.0.0",
+        "version": "0.2",
         "database": {"status": "connected"},
         "nats": {"status": "connected" if nats_client.is_connected else "disconnected"}
     }
@@ -77,18 +77,26 @@ async def health_check():
 # Import and include routers
 try:
     from .chat import router as chat_router
-    app.include_router(chat_router, prefix="")  # No prefix since we're calling /chat directly
+    app.include_router(chat_router, prefix="/chat")  # Chat endpoints under /chat prefix
     logger.info("✅ Chat router included")
 except ImportError as e:
     logger.warning(f"⚠️ Could not import chat router: {e}")
 
-# Include personas router
+# Include v0.2 API router
 try:
-    from .personas import router as personas_router
-    app.include_router(personas_router, prefix="/personas")
-    logger.info("✅ Personas router included")
+    from app.api.v0_2.api import api_router as v0_2_router
+    app.include_router(v0_2_router)
+    logger.info("✅ v0.2 API router included")
 except ImportError as e:
-    logger.warning(f"⚠️ Could not import personas router: {e}")
+    logger.warning(f"⚠️ Could not import v0.2 API router: {e}")
+
+# Include personas router (disabled until persona models are implemented)
+# try:
+#     from .personas import router as personas_router
+#     app.include_router(personas_router, prefix="/personas")
+#     logger.info("✅ Personas router included")
+# except ImportError as e:
+#     logger.warning(f"⚠️ Could not import personas router: {e}")
 
 if __name__ == "__main__":
     import uvicorn

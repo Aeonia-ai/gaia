@@ -179,8 +179,7 @@ async def validate_supabase_jwt(
 async def get_current_auth(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Security(oauth2_scheme),
-    api_key_header: Optional[str] = Security(api_key_header),
-    db: Session = None
+    api_key_header: Optional[str] = Security(api_key_header)
 ) -> AuthenticationResult:
     """
     Provides authentication for JWT, global API keys, or user-associated API keys.
@@ -214,13 +213,23 @@ async def get_current_auth(
                 return AuthenticationResult(auth_type="api_key", api_key=api_key_header)
             
             # If global API key failed, try user-associated API key
-            if db is not None:
+            try:
+                from app.shared.database import get_database_session
+                db_gen = get_database_session()
+                db = next(db_gen)
+                
                 logger.debug("Trying user-associated API key validation")
                 user_api_result = await validate_user_api_key(api_key_header, db)
                 
                 if user_api_result:
                     logger.debug(f"Authenticated via user API key: {user_api_result.user_id}")
                     return user_api_result
+            except Exception as e:
+                logger.debug(f"User API key validation failed: {e}")
+                pass
+            finally:
+                if 'db' in locals() and db:
+                    db.close()
             
             # If both failed, raise error
             logger.warning("Invalid API Key provided.")
@@ -308,14 +317,13 @@ async def get_current_auth_legacy(
     Returns dict format identical to LLM Platform.
     """
     # Get database session using proper dependency injection
-    from app.shared.database import get_db
+    from app.shared.database import get_database_session
     
-    # Get database session generator and use it
-    db_gen = get_db()
-    db = next(db_gen)
+    # Get database session
+    db = get_database_session()
     
     try:
-        auth_result = await get_current_auth(request, credentials, api_key_header, db)
+        auth_result = await get_current_auth(request, credentials, api_key_header)
         
         if auth_result.auth_type == "jwt":
             return {"auth_type": "jwt", "user_id": auth_result.user_id}
@@ -325,10 +333,8 @@ async def get_current_auth_legacy(
             return {"auth_type": "api_key", "key": auth_result.api_key}
     finally:
         # Clean up the database session
-        try:
-            next(db_gen)
-        except StopIteration:
-            pass
+        if db:
+            db.close()
 
 # API Key management functions
 def generate_api_key(prefix: str = "gaia") -> str:

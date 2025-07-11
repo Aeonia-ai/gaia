@@ -44,7 +44,7 @@ logger = configure_logging_for_service("auth")
 app = FastAPI(
     title="Gaia Auth Service",
     description="Authentication service for Gaia Platform",
-    version="1.0.0"
+    version="0.2"
 )
 
 # ========================================================================================
@@ -98,7 +98,7 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "database": db_health,
         "supabase": supabase_health,
-        "version": "1.0.0"
+        "version": "0.2"
     }
 
 @app.get("/status", tags=["Status"])
@@ -106,7 +106,7 @@ async def service_status():
     """Detailed service status information."""
     return {
         "service": "auth",
-        "version": "1.0.0",
+        "version": "0.2",
         "environment": settings.ENVIRONMENT,
         "debug": settings.DEBUG,
         "features": {
