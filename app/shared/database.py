@@ -12,8 +12,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Database URL from environment
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/llm_platform")
+# Database URL from environment with postgres:// -> postgresql:// conversion
+raw_database_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/llm_platform")
+# Convert postgres:// to postgresql:// for SQLAlchemy compatibility
+DATABASE_URL = raw_database_url.replace("postgres://", "postgresql://", 1) if raw_database_url.startswith("postgres://") else raw_database_url
 
 # SQLAlchemy engine configuration
 # Use same patterns as LLM Platform for compatibility

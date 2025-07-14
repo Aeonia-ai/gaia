@@ -42,7 +42,6 @@ from .nats_client import (
 )
 from .security import (
     AuthenticationResult,
-    get_api_key,
     validate_supabase_jwt,
     get_current_auth,
     get_current_auth_legacy,
@@ -92,7 +91,6 @@ __all__ = [
     
     # Security
     "AuthenticationResult",
-    "get_api_key",
     "validate_supabase_jwt",
     "get_current_auth",
     "get_current_auth_legacy",

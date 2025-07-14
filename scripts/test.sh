@@ -1,7 +1,39 @@
 #!/bin/bash
-# Simple API test script for Gaia Platform
+# Smart API test script for Gaia Platform - Local and Remote testing
 
+# Default to local development
 BASE_URL="http://localhost:8666"
+ENVIRONMENT="local"
+
+# Parse command line arguments for environment
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --local)
+            BASE_URL="http://localhost:8666"
+            ENVIRONMENT="local"
+            shift
+            ;;
+        --staging)
+            BASE_URL="https://gaia-gateway-staging.fly.dev"
+            ENVIRONMENT="staging"
+            shift
+            ;;
+        --prod)
+            BASE_URL="https://gaia-gateway-prod.fly.dev"
+            ENVIRONMENT="production"
+            shift
+            ;;
+        --url)
+            BASE_URL="$2"
+            ENVIRONMENT="custom"
+            shift 2
+            ;;
+        *)
+            # If it's not a flag, treat it as the test command
+            break
+            ;;
+    esac
+done
 
 # Load API key from .env file
 if [ -f ".env" ]; then
@@ -10,6 +42,16 @@ fi
 
 # Fallback API key if not in .env
 API_KEY="${API_KEY:-FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE}"
+
+# Environment-specific API keys
+case $ENVIRONMENT in
+    "staging")
+        API_KEY="${STAGING_API_KEY:-$API_KEY}"
+        ;;
+    "production")
+        API_KEY="${PROD_API_KEY:-$API_KEY}"
+        ;;
+esac
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -21,6 +63,30 @@ function print_header() {
     echo -e "${BLUE}=== $1 ===${NC}"
 }
 
+function print_environment() {
+    echo -e "${GREEN}🌍 Testing Environment: ${ENVIRONMENT}${NC}"
+    echo -e "${GREEN}🔗 Base URL: ${BASE_URL}${NC}"
+    echo -e "${GREEN}🔑 API Key: ${API_KEY:0:8}...${NC}"
+    
+    # Environment-specific expectations
+    case $ENVIRONMENT in
+        "local")
+            echo -e "${BLUE}💡 Expected: Full microservices, NATS enabled${NC}"
+            ;;
+        "staging")
+            echo -e "${BLUE}💡 Expected: Gateway only, some service failures normal${NC}"
+            echo -e "${BLUE}⚠️  Note: Asset/persona endpoints may fail (services not deployed)${NC}"
+            ;;
+        "production")
+            echo -e "${BLUE}💡 Expected: All services operational${NC}"
+            ;;
+        "custom")
+            echo -e "${BLUE}💡 Expected: Unknown - check manually${NC}"
+            ;;
+    esac
+    echo ""
+}
+
 function test_endpoint() {
     local method=$1
     local path=$2
@@ -29,22 +95,38 @@ function test_endpoint() {
     
     print_header "$description"
     
+    local response
+    local status_code
+    
     if [ "$method" = "GET" ]; then
-        curl -X GET "${BASE_URL}${path}" \
+        response=$(curl -s -w "\n%{http_code}" -X GET "${BASE_URL}${path}" \
             -H "x-api-key: ${API_KEY}" \
-            -H "Content-Type: application/json" \
-            2>/dev/null | jq . 2>/dev/null || echo "Failed to parse JSON"
+            -H "Content-Type: application/json")
     elif [ "$method" = "POST" ]; then
-        curl -X POST "${BASE_URL}${path}" \
+        response=$(curl -s -w "\n%{http_code}" -X POST "${BASE_URL}${path}" \
             -H "x-api-key: ${API_KEY}" \
             -H "Content-Type: application/json" \
-            -d "$data" \
-            2>/dev/null | jq . 2>/dev/null || echo "Failed to parse JSON"
+            -d "$data")
     elif [ "$method" = "DELETE" ]; then
-        curl -X DELETE "${BASE_URL}${path}" \
+        response=$(curl -s -w "\n%{http_code}" -X DELETE "${BASE_URL}${path}" \
             -H "x-api-key: ${API_KEY}" \
-            -H "Content-Type: application/json" \
-            2>/dev/null | jq . 2>/dev/null || echo "Failed to parse JSON"
+            -H "Content-Type: application/json")
+    fi
+    
+    # Extract status code (last line) and body (everything else)
+    status_code=$(echo "$response" | tail -n1)
+    local body=$(echo "$response" | sed '$d')
+    
+    # Environment-specific status handling
+    if [[ $status_code -ge 200 && $status_code -lt 300 ]]; then
+        echo -e "${GREEN}✅ Status: $status_code${NC}"
+        echo "$body" | jq . 2>/dev/null || echo "$body"
+    elif [[ $ENVIRONMENT == "staging" && ($path == *"/assets/"* || $path == *"/personas/"* || $path == *"/performance/"*) ]]; then
+        echo -e "${BLUE}⚠️  Status: $status_code (Expected in staging - service not deployed)${NC}"
+        echo "$body" | jq . 2>/dev/null || echo "$body"
+    else
+        echo -e "${RED}❌ Status: $status_code${NC}"
+        echo "$body" | jq . 2>/dev/null || echo "$body"
     fi
     echo ""
 }
@@ -213,13 +295,14 @@ case "$1" in
         test_endpoint "DELETE" "/api/v0.2/chat/stream/history" "" "Clear History"
         ;;
     "all")
+        print_environment
         echo -e "${GREEN}Running all tests...${NC}\n"
-        $0 health
-        $0 status
-        $0 providers
-        $0 provider-health
-        $0 models
-        $0 cache
+        $0 --$ENVIRONMENT health
+        $0 --$ENVIRONMENT status
+        $0 --$ENVIRONMENT providers
+        $0 --$ENVIRONMENT provider-health
+        $0 --$ENVIRONMENT models
+        $0 --$ENVIRONMENT cache
         ;;
     "providers-all")
         echo -e "${GREEN}Testing all provider endpoints...${NC}\n"
@@ -271,7 +354,13 @@ case "$1" in
         $0 auth-login
         ;;
     *)
-        echo "Usage: $0 {health|chat|stream|providers|models|pricing|usage|all} [args]"
+        echo "Usage: $0 [--local|--staging|--prod|--url URL] {health|chat|stream|providers|models|pricing|usage|all} [args]"
+        echo ""
+        echo "Environment Options:"
+        echo "  --local                      # Test local development (default)"
+        echo "  --staging                    # Test staging deployment"
+        echo "  --prod                       # Test production deployment"
+        echo "  --url URL                    # Test custom URL"
         echo ""
         echo "Core Tests:"
         echo "  $0 health                    # Check service health"

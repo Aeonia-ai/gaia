@@ -1,0 +1,47 @@
+# Fly.io Simple Deployment - Gateway with embedded services
+# App: gaia-simple-staging
+
+app = 'gaia-simple-staging'
+primary_region = 'sjc'
+
+[build]
+  dockerfile = "Dockerfile.simple"
+
+[env]
+  ENVIRONMENT = "staging"
+  SERVICE_NAME = "gateway"
+  LOG_LEVEL = "INFO"
+  
+  # Simplified configuration - all services embedded
+  AUTH_SERVICE_URL = "http://localhost:8000"
+  ASSET_SERVICE_URL = "http://localhost:8000"  
+  CHAT_SERVICE_URL = "http://localhost:8000"
+  
+  # External services
+  DATABASE_URL = "postgresql://postgres:password@localhost:5432/gaia"
+  NATS_URL = "disabled"  # Disable NATS for simple deployment
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'suspend'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '2gb'
+  cpu_kind = 'shared'
+  cpus = 2
+
+[deploy]
+  strategy = "rolling"
+
+# Health checks
+[[services.http_checks]]
+  interval = "10s"
+  grace_period = "5s"
+  method = "GET"
+  path = "/health"
+  protocol = "https"
+  timeout = "2s"

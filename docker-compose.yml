@@ -89,11 +89,12 @@ services:
       - gaia_net
     command: uvicorn app.services.chat.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # PostgreSQL Database (same as LLM Platform)
+  # PostgreSQL Database (with Gaia Platform schema)
   db:
     image: postgres:15
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-local-database.sql:/docker-entrypoint-initdb.d/init-gaia.sql
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -126,7 +127,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
       - NATS_URL=nats://nats:4222
-      - API_KEY=test_key
+      - API_KEY=FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE
       - MCP_FILESYSTEM_ROOT=/app/data
       - GATEWAY_URL=http://gateway:8000
     depends_on:

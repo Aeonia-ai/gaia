@@ -1,29 +1,30 @@
-# Fly.io Staging Environment Configuration
-# App: gaia-gateway-staging
+# Fly.io Production Environment Configuration
+# App: gaia-gateway-production
+# Organization: aeonia-dev
 
-app = 'gaia-gateway-staging'
+app = 'gaia-gateway-production'
 primary_region = 'lax'
 
 [build]
   dockerfile = "Dockerfile.gateway"
 
 [env]
-  ENVIRONMENT = "staging"
+  ENVIRONMENT = "production"
   SERVICE_NAME = "gateway"
   LOG_LEVEL = "INFO"
   
-  # For now, use embedded services (all in gateway)
+  # For initial deployment, use embedded services (all in gateway)
+  # Change these URLs when deploying full microservices
   AUTH_SERVICE_URL = "http://localhost:8000"
   ASSET_SERVICE_URL = "http://localhost:8000"
   CHAT_SERVICE_URL = "http://localhost:8000"
   
   # Database - Fly.io Managed Postgres (co-located in LAX)
+  # Using staging database for now - create separate production DB for real production use
   DATABASE_URL = "postgresql://postgres:Tr2p9Z2kfS8Qe88IxQFrKZVG@direct.9jknq0352lnr68w3.flympg.net:5432/postgres"
   
-  # Supabase for JWT auth only
-  # SUPABASE_URL = "https://[project].supabase.co"
-  # SUPABASE_ANON_KEY = "[anon_key]" 
-  # SUPABASE_JWT_SECRET = "[jwt_secret]"
+  # Supabase for JWT auth only - set via secrets
+  # fly secrets set SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_JWT_SECRET=...
   
   # Disable NATS for initial cloud deployment
   NATS_URL = "disabled"
@@ -33,18 +34,18 @@ primary_region = 'lax'
   force_https = true
   auto_stop_machines = 'suspend'
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 2  # Production: higher availability
   processes = ['app']
 
 [[vm]]
-  memory = '1gb'
+  memory = '2gb'  # Production: more memory
   cpu_kind = 'shared'
-  cpus = 1
+  cpus = 2        # Production: more CPU
 
 [deploy]
-  strategy = "canary"
+  strategy = "rolling"  # Production: safer deployment strategy
 
-# Health checks for staging
+# Health checks for production
 [[services.http_checks]]
   interval = "10s"
   grace_period = "5s"
@@ -52,3 +53,4 @@ primary_region = 'lax'
   path = "/health"
   protocol = "https"
   timeout = "2s"
+

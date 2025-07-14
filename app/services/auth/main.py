@@ -27,7 +27,6 @@ from app.shared import (
     log_service_shutdown,
     log_auth_event,
     get_current_auth,
-    get_api_key,
     validate_supabase_jwt,
     get_supabase_client,
     ensure_nats_connection,
@@ -153,22 +152,33 @@ async def validate_authentication(request: AuthValidationRequest):
             logger.warning(f"JWT validation failed: {e.detail}")
             log_auth_event("auth", "jwt", success=False)
     
-    # Try API key validation
+    # Try API key validation using user-associated database authentication
     if request.api_key:
         try:
-            expected_key = settings.API_KEY
-            if request.api_key == expected_key:
-                log_auth_event("auth", "api_key", success=True)
+            from app.shared.database import get_database_session
+            from app.shared.security import validate_user_api_key
+            
+            # Get database session
+            db_gen = get_database_session()
+            db = next(db_gen)
+            
+            # Validate user-associated API key
+            user_api_result = await validate_user_api_key(request.api_key, db)
+            
+            if user_api_result:
+                log_auth_event("auth", "api_key", user_api_result.user_id, success=True)
                 
                 return AuthValidationResponse(
                     valid=True,
-                    auth_type="api_key"
+                    auth_type="api_key",
+                    user_id=user_api_result.user_id
                 )
             else:
                 log_auth_event("auth", "api_key", success=False)
                 
         except Exception as e:
             logger.error(f"API key validation error: {e}")
+            log_auth_event("auth", "api_key", success=False)
     
     # No valid authentication found
     return AuthValidationResponse(

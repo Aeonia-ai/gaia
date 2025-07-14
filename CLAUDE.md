@@ -2,38 +2,86 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ CRITICAL: Command Version Requirements
+
+**ALWAYS use these command versions:**
+- `docker compose` (with space) - NOT `docker-compose` (with hyphen)
+- `fly postgres` or `fly mpg` - NOT `fly pg`
+- `python -m pip` - NOT direct `pip`
+- Test script - NOT direct `curl` commands
+
+See [Command Reference](docs/command-reference.md) for complete list.
+
 ## Development Commands
 
+### Portable Database Management
+
+**⚠️ IMPORTANT: Use portable database scripts for environment consistency**
+
+```bash
+# Initialize database for any environment
+./scripts/init-database-portable.sh --env dev --user admin@gaia.dev
+./scripts/init-database-portable.sh --env staging --user admin@gaia.com --provider fly
+./scripts/init-database-portable.sh --env prod --user admin@gaia.com --provider aws
+
+# Apply schema migrations
+./scripts/migrate-database.sh --env dev --migration migrations/001_add_feature.sql
+./scripts/migrate-database.sh --env prod --migration migrations/001_add_feature.sql --dry-run
+
+# Monitor database health and performance
+./scripts/monitor-database.sh --env dev --report health
+./scripts/monitor-database.sh --env prod --report performance
+```
+
+See [Portable Database Architecture](docs/portable-database-architecture.md) for complete details.
+
 ### Docker Compose Operations
+
+**⚠️ IMPORTANT: Use `docker compose` (space) not `docker-compose` (hyphen)**
+
 ```bash
 # Start all services
-docker-compose up
+docker compose up
 
 # Start specific services
-docker-compose up gateway auth-service
-docker-compose up db nats  # Infrastructure only
+docker compose up gateway auth-service
+docker compose up db nats  # Infrastructure only
 
 # Rebuild services
-docker-compose build
-docker-compose build --no-cache  # Force rebuild
+docker compose build
+docker compose build --no-cache  # Force rebuild
 
 # View logs
-docker-compose logs -f gateway
-docker-compose logs -f auth-service
+docker compose logs -f gateway
+docker compose logs -f auth-service
 ```
+
+See [Command Reference](docs/command-reference.md) for correct command syntax.
 
 ### Testing
 ```bash
 # Run full test suite
-docker-compose run test
+docker compose run test
 
 # Run specific test files
-docker-compose run test pytest tests/test_auth.py
-docker-compose run test pytest tests/test_integration.py
+docker compose run test pytest tests/test_auth.py
+docker compose run test pytest tests/test_integration.py
 
 # Run with specific markers
-docker-compose run test pytest -m integration
-docker-compose run test pytest -m compatibility
+docker compose run test pytest -m integration
+docker compose run test pytest -m compatibility
+```
+
+### Local Docker Development
+```bash
+# Start full microservices stack locally
+docker compose up
+
+# Test local deployment with user-associated authentication
+./scripts/test.sh --local providers        # API key: FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE
+
+# Gateway available at: http://localhost:8666 (LLM Platform compatible)
+# Database auto-initialized with user: dev@gaia.local
 ```
 
 ### Development Workflow
@@ -41,10 +89,16 @@ docker-compose run test pytest -m compatibility
 # Initial setup
 ./scripts/setup.sh
 
-# Health check
-curl http://localhost:8666/health
+# Smart testing (PREFERRED - use test script, not curl)
+./scripts/test.sh --local health           # Local development
+./scripts/test.sh --staging health         # Staging deployment
+./scripts/test.sh --prod health            # Production deployment
 
-# Manual service health checks
+# Environment-aware testing
+./scripts/test.sh --local all              # Full local test suite
+./scripts/test.sh --staging all            # Staging tests (expects some failures)
+
+# Manual service health checks (if needed)
 curl http://auth-service:8000/health
 curl http://asset-service:8000/health
 curl http://chat-service:8000/health
@@ -61,14 +115,153 @@ curl http://chat-service:8000/health
 
 ### Key Design Patterns
 - **Backward Compatibility**: All API endpoints match LLM Platform exactly
-- **Dual Authentication**: JWT tokens (users) + API keys (services)
+- **User-Associated Authentication**: JWT tokens (users) + user-associated API keys (stored in database)
 - **NATS Messaging**: Service coordination via subjects like `gaia.service.health`, `gaia.auth.*`
 - **Shared Utilities**: Common functionality in `app/shared/`
+- **Portable Database**: Same schema across local, dev, staging, production
 
 ### Service Communication
 - **HTTP**: Direct service-to-service calls via configured URLs
 - **NATS**: Event-driven coordination for health, auth events, processing updates
 - **Database**: Shared PostgreSQL with LLM Platform-compatible schema
+
+## Smart Scripts & Deployment
+
+### Overview
+Gaia Platform includes intelligent scripts that handle environment-aware testing, deployment, and management based on lessons learned from production deployments.
+
+### Smart Testing Script (`scripts/test.sh`)
+Environment-aware API testing with intelligent failure handling:
+
+```bash
+# Environment options
+./scripts/test.sh --local all              # Full local testing
+./scripts/test.sh --staging all            # Staging (expects partial failures)
+./scripts/test.sh --prod all               # Production (expects full functionality)
+./scripts/test.sh --url URL all            # Custom environment
+
+# Individual tests
+./scripts/test.sh --staging health         # Health check with context
+./scripts/test.sh --local chat "Hello"     # Chat functionality
+./scripts/test.sh --prod stream "Test"     # Streaming chat
+
+# Test categories
+./scripts/test.sh --local providers-all    # All provider endpoints
+./scripts/test.sh --staging personas-all   # Persona management (may fail in staging)
+./scripts/test.sh --prod performance-all   # Performance monitoring
+```
+
+**Key Features:**
+- 🌍 **Environment Detection**: Automatically sets expectations per environment
+- ⚠️ **Smart Failure Handling**: Staging failures marked as expected vs actual errors
+- 🎨 **Color-coded Results**: Green (success), Yellow (expected failure), Red (error)
+- 🔑 **Environment-specific Auth**: Different API keys per environment
+
+### Smart Deployment Script (`scripts/deploy.sh`)
+Intelligent deployment with lessons learned from cloud deployments:
+
+```bash
+# Basic deployments
+./scripts/deploy.sh --env staging                    # Gateway-only deployment
+./scripts/deploy.sh --env production --services all  # Full microservices
+
+# Advanced options
+./scripts/deploy.sh --env staging --region lax --rebuild
+./scripts/deploy.sh --env production --database fly --services "gateway auth"
+```
+
+**Deployment Patterns:**
+- 🚀 **Gateway-Only**: Fast deployment, embedded services, NATS disabled
+- 🏗️ **Full Microservices**: Independent services, NATS enabled, service mesh
+- 🌎 **Co-located Database**: Fly.io Postgres in same region for <1ms latency
+- 🔐 **Secret Management**: Automatic .env secret deployment to Fly.io
+
+### Management Script (`scripts/manage.sh`)
+Comprehensive platform management combining deploy, test, and monitor:
+
+```bash
+# Deployment workflows
+./scripts/manage.sh deploy-and-test staging    # Deploy + comprehensive test
+./scripts/manage.sh status                     # Overview of all environments
+
+# Testing workflows  
+./scripts/manage.sh quick-test production      # Fast health checks
+./scripts/manage.sh full-test staging          # Complete test suite
+
+# Operations
+./scripts/manage.sh monitor staging            # Real-time monitoring
+./scripts/manage.sh scale production gateway 5 # Scale to 5 instances
+./scripts/manage.sh logs staging gateway       # Stream logs
+./scripts/manage.sh rollback staging           # Emergency rollback
+```
+
+**Smart Features:**
+- 🧪 **Deploy-and-Test**: Automated deployment with validation
+- 📊 **Multi-Environment Status**: Real-time health across local/staging/prod
+- 🔄 **Zero-Downtime Operations**: Safe scaling and rollbacks
+- 📱 **Environment-Aware Testing**: Different test expectations per environment
+
+### Cloud Deployment Lessons Learned
+
+**Database Co-location:**
+```toml
+# Optimal: Both app and database in same region
+app = 'gaia-gateway-staging'
+primary_region = 'lax'
+
+# Database URL: Co-located Fly.io Postgres in LAX
+DATABASE_URL = "postgresql://postgres:...@direct.xxx.flympg.net:5432/postgres"
+```
+
+**NATS Configuration:**
+```toml
+# Local development: Full NATS coordination
+NATS_URL = "nats://localhost:4222"
+
+# Cloud deployment: NATS disabled for gateway-only pattern
+NATS_URL = "disabled"
+```
+
+**Service Expectations by Environment:**
+- **Local**: Full microservices, all endpoints working
+- **Staging**: Gateway-only, asset/persona endpoints may fail (expected)
+- **Production**: All services operational, full functionality
+
+## Fly.io Deployment Configuration
+
+### Organization Setup
+The Gaia Platform is deployed under the **aeonia-dev** organization on Fly.io:
+- **Organization Name**: aeonia-dev
+- **Organization Type**: SHARED
+- **Primary Region**: LAX (Los Angeles)
+
+### Database Management
+Fly.io has migrated to Managed Postgres (mpg). Key commands:
+
+```bash
+# List managed Postgres databases
+fly mpg list
+
+# Create new managed Postgres database
+fly postgres create \
+  --name gaia-db-production \
+  --region lax \
+  --vm-size shared-cpu-1x \
+  --volume-size 10 \
+  --initial-cluster-size 1 \
+  --org aeonia-dev
+
+# Connect to database
+fly postgres connect -a gaia-db-production
+
+# Get connection string
+fly postgres connect -a gaia-db-production --command "echo \$DATABASE_URL"
+```
+
+### Existing Infrastructure
+- **Staging Database**: Check with `fly mpg list` for existing databases
+- **Production Database**: May already exist - verify before creating new one
+- **Database Naming**: gaia-db-{environment} (e.g., gaia-db-staging, gaia-db-production)
 
 ## Configuration
 
@@ -144,15 +337,15 @@ curl http://chat-service:8000/health
 ```bash
 # Services won't start
 docker info  # Check Docker status
-docker-compose build --no-cache
+docker compose build --no-cache
 
 # Database connection issues
-docker-compose logs db
-docker-compose down -v && docker-compose up db
+docker compose logs db
+docker compose down -v && docker compose up db
 
 # NATS connection problems
-docker-compose logs nats
-docker-compose exec nats nats-server --help
+docker compose logs nats
+docker compose exec nats nats-server --help
 ```
 
 ### Performance Monitoring
@@ -160,8 +353,13 @@ docker-compose exec nats nats-server --help
 # Resource usage
 docker stats
 
-# Service health
-curl localhost:8666/health
+# Service health (use smart test script)
+./scripts/test.sh --local health
+
+# Smart deployment management
+./scripts/manage.sh status              # Overview of all environments
+./scripts/manage.sh quick-test staging  # Quick health checks
+./scripts/manage.sh monitor staging     # Detailed monitoring
 
 # NATS monitoring
 curl localhost:8222/varz  # NATS HTTP monitoring
@@ -191,14 +389,14 @@ FastHTML Frontend (8080) → Gateway (8666) → Services
 ### Development Commands
 ```bash
 # Start with web service
-docker-compose up web-service
+docker compose up web-service
 
 # Access points
 # FastHTML frontend: http://localhost:8080
 # API gateway: http://localhost:8666
 
 # Web service logs
-docker-compose logs -f web-service
+docker compose logs -f web-service
 
 # Test web service health
 curl http://localhost:8080/health

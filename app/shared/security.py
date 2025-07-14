@@ -53,14 +53,6 @@ def hash_api_key(api_key: str) -> str:
     """Hash an API key for secure storage."""
     return hashlib.sha256(api_key.encode()).hexdigest()
 
-def validate_api_key(api_key: Optional[str], expected_key: Optional[str]) -> bool:
-    """
-    Validate API key with clear, testable logic.
-    Identical to LLM Platform implementation for compatibility.
-    """
-    if not expected_key:
-        return False
-    return api_key == expected_key
 
 async def validate_user_api_key(api_key: str, db: Session) -> Optional[AuthenticationResult]:
     """
@@ -110,31 +102,6 @@ async def validate_user_api_key(api_key: str, db: Session) -> Optional[Authentic
         logger.error(f"Error validating user API key: {str(e)}")
         return None
 
-def get_api_key(
-    api_key_header: Optional[str] = Security(APIKeyHeader(name="X-API-Key", auto_error=False))
-) -> str:
-    """
-    Validate API key for endpoint access.
-    Compatible with LLM Platform implementation.
-    """
-    try:
-        expected_key = os.getenv('API_KEY')
-        
-        if validate_api_key(api_key_header, expected_key):
-            return api_key_header
-        
-        raise HTTPException(
-            status_code=403, 
-            detail="Could not validate credentials"
-        )
-        
-    except HTTPException as e:
-        if e.status_code == 500:
-            raise HTTPException(
-                status_code=500,
-                detail="API Key not configured in environment"
-            )
-        raise e
 
 async def validate_supabase_jwt(
     credentials: HTTPAuthorizationCredentials = Security(oauth2_scheme)
@@ -199,59 +166,36 @@ async def get_current_auth(
             logger.debug(f"JWT validation failed: {e.detail}")
             # Continue to API key validation
     
-    # Try API key authentication
+    # Try user-associated API key authentication
     if api_key_header:
         try:
-            # First try global API key (backward compatibility)
-            expected_key = os.getenv('API_KEY')
-            logger.debug(f"API Key validation attempt")
+            from app.shared.database import get_database_session
+            db_gen = get_database_session()
+            db = next(db_gen)
             
-            is_valid_global_api_key = validate_api_key(api_key_header, expected_key)
-
-            if is_valid_global_api_key:
-                logger.debug("Authenticated via global API Key")
-                return AuthenticationResult(auth_type="api_key", api_key=api_key_header)
+            logger.debug("Validating user-associated API key")
+            user_api_result = await validate_user_api_key(api_key_header, db)
             
-            # If global API key failed, try user-associated API key
-            try:
-                from app.shared.database import get_database_session
-                db_gen = get_database_session()
-                db = next(db_gen)
-                
-                logger.debug("Trying user-associated API key validation")
-                user_api_result = await validate_user_api_key(api_key_header, db)
-                
-                if user_api_result:
-                    logger.debug(f"Authenticated via user API key: {user_api_result.user_id}")
-                    return user_api_result
-            except Exception as e:
-                logger.debug(f"User API key validation failed: {e}")
-                pass
-            finally:
-                if 'db' in locals() and db:
-                    db.close()
-            
-            # If both failed, raise error
-            logger.warning("Invalid API Key provided.")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Could not validate credentials"
-            )
-            
-        except HTTPException as e:
-            if e.status_code == 500:
-                logger.error("API Key not configured.")
+            if user_api_result:
+                logger.debug(f"Authenticated via user API key: {user_api_result.user_id}")
+                return user_api_result
+            else:
+                logger.warning("Invalid API Key provided - not found in database")
                 raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="API Key not configured in environment"
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Could not validate credentials"
                 )
-            raise e
+        except HTTPException:
+            raise  # Re-raise HTTP exceptions as-is
         except Exception as e:
-            logger.error(f"Unexpected error during API Key validation: {str(e)}")
+            logger.error(f"Database error during API Key validation: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal server error during API Key authentication"
+                detail="Internal server error during authentication"
             )
+        finally:
+            if 'db' in locals() and db:
+                db.close()
     
     logger.warning("No authentication credentials provided.")
     raise HTTPException(
@@ -276,16 +220,22 @@ async def validate_auth_for_service(auth_data: Dict[str, Any]) -> Authentication
             )
         return AuthenticationResult(auth_type="jwt", user_id=user_id)
     
-    elif auth_type == "api_key":
+    elif auth_type == "user_api_key":
+        user_id = auth_data.get("user_id")
         api_key = auth_data.get("api_key")
-        expected_key = os.getenv('API_KEY')
+        api_key_id = auth_data.get("api_key_id")
         
-        if not validate_api_key(api_key, expected_key):
+        if not user_id or not api_key:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid API key in service authentication"
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid user API key authentication data"
             )
-        return AuthenticationResult(auth_type="api_key", api_key=api_key)
+        return AuthenticationResult(
+            auth_type="user_api_key", 
+            user_id=user_id, 
+            api_key=api_key,
+            api_key_id=api_key_id
+        )
     
     else:
         raise HTTPException(
@@ -330,7 +280,10 @@ async def get_current_auth_legacy(
         elif auth_result.auth_type == "user_api_key":
             return {"auth_type": "user_api_key", "user_id": auth_result.user_id, "key": auth_result.api_key}
         else:
-            return {"auth_type": "api_key", "key": auth_result.api_key}
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Unsupported auth type: {auth_result.auth_type}"
+            )
     finally:
         # Clean up the database session
         if db:

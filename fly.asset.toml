@@ -1,0 +1,39 @@
+# Fly.io Asset Service Configuration
+# App: gaia-asset-staging
+
+app = 'gaia-asset-staging'
+primary_region = 'sjc'
+
+[build]
+  dockerfile = "Dockerfile.asset"
+
+[env]
+  ENVIRONMENT = "staging"
+  SERVICE_NAME = "asset"
+  LOG_LEVEL = "INFO"
+  SERVICE_PORT = "8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'suspend'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[deploy]
+  strategy = "canary"
+
+# Health checks for asset service
+[[services.http_checks]]
+  interval = "10s"
+  grace_period = "5s"
+  method = "GET"
+  path = "/health"
+  protocol = "https"
+  timeout = "2s"

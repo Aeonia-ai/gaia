@@ -10,18 +10,30 @@ Welcome to the Gaia Platform documentation! This directory contains comprehensiv
 ### 🚀 **Getting Started** 
 - **[CLAUDE.md](../CLAUDE.md)** - Main development guide with setup instructions, service overview, and development commands
 
-### 🔧 **Operations**
-- **[Testing Guide](../scripts/test.sh)** - Comprehensive test script with 80+ endpoint tests
+### 🔧 **Operations & Deployment**
+- **[Deployment Pipeline](deployment-pipeline.md)** - Complete dev→staging→production workflow
+- **[Smart Testing](../scripts/test.sh)** - Environment-aware testing with 80+ endpoint tests
+- **[Smart Deployment](../scripts/deploy.sh)** - Intelligent deployment with cloud best practices
+- **[Platform Management](../scripts/manage.sh)** - Comprehensive platform operations and monitoring
+- **[Production Guide](production-deployment.md)** - Step-by-step production deployment
 - **[Docker Compose](../docker-compose.yml)** - Service orchestration and local development setup
 
 ## 🎯 Quick Navigation
 
 ### For Developers
 ```bash
-# Quick start
+# Quick start local development
 cd /path/to/gaia
-docker-compose up
-./scripts/test.sh all
+docker compose up
+./scripts/test.sh --local all
+
+# Smart environment testing
+./scripts/test.sh --staging health     # Test staging deployment
+./scripts/test.sh --prod all           # Full production tests
+
+# Platform management
+./scripts/manage.sh status             # Environment overview
+./scripts/manage.sh deploy-and-test staging
 
 # See main development guide
 cat CLAUDE.md
@@ -29,6 +41,19 @@ cat CLAUDE.md
 
 ### For DevOps/SRE
 ```bash
+# Complete deployment pipeline
+cat docs/deployment-pipeline.md
+
+# Environment-specific deployments (all use full microservices)
+./scripts/deploy.sh --env dev --services all         # Dev: Full microservices
+./scripts/deploy.sh --env staging --services all     # Staging: Full microservices
+./scripts/deploy.sh --env production --services all  # Production: Full microservices
+
+# Pipeline monitoring
+./scripts/manage.sh status                # All environments overview
+./scripts/manage.sh monitor production    # Real-time monitoring
+./scripts/manage.sh rollback staging      # Emergency rollback
+
 # Scaling documentation
 cat docs/scaling-architecture.md
 
@@ -62,7 +87,9 @@ Gaia Platform Microservices
 - **78+ Endpoints** implemented with full LLM Platform compatibility
 - **100% Backward Compatibility** - all existing clients work unchanged
 - **Microservices Architecture** with independent scaling and fault isolation
-- **Production Ready** with comprehensive testing and monitoring
+- **Smart Operations** - Environment-aware testing, deployment, and management
+- **Production Deployed** - Live staging environment on Fly.io with co-located database
+- **Comprehensive Testing** - 80+ endpoint tests with intelligent failure handling
 
 ## 🔗 External Resources
 

@@ -4,12 +4,15 @@
 
 Gaia Platform is a microservices-based backend that replaces the LLM Platform monolith while maintaining full client compatibility. This implementation follows a **foundation-first** approach, extracting proven components and building incrementally.
 
-## 🎯 Phase 1 Goals
+## 🎯 Phase 1 Goals - COMPLETE ✅
 
 - **✅ Maintain Client Compatibility**: Unity XR, Unity Mobile AR, Unreal Engine, and NextJS clients work unchanged
 - **✅ Extract Core Services**: Auth, Asset, and Chat services from LLM Platform 
 - **✅ Add Service Coordination**: NATS messaging for inter-service communication
 - **✅ Preserve All Features**: Every LLM Platform feature preserved with equal or better performance
+- **✅ User-Associated Authentication**: Database-driven API keys with SHA256 hashing
+- **✅ Portable Database Architecture**: Consistent schema across all environments
+- **✅ Production-Ready Dev Environment**: Deployed and tested on Fly.io
 
 ## 🏗️ Architecture
 
@@ -23,10 +26,10 @@ Unity/Unreal/Web → (Port 8666)    → ├─ Auth Service (Supabase JWT + API 
 ### Services
 
 - **Gateway Service**: Main entry point (port 8666), routes to appropriate services
-- **Auth Service**: JWT validation, API key auth, user management via Supabase  
+- **Auth Service**: JWT validation, user-associated API key auth, user management via Supabase  
 - **Asset Service**: Universal Asset Server functionality from LLM Platform
 - **Chat Service**: LLM interactions with MCP-agent workflows
-- **Shared Modules**: Common utilities, database, NATS, security
+- **Shared Modules**: Common utilities, database, NATS, security, portable database architecture
 
 ### Infrastructure
 
@@ -59,11 +62,13 @@ Unity/Unreal/Web → (Port 8666)    → ├─ Auth Service (Supabase JWT + API 
 
 3. **Start Services**
    ```bash
-   docker-compose up
+   docker compose up
    ```
 
-4. **Verify Setup**
+4. **Test with User-Associated Authentication**
    ```bash
+   # API key automatically created: FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE
+   # User: dev@gaia.local
    curl http://localhost:8666/health
    ```
 
