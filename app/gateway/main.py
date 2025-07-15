@@ -1147,7 +1147,7 @@ async def get_assets(
     """Forward asset requests to asset service."""
     return await forward_request_to_service(
         service_name="asset",
-        path="/api/v1/assets",
+        path="/assets/",
         method="GET",
         headers=dict(request.headers),
         params=dict(request.query_params)
@@ -1162,12 +1162,28 @@ async def generate_asset(
     body = await request.json()
     body["_auth"] = auth
     
+    # Remove problematic headers that could cause content-length issues
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
     return await forward_request_to_service(
         service_name="asset",
-        path="/assets/generate",
+        path="/assets/request",
         method="POST",
         json_data=body,
-        headers=dict(request.headers)
+        headers=headers
+    )
+
+@app.get("/api/v1/assets/test", tags=["Assets"])
+async def test_assets(request: Request):
+    """Forward asset test endpoint (no auth required)."""
+    return await forward_request_to_service(
+        service_name="asset",
+        path="/assets/test",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
     )
 
 @app.get("/api/v1/assets/{asset_id}", tags=["Assets"])

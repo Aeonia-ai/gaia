@@ -13,7 +13,7 @@ primary_region = 'lax'
   SERVICE_NAME = "gateway"
   LOG_LEVEL = "DEBUG"  # More verbose logging for dev
   
-  # Full microservices URLs (dev environment)
+  # Full microservices URLs (dev environment) - Using public URLs (internal DNS unreliable)
   AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
   ASSET_SERVICE_URL = "https://gaia-asset-dev.fly.dev"
   CHAT_SERVICE_URL = "https://gaia-chat-dev.fly.dev"

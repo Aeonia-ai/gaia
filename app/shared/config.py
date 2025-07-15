@@ -52,6 +52,7 @@ class GaiaSettings(BaseSettings):
     MCP_FILESYSTEM_ROOT: str = os.getenv("MCP_FILESYSTEM_ROOT", "/app/data")
     
     # Universal Asset Server Configuration (from LLM Platform)
+    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     FREESOUND_API_KEY: Optional[str] = os.getenv("FREESOUND_API_KEY")
     MESHY_API_KEY: Optional[str] = os.getenv("MESHY_API_KEY")
     MIDJOURNEY_API_KEY: Optional[str] = os.getenv("MIDJOURNEY_API_KEY")

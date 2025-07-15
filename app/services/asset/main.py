@@ -94,7 +94,7 @@ def create_app() -> FastAPI:
     )
     
     # Include routers
-    app.include_router(assets_router, prefix="/api/v1")
+    app.include_router(assets_router)
     
     @app.get("/health")
     async def health_check():

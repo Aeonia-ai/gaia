@@ -14,6 +14,7 @@ from .asset import (
     GenerationResponse,
     GenerationStatus,
     AssetCategory,
+    AssetQuality,
     StorageType,
     LicenseType
 )
@@ -43,6 +44,7 @@ __all__ = [
     "GenerationResponse",
     "GenerationStatus",
     "AssetCategory",
+    "AssetQuality",
     "StorageType",
     "LicenseType",
     "AssetSourceType",

@@ -1,287 +1,292 @@
 """
-Gaia UI Components - FastHTML version of React components
-Maintains exact visual parity with the React client
+Gaia UI Component Library
+Extracted from React client for visual parity
 """
+from fasthtml.components import Div, Span, Button, Input, Form, A, Img, H1, H2, P
+from fasthtml.core import Script, Style
 
-from fasthtml.common import *
-
-# ========================================================================================
-# DESIGN TOKENS (extracted from React app)
-# ========================================================================================
-
+# Design system constants
 class GaiaDesign:
-    """Design system constants extracted from React components."""
+    """Design tokens matching React client"""
+    # Background gradients
+    BG_MAIN = "bg-gradient-to-br from-indigo-950 via-purple-900 to-slate-900"
+    BG_SIDEBAR = "bg-gradient-to-b from-slate-900 to-slate-800"
     
-    # Main background (used everywhere)
-    BG_MAIN = "min-h-screen bg-gradient-to-br from-indigo-950 via-purple-900 to-slate-900"
+    # Button styles
+    BTN_PRIMARY = "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105"
+    BTN_SECONDARY = "bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+    BTN_GHOST = "text-slate-300 hover:text-white hover:bg-slate-700/50 py-2 px-4 rounded-lg transition-all duration-200"
     
-    # Logo (butterfly emoji with gradient background)
+    # Logo
     LOGO_EMOJI = "🦋"
-    LOGO_BG = "bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400"
-    LOGO_SMALL = "w-8 h-8"
-    LOGO_LARGE = "w-16 h-16" 
-    
-    # Brand
-    APP_NAME = "Gaia"
-    
-    # Cards and containers
-    CARD_BG = "bg-slate-900/50 border border-purple-500/20 backdrop-blur-sm"
-    SIDEBAR_BG = "bg-slate-900/50 border-r border-purple-500/20 backdrop-blur-sm"
-    
-    # Buttons
-    BTN_PRIMARY = "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-    BTN_OUTLINE = "border border-purple-500/30 text-purple-300 hover:bg-purple-600/20"
-    
-    # Inputs
-    INPUT_BG = "bg-slate-800/50 border border-purple-500/30 text-white placeholder:text-purple-300"
-    
-    # Messages
-    MSG_USER = "bg-gradient-to-r from-purple-600 to-pink-600 text-white"
-    MSG_ASSISTANT = "bg-slate-800/50 text-white border border-purple-500/20"
+    LOGO_BG_SMALL = "bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
+    LOGO_BG_LARGE = "bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl"
     
     # Text colors
     TEXT_PRIMARY = "text-white"
-    TEXT_SECONDARY = "text-purple-300"
-    TEXT_ACCENT = "text-purple-200"
+    TEXT_SECONDARY = "text-slate-300"
+    TEXT_MUTED = "text-slate-400"
     
-    # States
-    ACTIVE = "bg-purple-600/20 border-purple-400/50"
-    INACTIVE = "bg-slate-800/30 border-purple-500/10 hover:bg-slate-800/50"
-
-# ========================================================================================
-# ATOMIC COMPONENTS
-# ========================================================================================
-
-def gaia_logo(size="small", text_size="text-2xl"):
-    """Butterfly logo with gradient background - exact match to React version."""
-    size_class = GaiaDesign.LOGO_SMALL if size == "small" else GaiaDesign.LOGO_LARGE
+    # Message bubbles
+    MSG_USER = "bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-2xl rounded-br-sm px-4 py-3 max-w-[80%] ml-auto shadow-lg"
+    MSG_ASSISTANT = "bg-slate-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg"
     
-    return Div(
-        GaiaDesign.LOGO_EMOJI,
-        cls=f"{size_class} {GaiaDesign.LOGO_BG} rounded-full flex items-center justify-center {text_size}"
+    # Input styles
+    INPUT_PRIMARY = "bg-slate-800 border border-slate-600 text-white placeholder-slate-400 rounded-lg px-4 py-3 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all duration-200"
+    
+    # Card styles
+    CARD = "bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 shadow-xl"
+
+
+def gaia_logo(size="small", with_text=False):
+    """Gaia butterfly logo component"""
+    bg_class = GaiaDesign.LOGO_BG_SMALL if size == "small" else GaiaDesign.LOGO_BG_LARGE
+    emoji_size = "text-xl" if size == "small" else "text-3xl"
+    
+    logo = Div(
+        Span(GaiaDesign.LOGO_EMOJI, cls=emoji_size),
+        cls=bg_class
     )
-
-def gaia_button(text, variant="primary", **kwargs):
-    """Gaia-styled button - exact match to React Button component."""
-    if variant == "primary":
-        btn_class = f"p-3 {GaiaDesign.BTN_PRIMARY} {GaiaDesign.TEXT_PRIMARY} rounded-lg font-medium"
-    else:  # outline
-        btn_class = f"p-3 {GaiaDesign.BTN_OUTLINE} rounded-lg"
     
-    return Button(text, cls=btn_class, **kwargs)
+    if with_text:
+        return Div(
+            logo,
+            H1("Gaia", cls="text-2xl font-bold text-white ml-3"),
+            cls="flex items-center"
+        )
+    return logo
 
-def gaia_input(placeholder="", **kwargs):
-    """Gaia-styled input - exact match to React Input component."""
+
+def gaia_button(text, variant="primary", type="button", **kwargs):
+    """Styled button component"""
+    styles = {
+        "primary": GaiaDesign.BTN_PRIMARY,
+        "secondary": GaiaDesign.BTN_SECONDARY,
+        "ghost": GaiaDesign.BTN_GHOST
+    }
+    
+    cls = kwargs.pop("cls", "") + " " + styles.get(variant, styles["primary"])
+    return Button(text, type=type, cls=cls.strip(), **kwargs)
+
+
+def gaia_input(name, placeholder="", type="text", **kwargs):
+    """Styled input component"""
+    cls = kwargs.pop("cls", "") + " " + GaiaDesign.INPUT_PRIMARY
     return Input(
+        name=name,
+        type=type,
         placeholder=placeholder,
-        cls=f"p-3 {GaiaDesign.INPUT_BG} rounded-lg",
+        cls=cls.strip(),
         **kwargs
     )
 
-def gaia_card(content, active=False):
-    """Gaia-styled card - exact match to React Card component."""
-    state_class = GaiaDesign.ACTIVE if active else GaiaDesign.INACTIVE
+
+def gaia_card(content, title=None):
+    """Card component with optional title"""
+    children = []
+    if title:
+        children.append(H2(title, cls="text-xl font-semibold text-white mb-4"))
+    children.append(content)
+    
+    return Div(*children, cls=GaiaDesign.CARD)
+
+
+def gaia_message_bubble(content, role="user", timestamp=None):
+    """Chat message bubble component"""
+    bubble_cls = GaiaDesign.MSG_USER if role == "user" else GaiaDesign.MSG_ASSISTANT
+    
+    children = [
+        Div(content, cls="whitespace-pre-wrap break-words")
+    ]
+    
+    if timestamp:
+        children.append(
+            Div(timestamp, cls="text-xs opacity-70 mt-1")
+        )
+    
     return Div(
-        content,
-        cls=f"p-3 cursor-pointer transition-colors rounded-lg border {state_class}"
+        Div(*children, cls=bubble_cls),
+        cls=f"flex {'justify-end' if role == 'user' else 'justify-start'} mb-4"
     )
 
-# ========================================================================================
-# LAYOUT COMPONENTS  
-# ========================================================================================
 
-def gaia_layout(content, title="Gaia"):
-    """Main layout wrapper with Gaia background."""
-    return Html(
-        Head(
-            Title(title),
-            Link(rel="stylesheet", href="https://cdn.tailwindcss.com"),
-            Script(src="https://unpkg.com/htmx.org@1.9.10")
-        ),
-        Body(content, cls=GaiaDesign.BG_MAIN)
-    )
-
-def gaia_sidebar_header(on_new_chat=None):
-    """Sidebar header with logo and new chat button - exact match to React."""
+def gaia_sidebar_header():
+    """Sidebar header with logo and new chat button"""
     return Div(
-        # Logo and title
         Div(
-            gaia_logo(size="small"),
-            H1(GaiaDesign.APP_NAME, cls=f"text-xl font-bold {GaiaDesign.TEXT_PRIMARY}"),
-            cls="flex items-center gap-3 mb-4"
+            gaia_logo(with_text=True),
+            cls="mb-8"
         ),
-        # New chat button
         gaia_button(
-            "➕ New Chat",
-            hx_post="/conversations/new" if on_new_chat else None,
-            hx_target="#chat-area" if on_new_chat else None,
-            cls="w-full"
+            "New Chat",
+            variant="secondary",
+            cls="w-full mb-6",
+            hx_post="/chat/new",
+            hx_target="#main-content",
+            hx_swap="innerHTML"
         ),
-        cls="p-4 border-b border-purple-500/20"
+        cls="p-6 border-b border-slate-700"
     )
 
-def gaia_conversation_item(conversation, current_id=None, on_click=None):
-    """Conversation list item - exact match to React version."""
-    is_active = conversation.get("id") == current_id
+
+def gaia_conversation_item(conversation, active=False):
+    """Sidebar conversation item"""
+    base_cls = "block p-3 rounded-lg transition-all duration-200 truncate"
+    active_cls = "bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-l-4 border-purple-500"
+    hover_cls = "hover:bg-slate-700/50"
     
-    return gaia_card(
-        Div(
-            P(conversation.get("title", "New Conversation"), 
-              cls=f"{GaiaDesign.TEXT_PRIMARY} text-sm truncate"),
-            P(conversation.get("created_at", "Today"), 
-              cls=f"{GaiaDesign.TEXT_SECONDARY} text-xs"),
-        ),
-        active=is_active,
-        hx_get=f"/conversations/{conversation.get('id')}" if on_click else None,
-        hx_target="#chat-area" if on_click else None
-    )
-
-def gaia_user_profile(user, on_logout=None):
-    """User profile section - exact match to React version."""
-    avatar_letter = user.get("email", "U")[0].upper() if user else "U"
+    cls = f"{base_cls} {active_cls if active else hover_cls}"
     
-    return Div(
-        # User info
+    return A(
         Div(
-            Div(
-                avatar_letter,
-                cls=f"w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center {GaiaDesign.TEXT_PRIMARY} text-sm font-bold"
-            ),
-            Span(user.get("email", ""), cls=f"{GaiaDesign.TEXT_PRIMARY} text-sm truncate"),
-            cls="flex items-center gap-3 mb-3"
+            conversation.get("title", "New Conversation"),
+            cls="text-sm text-white truncate"
         ),
-        # Logout button
-        gaia_button(
-            "🚪 Sign Out",
-            variant="outline",
-            hx_post="/auth/logout" if on_logout else None,
-            cls="w-full"
+        Div(
+            conversation.get("preview", ""),
+            cls="text-xs text-slate-400 truncate mt-1"
         ),
-        cls="p-4 border-t border-purple-500/20"
+        href=f"/chat/{conversation['id']}",
+        cls=cls,
+        hx_get=f"/chat/{conversation['id']}",
+        hx_target="#main-content",
+        hx_swap="innerHTML"
     )
 
-# ========================================================================================
-# CHAT COMPONENTS
-# ========================================================================================
 
-def gaia_message_bubble(content, role="user"):
-    """Message bubble - exact match to React version."""
-    if role == "user":
-        justify = "justify-end"
-        bubble_class = f"max-w-[70%] rounded-lg p-4 {GaiaDesign.MSG_USER}"
-    else:  # assistant
-        justify = "justify-start" 
-        bubble_class = f"max-w-[70%] rounded-lg p-4 {GaiaDesign.MSG_ASSISTANT}"
+def gaia_auth_form(is_login=True):
+    """Authentication form component"""
+    form_title = "Welcome Back" if is_login else "Create Account"
+    submit_text = "Sign In" if is_login else "Sign Up"
+    alt_text = "Don't have an account?" if is_login else "Already have an account?"
+    alt_link_text = "Sign up" if is_login else "Sign in"
+    alt_link_href = "/register" if is_login else "/login"
     
     return Div(
-        Div(
-            P(content, cls="whitespace-pre-wrap"),
-            cls=bubble_class
-        ),
-        cls=f"flex {justify} mb-6"
-    )
-
-def gaia_typing_indicator():
-    """Typing indicator animation - exact match to React version."""
-    return Div(
-        Div(
+        gaia_card(
             Div(
-                *[Div(cls=f"w-2 h-2 bg-purple-400 rounded-full animate-bounce", 
-                      style=f"animation-delay: {i*0.1}s") for i in range(3)],
-                cls="flex space-x-2"
-            ),
-            cls=f"max-w-[70%] rounded-lg p-4 {GaiaDesign.MSG_ASSISTANT}"
-        ),
-        cls="flex justify-start mb-6"
-    )
-
-def gaia_chat_input(conversation_id=None):
-    """Chat input form - exact match to React version."""
-    return Div(
-        Form(
-            Div(
-                gaia_input(
-                    placeholder="Type your message...",
-                    name="message",
-                    required=True,
-                    cls="flex-1"
+                H1(form_title, cls="text-3xl font-bold text-white mb-2 text-center"),
+                P("Experience the magic of Gaia", cls="text-slate-400 text-center mb-8"),
+                
+                Form(
+                    Div(
+                        gaia_input("email", "Email address", type="email", required=True),
+                        cls="mb-4"
+                    ),
+                    Div(
+                        gaia_input("password", "Password", type="password", required=True),
+                        cls="mb-6"
+                    ),
+                    
+                    gaia_button(submit_text, type="submit", cls="w-full"),
+                    
+                    cls="space-y-4",
+                    hx_post="/auth/login" if is_login else "/auth/register",
+                    hx_target="#auth-message",
+                    hx_swap="innerHTML"
                 ),
-                gaia_button(
-                    "➤",
-                    type="submit",
-                    cls="p-3"
+                
+                Div(id="auth-message", cls="mt-4"),
+                
+                Div(
+                    P(
+                        alt_text,
+                        A(alt_link_text, href=alt_link_href, cls="text-purple-400 hover:text-purple-300 ml-1"),
+                        cls="text-sm text-slate-400 text-center"
+                    ),
+                    cls="mt-6"
                 ),
-                cls="flex gap-4"
-            ),
-            hx_post=f"/conversations/{conversation_id}/messages" if conversation_id else None,
-            hx_target="#messages-container",
-            hx_swap="beforeend",
-            hx_on_submit="this.reset()",
-            cls="max-w-4xl mx-auto"
+                cls="w-full max-w-md"
+            )
         ),
-        cls="p-6 border-t border-purple-500/20"
+        cls="min-h-screen flex items-center justify-center p-4"
     )
 
-def gaia_welcome_screen(on_new_chat=None):
-    """Welcome screen - exact match to React version."""
-    return Div(
+
+def gaia_chat_input():
+    """Chat input component with send button"""
+    return Form(
         Div(
-            gaia_logo(size="large", text_size="text-2xl"),
-            H2("Welcome to Gaia", cls=f"text-2xl font-bold {GaiaDesign.TEXT_PRIMARY} mb-2"),
-            P("Select a conversation or create a new one to get started", 
-              cls=f"{GaiaDesign.TEXT_SECONDARY} mb-4"),
+            gaia_input(
+                "message",
+                "Type your message...",
+                cls="flex-1",
+                autofocus=True,
+                required=True
+            ),
             gaia_button(
-                "➕ Start New Chat",
-                hx_post="/conversations/new" if on_new_chat else None,
-                hx_target="#chat-area" if on_new_chat else None
+                "Send",
+                type="submit",
+                cls="ml-2"
             ),
-            cls="text-center"
+            cls="flex items-center"
         ),
-        cls="flex-1 flex items-center justify-center"
+        cls="p-4 border-t border-slate-700",
+        hx_post="/api/chat/send",
+        hx_target="#messages",
+        hx_swap="beforeend",
+        hx_on="htmx:afterRequest: this.reset()"
     )
 
-# ========================================================================================
-# AUTHENTICATION COMPONENTS
-# ========================================================================================
 
-def gaia_auth_form(is_login=True, error=None):
-    """Authentication form - exact match to React version."""
-    form_title = "Sign in to your account" if is_login else "Create your account"
-    button_text = "Sign In" if is_login else "Sign Up"
-    toggle_text = "Don't have an account? " if is_login else "Already have an account? "
-    toggle_link = "Sign up" if is_login else "Sign in"
-    toggle_href = "/signup" if is_login else "/login"
-    
+def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sidebar=True):
+    """Main layout component"""
+    if show_sidebar:
+        return Div(
+            # Sidebar
+            Div(
+                gaia_sidebar_header(),
+                Div(
+                    sidebar_content or "",
+                    cls="p-4 overflow-y-auto flex-1"
+                ),
+                cls=f"w-80 {GaiaDesign.BG_SIDEBAR} flex flex-col h-screen"
+            ),
+            
+            # Main content area
+            Div(
+                main_content or "",
+                id="main-content",
+                cls="flex-1 flex flex-col h-screen overflow-hidden"
+            ),
+            
+            cls=f"flex h-screen {GaiaDesign.BG_MAIN} {page_class}"
+        )
+    else:
+        # No sidebar layout for auth pages
+        return Div(
+            main_content or "",
+            cls=f"h-screen {GaiaDesign.BG_MAIN} {page_class}"
+        )
+
+
+def gaia_loading_spinner():
+    """Loading spinner component"""
     return Div(
-        # Logo
-        Div(gaia_logo(size="large", text_size="text-2xl"), cls="mx-auto mb-4"),
-        
-        # Title
-        H1("Welcome to Gaia", cls=f"text-2xl font-bold {GaiaDesign.TEXT_PRIMARY} text-center mb-2"),
-        P(form_title, cls=f"{GaiaDesign.TEXT_ACCENT} text-center mb-6"),
-        
-        # Error message
-        *([P(error, cls="text-red-400 text-center mb-4")] if error else []),
-        
-        # Form
-        Form(
-            # Full name (signup only)
-            *([gaia_input(placeholder="Full Name", name="full_name", required=True, cls="w-full mb-4")] if not is_login else []),
-            
-            gaia_input(placeholder="Email", name="email", type="email", required=True, cls="w-full mb-4"),
-            gaia_input(placeholder="Password", name="password", type="password", required=True, cls="w-full mb-4"),
-            gaia_button(button_text, type="submit", cls="w-full"),
-            
-            action="/auth/login" if is_login else "/auth/signup",
-            method="post"
+        Div(cls="w-12 h-12 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"),
+        cls="flex justify-center items-center p-8"
+    )
+
+
+def gaia_error_message(message):
+    """Error message component"""
+    return Div(
+        Div(
+            "⚠️",
+            message,
+            cls="flex items-center space-x-2"
         ),
-        
-        # Toggle link
-        P(
-            toggle_text,
-            A(toggle_link, href=toggle_href, cls="text-purple-400 hover:text-purple-300 underline"),
-            cls=f"text-center mt-4 {GaiaDesign.TEXT_SECONDARY}"
+        cls="bg-red-900/20 border border-red-600 text-red-300 px-4 py-3 rounded-lg"
+    )
+
+
+def gaia_success_message(message):
+    """Success message component"""
+    return Div(
+        Div(
+            "✓",
+            message,
+            cls="flex items-center space-x-2"
         ),
-        
-        cls=f"w-full max-w-md {GaiaDesign.CARD_BG} rounded-lg p-6"
+        cls="bg-green-900/20 border border-green-600 text-green-300 px-4 py-3 rounded-lg"
     )

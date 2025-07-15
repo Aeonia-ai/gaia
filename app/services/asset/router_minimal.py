@@ -6,9 +6,13 @@ from datetime import datetime
 from .models.asset import AssetRequest, AssetCategory
 from app.shared.security import get_current_auth_legacy
 from app.shared.logging import get_logger
+from .generation_service import AIGenerationService
 
 logger = get_logger(__name__)
 assets_router = APIRouter(prefix="/assets", tags=["Assets"])
+
+# Initialize generation service
+generation_service = AIGenerationService()
 
 
 @assets_router.get("/")
@@ -40,25 +44,20 @@ async def request_asset(
     current_auth = Depends(get_current_auth_legacy)
 ):
     """
-    Main asset request endpoint (temporarily simplified)
-    TODO: Implement full asset generation pipeline once services are fixed
+    Main asset request endpoint - Full generation pipeline
+    Compatible with LLM Platform API format
     """
     start_time = time.time()
     
     try:
         logger.info(f"Asset request received: {request.category.value} - {request.style} - {request.description[:100]}...")
         
-        # Temporary response for testing
-        response_time_ms = int((time.time() - start_time) * 1000)
+        # Generate asset using the full pipeline
+        response = await generation_service.generate_asset(request)
         
-        return {
-            "status": "placeholder", 
-            "message": "Asset service endpoint working - implementation in progress",
-            "request_category": request.category.value,
-            "request_style": request.style,
-            "response_time_ms": response_time_ms,
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        logger.info(f"Asset generation completed in {response.response_time_ms}ms for ${response.cost:.4f}")
+        
+        return response
         
     except Exception as e:
         logger.error(f"Asset request failed: {e}")

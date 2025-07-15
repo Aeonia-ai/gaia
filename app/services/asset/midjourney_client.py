@@ -6,27 +6,29 @@ from datetime import datetime
 import uuid
 import json
 
-from app.core.config import get_settings
-from app.core import logger
-from app.services.assets.advanced_pricing_service import AdvancedPricingService, UsageMetrics
-from app.models.assets import (
+from app.shared.config import settings
+from app.shared.logging import get_logger
+from .advanced_pricing_service import AdvancedPricingService, UsageMetrics
+from .models.asset import (
     GenerationRequest,
     GenerationResponse,
     GenerationStatus,
     AssetData,
     LicenseType,
-    GeneratedAsset,
     AssetCategory,
     StorageInfo,
     StorageType
 )
+from .models.source import GeneratedAsset
+
+logger = get_logger(__name__)
 
 
 class MidjourneyClient:
     """Midjourney texture and artistic image generation client."""
     
     def __init__(self):
-        self.settings = get_settings()
+        self.settings = settings
         self.api_key = getattr(self.settings, 'MIDJOURNEY_API_KEY', None)
         self.base_url = "https://api.midjourney.com/v1"
         self.pricing_service = AdvancedPricingService()

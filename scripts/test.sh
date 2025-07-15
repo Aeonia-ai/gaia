@@ -127,6 +127,45 @@ function test_endpoint() {
     else
         echo -e "${RED}❌ Status: $status_code${NC}"
         echo "$body" | jq . 2>/dev/null || echo "$body"
+        
+        # Add more debugging info for errors
+        if [[ $status_code -eq 500 || $status_code -eq 502 || $status_code -eq 503 ]]; then
+            echo -e "${RED}Debug info:${NC}"
+            echo "  - Endpoint: ${method} ${BASE_URL}${path}"
+            echo "  - Environment: ${ENVIRONMENT}"
+            if [ "$method" = "POST" ]; then
+                echo "  - Request body: $(echo "$data" | jq -c . 2>/dev/null || echo "$data")"
+            fi
+            
+            # Suggest checking logs for server errors
+            if [[ $ENVIRONMENT != "local" ]]; then
+                echo -e "${BLUE}💡 To check logs:${NC}"
+                case $ENVIRONMENT in
+                    "staging")
+                        echo "  fly logs -a gaia-gateway-staging"
+                        echo "  fly logs -a gaia-asset-staging"
+                        ;;
+                    "production")
+                        echo "  fly logs -a gaia-gateway-production"
+                        echo "  fly logs -a gaia-asset-production"
+                        ;;
+                    *)
+                        # Extract app name from URL if it's a fly.dev domain
+                        if [[ $BASE_URL == *"fly.dev"* ]]; then
+                            local app_name=$(echo $BASE_URL | sed -E 's|https?://([^.]+)\.fly\.dev.*|\1|')
+                            echo "  fly logs -a $app_name"
+                            # Also suggest checking the asset service if gateway
+                            if [[ $app_name == *"gateway"* ]]; then
+                                local asset_app=$(echo $app_name | sed 's/gateway/asset/')
+                                echo "  fly logs -a $asset_app"
+                            fi
+                        else
+                            echo "  Check your deployment logs"
+                        fi
+                        ;;
+                esac
+            fi
+        fi
     fi
     echo ""
 }
@@ -221,6 +260,62 @@ case "$1" in
         ;;
     "provider-comparison")
         test_endpoint "GET" "/api/v0.2/assets/pricing/cost-estimator/provider-comparison?operation=image_generation&quantity=10" "" "Provider Cost Comparison"
+        ;;
+    
+    # Asset Generation Tests
+    "assets-test")
+        test_endpoint "GET" "/api/v1/assets/test" "" "Asset Service Test (No Auth)"
+        ;;
+    "assets-list")
+        test_endpoint "GET" "/api/v1/assets" "" "List Assets"
+        ;;
+    "assets-generate-image")
+        # First check if asset service is healthy (for non-local environments)
+        if [[ $ENVIRONMENT != "local" && $BASE_URL == *"fly.dev"* ]]; then
+            asset_url=$(echo $BASE_URL | sed 's/gateway/asset/')
+            echo -e "${BLUE}Checking asset service health first...${NC}"
+            health_response=$(curl -s "$asset_url/health")
+            echo "$health_response" | jq . 2>/dev/null || echo "$health_response"
+            echo ""
+        fi
+        
+        image_request='{"category": "image", "style": "realistic", "description": "A beautiful sunset over mountains"}'
+        test_endpoint "POST" "/api/v1/assets/generate" "$image_request" "Generate Image Asset"
+        ;;
+    "assets-generate-audio")
+        audio_request='{
+            "category": "audio",
+            "style": "ambient-calm",
+            "description": "Peaceful background music for meditation",
+            "requirements": {
+                "platform": "mobile_vr",
+                "quality": "medium"
+            },
+            "preferences": {
+                "allow_generation": true,
+                "max_cost": 0.15,
+                "max_wait_time_ms": 45000
+            }
+        }'
+        test_endpoint "POST" "/api/v1/assets/generate" "$audio_request" "Generate Audio Asset"
+        ;;
+    "assets-generate-3d")
+        model_request='{
+            "category": "prop",
+            "style": "sci_fi",
+            "description": "A futuristic energy crystal with glowing effects",
+            "requirements": {
+                "platform": "desktop_vr",
+                "quality": "high",
+                "polygon_count_max": 5000
+            },
+            "preferences": {
+                "allow_generation": true,
+                "max_cost": 0.50,
+                "max_wait_time_ms": 120000
+            }
+        }'
+        test_endpoint "POST" "/api/v1/assets/generate" "$model_request" "Generate 3D Model Asset"
         ;;
     "usage-current")
         test_endpoint "GET" "/api/v0.2/usage/current" "" "Current Usage"
@@ -324,6 +419,14 @@ case "$1" in
         $0 meshy-packages
         $0 provider-comparison
         ;;
+    "assets-all")
+        echo -e "${GREEN}Testing all asset generation endpoints...${NC}\n"
+        $0 assets-test
+        $0 assets-list
+        $0 assets-generate-image
+        $0 assets-generate-audio
+        $0 assets-generate-3d
+        ;;
     "usage-all")
         echo -e "${GREEN}Testing all usage tracking endpoints...${NC}\n"
         $0 usage-current
@@ -384,6 +487,13 @@ case "$1" in
         echo "  $0 dalle-tiers               # DALL-E tier info"
         echo "  $0 provider-comparison       # Compare provider costs"
         echo ""
+        echo "Asset Generation Tests:"
+        echo "  $0 assets-test               # Asset service health check"
+        echo "  $0 assets-list               # List available assets"
+        echo "  $0 assets-generate-image     # Generate image asset"
+        echo "  $0 assets-generate-audio     # Generate audio asset"
+        echo "  $0 assets-generate-3d        # Generate 3D model asset"
+        echo ""
         echo "Usage Tracking Tests:"
         echo "  $0 usage-current             # Current usage stats"
         echo "  $0 usage-history             # Historical usage"
@@ -414,6 +524,7 @@ case "$1" in
         echo "  $0 all                       # Run core tests"
         echo "  $0 providers-all             # Test all provider endpoints"
         echo "  $0 pricing-all               # Test all pricing endpoints"
+        echo "  $0 assets-all                # Test all asset generation endpoints"
         echo "  $0 usage-all                 # Test all usage endpoints"
         echo "  $0 personas-all              # Test all persona endpoints"
         echo "  $0 performance-all           # Test all performance endpoints"

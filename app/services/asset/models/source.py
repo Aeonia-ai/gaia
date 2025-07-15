@@ -96,12 +96,6 @@ class ModifiedAsset(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class AssetSearchResult(BaseModel):
-    assets: List[DatabaseAsset]
-    total_count: int
-    search_time_ms: int
-    similarity_scores: Optional[List[float]] = Field(None, description="Similarity scores for semantic search")
-    search_metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class OptimizationStrategy(BaseModel):

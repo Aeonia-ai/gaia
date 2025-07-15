@@ -2,6 +2,32 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🧠 Development Philosophy & Problem-Solving Approach
+
+**🛑 STOP GUESSING - START RESEARCHING**
+- When deployment issues occur, resist the urge to try random fixes
+- Search for documented issues: `"[platform] [error-type] [technology] troubleshooting"`
+- Example: "Fly.io internal DNS connection refused microservices"
+
+**🔬 SYSTEMATIC DIAGNOSIS**
+- Test your hypothesis before implementing fixes
+- Verify individual components work before assuming system-wide issues
+- Use platform-specific debugging tools (e.g., `fly ssh console`)
+
+**📚 PLATFORM-AWARE DEVELOPMENT**
+- Every cloud platform has quirks - learn them early
+- Example: Fly.io internal DNS is unreliable, AWS has eventual consistency, etc.
+- Design around known platform limitations, don't fight them
+
+**🚨 RECOGNIZE ANTI-PATTERNS**
+- "One step forward, one step back" = you're guessing, not diagnosing
+- Timeouts during deployment = often infrastructure issues, not code issues
+- Services work individually but not together = networking/discovery problem
+
+**📖 DOCUMENT SOLUTIONS & LESSONS**
+- Capture both the specific fix AND the general approach that found it
+- Future you will thank present you for documenting the "why" not just the "what"
+
 ## ⚠️ CRITICAL: Command Version Requirements
 
 **ALWAYS use these command versions:**
@@ -109,9 +135,9 @@ curl http://chat-service:8000/health
 ### Microservices Structure
 - **Gateway Service** (port 8666): Main entry point maintaining LLM Platform API compatibility
 - **Auth Service**: JWT validation via Supabase, API key authentication
-- **Asset Service**: Universal Asset Server functionality (planned)
-- **Chat Service**: LLM interactions with MCP-agent workflows (planned)
-- **Web Service** (port 8080): FastHTML frontend for chat interface (planned)
+- **Asset Service**: Universal Asset Server functionality
+- **Chat Service**: LLM interactions with MCP-agent workflows
+- **Web Service** (port 8080): FastHTML frontend for chat interface
 
 ### Key Design Patterns
 - **Backward Compatibility**: All API endpoints match LLM Platform exactly
@@ -347,6 +373,93 @@ docker compose down -v && docker compose up db
 docker compose logs nats
 docker compose exec nats nats-server --help
 ```
+
+### Fly.io Internal DNS Issues
+
+⚠️ **Common Problem**: Gateway returns "Service unavailable" or 503 errors for working services.
+
+**Symptoms:**
+- Gateway health check shows "degraded" status
+- Individual services are healthy when tested directly
+- Error: "Failed to connect to service-name.internal"
+
+**Root Cause**: Fly.io's `.internal` DNS occasionally stops working (documented issue)
+
+**Diagnosis:**
+```bash
+# 1. Test gateway health
+./scripts/test.sh --url https://gaia-gateway-dev.fly.dev health
+# Shows: "status": "degraded"
+
+# 2. Test individual services directly
+curl -H "X-API-Key: API_KEY" https://gaia-chat-dev.fly.dev/health
+# Shows: working fine
+
+# 3. Test internal DNS from gateway
+fly ssh console -a gaia-gateway-dev --command "curl -I http://gaia-chat-dev.internal:8000/health"
+# Shows: "Failed to connect to gaia-chat-dev.internal"
+```
+
+**Solution**: Switch from internal DNS to public URLs
+```bash
+# Fix gateway service URLs
+fly secrets set -a gaia-gateway-dev \
+  "CHAT_SERVICE_URL=https://gaia-chat-dev.fly.dev" \
+  "AUTH_SERVICE_URL=https://gaia-auth-dev.fly.dev" \
+  "ASSET_SERVICE_URL=https://gaia-asset-dev.fly.dev"
+
+# Wait for deployment, then test
+./scripts/test.sh --url https://gaia-gateway-dev.fly.dev health
+# Should show: "status": "healthy"
+```
+
+**Prevention**: Always use public URLs for service-to-service communication on Fly.io
+```bash
+# ❌ Unreliable internal DNS
+CHAT_SERVICE_URL=http://gaia-chat-dev.internal:8000
+
+# ✅ Reliable public URLs  
+CHAT_SERVICE_URL=https://gaia-chat-dev.fly.dev
+```
+
+**References**: 
+- [Fly.io Internal DNS Issues](https://community.fly.io/t/internal-dns-occasionally-stops-working-for-some-apps/5748)
+- [Fly.io Private Networking Docs](https://fly.io/docs/networking/private-networking/)
+
+### Debugging Methodology
+
+When facing deployment issues, follow this systematic approach:
+
+**🛑 STOP GUESSING** - Research first, then fix
+
+1. **Research the Problem**
+   ```bash
+   # Don't guess - look up the actual issue
+   # Search: "platform-name problem-description troubleshooting"
+   # Example: "Fly.io internal DNS connection refused microservices"
+   ```
+
+2. **Test Your Hypothesis**
+   ```bash
+   # Verify the diagnosis before implementing fixes
+   fly ssh console -a app-name --command "test-command"
+   curl -I http://service.internal:8000/health  # Test internal connectivity
+   ```
+
+3. **Apply Documented Solutions**
+   ```bash
+   # Use official workarounds, not custom hacks
+   # Example: Use public URLs instead of internal DNS (documented Fly.io issue)
+   ```
+
+4. **Verify the Fix**
+   ```bash
+   # Test that the solution actually works
+   ./scripts/test.sh --url URL health
+   ./scripts/test.sh --url URL chat "test message"
+   ```
+
+**Key Lesson**: "One step forward, one step back" cycles usually mean you're guessing instead of researching the actual problem.
 
 ### Performance Monitoring
 ```bash

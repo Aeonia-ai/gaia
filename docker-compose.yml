@@ -89,6 +89,29 @@ services:
       - gaia_net
     command: uvicorn app.services.chat.main:app --host 0.0.0.0 --port 8000 --reload
 
+  # Web Service (FastHTML UI)
+  web-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "8080:8000"  # Web UI on port 8080
+    volumes:
+      - ./app:/app/app
+    env_file:
+      - .env
+    environment:
+      - GATEWAY_URL=http://gateway:8000
+      - NATS_URL=nats://nats:4222
+      - WEB_SESSION_SECRET=${SESSION_SECRET:-change-this-in-production}
+      - WEB_LOG_LEVEL=INFO
+    depends_on:
+      - gateway
+      - nats
+    networks:
+      - gaia_net
+    command: uvicorn app.services.web.main:app --host 0.0.0.0 --port 8000 --reload
+
   # PostgreSQL Database (with Gaia Platform schema)
   db:
     image: postgres:15

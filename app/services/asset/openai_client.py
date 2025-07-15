@@ -14,11 +14,11 @@ from .models.asset import (
     GenerationStatus,
     AssetData,
     LicenseType,
-    GeneratedAsset,
     AssetCategory,
     StorageInfo,
     StorageType
 )
+from .models.source import GeneratedAsset
 
 logger = get_logger(__name__)
 

@@ -7,6 +7,8 @@ from datetime import datetime
 from app.shared.config import settings
 from app.shared.logging import get_logger
 from app.shared.nats_client import NATSClient
+from app.shared.database import SessionLocal
+from sqlalchemy import text
 from .models.asset import (
     AssetRequest,
     AssetResponse,
@@ -14,10 +16,12 @@ from .models.asset import (
     StorageInfo,
     StorageType,
     AssetSource,
+    LicenseType
+)
+from .models.source import (
     GeneratedAsset,
     ModifiedAsset,
-    DatabaseAsset,
-    LicenseType
+    DatabaseAsset
 )
 from .storage_service import SupabaseStorageService
 from .redis_service import redis_service
@@ -554,17 +558,114 @@ class AIGenerationService:
     ):
         """Store generated asset metadata in database for future reuse"""
         try:
-            # TODO: Insert into assets table
-            logger.info(f"Stored generated asset in database: {generated_asset.generation_id}")
+            db = SessionLocal()
+            try:
+                # Get source_id for generated assets
+                source_result = db.execute(text("""
+                    SELECT id FROM asset_sources 
+                    WHERE source_name = :service_name AND source_type = 'generated'
+                    LIMIT 1
+                """), {"service_name": generated_asset.generation_service})
+                source_row = source_result.fetchone()
+                source_id = source_row[0] if source_row else None
+                
+                # Insert into assets table
+                db.execute(text("""
+                    INSERT INTO assets (
+                        id, source_id, category, title, description, 
+                        file_url, storage_type, file_size_mb, file_format, 
+                        preview_image_url, quality_score, license_type, 
+                        attribution_required, metadata, created_at, updated_at
+                    ) VALUES (
+                        :id, :source_id, :category, :title, :description,
+                        :file_url, :storage_type, :file_size_mb, :file_format,
+                        :preview_image_url, :quality_score, :license_type,
+                        :attribution_required, :metadata, NOW(), NOW()
+                    )
+                """), {
+                    "id": generated_asset.generation_id,
+                    "source_id": source_id,
+                    "category": generated_asset.category.value,
+                    "title": generated_asset.title,
+                    "description": generated_asset.description,
+                    "file_url": storage_url,
+                    "storage_type": "supabase",
+                    "file_size_mb": generated_asset.asset_data.file_size_mb,
+                    "file_format": generated_asset.asset_data.file_format,
+                    "preview_image_url": generated_asset.asset_data.preview_image_url,
+                    "quality_score": generated_asset.quality_score,
+                    "license_type": generated_asset.asset_data.license_type.value,
+                    "attribution_required": generated_asset.asset_data.attribution_required,
+                    "metadata": generated_asset.metadata
+                })
+                
+                # Insert generation record
+                db.execute(text("""
+                    INSERT INTO asset_generations (
+                        id, asset_id, generation_prompt, generation_service,
+                        generation_cost, generation_time_ms, session_id,
+                        generation_metadata, created_at
+                    ) VALUES (
+                        gen_random_uuid(), :asset_id, :prompt, :service,
+                        :cost, :time_ms, :session_id, :metadata, NOW()
+                    )
+                """), {
+                    "asset_id": generated_asset.generation_id,
+                    "prompt": generated_asset.prompt,
+                    "service": generated_asset.generation_service,
+                    "cost": generated_asset.generation_cost,
+                    "time_ms": generated_asset.generation_time_ms,
+                    "session_id": getattr(generated_asset, 'session_id', None),
+                    "metadata": generated_asset.metadata
+                })
+                
+                db.commit()
+                logger.info(f"Stored generated asset in database: {generated_asset.generation_id}")
+                
+            finally:
+                db.close()
             
         except Exception as e:
             logger.error(f"Failed to store generated asset: {e}")
+            if 'db' in locals():
+                db.rollback()
+                db.close()
 
     async def _store_modification_record(self, modified_asset: ModifiedAsset):
         """Store modification record in database"""
         try:
-            # TODO: Insert into asset_modifications table
-            logger.info(f"Stored modification record: {modified_asset.modification_id}")
+            db = SessionLocal()
+            try:
+                # Insert modification record
+                db.execute(text("""
+                    INSERT INTO asset_modifications (
+                        id, base_asset_id, modified_asset_id, modifications,
+                        modification_service, modification_cost, modification_time_ms,
+                        session_id, modification_metadata, created_at
+                    ) VALUES (
+                        :id, :base_asset_id, :modified_asset_id, :modifications,
+                        :service, :cost, :time_ms, :session_id, :metadata, NOW()
+                    )
+                """), {
+                    "id": modified_asset.modification_id,
+                    "base_asset_id": modified_asset.base_asset_id,
+                    "modified_asset_id": modified_asset.modification_id,  # Store as new asset
+                    "modifications": modified_asset.modifications,
+                    "service": modified_asset.modification_service,
+                    "cost": modified_asset.modification_cost,
+                    "time_ms": modified_asset.modification_time_ms,
+                    "session_id": getattr(modified_asset, 'session_id', None),
+                    "metadata": modified_asset.metadata
+                })
+                
+                db.commit()
+                logger.info(f"Stored modification record: {modified_asset.modification_id}")
+                
+            finally:
+                db.close()
             
         except Exception as e:
             logger.error(f"Failed to store modification record: {e}")
+            if 'db' in locals():
+                db.rollback()
+                db.close()

@@ -1,58 +1,8 @@
--- Gaia Platform Local Database Initialization
--- Creates user-associated authentication schema for Docker development
+-- Universal Asset Server Database Schema
+-- Creates tables for asset management with vector search capabilities
 
-BEGIN;
-
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Create users table
-CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    name VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create API keys table
-CREATE TABLE IF NOT EXISTS api_keys (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    key_hash VARCHAR(64) UNIQUE NOT NULL,
-    name VARCHAR(255),
-    permissions JSONB DEFAULT '{}',
-    is_active BOOLEAN DEFAULT true,
-    expires_at TIMESTAMP,
-    last_used_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create indexes for performance
-CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);
-CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
-CREATE INDEX IF NOT EXISTS idx_api_keys_is_active ON api_keys(is_active);
-
--- Create chat messages table
-CREATE TABLE IF NOT EXISTS chat_messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id),
-    conversation_id UUID NOT NULL,
-    role VARCHAR(50) NOT NULL,
-    content TEXT NOT NULL,
-    model VARCHAR(100),
-    provider VARCHAR(50),
-    tokens_used INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_chat_messages_user_id ON chat_messages(user_id);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_id ON chat_messages(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_created_at ON chat_messages(created_at);
-
--- LLM Platform Compatible Asset Tables
--- Note: Vector extension disabled for local development - can be enabled in production
+-- Enable pgvector extension for semantic search
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Asset sources table
 CREATE TABLE IF NOT EXISTS asset_sources (
@@ -93,12 +43,12 @@ CREATE TABLE IF NOT EXISTS assets (
     
     -- Search and metadata
     metadata JSONB DEFAULT '{}',
-    -- embedding VECTOR(384), -- Semantic search embedding (disabled for local dev)
+    embedding VECTOR(384), -- Semantic search embedding (384 dimensions for sentence-transformers)
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     
     -- Constraints
-    CONSTRAINT valid_category CHECK (category IN ('environment', 'character', 'prop', 'audio', 'texture', 'animation', 'image')),
+    CONSTRAINT valid_category CHECK (category IN ('environment', 'character', 'prop', 'audio', 'texture', 'animation')),
     CONSTRAINT valid_storage_type CHECK (storage_type IN ('supabase', 'external', 'generated')),
     CONSTRAINT valid_license CHECK (license_type IN ('creative_commons', 'public_domain', 'custom', 'commercial', 'proprietary'))
 );
@@ -153,8 +103,9 @@ CREATE INDEX IF NOT EXISTS idx_assets_license ON assets(license_type);
 CREATE INDEX IF NOT EXISTS idx_assets_created_at ON assets(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_assets_download_count ON assets(download_count DESC);
 
--- Vector similarity search index (disabled for local development)
--- CREATE INDEX IF NOT EXISTS idx_assets_embedding ON assets USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+-- Vector similarity search index (using IVFFlat for fast approximate search)
+CREATE INDEX IF NOT EXISTS idx_assets_embedding ON assets USING ivfflat (embedding vector_cosine_ops)
+WITH (lists = 100);
 
 -- Indexes for foreign key relationships
 CREATE INDEX IF NOT EXISTS idx_assets_source_id ON assets(source_id);
@@ -181,68 +132,21 @@ INSERT INTO asset_sources (source_type, source_name, api_endpoint, is_active, ra
     ('community', 'community_uploads', NULL, true, NULL, false),
     ('generated', 'meshy_ai', 'https://api.meshy.ai', true, 10, false),
     ('generated', 'midjourney', NULL, true, 5, false),
-    ('generated', 'mubert', 'https://api.mubert.com', true, 20, false),
-    ('generated', 'openai', 'https://api.openai.com', true, 50, false),
-    ('generated', 'stability', 'https://api.stability.ai', true, 50, false)
+    ('generated', 'mubert', 'https://api.mubert.com', true, 20, false)
 ON CONFLICT DO NOTHING;
 
--- Insert default development user
-INSERT INTO users (email, name) 
-VALUES ('dev@gaia.local', 'Local Development User')
-ON CONFLICT (email) DO NOTHING;
-
--- Insert API key for development (API_KEY from .env: FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE)
--- SHA256 hash: 8065e7a7dd9a5d02ea3a79cea93036e7092910c309bb3e43070826f3b939f661
-DO $$
-DECLARE
-    dev_user_id UUID;
-BEGIN
-    SELECT id INTO dev_user_id FROM users WHERE email = 'dev@gaia.local';
-    
-    -- Insert API key for development user
-    INSERT INTO api_keys (user_id, key_hash, name, permissions, is_active)
-    VALUES (
-        dev_user_id,
-        '8065e7a7dd9a5d02ea3a79cea93036e7092910c309bb3e43070826f3b939f661',
-        'Local Development API Key',
-        '{"admin": true, "environment": "local"}'::jsonb,
-        true
-    )
-    ON CONFLICT (key_hash) DO UPDATE
-    SET updated_at = CURRENT_TIMESTAMP,
-        is_active = true;
-END$$;
-
--- Create update trigger for updated_at
+-- Create a function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    NEW.updated_at = NOW();
     RETURN NEW;
 END;
 $$ language 'plpgsql';
 
--- Apply update trigger to tables
-DROP TRIGGER IF EXISTS update_users_updated_at ON users;
-CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_api_keys_updated_at ON api_keys;
-CREATE TRIGGER update_api_keys_updated_at BEFORE UPDATE ON api_keys
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-DROP TRIGGER IF EXISTS update_assets_updated_at ON assets;
+-- Create triggers to automatically update the updated_at column
 CREATE TRIGGER update_assets_updated_at BEFORE UPDATE ON assets
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-DROP TRIGGER IF EXISTS update_asset_sources_updated_at ON asset_sources;
 CREATE TRIGGER update_asset_sources_updated_at BEFORE UPDATE ON asset_sources
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-COMMIT;
-
--- Verification
-SELECT 'Local database initialized successfully' as status;
-SELECT 'Users:' as info, COUNT(*) as count FROM users;
-SELECT 'API keys:' as info, COUNT(*) as count FROM api_keys;
-SELECT 'Dev user:' as info, email, name FROM users WHERE email = 'dev@gaia.local';
