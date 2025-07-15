@@ -2,7 +2,7 @@
 Gaia UI Component Library
 Extracted from React client for visual parity
 """
-from fasthtml.components import Div, Span, Button, Input, Form, A, Img, H1, H2, P
+from fasthtml.components import Div, Span, Button, Input, Form, A, Img, H1, H2, P, Script
 from fasthtml.core import Script, Style
 
 # Design system constants
@@ -110,8 +110,8 @@ def gaia_message_bubble(content, role="user", timestamp=None):
     )
 
 
-def gaia_sidebar_header():
-    """Sidebar header with logo and new chat button"""
+def gaia_sidebar_header(user=None):
+    """Sidebar header with logo, new chat button, and logout"""
     return Div(
         Div(
             gaia_logo(with_text=True),
@@ -125,6 +125,19 @@ def gaia_sidebar_header():
             hx_target="#main-content",
             hx_swap="innerHTML"
         ),
+        # User info and logout
+        Div(
+            Div(
+                user.get('email', 'User') if user else 'User',
+                cls="text-sm text-slate-400 truncate mb-2"
+            ),
+            A(
+                "Logout",
+                href="/logout",
+                cls="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+            ),
+            cls="pt-4 border-t border-slate-700"
+        ) if user else None,
         cls="p-6 border-b border-slate-700"
     )
 
@@ -184,9 +197,31 @@ def gaia_auth_form(is_login=True):
                     hx_post="/auth/login" if is_login else "/auth/register",
                     hx_target="#auth-message",
                     hx_swap="innerHTML"
+                ) if not is_login else Form( # Keep HTMX for register, remove for login
+                    Div(
+                        gaia_input("email", "Email address", type="email", required=True),
+                        cls="mb-4"
+                    ),
+                    Div(
+                        gaia_input("password", "Password", type="password", required=True),
+                        cls="mb-6"
+                    ),
+                    gaia_button(submit_text, type="submit", cls="w-full"),
+                    cls="space-y-4",
+                    action="/auth/login", # Use standard form action for login
+                    method="post"
                 ),
                 
                 Div(id="auth-message", cls="mt-4"),
+                
+                # Dev login hint for local development
+                Div(
+                    P(
+                        "For local development, use: dev@gaia.local",
+                        cls="text-xs text-slate-500 text-center italic"
+                    ),
+                    cls="mt-2"
+                ) if is_login else "",
                 
                 Div(
                     P(
@@ -212,30 +247,32 @@ def gaia_chat_input():
                 "Type your message...",
                 cls="flex-1",
                 autofocus=True,
-                required=True
+                required=True,
+                id="chat-message-input"
             ),
             gaia_button(
                 "Send",
                 type="submit",
-                cls="ml-2"
+                cls="ml-2",
+                id="chat-send-button"
             ),
             cls="flex items-center"
         ),
         cls="p-4 border-t border-slate-700",
+        id="chat-form",
         hx_post="/api/chat/send",
         hx_target="#messages",
-        hx_swap="beforeend",
-        hx_on="htmx:afterRequest: this.reset()"
+        hx_swap="beforeend"
     )
 
 
-def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sidebar=True):
+def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sidebar=True, user=None):
     """Main layout component"""
     if show_sidebar:
         return Div(
             # Sidebar
             Div(
-                gaia_sidebar_header(),
+                gaia_sidebar_header(user=user),
                 Div(
                     sidebar_content or "",
                     cls="p-4 overflow-y-auto flex-1"
@@ -272,8 +309,7 @@ def gaia_error_message(message):
     """Error message component"""
     return Div(
         Div(
-            "⚠️",
-            message,
+            f"⚠️ {message}",
             cls="flex items-center space-x-2"
         ),
         cls="bg-red-900/20 border border-red-600 text-red-300 px-4 py-3 rounded-lg"
@@ -284,8 +320,7 @@ def gaia_success_message(message):
     """Success message component"""
     return Div(
         Div(
-            "✓",
-            message,
+            f"✓ {message}",
             cls="flex items-center space-x-2"
         ),
         cls="bg-green-900/20 border border-green-600 text-green-300 px-4 py-3 rounded-lg"

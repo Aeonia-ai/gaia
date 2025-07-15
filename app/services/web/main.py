@@ -22,10 +22,9 @@ app = FastHTML(
     hdrs=(
         Meta(charset="UTF-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1.0"),
-        Script(src="https://unpkg.com/htmx.org@1.9.10"),
-        Script(src="https://unpkg.com/htmx.org/dist/ext/ws.js"),
+        # FastHTML automatically includes HTMX, don't duplicate
         Script(src="https://cdn.tailwindcss.com"),
-        Link(rel="stylesheet", href="/static/gaia-design.css"),
+        # Temporarily disabled due to 500 error: Link(rel="stylesheet", href="/static/gaia-design.css"),
         Link(rel="icon", href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🦋%3C/text%3E%3C/svg%3E"),
     ),
     title="Gaia Platform",
