@@ -8,7 +8,7 @@ from app.services.web.components.gaia_ui import (
     gaia_chat_input, gaia_loading_spinner, gaia_error_message
 )
 from app.services.web.utils.gateway_client import GaiaAPIClient
-from app.services.web.utils.conversation_store import conversation_store
+from app.services.web.utils.database_conversation_store import database_conversation_store
 from app.shared.logging import setup_service_logger
 
 logger = setup_service_logger("chat_routes")
@@ -27,7 +27,7 @@ def setup_routes(app):
         user_id = user.get("id", "dev-user-id")
         
         # Get user's conversations
-        conversations = conversation_store.get_conversations(user_id)
+        conversations = database_conversation_store.get_conversations(user_id)
         
         # Build enhanced sidebar content with stagger animation
         sidebar_content = Div(
@@ -184,24 +184,16 @@ def setup_routes(app):
         
         try:
             # Get conversation from store
-            all_convs = conversation_store.get_conversations(user_id)
+            all_convs = database_conversation_store.get_conversations(user_id)
             logger.info(f"User {user_id} has {len(all_convs)} conversations")
             
-            conversation = conversation_store.get_conversation(user_id, conversation_id)
+            conversation = database_conversation_store.get_conversation(user_id, conversation_id)
             if not conversation:
                 logger.warning(f"Conversation {conversation_id} not found for user {user_id}")
-                # Try to find it in all users (dev mode)
-                for uid, convs in conversation_store._conversations.items():
-                    if conversation_id in convs:
-                        logger.info(f"Found conversation {conversation_id} under user {uid}")
-                        conversation = convs[conversation_id]
-                        break
-                
-                if not conversation:
-                    return gaia_error_message("Conversation not found")
+                return gaia_error_message("Conversation not found")
             
             # Get messages
-            messages_list = conversation_store.get_messages(conversation_id)
+            messages_list = database_conversation_store.get_messages(conversation_id)
             
             # Build message content - show welcome if no messages, otherwise show messages
             if not messages_list:
@@ -254,7 +246,7 @@ def setup_routes(app):
         logger.info(f"New chat requested for user {user_id}")
         
         # Create a new conversation
-        conversation = conversation_store.create_conversation(user_id)
+        conversation = database_conversation_store.create_conversation(user_id)
         logger.info(f"Created new conversation: {conversation['id']}")
         
         # Return fresh chat interface with conversation ID
@@ -315,16 +307,16 @@ def setup_routes(app):
             
             # Create new conversation if none exists
             if not conversation_id:
-                conversation = conversation_store.create_conversation(user_id)
+                conversation = database_conversation_store.create_conversation(user_id)
                 conversation_id = conversation['id']
                 logger.info(f"Created new conversation: {conversation_id}")
             
             # Store the user message BEFORE sending response
-            user_msg = conversation_store.add_message(conversation_id, "user", message)
+            user_msg = database_conversation_store.add_message(conversation_id, "user", message)
             logger.info(f"Stored user message: {user_msg}")
             
             # Update conversation preview with first message
-            conversation_store.update_conversation(user_id, conversation_id, 
+            database_conversation_store.update_conversation(user_id, conversation_id, 
                                                  title=message[:50] + "..." if len(message) > 50 else message,
                                                  preview=message)
             
@@ -442,7 +434,7 @@ def setup_routes(app):
         try:
             # Get conversation history
             if conversation_id:
-                messages_history = conversation_store.get_messages(conversation_id)
+                messages_history = database_conversation_store.get_messages(conversation_id)
                 # Convert to API format (only content and role)
                 # Filter out empty messages
                 messages = [
@@ -464,9 +456,9 @@ def setup_routes(app):
             
             # Store assistant message
             if conversation_id:
-                conversation_store.add_message(conversation_id, "assistant", response_content)
+                database_conversation_store.add_message(conversation_id, "assistant", response_content)
                 # Update conversation preview with assistant response
-                conversation_store.update_conversation(user_id, conversation_id, 
+                database_conversation_store.update_conversation(user_id, conversation_id, 
                                                      preview=response_content)
             
             # Return enhanced assistant message with entrance animation
@@ -531,7 +523,7 @@ def setup_routes(app):
         """Test page for debugging conversation switching"""
         user = request.session.get("user", {})
         user_id = user.get("id", "dev-user-id")
-        conversations = conversation_store.get_conversations(user_id)[:3]  # Get first 3
+        conversations = database_conversation_store.get_conversations(user_id)[:3]  # Get first 3
         
         from fasthtml.core import Script, NotStr
         
@@ -600,7 +592,7 @@ def setup_routes(app):
         user = request.session.get("user", {})
         user_id = user.get("id", "dev-user-id")
         
-        conversations = conversation_store.get_conversations(user_id)
+        conversations = database_conversation_store.get_conversations(user_id)
         
         # Return updated conversation list with smooth animations
         conversation_items = [gaia_conversation_item(conv) for conv in conversations]
