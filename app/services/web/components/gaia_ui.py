@@ -246,7 +246,7 @@ def gaia_auth_form(is_login=True):
                 
                 Div(id="auth-message", cls="mt-4"),
                 
-                # Dev login hint for local development
+                # Dev login hint for local development (only show in debug mode)
                 Div(
                     P(
                         "For local development, use: dev@gaia.local / test",
@@ -257,7 +257,7 @@ def gaia_auth_form(is_login=True):
                         cls="text-xs text-slate-500 text-center italic mt-1"
                     ) if not is_login else "",
                     cls="mt-2"
-                ) if is_login or not is_login else "",
+                ) if False else "",  # Always hidden in production - remove dev hints
                 
                 Div(
                     P(
