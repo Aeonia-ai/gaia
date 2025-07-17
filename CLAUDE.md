@@ -84,6 +84,7 @@ curl http://chat-service:8000/health
 - Auth: `http://auth-service:8000`
 - Asset: `http://asset-service:8000`
 - Chat: `http://chat-service:8000`
+- Redis: `redis://redis:6379` (caching layer)
 
 ## Shared Modules
 
@@ -93,6 +94,7 @@ curl http://chat-service:8000/health
 - **`database.py`**: SQLAlchemy setup with connection pooling
 - **`logging.py`**: Color-coded structured logging with custom levels (NETWORK, SERVICE, NATS)
 - **`nats_client.py`**: Async messaging client with reconnection handling
+- **`redis_client.py`**: Redis caching client with connection pooling and fallback handling
 - **`supabase.py`**: Supabase client integration
 
 ### Authentication Patterns
@@ -113,6 +115,7 @@ curl http://chat-service:8000/health
 - Unit tests: `pytest -m unit`
 - Integration tests: `pytest -m integration` 
 - Compatibility tests: `pytest -m compatibility` (verify LLM Platform API compatibility)
+- Performance tests: Redis caching validation and timing comparisons
 - Use test markers defined in `pytest.ini`
 
 ### Client Compatibility
