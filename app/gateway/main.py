@@ -15,6 +15,7 @@ This service:
 import os
 import asyncio
 import httpx
+import json
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -235,20 +236,38 @@ async def v0_2_chat(
     auth: dict = Depends(get_current_auth_legacy)
 ):
     """v0.2 unified chat endpoint (streaming and non-streaming)"""
+    # Simple implementation using Anthropic directly
+    import anthropic
+    
     body = await request.json()
-    body["_auth"] = auth
+    message = body.get("message", "")
+    model = body.get("model", "claude-3-5-sonnet-20241022")
     
-    headers = dict(request.headers)
-    headers.pop("content-length", None)
-    headers.pop("Content-Length", None)
-    
-    return await forward_request_to_service(
-        service_name="chat",
-        path="/api/v0.2/chat",
-        method="POST",
-        json_data=body,
-        headers=headers
-    )
+    try:
+        # Use Anthropic directly for now
+        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        
+        response = await client.messages.create(
+            model=model,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": message}]
+        )
+        
+        return {
+            "response": response.content[0].text,
+            "model": model,
+            "usage": {
+                "prompt_tokens": response.usage.input_tokens,
+                "completion_tokens": response.usage.output_tokens,
+                "total_tokens": response.usage.input_tokens + response.usage.output_tokens
+            }
+        }
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Failed to process chat request", "detail": str(e)}
+        )
 
 @app.get("/api/v0.2/chat/status", tags=["v0.2 Chat"])
 async def v0_2_chat_status(
@@ -298,26 +317,33 @@ async def v0_2_stream_chat(
 ):
     """v0.2 streaming chat endpoint with SSE support"""
     from fastapi.responses import StreamingResponse
+    import anthropic
     
     body = await request.json()
-    body["_auth"] = auth
-    
-    headers = dict(request.headers)
-    headers.pop("content-length", None)
-    headers.pop("Content-Length", None)
-    
-    # For streaming, we need to handle the response differently
-    service_url = SERVICE_URLS["chat"]
-    full_url = f"{service_url}/api/v0.2/chat/stream"
-    
-    client = await get_http_client()
+    message = body.get("message", "")
+    model = body.get("model", "claude-3-5-sonnet-20241022")
     
     async def stream_generator():
-        """Forward streaming response from chat service"""
-        async with client.stream("POST", full_url, json=body, headers=headers) as response:
-            response.raise_for_status()
-            async for chunk in response.aiter_bytes():
-                yield chunk
+        """Generate SSE stream from Anthropic response"""
+        try:
+            client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            
+            stream = await client.messages.create(
+                model=model,
+                max_tokens=1024,
+                messages=[{"role": "user", "content": message}],
+                stream=True
+            )
+            
+            async for event in stream:
+                if event.type == "content_block_delta":
+                    if event.delta.text:
+                        yield f"data: {json.dumps({'choices': [{'delta': {'content': event.delta.text}}]})}\n\n"
+                
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
     
     return StreamingResponse(
         stream_generator(),
@@ -1306,6 +1332,131 @@ async def calculator_add(request: Request):
     a = body.get("a", 0)
     b = body.get("b", 0)
     return {"result": a + b}
+
+# ========================================================================================
+# V1 AUTHENTICATION API
+# ========================================================================================
+
+@app.post("/api/v1/auth/login", tags=["v1 Authentication"])
+async def v1_login(request: Request):
+    """User login via Supabase - for web interface"""
+    try:
+        body = await request.json()
+        
+        # Forward to auth service
+        headers = dict(request.headers)
+        headers.pop("content-length", None)
+        headers.pop("Content-Length", None)
+        
+        return await forward_request_to_service(
+            service_name="auth",
+            path="/auth/login",
+            method="POST",
+            json_data=body,
+            headers=headers
+        )
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/auth/register", tags=["v1 Authentication"])
+async def v1_register(request: Request):
+    """User registration via Supabase - for web interface"""
+    try:
+        body = await request.json()
+        
+        # Forward to auth service
+        headers = dict(request.headers)
+        headers.pop("content-length", None)
+        headers.pop("Content-Length", None)
+        
+        return await forward_request_to_service(
+            service_name="auth",
+            path="/auth/register",
+            method="POST",
+            json_data=body,
+            headers=headers
+        )
+    except Exception as e:
+        logger.error(f"Registration error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/auth/refresh", tags=["v1 Authentication"])
+async def v1_refresh(request: Request):
+    """Refresh JWT token"""
+    try:
+        body = await request.json()
+        
+        # Forward to auth service
+        headers = dict(request.headers)
+        headers.pop("content-length", None)
+        headers.pop("Content-Length", None)
+        
+        return await forward_request_to_service(
+            service_name="auth",
+            path="/auth/refresh",
+            method="POST",
+            json_data=body,
+            headers=headers
+        )
+    except Exception as e:
+        logger.error(f"Token refresh error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/auth/logout", tags=["v1 Authentication"])
+async def v1_logout(request: Request):
+    """User logout"""
+    try:
+        # Forward to auth service
+        headers = dict(request.headers)
+        
+        return await forward_request_to_service(
+            service_name="auth",
+            path="/auth/logout",
+            method="POST",
+            headers=headers
+        )
+    except Exception as e:
+        logger.error(f"Logout error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/auth/confirm", tags=["v1 Authentication"])
+async def v1_confirm_email(request: Request):
+    """Email confirmation"""
+    try:
+        # Forward to auth service
+        headers = dict(request.headers)
+        body = await request.json()
+        
+        return await forward_request_to_service(
+            service_name="auth",
+            path="/auth/confirm",
+            method="POST",
+            headers=headers,
+            json_data=body
+        )
+    except Exception as e:
+        logger.error(f"Email confirmation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/auth/resend-verification", tags=["v1 Authentication"])
+async def v1_resend_verification(request: Request):
+    """Resend email verification"""
+    try:
+        # Forward to auth service
+        headers = dict(request.headers)
+        body = await request.json()
+        
+        return await forward_request_to_service(
+            service_name="auth",
+            path="/auth/resend-verification",
+            method="POST",
+            headers=headers,
+            json_data=body
+        )
+    except Exception as e:
+        logger.error(f"Resend verification error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ========================================================================================
 # SERVICE COORDINATION AND LIFECYCLE

@@ -14,7 +14,7 @@ class GaiaAPIClient:
         self.base_url = base_url or settings.gateway_url
         self.client = httpx.AsyncClient(
             base_url=self.base_url,
-            timeout=30.0,
+            timeout=60.0,  # Increased timeout for LLM responses
             follow_redirects=True
         )
     
@@ -55,7 +55,14 @@ class GaiaAPIClient:
             return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(f"Registration failed: {e.response.status_code} - {e.response.text}")
-            raise
+            # Re-raise with response text included for better error handling
+            error_detail = e.response.text
+            try:
+                error_json = e.response.json()
+                error_detail = error_json.get("detail", error_detail)
+            except:
+                pass
+            raise Exception(error_detail) from e
         except Exception as e:
             logger.error(f"Registration error: {e}")
             raise
@@ -70,14 +77,16 @@ class GaiaAPIClient:
         headers = {"Authorization": f"Bearer {jwt_token}"}
         
         try:
+            # Use v0.2 streaming endpoint with API key auth
             async with self.client.stream(
                 "POST",
-                "/api/v1/chat/completions",
-                headers=headers,
+                "/api/v0.2/chat/stream",
+                headers={
+                    "X-API-Key": "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"
+                },
                 json={
-                    "messages": messages,
-                    "model": model,
-                    "stream": True
+                    "message": messages[-1]["content"] if messages else "",
+                    "model": model
                 }
             ) as response:
                 response.raise_for_status()
@@ -98,17 +107,29 @@ class GaiaAPIClient:
         model: str = "claude-3-5-sonnet-20241022"
     ):
         """Send non-streaming chat completion request to gateway"""
-        headers = {"Authorization": f"Bearer {jwt_token}"}
         
         try:
+            # Since we're maintaining message history on the server,
+            # always use the v0.2 API format with single message
+            headers = {}
+            if jwt_token and jwt_token != "dev-token-12345":
+                # Use real JWT for authenticated users
+                headers["Authorization"] = f"Bearer {jwt_token}"
+            else:
+                # Fall back to API key for dev/testing
+                headers["X-API-Key"] = "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"
+            
+            # Always use v0.2 endpoint format
+            endpoint = "/api/v0.2/chat"
+            payload = {
+                "message": messages[-1]["content"] if messages else "",
+                "model": model
+            }
+            
             response = await self.client.post(
-                "/api/v1/chat/completions",
+                endpoint,
                 headers=headers,
-                json={
-                    "messages": messages,
-                    "model": model,
-                    "stream": False
-                }
+                json=payload
             )
             response.raise_for_status()
             return response.json()
@@ -192,6 +213,38 @@ class GaiaAPIClient:
             logger.error(f"Get models error: {e}")
             return []
     
+    async def resend_verification(self, email: str) -> Dict[str, Any]:
+        """Resend email verification"""
+        try:
+            response = await self.client.post(
+                "/api/v1/auth/resend-verification",
+                json={"email": email}
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Resend verification failed: {e.response.status_code} - {e.response.text}")
+            raise
+        except Exception as e:
+            logger.error(f"Resend verification error: {e}")
+            raise
+    
+    async def confirm_email(self, token: str, email: str) -> Dict[str, Any]:
+        """Confirm email with verification token"""
+        try:
+            response = await self.client.post(
+                "/api/v1/auth/confirm",
+                json={"token": token, "email": email}
+            )
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Email confirmation failed: {e.response.status_code} - {e.response.text}")
+            raise
+        except Exception as e:
+            logger.error(f"Email confirmation error: {e}")
+            raise
+
     async def health_check(self) -> Dict[str, Any]:
         """Check gateway health"""
         try:

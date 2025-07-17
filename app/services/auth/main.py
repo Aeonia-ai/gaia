@@ -76,6 +76,15 @@ class TokenRefreshRequest(BaseModel):
     """Request model for token refresh."""
     refresh_token: str
 
+class EmailConfirmationRequest(BaseModel):
+    """Request model for email confirmation."""
+    token: str
+    email: str
+
+class ResendVerificationRequest(BaseModel):
+    """Request model for resending email verification."""
+    email: str
+
 # ========================================================================================
 # HEALTH AND STATUS ENDPOINTS
 # ========================================================================================
@@ -209,9 +218,26 @@ async def register_user(request: UserRegistrationRequest):
         log_auth_event("auth", "registration", request.email, success=False)
         logger.error(f"User registration failed for {request.email}: {e}")
         
+        # Parse Supabase error messages for better user feedback
+        error_msg = str(e).lower()
+        
+        if "email" in error_msg and ("invalid" in error_msg or "valid" in error_msg):
+            detail = "Please enter a valid email address"
+        elif "password" in error_msg and ("weak" in error_msg or "short" in error_msg):
+            detail = "Password must be at least 6 characters long"
+        elif "already registered" in error_msg or "already exists" in error_msg:
+            detail = "This email is already registered"
+        elif "not authorized" in error_msg or "not allowed" in error_msg:
+            detail = "Registration is not allowed for this email domain"
+        elif "rate limit" in error_msg:
+            detail = "Too many registration attempts. Please try again later"
+        else:
+            # Include original error for debugging but make it user-friendly
+            detail = f"Registration failed: {str(e)}"
+        
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Registration failed: {str(e)}"
+            detail=detail
         )
 
 @app.post("/auth/login", tags=["Authentication"])
@@ -289,6 +315,91 @@ async def logout_user():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Logout failed: {str(e)}"
+        )
+
+@app.post("/auth/confirm", tags=["Authentication"])
+async def confirm_email(request: EmailConfirmationRequest):
+    """Confirm user email with verification token."""
+    try:
+        supabase = get_supabase_client()
+        
+        logger.info(f"Email confirmation attempt for: {request.email}")
+        
+        # Verify the email using the confirmation token
+        # Note: This depends on how your Supabase is configured
+        # For now, we'll use the verify_otp method with token_type="signup"
+        verification_result = supabase.auth.verify_otp({
+            "email": request.email,
+            "token": request.token,
+            "type": "signup"
+        })
+        
+        log_auth_event("auth", "email_confirmation", request.email, success=True)
+        logger.info(f"Email confirmed successfully: {request.email}")
+        
+        return {
+            "message": "Email confirmed successfully",
+            "user": verification_result.user
+        }
+        
+    except Exception as e:
+        log_auth_event("auth", "email_confirmation", request.email, success=False)
+        logger.error(f"Email confirmation failed for {request.email}: {e}")
+        
+        # Parse Supabase error messages
+        error_msg = str(e).lower()
+        
+        if "expired" in error_msg or "invalid" in error_msg:
+            detail = "Confirmation link is expired or invalid"
+        elif "already confirmed" in error_msg:
+            detail = "Email is already confirmed"
+        else:
+            detail = f"Email confirmation failed: {str(e)}"
+        
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail
+        )
+
+@app.post("/auth/resend-verification", tags=["Authentication"])
+async def resend_verification(request: ResendVerificationRequest):
+    """Resend email verification."""
+    try:
+        supabase = get_supabase_client()
+        
+        logger.info(f"Resend verification attempt for: {request.email}")
+        
+        # Resend confirmation email
+        resend_result = supabase.auth.resend({
+            "type": "signup",
+            "email": request.email
+        })
+        
+        log_auth_event("auth", "resend_verification", request.email, success=True)
+        logger.info(f"Verification email resent successfully: {request.email}")
+        
+        return {
+            "message": f"Verification email sent to {request.email}",
+            "result": resend_result
+        }
+        
+    except Exception as e:
+        log_auth_event("auth", "resend_verification", request.email, success=False)
+        logger.error(f"Resend verification failed for {request.email}: {e}")
+        
+        # Parse Supabase error messages
+        error_msg = str(e).lower()
+        
+        if "rate limit" in error_msg:
+            detail = "Too many requests. Please wait before requesting another email"
+        elif "not found" in error_msg:
+            detail = "Email address not found"
+        else:
+            detail = f"Failed to resend verification email: {str(e)}"
+        
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail
         )
 
 # ========================================================================================
