@@ -45,6 +45,9 @@ def get_database_url() -> str:
     """Get the current database URL."""
     return DATABASE_URL
 
+# Alias for backward compatibility
+get_db = get_database_session
+
 def test_database_connection() -> bool:
     """Test database connectivity."""
     try:

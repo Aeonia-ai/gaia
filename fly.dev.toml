@@ -20,6 +20,9 @@ primary_region = 'sjc'
   # Dev database
   DATABASE_URL = "postgresql://postgres:password@gaia-db-dev.fly.dev:5432/llm_platform"
   NATS_URL = "nats://gaia-nats-dev.fly.dev:4222"
+  
+  # Redis (Upstash Redis on Fly.io)
+  REDIS_URL = "redis://fly-gaia-redis-dev.upstash.io:6379"
 
 [http_service]
   internal_port = 8000

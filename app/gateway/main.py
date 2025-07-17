@@ -15,6 +15,7 @@ This service:
 import os
 import asyncio
 import httpx
+import hashlib
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -39,12 +40,37 @@ from app.shared import (
     database_health_check,
     supabase_health_check
 )
+from app.shared.redis_client import redis_client, CacheManager
 
 # Configure logging for gateway service
 logger = configure_logging_for_service("gateway")
 
-# Rate limiter configuration
-limiter = Limiter(key_func=get_remote_address)
+# Redis-based rate limiter configuration
+def redis_rate_limit_key_func(request: Request):
+    """Generate rate limit key using user authentication or IP."""
+    try:
+        # Try to get user ID from auth header for user-specific limits
+        auth_header = request.headers.get("authorization")
+        api_key = request.headers.get("x-api-key")
+        
+        if auth_header and auth_header.startswith("Bearer "):
+            # Use JWT token hash for user rate limiting
+            token = auth_header[7:]
+            token_hash = hashlib.sha256(token.encode()).hexdigest()[:16]
+            return f"user:jwt:{token_hash}"
+        elif api_key:
+            # Use API key hash for service rate limiting
+            key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+            return f"user:api:{key_hash}"
+        else:
+            # Fall back to IP-based rate limiting
+            return f"ip:{get_remote_address(request)}"
+    except Exception:
+        # Fallback to IP if anything fails
+        return f"ip:{get_remote_address(request)}"
+
+# Configure limiter - will use Redis if available
+limiter = Limiter(key_func=redis_rate_limit_key_func)
 
 # FastAPI application
 app = FastAPI(
@@ -177,16 +203,28 @@ async def health_check():
     db_health = await database_health_check()
     supabase_health = await supabase_health_check()
     
+    # Check Redis health
+    redis_health = {
+        "status": "healthy" if redis_client.is_connected() else "unhealthy",
+        "connected": redis_client.is_connected()
+    }
+    
     overall_status = "healthy"
     if any(s["status"] != "healthy" for s in service_health.values()):
         overall_status = "degraded"
     if db_health["status"] != "healthy":
         overall_status = "unhealthy"
+    if redis_health["status"] != "healthy":
+        overall_status = "degraded"  # Redis failure doesn't make system unhealthy
     
     return {
         "status": overall_status,
         "timestamp": datetime.now().isoformat(),
-        "version": "0.2.0"
+        "version": "0.2.0",
+        "services": service_health,
+        "database": db_health,
+        "redis": redis_health,
+        "supabase": supabase_health
     }
 
 # Root endpoint (same as LLM Platform)

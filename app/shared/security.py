@@ -2,6 +2,7 @@
 Shared security utilities for Gaia Platform services.
 Maintains compatibility with LLM Platform authentication patterns.
 Supports both global API keys and user-associated API keys.
+Includes Redis caching for performance optimization.
 """
 import jwt
 import os
@@ -12,6 +13,7 @@ from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredenti
 from typing import Optional, Union, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
+from app.shared.redis_client import redis_client, CacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,7 @@ def validate_api_key(api_key: Optional[str], expected_key: Optional[str]) -> boo
 async def validate_user_api_key(api_key: str, db: Session) -> Optional[AuthenticationResult]:
     """
     Validate a user-associated API key from the database.
+    Includes Redis caching for performance optimization.
     Returns AuthenticationResult if valid, None if invalid.
     """
     from sqlalchemy import text
@@ -72,6 +75,23 @@ async def validate_user_api_key(api_key: str, db: Session) -> Optional[Authentic
     try:
         # Hash the provided API key
         key_hash = hash_api_key(api_key)
+        cache_key = CacheManager.api_key_cache_key(key_hash[:16])
+        
+        # Try to get cached validation result
+        if redis_client.is_connected():
+            try:
+                cached_result = redis_client.get_json(cache_key)
+                if cached_result:
+                    logger.debug("User API key validation cache hit")
+                    return AuthenticationResult(
+                        auth_type="user_api_key",
+                        user_id=cached_result["user_id"],
+                        api_key=api_key,
+                        api_key_id=cached_result["api_key_id"],
+                        scopes=cached_result.get("scopes", [])
+                    )
+            except Exception as e:
+                logger.warning(f"API key cache lookup failed: {e}")
         
         # Look up the API key in the database using raw SQL for compatibility
         result = db.execute(
@@ -97,14 +117,29 @@ async def validate_user_api_key(api_key: str, db: Session) -> Optional[Authentic
         )
         db.commit()
         
-        # Return authentication result
-        return AuthenticationResult(
+        # Create authentication result
+        auth_result = AuthenticationResult(
             auth_type="user_api_key",
             user_id=str(result.user_id),
             api_key=api_key,
             api_key_id=str(result.id),
             scopes=result.permissions or []
         )
+        
+        # Cache successful validation for 10 minutes
+        if redis_client.is_connected():
+            try:
+                cache_data = {
+                    "user_id": str(result.user_id),
+                    "api_key_id": str(result.id),
+                    "scopes": result.permissions or []
+                }
+                redis_client.set_json(cache_key, cache_data, ex=600)  # 10 minutes
+                logger.debug("User API key validation cached")
+            except Exception as e:
+                logger.warning(f"API key cache set failed: {e}")
+        
+        return auth_result
         
     except Exception as e:
         logger.error(f"Error validating user API key: {str(e)}")
@@ -141,6 +176,7 @@ async def validate_supabase_jwt(
 ) -> dict:
     """
     Validates a Supabase JWT token and returns its payload.
+    Includes Redis caching for performance optimization.
     Identical to LLM Platform implementation for compatibility.
     """
     if not credentials:
@@ -149,6 +185,21 @@ async def validate_supabase_jwt(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Generate cache key from token hash
+    token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()[:16]
+    cache_key = CacheManager.auth_cache_key(token_hash)
+    
+    # Try to get cached validation result
+    if redis_client.is_connected():
+        try:
+            cached_payload = redis_client.get_json(cache_key)
+            if cached_payload:
+                logger.debug("JWT validation cache hit")
+                return cached_payload
+        except Exception as e:
+            logger.warning(f"JWT cache lookup failed: {e}")
+    
     try:
         jwt_secret = os.getenv("SUPABASE_JWT_SECRET")
         if not jwt_secret:
@@ -161,6 +212,15 @@ async def validate_supabase_jwt(
             audience="authenticated",
             algorithms=["HS256"]
         )
+        
+        # Cache successful validation for 15 minutes
+        if redis_client.is_connected():
+            try:
+                redis_client.set_json(cache_key, payload, ex=900)  # 15 minutes
+                logger.debug("JWT validation cached")
+            except Exception as e:
+                logger.warning(f"JWT cache set failed: {e}")
+        
         return payload
     except jwt.PyJWTError as e:
         logger.error(f"JWT validation error: {str(e)}")
