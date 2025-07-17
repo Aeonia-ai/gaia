@@ -127,34 +127,14 @@ def gaia_sidebar_header(user=None):
             hx_target="#main-content",
             hx_swap="innerHTML swap:0.5s settle:0.5s"
         ),
-        # Search input with clear button
+        # Search input - simplified version
         Div(
-            Div(
-                Input(
-                    type="text",
-                    placeholder="Search conversations...",
-                    cls="w-full bg-slate-800 border border-slate-600 text-white placeholder-slate-400 rounded-lg px-3 py-2 pr-8 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 transition-all duration-300",
-                    **{"hx-get": "/api/search-conversations"},
-                    **{"hx-target": "#conversation-list"},
-                    **{"hx-swap": "innerHTML"},
-                    **{"hx-trigger": "keyup changed delay:300ms"},
-                    name="query",
-                    id="search-input"
-                ),
-                # Clear search button
-                Button(
-                    "×",
-                    cls="absolute right-2 top-1/2 transform -translate-y-1/2 w-5 h-5 bg-slate-600 hover:bg-slate-500 text-white text-xs rounded-full opacity-0 transition-opacity duration-200 flex items-center justify-center font-bold leading-none",
-                    id="clear-search",
-                    title="Clear search",
-                    onclick="document.getElementById('search-input').value = ''; htmx.ajax('GET', '/api/search-conversations', {target: '#conversation-list', swap: 'innerHTML'}); this.style.opacity = '0';"
-                ),
-                cls="relative"
-            ),
-            # Search status indicator
-            Div(
-                id="search-status",
-                cls="text-xs text-slate-400 mt-1 h-4"
+            Input(
+                type="text",
+                placeholder="Search conversations...",
+                cls="w-full bg-slate-800 border border-slate-600 text-white placeholder-slate-400 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 transition-all duration-300",
+                name="query",
+                id="search-input"
             ),
             cls="mb-3"
         ),

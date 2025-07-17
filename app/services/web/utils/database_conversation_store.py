@@ -66,19 +66,36 @@ class DatabaseConversationStore:
                 if user:
                     return user
             
-            # Create new user if not found
-            if "@" in user_id:
-                # user_id looks like an email
-                user = User(email=user_id, name="User")
-            else:
-                # Create with generated email
-                user = User(email=f"{user_id}@gaia.local", name="User")
-            
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-            logger.info(f"Created new user: {user.id}")
-            return user
+            # Create new user if not found - with duplicate handling
+            try:
+                if "@" in user_id:
+                    # user_id looks like an email
+                    user = User(email=user_id, name="User")
+                else:
+                    # Create with generated email
+                    user = User(email=f"{user_id}@gaia.local", name="User")
+                
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                logger.info(f"Created new user: {user.id}")
+                return user
+            except Exception as e:
+                # If creation fails (likely duplicate), try to find existing user
+                db.rollback()
+                logger.warning(f"User creation failed, trying to find existing: {e}")
+                
+                if "@" in user_id:
+                    user = db.query(User).filter(User.email == user_id).first()
+                else:
+                    user = db.query(User).filter(User.email == f"{user_id}@gaia.local").first()
+                
+                if user:
+                    logger.info(f"Found existing user: {user.id}")
+                    return user
+                else:
+                    logger.error(f"Could not find or create user for {user_id}")
+                    raise e
         finally:
             db.close()
     

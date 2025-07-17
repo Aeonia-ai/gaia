@@ -26,15 +26,19 @@ def setup_routes(app):
         user = request.session.get("user", {})
         user_id = user.get("id", "dev-user-id")
         
-        # Get user's conversations
-        conversations = database_conversation_store.get_conversations(user_id)
+        # Get user's conversations - simplified for debugging
+        try:
+            conversations = database_conversation_store.get_conversations(user_id)
+            logger.info(f"Retrieved {len(conversations)} conversations for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error getting conversations: {e}")
+            conversations = []
         
-        # Build enhanced sidebar content with stagger animation
+        # Build simple sidebar content
         sidebar_content = Div(
-            *[gaia_conversation_item(conv) for conv in conversations],
-            cls="space-y-2 stagger-children",
-            id="conversation-list",
-            style="--stagger-delay: 0;"
+            *[gaia_conversation_item(conv) for conv in conversations[:5]],  # Limit to 5 for debugging
+            cls="space-y-2",
+            id="conversation-list"
         )
         
         # Initialize HTMX properly and handle form clearing
