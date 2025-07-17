@@ -210,3 +210,4 @@ llm_platform_venv/
 *.swp
 *.swo
 
+cookies*.txt
