@@ -26,7 +26,7 @@ class WebSettings(BaseSettings):
     enable_htmx: bool = True
     
     # Debug settings
-    debug: bool = False
+    debug: bool = True
     log_level: str = "INFO"
     
     class Config:

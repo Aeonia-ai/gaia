@@ -113,6 +113,7 @@ services:
       - NATS_URL=nats://nats:4222
       - WEB_SESSION_SECRET=${SESSION_SECRET:-change-this-in-production}
       - WEB_LOG_LEVEL=INFO
+      - WEB_DEBUG=true
     depends_on:
       - gateway
       - nats

@@ -33,6 +33,9 @@ class GaiaSettings(BaseSettings):
     SUPABASE_ANON_KEY: Optional[str] = os.getenv("SUPABASE_ANON_KEY")
     SUPABASE_JWT_SECRET: Optional[str] = os.getenv("SUPABASE_JWT_SECRET")
     
+    # Environment-specific URLs for Supabase redirects
+    WEB_SERVICE_BASE_URL: Optional[str] = os.getenv("WEB_SERVICE_BASE_URL")  # Override for cloud deployment
+    
     # Rate Limiting (from LLM Platform)
     RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "60"))
     RATE_LIMIT_PERIOD: str = os.getenv("RATE_LIMIT_PERIOD", "minute")
@@ -144,6 +147,36 @@ def get_service_info() -> dict:
         "port": settings.SERVICE_PORT,
         "environment": settings.ENVIRONMENT,
         "debug": settings.DEBUG
+    }
+
+def get_web_service_base_url() -> str:
+    """Get the base URL for the web service based on environment."""
+    if settings.WEB_SERVICE_BASE_URL:
+        # Explicit override for cloud deployment
+        return settings.WEB_SERVICE_BASE_URL
+    elif settings.ENVIRONMENT in ["production", "prod"]:
+        # Production environment
+        return "https://gaia-web-production.fly.dev"
+    elif settings.ENVIRONMENT in ["staging", "stage"]:
+        # Staging environment  
+        return "https://gaia-web-staging.fly.dev"
+    elif settings.ENVIRONMENT in ["dev", "development"]:
+        # Development environment (cloud-based)
+        return "https://gaia-web-dev.fly.dev"
+    else:
+        # Local development (default)
+        return "http://localhost:8080"
+
+def get_supabase_redirect_urls() -> dict:
+    """Get Supabase redirect URLs for current environment."""
+    base_url = get_web_service_base_url()
+    return {
+        "site_url": base_url,
+        "redirect_urls": [
+            f"{base_url}/auth/confirm",
+            f"{base_url}/auth/callback",
+            f"{base_url}/"
+        ]
     }
 
 def get_nats_config() -> dict:

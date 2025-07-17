@@ -209,3 +209,5 @@ llm_platform_venv/
 # Editor specific
 *.swp
 *.swo
+
+cookies*.txt
