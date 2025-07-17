@@ -5,7 +5,7 @@ from fasthtml.components import Div, H2, Button, P, A, H1, Style
 from starlette.responses import HTMLResponse
 from app.services.web.components.gaia_ui import (
     gaia_layout, gaia_conversation_item, gaia_message_bubble,
-    gaia_chat_input, gaia_loading_spinner, gaia_error_message, gaia_toast_script
+    gaia_chat_input, gaia_loading_spinner, gaia_error_message, gaia_toast_script, gaia_mobile_styles
 )
 from app.services.web.utils.gateway_client import GaiaAPIClient
 from app.services.web.utils.database_conversation_store import database_conversation_store
@@ -97,18 +97,11 @@ def setup_routes(app):
                 });
             }
             
-            // Add event listener for successful swaps to debug
+            // Add event listener for successful swaps
             document.body.addEventListener('htmx:afterSwap', function(evt) {
                 console.log('[HTMX] After Swap:', evt.detail);
                 if (evt.detail.target.id === 'main-content') {
                     console.log('[HTMX] Main content swapped, forcing reflow');
-                    // Add visible debug info
-                    const debugDiv = document.createElement('div');
-                    debugDiv.style.cssText = 'position:fixed;top:10px;right:10px;background:yellow;color:black;padding:10px;z-index:9999';
-                    debugDiv.textContent = 'HTMX Swap Completed at ' + new Date().toTimeString();
-                    document.body.appendChild(debugDiv);
-                    setTimeout(() => debugDiv.remove(), 3000);
-                    
                     // Force browser reflow/repaint
                     evt.detail.target.style.display = 'none';
                     evt.detail.target.offsetHeight; // Force reflow
@@ -188,6 +181,7 @@ def setup_routes(app):
             gaia_chat_input(),  # No conversation ID yet
             debug_script,
             gaia_toast_script(),  # Add toast management
+            gaia_mobile_styles(),  # Add mobile-responsive styles
             cls="flex flex-col h-full"
         )
         

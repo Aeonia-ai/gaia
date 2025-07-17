@@ -13,7 +13,7 @@ from datetime import datetime
 
 from app.services.web.config import settings
 from app.services.web.routes import auth, chat, api, websocket, profile
-from app.services.web.components.gaia_ui import GaiaDesign, gaia_layout, gaia_auth_form
+from app.services.web.components.gaia_ui import GaiaDesign, gaia_layout, gaia_auth_form, gaia_mobile_styles
 from app.shared.logging import setup_service_logger
 
 # Setup logging
@@ -43,7 +43,14 @@ app = FastHTML(
 app.mount("/static", StaticFiles(directory="app/services/web/static"), name="static")
 
 # Add middleware
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=settings.session_secret,
+    session_cookie="session",  # Use simple session cookie name
+    max_age=settings.session_max_age,
+    https_only=False,  # Allow HTTP for local development
+    same_site="lax"    # Allow cross-site requests
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -74,7 +81,11 @@ async def index(request):
 async def login_page():
     """Login page"""
     return gaia_layout(
-        main_content=gaia_auth_form(is_login=True),
+        main_content=Div(
+            gaia_auth_form(is_login=True),
+            gaia_mobile_styles(),
+            cls="w-full"
+        ),
         page_class="justify-center items-center",
         show_sidebar=False
     )
@@ -84,7 +95,11 @@ async def login_page():
 async def register_page():
     """Registration page"""
     return gaia_layout(
-        main_content=gaia_auth_form(is_login=False),
+        main_content=Div(
+            gaia_auth_form(is_login=False),
+            gaia_mobile_styles(),
+            cls="w-full"
+        ),
         page_class="justify-center items-center",
         show_sidebar=False
     )

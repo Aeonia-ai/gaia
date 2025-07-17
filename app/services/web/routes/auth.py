@@ -49,7 +49,7 @@ def setup_routes(app):
         password = form_data.get("password")
         
         # For local development only - hardcoded test account
-        if settings.debug and email == "dev@gaia.local" and password == "test":
+        if settings.debug and email == "dev@gaia.local" and password == "testtest":
             # Create a mock session for testing
             request.session["jwt_token"] = "dev-token-12345"
             request.session["user"] = {

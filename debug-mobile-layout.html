@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Layout Debug</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .debug-box {
+            border: 2px solid red;
+            background: rgba(255, 0, 0, 0.1);
+        }
+        .debug-info {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body class="bg-slate-900">
+    <div id="debug-info" class="debug-info">
+        <div>Screen: <span id="screen-size"></span></div>
+        <div>Viewport: <span id="viewport-size"></span></div>
+        <div>Device Type: <span id="device-type"></span></div>
+    </div>
+
+    <!-- Test layout similar to our Gaia layout -->
+    <div class="flex flex-col md:flex-row h-screen bg-slate-900">
+        
+        <!-- Mobile Header (visible only on mobile) -->
+        <div class="md:hidden mobile-header bg-slate-800 border-b border-slate-700 debug-box">
+            <div class="flex items-center justify-between px-4 py-3">
+                <button class="p-2 text-white">☰</button>
+                <div class="text-white">🦋 Gaia</div>
+                <div class="w-8 h-8 bg-purple-600 rounded-full text-white text-sm flex items-center justify-center">D</div>
+            </div>
+        </div>
+
+        <!-- Sidebar (hidden on mobile, always visible on desktop) -->
+        <div class="fixed md:relative top-0 left-0 z-40 w-64 bg-slate-800 flex flex-col h-screen transform -translate-x-full md:translate-x-0 debug-box">
+            <div class="p-4 text-white">Sidebar Content</div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="main-content" class="flex-1 flex flex-col overflow-hidden debug-box bg-slate-900">
+            <div class="flex-1 p-6 text-white">
+                <h1 class="text-2xl mb-4">Main Content Area</h1>
+                <p>This should be visible properly on mobile.</p>
+                <div class="mt-4">
+                    <h2>Content Test</h2>
+                    <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Mobile-specific styles */
+        @media (max-width: 768px) {
+            .mobile-header {
+                height: 4rem;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 30;
+            }
+            
+            #main-content {
+                margin-top: 4rem;
+                height: calc(100vh - 4rem);
+                max-height: calc(100vh - 4rem);
+            }
+        }
+    </style>
+
+    <script>
+        function updateDebugInfo() {
+            const screenSize = `${screen.width}x${screen.height}`;
+            const viewportSize = `${window.innerWidth}x${window.innerHeight}`;
+            const isMobile = window.innerWidth < 768;
+            
+            document.getElementById('screen-size').textContent = screenSize;
+            document.getElementById('viewport-size').textContent = viewportSize;
+            document.getElementById('device-type').textContent = isMobile ? 'Mobile' : 'Desktop';
+        }
+
+        updateDebugInfo();
+        window.addEventListener('resize', updateDebugInfo);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(updateDebugInfo, 100);
+        });
+    </script>
+</body>
+</html>

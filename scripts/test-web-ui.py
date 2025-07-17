@@ -26,7 +26,7 @@ def test_conversation_features():
     print("\n2. Testing login...")
     login_data = {
         "email": "dev@gaia.local",
-        "password": "test"
+        "password": "testtest"
     }
     response = session.post(f"{BASE_URL}/auth/login", data=login_data, allow_redirects=False)
     print(f"   Status: {response.status_code}")

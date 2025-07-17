@@ -34,7 +34,7 @@ class TestAuthIntegration:
         # 2. Login with dev credentials
         response = client.post("/auth/login", data={
             "email": "dev@gaia.local",
-            "password": "test"
+            "password": "testtest"
         }, follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/chat"

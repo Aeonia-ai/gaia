@@ -21,7 +21,7 @@ def automated_chat_test():
     print("\n1. Logging in...")
     login_response = session.post(
         f"{BASE_URL}/auth/login",
-        data={"email": "dev@gaia.local", "password": "test"},
+        data={"email": "dev@gaia.local", "password": "testtest"},
         allow_redirects=False
     )
     print(f"   Login status: {login_response.status_code}")

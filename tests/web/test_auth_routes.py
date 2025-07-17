@@ -32,7 +32,7 @@ class TestAuthRoutes:
         with patch('app.services.web.config.settings.debug', True):
             response = client.post("/auth/login", data={
                 "email": "dev@gaia.local",
-                "password": "test"
+                "password": "testtest"
             })
             
             assert response.status_code == 303  # Redirect

@@ -17,7 +17,7 @@ def test_ai_response():
     # Login
     print("\n1. Logging in...")
     session.post(f"{BASE_URL}/auth/login", 
-                data={"email": "dev@gaia.local", "password": "test"},
+                data={"email": "dev@gaia.local", "password": "testtest"},
                 allow_redirects=False)
     session.get(f"{BASE_URL}/chat")
     print("   ✓ Logged in")

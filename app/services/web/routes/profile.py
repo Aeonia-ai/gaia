@@ -19,7 +19,11 @@ def setup_routes(app):
         jwt_token = request.session.get("jwt_token")
         user = request.session.get("user", {})
         
+        logger.info(f"Profile page accessed - JWT: {bool(jwt_token)}, User: {bool(user)}")
+        logger.info(f"Session contents: {dict(request.session)}")
+        
         if not jwt_token or not user:
+            logger.warning("Profile access denied - redirecting to login")
             return RedirectResponse(url="/login", status_code=302)
         
         user_id = user.get("id", "dev-user-id")

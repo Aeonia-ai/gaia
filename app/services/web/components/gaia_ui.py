@@ -110,9 +110,19 @@ def gaia_message_bubble(content, role="user", timestamp=None):
     )
 
 
-def gaia_sidebar_header(user=None):
+def gaia_sidebar_header(user=None, mobile=False):
     """Compact sidebar header matching modern chat interfaces"""
     return Div(
+        # Close button for mobile (top-right of sidebar)
+        Div(
+            Button(
+                "×",
+                cls="absolute top-3 right-3 text-white hover:text-gray-300 text-xl font-bold w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 transition-colors",
+                onclick="toggleSidebar()",
+                title="Close sidebar"
+            ),
+            cls="md:hidden relative"
+        ) if mobile else "",
         # Logo and title
         Div(
             gaia_logo(with_text=True),
@@ -275,18 +285,22 @@ def gaia_auth_form(is_login=True):
 
 
 def gaia_chat_input(conversation_id=None):
-    """Compact chat input component matching modern interfaces"""
+    """Compact chat input component matching modern interfaces with mobile responsiveness"""
     return Form(
         Div(
-            Input(
-                name="message",
-                type="text",
-                placeholder="Message Gaia...",
-                cls="flex-1 bg-slate-800 border border-slate-600 text-white placeholder-slate-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 transition-all duration-300",
-                autofocus=True,
-                required=True,
-                id="chat-message-input",
-                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));}"
+            # Input wrapper with better mobile sizing
+            Div(
+                Input(
+                    name="message",
+                    type="text",
+                    placeholder="Message Gaia...",
+                    cls="w-full bg-slate-800 border border-slate-600 text-white placeholder-slate-500 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 transition-all duration-300 resize-none",
+                    autofocus=True,
+                    required=True,
+                    id="chat-message-input",
+                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));}"
+                ),
+                cls="flex-1 min-w-0"  # min-w-0 allows input to shrink properly
             ),
             # Hidden input for conversation ID (always include it)
             Input(
@@ -295,15 +309,18 @@ def gaia_chat_input(conversation_id=None):
                 value=conversation_id or "",
                 id="conversation-id-input"
             ),
+            # Send button with mobile-friendly sizing
             Button(
-                "Send",
+                Span("Send", cls="hidden sm:inline"),  # Hide text on very small screens
+                Span("→", cls="sm:hidden text-lg"),  # Show arrow on mobile
                 type="submit",
-                cls="ml-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-xs font-medium py-2 px-3 rounded-lg transition-all duration-300 hover:shadow-md active:scale-95",
-                id="chat-send-button"
+                cls="ml-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-2.5 px-3 sm:px-4 rounded-lg transition-all duration-300 hover:shadow-md active:scale-95 flex items-center justify-center min-w-[44px]",
+                id="chat-send-button",
+                title="Send message"
             ),
-            cls="flex items-center"
+            cls="flex items-end gap-2 md:gap-3"
         ),
-        cls="p-3 border-t border-slate-700/50 backdrop-blur-sm",
+        cls="p-3 md:p-4 border-t border-slate-700/50 backdrop-blur-sm safe-area-padding-bottom",
         id="chat-form",
         hx_post="/api/chat/send",
         hx_target="#messages",
@@ -313,7 +330,7 @@ def gaia_chat_input(conversation_id=None):
 
 
 def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sidebar=True, user=None):
-    """Main layout component"""
+    """Main layout component with mobile-responsive sidebar"""
     if show_sidebar:
         return Div(
             # Hidden loading indicator (outside main-content so it doesn't get replaced)
@@ -329,24 +346,91 @@ def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sid
                 id="toast-container",
                 cls="fixed top-4 right-4 z-50 space-y-2"
             ),
-            # Sidebar
+            # Mobile overlay for sidebar (only visible when sidebar is open on mobile)
             Div(
-                gaia_sidebar_header(user=user),
+                id="sidebar-overlay",
+                cls="fixed inset-0 bg-black/50 z-30 md:hidden",
+                style="display: none;",
+                onclick="toggleSidebar()"
+            ),
+            # Mobile header with hamburger menu
+            Div(
+                Div(
+                    # Hamburger button
+                    Button(
+                        Div(
+                            Div(cls="w-6 h-0.5 bg-white transition-all duration-300"),
+                            Div(cls="w-6 h-0.5 bg-white transition-all duration-300 mt-1.5"),
+                            Div(cls="w-6 h-0.5 bg-white transition-all duration-300 mt-1.5"),
+                            cls="hamburger-lines"
+                        ),
+                        id="sidebar-toggle",
+                        cls="p-2 text-white hover:bg-white/10 rounded-lg transition-colors md:hidden",
+                        onclick="toggleSidebar()",
+                        title="Toggle sidebar"
+                    ),
+                    # Mobile logo
+                    Div(
+                        gaia_logo(with_text=True),
+                        cls="md:hidden"
+                    ),
+                    # User avatar/menu for mobile
+                    Div(
+                        Button(
+                            user.get('email', 'U')[0].upper() if user else 'U',
+                            cls="w-8 h-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center text-white text-sm font-medium hover:scale-105 transition-transform",
+                            onclick="toggleUserMenu()",
+                            title="User menu"
+                        ),
+                        # User dropdown menu
+                        Div(
+                            Div(
+                                user.get('email', 'dev@gaia.local') if user else 'User',
+                                cls="px-4 py-2 text-xs text-slate-400 border-b border-slate-700"
+                            ),
+                            A(
+                                "Profile",
+                                href="/profile",
+                                cls="block px-4 py-2 text-sm text-white hover:bg-slate-700 transition-colors",
+                                onclick="document.getElementById('user-menu').style.display='none'"
+                            ),
+                            A(
+                                "Logout",
+                                href="/logout",
+                                cls="block px-4 py-2 text-sm text-white hover:bg-slate-700 transition-colors",
+                                onclick="window.location.href='/logout'; return false;"
+                            ),
+                            id="user-menu",
+                            cls="absolute right-0 top-10 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden",
+                            style="display: none;"
+                        ),
+                        cls="md:hidden relative"
+                    ),
+                    cls="flex items-center justify-between px-4 py-3"
+                ),
+                cls=f"md:hidden mobile-header {GaiaDesign.BG_SIDEBAR} border-b border-slate-700/50"
+            ),
+            # Sidebar - responsive positioning
+            Div(
+                gaia_sidebar_header(user=user, mobile=True),
                 Div(
                     sidebar_content or "",
                     cls="p-2 overflow-y-auto flex-1"
                 ),
-                cls=f"w-64 {GaiaDesign.BG_SIDEBAR} flex flex-col h-screen"
+                id="sidebar",
+                cls=f"fixed md:relative top-0 left-0 z-40 w-64 {GaiaDesign.BG_SIDEBAR} flex flex-col h-screen transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out"
             ),
             
-            # Main content area
+            # Main content area - responsive margins
             Div(
                 main_content or "",
                 id="main-content",
-                cls="flex-1 flex flex-col h-screen overflow-hidden"
+                cls="flex-1 flex flex-col overflow-hidden"
             ),
             
-            cls=f"flex h-screen {GaiaDesign.BG_MAIN} {page_class}"
+            gaia_mobile_sidebar_script(),
+            
+            cls=f"flex flex-col md:flex-row h-screen {GaiaDesign.BG_MAIN} {page_class}"
         )
     else:
         # No sidebar layout for auth pages
@@ -915,4 +999,340 @@ def gaia_toast_script():
             console.error('[HTMX] Send Error:', evt.detail);
             GaiaToast.error('Failed to send request. Please check your connection.');
         });
+    '''))
+
+
+def gaia_mobile_sidebar_script():
+    """
+    JavaScript for mobile sidebar toggle functionality
+    """
+    from fasthtml.core import Script, NotStr
+    
+    return Script(NotStr('''
+        // Mobile sidebar toggle functionality
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            const hamburger = document.getElementById('sidebar-toggle');
+            
+            if (!sidebar) return;
+            
+            const isOpen = !sidebar.classList.contains('-translate-x-full');
+            
+            if (isOpen) {
+                // Close sidebar
+                sidebar.classList.add('-translate-x-full');
+                if (overlay) overlay.style.display = 'none';
+                if (hamburger) hamburger.classList.remove('active');
+                document.body.style.overflow = '';
+            } else {
+                // Open sidebar
+                sidebar.classList.remove('-translate-x-full');
+                if (overlay) overlay.style.display = 'block';
+                if (hamburger) hamburger.classList.add('active');
+                // Prevent background scrolling on mobile
+                document.body.style.overflow = 'hidden';
+            }
+        }
+        
+        // User menu toggle functionality
+        function toggleUserMenu() {
+            const userMenu = document.getElementById('user-menu');
+            if (!userMenu) return;
+            
+            const isVisible = userMenu.style.display === 'block';
+            userMenu.style.display = isVisible ? 'none' : 'block';
+        }
+        
+        // Close user menu when clicking outside
+        document.addEventListener('click', function(e) {
+            const userMenu = document.getElementById('user-menu');
+            const userButton = e.target.closest('[onclick*="toggleUserMenu"]');
+            
+            if (userMenu && !userButton && !userMenu.contains(e.target)) {
+                userMenu.style.display = 'none';
+            }
+        });
+        
+        // Auto-close sidebar when clicking on main content links (mobile)
+        document.addEventListener('click', function(e) {
+            // Check if we're on mobile (sidebar is positioned fixed)
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar || window.innerWidth >= 768) return;
+            
+            // Check if clicked element is a link or button that would navigate/change content
+            const target = e.target.closest('a, button[hx-get], button[hx-post]');
+            if (target && !sidebar.contains(target) && !target.closest('#sidebar-toggle')) {
+                // Close sidebar after a short delay to allow the action to process
+                setTimeout(() => {
+                    toggleSidebar();
+                }, 100);
+            }
+        });
+        
+        // Handle window resize - close sidebar on desktop, reset overflow
+        window.addEventListener('resize', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            
+            if (window.innerWidth >= 768) {
+                // Desktop view - reset sidebar state
+                if (sidebar) sidebar.classList.remove('-translate-x-full');
+                if (overlay) overlay.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        });
+        
+        // Enhanced hamburger animation
+        document.addEventListener('DOMContentLoaded', function() {
+            const hamburger = document.getElementById('sidebar-toggle');
+            if (hamburger) {
+                // Add CSS for hamburger animation
+                const style = document.createElement('style');
+                style.textContent = `
+                    .hamburger-lines div:nth-child(1) {
+                        transform-origin: center;
+                    }
+                    .hamburger-lines div:nth-child(2) {
+                        transform-origin: center;
+                    }
+                    .hamburger-lines div:nth-child(3) {
+                        transform-origin: center;
+                    }
+                    
+                    #sidebar-toggle.active .hamburger-lines div:nth-child(1) {
+                        transform: rotate(45deg) translate(6px, 6px);
+                    }
+                    #sidebar-toggle.active .hamburger-lines div:nth-child(2) {
+                        opacity: 0;
+                    }
+                    #sidebar-toggle.active .hamburger-lines div:nth-child(3) {
+                        transform: rotate(-45deg) translate(6px, -6px);
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        });
+        
+        // Swipe gesture support for mobile
+        let startX = 0;
+        let startY = 0;
+        let isSwipe = false;
+        
+        document.addEventListener('touchstart', function(e) {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            isSwipe = true;
+        }, { passive: true });
+        
+        document.addEventListener('touchmove', function(e) {
+            if (!isSwipe) return;
+            
+            const currentX = e.touches[0].clientX;
+            const currentY = e.touches[0].clientY;
+            const diffX = currentX - startX;
+            const diffY = currentY - startY;
+            
+            // Check if it's more horizontal than vertical movement
+            if (Math.abs(diffX) < Math.abs(diffY)) {
+                isSwipe = false;
+                return;
+            }
+        }, { passive: true });
+        
+        document.addEventListener('touchend', function(e) {
+            if (!isSwipe || window.innerWidth >= 768) return;
+            
+            const endX = e.changedTouches[0].clientX;
+            const diffX = endX - startX;
+            const sidebar = document.getElementById('sidebar');
+            
+            if (!sidebar) return;
+            
+            const isOpen = !sidebar.classList.contains('-translate-x-full');
+            
+            // Right swipe to open (from left edge)
+            if (!isOpen && startX < 20 && diffX > 50) {
+                toggleSidebar();
+            }
+            // Left swipe to close (when sidebar is open)
+            else if (isOpen && diffX < -50) {
+                toggleSidebar();
+            }
+            
+            isSwipe = false;
+        }, { passive: true });
+    '''))
+
+
+def gaia_mobile_styles():
+    """
+    CSS styles for mobile responsiveness and safe areas
+    """
+    from fasthtml.core import Style, NotStr
+    
+    return Style(NotStr('''
+        /* Mobile-specific styles */
+        @media (max-width: 768px) {
+            /* Ensure mobile viewport is properly handled */
+            html, body {
+                overflow-x: hidden;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            /* Fix mobile layout structure - simpler approach */
+            .mobile-header {
+                height: 4rem !important;
+                flex-shrink: 0 !important;
+                width: 100% !important;
+            }
+            
+            /* Main content takes remaining space */
+            #main-content {
+                flex: 1 !important;
+                min-height: 0 !important;
+                overflow: hidden !important;
+            }
+            
+            /* Don't override sidebar transform - let Tailwind classes handle it */
+            /* The sidebar already has -translate-x-full on mobile and md:translate-x-0 on desktop */
+            
+            /* Safe area support for mobile devices */
+            .safe-area-padding-bottom {
+                padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+            }
+            
+            /* Prevent zoom on input focus (iOS) */
+            input[type="text"], input[type="email"], input[type="password"], textarea {
+                font-size: 16px;
+            }
+            
+            /* Touch-friendly minimum sizes */
+            button, .touch-target {
+                min-height: 44px;
+                min-width: 44px;
+            }
+            
+            /* Conversation items more touch-friendly on mobile */
+            .conversation-item {
+                min-height: 48px;
+                padding: 12px;
+            }
+            
+            /* Message bubbles more readable on mobile */
+            .message-bubble {
+                max-width: 85%;
+                font-size: 15px;
+                line-height: 1.4;
+            }
+            
+            /* Better spacing for mobile header */
+            .mobile-header {
+                padding-left: env(safe-area-inset-left);
+                padding-right: env(safe-area-inset-right);
+            }
+        }
+        
+        /* Tablet-specific adjustments */
+        @media (min-width: 768px) and (max-width: 1024px) {
+            /* Sidebar width adjustment for tablets */
+            .sidebar-tablet {
+                width: 280px;
+            }
+        }
+        
+        /* Enhanced focus states for accessibility */
+        .focus\\:ring-purple-500\\/30:focus {
+            ring-color: rgb(168 85 247 / 0.3);
+        }
+        
+        /* Smooth transitions for sidebar */
+        .sidebar-transition {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Loading states */
+        .loading-skeleton {
+            background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+        
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        /* Custom scrollbar for webkit browsers */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        
+        /* Animation utilities */
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideInLeft {
+            from {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideInUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .animate-slideInRight {
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        .animate-slideInLeft {
+            animation: slideInLeft 0.3s ease-out;
+        }
+        
+        .animate-slideInUp {
+            animation: slideInUp 0.3s ease-out;
+        }
+        
+        .animate-fadeIn {
+            animation: fadeIn 0.3s ease-out;
+        }
     '''))

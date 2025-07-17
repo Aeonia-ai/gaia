@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Layout Test</title>
+    <style>
+        /* Force mobile viewport */
+        body {
+            width: 375px;
+            max-width: 375px;
+            margin: 0 auto;
+            background: #f0f0f0;
+        }
+        iframe {
+            width: 375px;
+            height: 812px;
+            border: 2px solid #333;
+            border-radius: 20px;
+            background: white;
+        }
+        .device-frame {
+            padding: 20px;
+            background: #333;
+            border-radius: 30px;
+            margin: 20px auto;
+            width: fit-content;
+        }
+        .info {
+            text-align: center;
+            margin: 20px;
+            font-family: system-ui;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h2>Mobile Layout Test - iPhone Size (375px)</h2>
+        <p>This simulates how the Gaia chat interface looks on mobile</p>
+    </div>
+    
+    <div class="device-frame">
+        <iframe src="http://localhost:8080/chat" width="375" height="812"></iframe>
+    </div>
+    
+    <div class="info">
+        <p>Expected mobile behavior:</p>
+        <ul style="text-align: left; max-width: 400px; margin: 0 auto;">
+            <li>Mobile header visible at top</li>
+            <li>Sidebar hidden (hamburger menu to toggle)</li>
+            <li>Main content fills remaining space</li>
+            <li>No overlapping elements</li>
+        </ul>
+    </div>
+</body>
+</html>
