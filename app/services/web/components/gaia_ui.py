@@ -13,14 +13,14 @@ class GaiaDesign:
     BG_SIDEBAR = "bg-gradient-to-b from-slate-900 to-slate-800"
     
     # Button styles with enhanced animations
-    BTN_PRIMARY = "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
-    BTN_SECONDARY = "bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 hover:shadow-lg active:scale-95"
+    BTN_PRIMARY = "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-2 px-4 rounded-lg shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95"
+    BTN_SECONDARY = "bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-3 rounded-lg transition-all duration-300 hover:shadow-lg active:scale-95"
     BTN_GHOST = "text-slate-300 hover:text-white hover:bg-slate-700/50 py-2 px-4 rounded-lg transition-all duration-300 hover:shadow-md active:scale-95"
     
     # Logo
     LOGO_EMOJI = "🦋"
-    LOGO_BG_SMALL = "bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
-    LOGO_BG_LARGE = "bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl"
+    LOGO_BG_SMALL = "bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 w-8 h-8 rounded-lg flex items-center justify-center shadow-md"
+    LOGO_BG_LARGE = "bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg"
     
     # Text colors
     TEXT_PRIMARY = "text-white"
@@ -41,7 +41,7 @@ class GaiaDesign:
 def gaia_logo(size="small", with_text=False):
     """Gaia butterfly logo component"""
     bg_class = GaiaDesign.LOGO_BG_SMALL if size == "small" else GaiaDesign.LOGO_BG_LARGE
-    emoji_size = "text-xl" if size == "small" else "text-3xl"
+    emoji_size = "text-sm" if size == "small" else "text-xl"
     
     logo = Div(
         Span(GaiaDesign.LOGO_EMOJI, cls=emoji_size),
@@ -51,7 +51,7 @@ def gaia_logo(size="small", with_text=False):
     if with_text:
         return Div(
             logo,
-            H1("Gaia", cls="text-2xl font-bold text-white ml-3"),
+            H1("Gaia", cls="text-base font-medium text-white ml-2"),
             cls="flex items-center"
         )
     return logo
@@ -111,43 +111,44 @@ def gaia_message_bubble(content, role="user", timestamp=None):
 
 
 def gaia_sidebar_header(user=None):
-    """Sidebar header with logo, new chat button, and logout"""
+    """Compact sidebar header matching modern chat interfaces"""
     return Div(
+        # Logo and title
         Div(
             gaia_logo(with_text=True),
-            cls="mb-8"
+            cls="mb-4"
         ),
+        # New chat button
         gaia_button(
             "New Chat",
-            variant="secondary",
-            cls="w-full mb-6",
+            variant="secondary", 
+            cls="w-full mb-4 text-xs",
             hx_post="/chat/new",
             hx_target="#main-content",
             hx_swap="innerHTML swap:0.5s settle:0.5s"
         ),
-        # User info and logout
+        # User info at bottom of header section
         Div(
             Div(
                 user.get('email', 'User') if user else 'User',
-                cls="text-sm text-slate-400 truncate mb-2"
+                cls="text-xs text-slate-400 truncate mb-1"
             ),
             A(
                 "Logout",
                 href="/logout",
-                cls="text-sm text-purple-400 hover:text-purple-300 transition-colors",
-                # Force regular navigation by using onclick
+                cls="text-xs text-purple-400 hover:text-purple-300 transition-colors",
                 onclick="window.location.href='/logout'; return false;"
             ),
-            cls="pt-4 border-t border-slate-700"
+            cls="pt-2 border-t border-slate-700/50"
         ) if user else None,
-        cls="p-6 border-b border-slate-700"
+        cls="p-3 border-b border-slate-700/50"
     )
 
 
 def gaia_conversation_item(conversation, active=False):
-    """Sidebar conversation item with enhanced animations"""
-    base_cls = "block p-3 rounded-lg transition-all duration-300 truncate transform hover:scale-105 animate-slideInUp"
-    active_cls = "bg-gradient-to-r from-purple-600/30 to-pink-600/30 border-l-4 border-purple-500 shadow-lg"
+    """Sidebar conversation item with ultra-compact typography"""
+    base_cls = "block p-2 rounded-md transition-all duration-300 truncate transform hover:scale-105 animate-slideInUp"
+    active_cls = "bg-gradient-to-r from-purple-600/30 to-pink-600/30 border-l-3 border-purple-500 shadow-lg"
     hover_cls = "hover:bg-slate-700/50 hover:shadow-md"
     
     cls = f"{base_cls} {active_cls if active else hover_cls}"
@@ -156,13 +157,13 @@ def gaia_conversation_item(conversation, active=False):
         Div(
             Div(
                 conversation.get("title", "New Conversation"),
-                cls="text-sm text-white truncate font-medium"
+                cls="text-xs text-white truncate font-medium leading-tight"
             ),
             Div(
                 conversation.get("preview", ""),
-                cls="text-xs text-slate-400 truncate mt-1 opacity-80"
+                cls="text-xs text-slate-400 truncate mt-0.5 opacity-60 leading-tight"
             ),
-            cls="space-y-1"
+            cls="space-y-0.5"
         ),
         href=f"/chat/{conversation['id']}",
         cls=cls,
@@ -240,13 +241,14 @@ def gaia_auth_form(is_login=True):
 
 
 def gaia_chat_input(conversation_id=None):
-    """Enhanced chat input component with better UX"""
+    """Compact chat input component matching modern interfaces"""
     return Form(
         Div(
-            gaia_input(
-                "message",
-                "Type your message...",
-                cls="flex-1 transition-all duration-300 focus:ring-purple-500/30",
+            Input(
+                name="message",
+                type="text",
+                placeholder="Message Gaia...",
+                cls="flex-1 bg-slate-800 border border-slate-600 text-white placeholder-slate-500 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 transition-all duration-300",
                 autofocus=True,
                 required=True,
                 id="chat-message-input",
@@ -259,15 +261,15 @@ def gaia_chat_input(conversation_id=None):
                 value=conversation_id or "",
                 id="conversation-id-input"
             ),
-            gaia_button(
+            Button(
                 "Send",
                 type="submit",
-                cls="ml-3 px-6 transition-all duration-300 hover:shadow-lg",
+                cls="ml-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-xs font-medium py-2 px-3 rounded-lg transition-all duration-300 hover:shadow-md active:scale-95",
                 id="chat-send-button"
             ),
-            cls="flex items-center space-x-2"
+            cls="flex items-center"
         ),
-        cls="p-4 border-t border-slate-700/50 backdrop-blur-sm",
+        cls="p-3 border-t border-slate-700/50 backdrop-blur-sm",
         id="chat-form",
         hx_post="/api/chat/send",
         hx_target="#messages",
@@ -293,9 +295,9 @@ def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sid
                 gaia_sidebar_header(user=user),
                 Div(
                     sidebar_content or "",
-                    cls="p-4 overflow-y-auto flex-1"
+                    cls="p-2 overflow-y-auto flex-1"
                 ),
-                cls=f"w-80 {GaiaDesign.BG_SIDEBAR} flex flex-col h-screen"
+                cls=f"w-64 {GaiaDesign.BG_SIDEBAR} flex flex-col h-screen"
             ),
             
             # Main content area

@@ -148,9 +148,9 @@ def setup_routes(app):
                 # Welcome message (shown when no messages)
                 Div(
                     H2(f"Welcome back, {user.get('name', 'User')}!", 
-                       cls="text-2xl text-white mb-4"),
+                       cls="text-lg text-white mb-2"),
                     Div("Start a conversation by typing below", 
-                        cls="text-slate-400"),
+                        cls="text-xs text-slate-400"),
                     cls="flex flex-col items-center justify-center text-center h-full",
                     id="welcome-message"
                 ),
@@ -271,9 +271,9 @@ def setup_routes(app):
                 # Welcome message (shown when no messages)
                 Div(
                     H2(f"Welcome back, {user.get('name', 'User')}!", 
-                       cls="text-2xl text-white mb-4"),
+                       cls="text-lg text-white mb-2"),
                     Div("Start a conversation by typing below", 
-                        cls="text-slate-400"),
+                        cls="text-xs text-slate-400"),
                     cls="flex flex-col items-center justify-center text-center h-full",
                     id="welcome-message"
                 ),
