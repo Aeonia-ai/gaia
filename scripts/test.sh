@@ -380,6 +380,120 @@ case "$1" in
         password="${3:-SecurePass123!}"
         test_endpoint "POST" "/api/v1/auth/login" "{\"email\": \"$email\", \"password\": \"$password\"}" "User Login"
         ;;
+    
+    # Web UI Tests
+    "web-health")
+        echo -e "${COLOR_INFO}=== Web Service Health ===${COLOR_RESET}"
+        response=$(curl -s -w "\n%{http_code}" -X GET "http://localhost:8080/health")
+        status_code="${response##*$'\n'}"
+        body="${response%$'\n'*}"
+        
+        if [ "$status_code" = "200" ]; then
+            echo -e "${COLOR_SUCCESS}✅ Status: $status_code${COLOR_RESET}"
+            echo "$body" | jq . 2>/dev/null || echo "$body"
+        else
+            echo -e "${COLOR_ERROR}❌ Status: $status_code${COLOR_RESET}"
+            echo "$body"
+        fi
+        ;;
+    
+    "web-login")
+        echo -e "${COLOR_INFO}=== Web UI Login Test ===${COLOR_RESET}"
+        echo "Testing login form submission with dev user..."
+        
+        # Test login endpoint
+        response=$(curl -s -w "\n%{http_code}" -X POST "http://localhost:8080/auth/login" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -H "Accept: text/html" \
+            -d "email=dev@gaia.local&password=test" \
+            -c /tmp/gaia-cookies.txt)
+        
+        # Check if we got a success message
+        if echo "$response" | grep -q "Development login successful"; then
+            echo -e "${COLOR_SUCCESS}✅ Login successful${COLOR_RESET}"
+            echo "Session cookie created:"
+            grep -E "session" /tmp/gaia-cookies.txt | tail -1 || echo "No session cookie found"
+        else
+            echo -e "${COLOR_ERROR}❌ Login failed${COLOR_RESET}"
+            echo "Response: $response"
+        fi
+        ;;
+    
+    "web-chat-test")
+        echo -e "${COLOR_INFO}=== Web Chat Interface Test ===${COLOR_RESET}"
+        
+        # First login
+        echo "1. Logging in..."
+        $0 web-login > /dev/null 2>&1
+        
+        # Test chat page access
+        echo "2. Accessing chat page..."
+        response=$(curl -s -w "\n%{http_code}" -X GET "http://localhost:8080/chat" \
+            -b /tmp/gaia-cookies.txt \
+            -L)
+        
+        status_code="${response##*$'\n'}"
+        
+        if [ "$status_code" = "200" ]; then
+            echo -e "${COLOR_SUCCESS}✅ Chat page accessible${COLOR_RESET}"
+            if echo "$response" | grep -q "Welcome back"; then
+                echo "   User session active"
+            fi
+        else
+            echo -e "${COLOR_ERROR}❌ Chat page not accessible (Status: $status_code)${COLOR_RESET}"
+            exit 1
+        fi
+        
+        # Test sending a message
+        echo "3. Sending test message..."
+        chat_response=$(curl -s -w "\n%{http_code}" -X POST "http://localhost:8080/api/chat/send" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -H "Accept: text/html" \
+            -d "message=Hello from test script" \
+            -b /tmp/gaia-cookies.txt)
+        
+        status_code="${chat_response##*$'\n'}"
+        
+        if [ "$status_code" = "200" ]; then
+            echo -e "${COLOR_SUCCESS}✅ Message sent successfully${COLOR_RESET}"
+            
+            # Look for HTMX attributes (new approach) or script tag (old approach)  
+            if echo "$chat_response" | grep -q "hx-get\|htmx.ajax"; then
+                # Extract the message ID from the response
+                message_id=$(echo "$chat_response" | grep -o "id=\w\+" | cut -d'=' -f2 | head -1)
+                
+                if [ ! -z "$message_id" ]; then
+                    echo "4. Getting AI response for message ID: $message_id"
+                    # Get the AI response directly
+                    ai_response=$(curl -s -w "\n%{http_code}" -X GET "http://localhost:8080/api/chat/stream?message=Hello%20from%20test%20script&id=$message_id" \
+                        -b /tmp/gaia-cookies.txt)
+                
+                status_code="${ai_response##*$'\n'}"
+                
+                if [ "$status_code" = "200" ]; then
+                    echo -e "${COLOR_SUCCESS}✅ AI response received${COLOR_RESET}"
+                    # Check if response contains actual content
+                    if echo "$ai_response" | grep -q "assistant-message-placeholder\|Failed to get response"; then
+                        echo -e "${COLOR_ERROR}❌ But response contains error${COLOR_RESET}"
+                        echo "Response preview:"
+                        echo "$ai_response" | head -n 10
+                    else
+                        echo "Response preview:"
+                        echo "$ai_response" | grep -o '<div[^>]*>[^<]*</div>' | head -n 3
+                    fi
+                else
+                    echo -e "${COLOR_ERROR}❌ Failed to get AI response (Status: $status_code)${COLOR_RESET}"
+                fi
+                else
+                    echo -e "${COLOR_ERROR}❌ No message ID found${COLOR_RESET}"
+                fi
+            else
+                echo -e "${COLOR_ERROR}❌ No HTMX triggers found in response${COLOR_RESET}"
+            fi
+        else
+            echo -e "${COLOR_ERROR}❌ Failed to send message (Status: $status_code)${COLOR_RESET}"
+        fi
+        ;;
     "vr")
         test_endpoint "GET" "/api/v0.2/chat/stream/models/vr-recommendation" "" "VR Model Recommendation"
         ;;
@@ -456,6 +570,12 @@ case "$1" in
         $0 auth-register
         $0 auth-login
         ;;
+    "web-all")
+        echo -e "${GREEN}Testing all web UI endpoints...${NC}\n"
+        $0 web-health
+        $0 web-login
+        $0 web-chat-test
+        ;;
     *)
         echo "Usage: $0 [--local|--staging|--prod|--url URL] {health|chat|stream|providers|models|pricing|usage|all} [args]"
         echo ""
@@ -520,6 +640,11 @@ case "$1" in
         echo "  $0 auth-register [email] [pw] # Register new user"
         echo "  $0 auth-login [email] [pw]    # Login existing user"
         echo ""
+        echo "Web UI Tests:"
+        echo "  $0 web-health                # Web service health check"
+        echo "  $0 web-login                 # Test web UI login"
+        echo "  $0 web-chat-test             # Test chat interface access"
+        echo ""
         echo "Batch Tests:"
         echo "  $0 all                       # Run core tests"
         echo "  $0 providers-all             # Test all provider endpoints"
@@ -529,6 +654,7 @@ case "$1" in
         echo "  $0 personas-all              # Test all persona endpoints"
         echo "  $0 performance-all           # Test all performance endpoints"
         echo "  $0 auth-all                  # Test all authentication endpoints"
+        echo "  $0 web-all                   # Test all web UI endpoints"
         exit 1
         ;;
 esac
