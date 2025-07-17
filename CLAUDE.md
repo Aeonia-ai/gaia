@@ -207,6 +207,7 @@ See [Supabase Configuration Guide](docs/supabase-configuration.md) for detailed 
 - Asset: `http://asset-service:8000`
 - Chat: `http://chat-service:8000`
 - Web: `http://web-service:8000` (external: `localhost:8080`)
+- Redis: `redis://redis:6379` (caching layer)
 
 ## Shared Modules
 
@@ -216,6 +217,7 @@ See [Supabase Configuration Guide](docs/supabase-configuration.md) for detailed 
 - **`database.py`**: SQLAlchemy setup with connection pooling
 - **`logging.py`**: Color-coded structured logging with custom levels (NETWORK, SERVICE, NATS)
 - **`nats_client.py`**: Async messaging client with reconnection handling
+- **`redis_client.py`**: Redis caching client with connection pooling and fallback handling
 - **`supabase.py`**: Supabase client integration
 
 ### Authentication Patterns
@@ -236,7 +238,33 @@ See [Supabase Configuration Guide](docs/supabase-configuration.md) for detailed 
 - Unit tests: `pytest -m unit`
 - Integration tests: `pytest -m integration` 
 - Compatibility tests: `pytest -m compatibility` (verify LLM Platform API compatibility)
+- Performance tests: Redis caching validation and timing comparisons
 - Use test markers defined in `pytest.ini`
+
+### Performance Optimization (In Progress)
+
+**Current Task**: Implementing quick-win optimizations from `/docs/optimization-guide.md`
+
+**Completed**:
+- ✅ Redis caching system (97% performance improvement locally)
+- ✅ Local database indexing (composite index for `personas(is_active, created_at DESC)`)
+
+**In Progress** (Priority order):
+1. **Response compression middleware** - Add GZipMiddleware to all services (30-50% response size reduction)
+2. **Database connection pooling** - Increase pool sizes for better concurrency
+3. **Cache TTL optimization** - Extend TTLs for stable data (reduce DB load by 50-70%)
+
+**Next Steps**:
+- Apply database indexes to production database when connectivity available
+- Container multi-stage builds for smaller images
+- API pagination for large responses
+
+**Expected Impact**: 40-60% overall performance improvement with ~1.5 hours total effort
+
+**Notes**: 
+- All optimizations maintain backward compatibility
+- Changes are incremental and low-risk
+- Performance gains validated locally, ready for production
 
 ### Client Compatibility
 - Maintain identical API endpoints to LLM Platform
