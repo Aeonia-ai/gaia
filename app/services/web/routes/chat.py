@@ -603,3 +603,35 @@ def setup_routes(app):
             id="conversation-list",
             style="--stagger-delay: 0;"
         )
+    
+    @app.delete("/api/conversations/{conversation_id}")
+    async def delete_conversation(request, conversation_id: str):
+        """Delete a conversation"""
+        user = request.session.get("user", {})
+        user_id = user.get("id", "dev-user-id")
+        
+        logger.info(f"Deleting conversation {conversation_id} for user {user_id}")
+        
+        try:
+            # Delete the conversation
+            success = database_conversation_store.delete_conversation(user_id, conversation_id)
+            
+            if not success:
+                logger.warning(f"Failed to delete conversation {conversation_id}")
+                return gaia_error_message("Conversation not found or could not be deleted")
+            
+            # Get updated conversation list
+            conversations = database_conversation_store.get_conversations(user_id)
+            conversation_items = [gaia_conversation_item(conv) for conv in conversations]
+            
+            # Return updated conversation list
+            return Div(
+                *conversation_items,
+                cls="space-y-2 stagger-children animate-fadeIn",
+                id="conversation-list",
+                style="--stagger-delay: 0;"
+            )
+            
+        except Exception as e:
+            logger.error(f"Error deleting conversation: {e}", exc_info=True)
+            return gaia_error_message(f"Failed to delete conversation: {str(e)[:100]}")

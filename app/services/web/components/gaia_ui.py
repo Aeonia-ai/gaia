@@ -146,31 +146,46 @@ def gaia_sidebar_header(user=None):
 
 
 def gaia_conversation_item(conversation, active=False):
-    """Sidebar conversation item with ultra-compact typography"""
-    base_cls = "block p-2 rounded-md transition-all duration-300 truncate transform hover:scale-105 animate-slideInUp"
+    """Sidebar conversation item with ultra-compact typography and delete functionality"""
+    base_cls = "group relative p-2 rounded-md transition-all duration-300 transform hover:scale-105 animate-slideInUp"
     active_cls = "bg-gradient-to-r from-purple-600/30 to-pink-600/30 border-l-3 border-purple-500 shadow-lg"
     hover_cls = "hover:bg-slate-700/50 hover:shadow-md"
     
     cls = f"{base_cls} {active_cls if active else hover_cls}"
     
-    return A(
-        Div(
+    return Div(
+        # Main conversation link
+        A(
             Div(
-                conversation.get("title", "New Conversation"),
-                cls="text-xs text-white truncate font-medium leading-tight"
+                Div(
+                    conversation.get("title", "New Conversation"),
+                    cls="text-xs text-white truncate font-medium leading-tight pr-6"
+                ),
+                Div(
+                    conversation.get("preview", ""),
+                    cls="text-xs text-slate-400 truncate mt-0.5 opacity-60 leading-tight"
+                ),
+                cls="space-y-0.5"
             ),
-            Div(
-                conversation.get("preview", ""),
-                cls="text-xs text-slate-400 truncate mt-0.5 opacity-60 leading-tight"
-            ),
-            cls="space-y-0.5"
+            href=f"/chat/{conversation['id']}",
+            cls="block",
+            hx_get=f"/chat/{conversation['id']}",
+            hx_target="#main-content",
+            hx_swap="innerHTML swap:0.5s settle:0.5s",
+            hx_indicator="#loading-indicator"
         ),
-        href=f"/chat/{conversation['id']}",
-        cls=cls,
-        hx_get=f"/chat/{conversation['id']}",
-        hx_target="#main-content",
-        hx_swap="innerHTML swap:0.5s settle:0.5s",
-        hx_indicator="#loading-indicator"
+        # Delete button (appears on hover)
+        Button(
+            "×",
+            cls="absolute top-1 right-1 w-5 h-5 bg-red-600/80 hover:bg-red-600 text-white text-xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center font-bold leading-none",
+            title="Delete conversation",
+            **{"hx-delete": f"/api/conversations/{conversation['id']}"},
+            **{"hx-target": "#conversation-list"},
+            **{"hx-swap": "innerHTML"},
+            **{"hx-confirm": "Are you sure you want to delete this conversation? This action cannot be undone."},
+            onclick="event.stopPropagation();"
+        ),
+        cls=cls
     )
 
 
