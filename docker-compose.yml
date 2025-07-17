@@ -17,12 +17,14 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
       - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
       - AUTH_SERVICE_URL=http://auth-service:8000
       - ASSET_SERVICE_URL=http://asset-service:8000
       - CHAT_SERVICE_URL=http://chat-service:8000
     depends_on:
       - db
       - nats
+      - redis
       - auth-service
       - asset-service
       - chat-service
@@ -42,9 +44,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
       - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - db
       - nats
+      - redis
     networks:
       - gaia_net
     command: uvicorn app.services.auth.main:app --host 0.0.0.0 --port 8000 --reload
@@ -61,9 +65,11 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
       - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - db
       - nats
+      - redis
     networks:
       - gaia_net
     command: uvicorn app.services.asset.main:app --host 0.0.0.0 --port 8000 --reload
@@ -81,10 +87,12 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
       - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
       - MCP_FILESYSTEM_ROOT=/app/data
     depends_on:
       - db
       - nats
+      - redis
     networks:
       - gaia_net
     command: uvicorn app.services.chat.main:app --host 0.0.0.0 --port 8000 --reload
@@ -113,6 +121,17 @@ services:
       - gaia_net
     command: ["--jetstream", "--http_port", "8222"]
 
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - gaia_net
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
+
   # Test service (equivalent to LLM Platform test)
   test:
     build:
@@ -126,12 +145,14 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
       - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
       - API_KEY=test_key
       - MCP_FILESYSTEM_ROOT=/app/data
       - GATEWAY_URL=http://gateway:8000
     depends_on:
       - db
       - nats
+      - redis
       - gateway
     networks:
       - gaia_net
@@ -139,6 +160,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   mcp_data:
     driver: local
 

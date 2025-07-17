@@ -6,6 +6,7 @@ from sqlalchemy import text
 from app.shared.database import get_db
 from app.shared.models.persona import Persona, PersonaCreate, PersonaUpdate, UserPersonaPreference
 from app.shared.logging import logger
+from app.shared.redis_client import redis_client, CacheManager
 
 class PostgresPersonaService:
     """Service for managing personas in PostgreSQL database"""
@@ -45,7 +46,7 @@ class PostgresPersonaService:
             db.close()
             
             if row:
-                return Persona(
+                persona = Persona(
                     id=str(row.id),
                     name=row.name,
                     description=row.description,
@@ -57,6 +58,17 @@ class PostgresPersonaService:
                     created_at=row.created_at,
                     updated_at=row.updated_at
                 )
+                
+                # Invalidate personas list cache when new persona is created
+                if redis_client.is_connected():
+                    try:
+                        # Clear all personas list caches
+                        redis_client.flush_pattern("personas:list:*")
+                        logger.debug("Personas list cache invalidated after create")
+                    except Exception as e:
+                        logger.warning(f"Failed to invalidate personas list cache: {e}")
+                
+                return persona
             else:
                 raise ValueError("Failed to create persona - no data returned")
                 
@@ -65,8 +77,23 @@ class PostgresPersonaService:
             raise ValueError(f"Failed to create persona: {e}")
     
     async def get_persona(self, persona_id: str) -> Optional[Persona]:
-        """Get a persona by ID"""
+        """Get a persona by ID with Redis caching"""
         try:
+            # Check Redis cache first
+            cache_key = CacheManager.persona_cache_key(persona_id)
+            if redis_client.is_connected():
+                try:
+                    cached_data = redis_client.get_json(cache_key)
+                    if cached_data:
+                        logger.debug(f"Persona cache hit for {persona_id}")
+                        # Convert cached data back to Persona object
+                        cached_data['created_at'] = datetime.fromisoformat(cached_data['created_at'])
+                        cached_data['updated_at'] = datetime.fromisoformat(cached_data['updated_at'])
+                        return Persona(**cached_data)
+                except Exception as e:
+                    logger.warning(f"Persona cache lookup failed: {e}")
+            
+            # Cache miss, query database
             db = self._get_db()
             
             result = db.execute(
@@ -82,7 +109,7 @@ class PostgresPersonaService:
             db.close()
             
             if row:
-                return Persona(
+                persona = Persona(
                     id=str(row.id),
                     name=row.name,
                     description=row.description,
@@ -94,6 +121,19 @@ class PostgresPersonaService:
                     created_at=row.created_at,
                     updated_at=row.updated_at
                 )
+                
+                # Cache the persona for 1 hour
+                if redis_client.is_connected():
+                    try:
+                        cache_data = persona.model_dump()
+                        cache_data['created_at'] = cache_data['created_at'].isoformat()
+                        cache_data['updated_at'] = cache_data['updated_at'].isoformat()
+                        redis_client.set_json(cache_key, cache_data, ex=3600)  # 1 hour TTL
+                        logger.debug(f"Persona cached for {persona_id}")
+                    except Exception as e:
+                        logger.warning(f"Persona cache set failed: {e}")
+                
+                return persona
             return None
             
         except Exception as e:
@@ -101,8 +141,26 @@ class PostgresPersonaService:
             raise ValueError(f"Failed to get persona: {e}")
     
     async def list_personas(self, active_only: bool = True, created_by: str = None) -> List[Persona]:
-        """List all personas, optionally filtered"""
+        """List all personas with Redis caching"""
         try:
+            # Check Redis cache first
+            cache_key = CacheManager.personas_list_key(active_only, created_by)
+            if redis_client.is_connected():
+                try:
+                    cached_data = redis_client.get_json(cache_key)
+                    if cached_data:
+                        logger.debug(f"Personas list cache hit")
+                        # Convert cached data back to Persona objects
+                        personas = []
+                        for p in cached_data:
+                            p['created_at'] = datetime.fromisoformat(p['created_at'])
+                            p['updated_at'] = datetime.fromisoformat(p['updated_at'])
+                            personas.append(Persona(**p))
+                        return personas
+                except Exception as e:
+                    logger.warning(f"Personas list cache lookup failed: {e}")
+            
+            # Cache miss, query database
             db = self._get_db()
             
             query = """
@@ -140,6 +198,20 @@ class PostgresPersonaService:
                     created_at=row.created_at,
                     updated_at=row.updated_at
                 ))
+            
+            # Cache the personas list for 5 minutes (including empty results)
+            if redis_client.is_connected():
+                try:
+                    cache_data = []
+                    for persona in personas:
+                        p_dict = persona.model_dump()
+                        p_dict['created_at'] = p_dict['created_at'].isoformat()
+                        p_dict['updated_at'] = p_dict['updated_at'].isoformat()
+                        cache_data.append(p_dict)
+                    redis_client.set_json(cache_key, cache_data, ex=300)  # 5 minutes TTL
+                    logger.debug(f"Personas list cached")
+                except Exception as e:
+                    logger.warning(f"Personas list cache set failed: {e}")
             
             return personas
             
@@ -179,7 +251,7 @@ class PostgresPersonaService:
             db.close()
             
             if row:
-                return Persona(
+                persona = Persona(
                     id=str(row.id),
                     name=row.name,
                     description=row.description,
@@ -191,6 +263,19 @@ class PostgresPersonaService:
                     created_at=row.created_at,
                     updated_at=row.updated_at
                 )
+                
+                # Invalidate caches after update
+                if redis_client.is_connected():
+                    try:
+                        # Clear persona cache
+                        redis_client.delete(CacheManager.persona_cache_key(persona_id))
+                        # Clear all personas list caches
+                        redis_client.flush_pattern("personas:list:*")
+                        logger.debug(f"Persona caches invalidated after update for {persona_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to invalidate persona caches: {e}")
+                
+                return persona
             return None
             
         except Exception as e:
@@ -214,7 +299,20 @@ class PostgresPersonaService:
             db.commit()
             db.close()
             
-            return result.rowcount > 0
+            success = result.rowcount > 0
+            
+            # Invalidate caches after delete
+            if success and redis_client.is_connected():
+                try:
+                    # Clear persona cache
+                    redis_client.delete(CacheManager.persona_cache_key(persona_id))
+                    # Clear all personas list caches
+                    redis_client.flush_pattern("personas:list:*")
+                    logger.debug(f"Persona caches invalidated after delete for {persona_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to invalidate persona caches: {e}")
+            
+            return success
             
         except Exception as e:
             logger.error(f"Database error deleting persona {persona_id}: {e}")
@@ -253,11 +351,21 @@ class PostgresPersonaService:
             db.close()
             
             if row:
-                return UserPersonaPreference(
+                pref = UserPersonaPreference(
                     user_id=str(row.user_id),
                     persona_id=str(row.persona_id),
                     updated_at=row.updated_at
                 )
+                
+                # Invalidate user persona preference cache
+                if redis_client.is_connected():
+                    try:
+                        redis_client.delete(CacheManager.user_persona_preference_key(user_id))
+                        logger.debug(f"User persona preference cache invalidated for {user_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to invalidate user persona preference cache: {e}")
+                
+                return pref
             else:
                 raise ValueError("Failed to set user persona preference")
                 
@@ -266,24 +374,49 @@ class PostgresPersonaService:
             raise ValueError(f"Failed to set user persona: {e}")
     
     async def get_user_persona(self, user_id: str) -> Optional[Persona]:
-        """Get a user's currently selected persona"""
+        """Get a user's currently selected persona with caching"""
         try:
-            db = self._get_db()
+            # Check cache for user preference first
+            pref_cache_key = CacheManager.user_persona_preference_key(user_id)
+            persona_id = None
             
-            # Get user's preference
-            result = db.execute(
-                text("""
-                    SELECT persona_id FROM user_persona_preferences 
-                    WHERE user_id = :user_id
-                """),
-                {"user_id": user_id}
-            )
+            if redis_client.is_connected():
+                try:
+                    cached_persona_id = redis_client.get(pref_cache_key)
+                    if cached_persona_id:
+                        logger.debug(f"User persona preference cache hit for {user_id}")
+                        persona_id = cached_persona_id
+                except Exception as e:
+                    logger.warning(f"User persona preference cache lookup failed: {e}")
             
-            row = result.fetchone()
-            db.close()
+            if not persona_id:
+                # Cache miss, query database
+                db = self._get_db()
+                
+                # Get user's preference
+                result = db.execute(
+                    text("""
+                        SELECT persona_id FROM user_persona_preferences 
+                        WHERE user_id = :user_id
+                    """),
+                    {"user_id": user_id}
+                )
+                
+                row = result.fetchone()
+                db.close()
+                
+                if row:
+                    persona_id = str(row.persona_id)
+                    # Cache the preference for 10 minutes
+                    if redis_client.is_connected():
+                        try:
+                            redis_client.set(pref_cache_key, persona_id, ex=600)  # 10 minutes TTL
+                            logger.debug(f"User persona preference cached for {user_id}")
+                        except Exception as e:
+                            logger.warning(f"User persona preference cache set failed: {e}")
             
-            if row:
-                return await self.get_persona(str(row.persona_id))
+            if persona_id:
+                return await self.get_persona(persona_id)
             return None
             
         except Exception as e:
