@@ -12,7 +12,7 @@ import uvicorn
 from datetime import datetime
 
 from app.services.web.config import settings
-from app.services.web.routes import auth, chat, api, websocket
+from app.services.web.routes import auth, chat, api, websocket, profile
 from app.services.web.components.gaia_ui import GaiaDesign, gaia_layout, gaia_auth_form
 from app.shared.logging import setup_service_logger
 
@@ -56,6 +56,7 @@ app.add_middleware(
 auth.setup_routes(app)
 chat.setup_routes(app)
 api.setup_routes(app)
+profile.setup_routes(app)
 # WebSocket support is not available in FastHTML yet
 # if settings.enable_websocket:
 #     websocket.setup_routes(app)

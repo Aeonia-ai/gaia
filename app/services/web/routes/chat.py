@@ -688,10 +688,11 @@ def setup_routes(app):
                 )
                 # Update search status
                 from fasthtml.core import Script, NotStr
+                query_text = f' for "{query}"' if query else ""
                 status_script = Script(NotStr(f'''
                     const status = document.getElementById('search-status');
                     if (status) {{
-                        status.textContent = '{len(conversations)} results{f" for \\"{query}\\"" if query else ""}';
+                        status.textContent = '{len(conversations)} results{query_text}';
                     }}
                 '''))
                 return Div(result_html, status_script)
@@ -700,10 +701,12 @@ def setup_routes(app):
             
             # Create result with status update
             from fasthtml.core import Script, NotStr
+            plural = "s" if len(conversations) != 1 else ""
+            query_text = f' for "{query}"' if query else ""
             status_script = Script(NotStr(f'''
                 const status = document.getElementById('search-status');
                 if (status) {{
-                    status.textContent = '{len(conversations)} result{\"s\" if len(conversations) != 1 else \"\"}{f" for \\"{query}\\"" if query else ""}';
+                    status.textContent = '{len(conversations)} result{plural}{query_text}';
                 }}
             '''))
             

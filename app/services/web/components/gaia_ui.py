@@ -162,13 +162,21 @@ def gaia_sidebar_header(user=None):
         Div(
             Div(
                 user.get('email', 'User') if user else 'User',
-                cls="text-xs text-slate-400 truncate mb-1"
+                cls="text-xs text-slate-400 truncate mb-2"
             ),
-            A(
-                "Logout",
-                href="/logout",
-                cls="text-xs text-purple-400 hover:text-purple-300 transition-colors",
-                onclick="window.location.href='/logout'; return false;"
+            Div(
+                A(
+                    "Profile",
+                    href="/profile",
+                    cls="text-xs text-purple-400 hover:text-purple-300 transition-colors mr-3"
+                ),
+                A(
+                    "Logout",
+                    href="/logout",
+                    cls="text-xs text-purple-400 hover:text-purple-300 transition-colors",
+                    onclick="window.location.href='/logout'; return false;"
+                ),
+                cls="flex gap-3"
             ),
             cls="pt-2 border-t border-slate-700/50"
         ) if user else None,
@@ -483,6 +491,107 @@ def gaia_email_not_verified_notice():
     """Notice shown when user tries to login with unverified email"""
     return gaia_error_message(
         "Please verify your email address before logging in. Check your email for the verification link."
+    )
+
+
+def gaia_profile_page(user, stats=None):
+    """User profile page component"""
+    stats = stats or {"total_conversations": 0, "total_messages": 0}
+    
+    return gaia_layout(
+        main_content=Div(
+            # Header
+            Div(
+                H1("Profile Settings", cls="text-2xl font-bold text-white mb-2"),
+                P("Manage your account and preferences", cls="text-slate-400 mb-6"),
+                cls="p-6 border-b border-slate-700/50"
+            ),
+            
+            # Main content
+            Div(
+                # Left column - Profile info
+                Div(
+                    gaia_card(
+                        Div(
+                            # Avatar section
+                            Div(
+                                Div(
+                                    Span("👤", cls="text-4xl"),
+                                    cls="w-20 h-20 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center mb-4"
+                                ),
+                                H2(user.get('name', 'User'), cls="text-xl font-semibold text-white mb-1"),
+                                P(user.get('email', ''), cls="text-slate-400 mb-4"),
+                                cls="text-center"
+                            ),
+                            
+                            # Stats
+                            Div(
+                                H2("Usage Statistics", cls="text-lg font-semibold text-white mb-3"),
+                                Div(
+                                    Div(
+                                        Div(str(stats['total_conversations']), cls="text-2xl font-bold text-purple-400"),
+                                        Div("Conversations", cls="text-xs text-slate-400"),
+                                        cls="text-center"
+                                    ),
+                                    Div(
+                                        Div(str(stats['total_messages']), cls="text-2xl font-bold text-pink-400"),
+                                        Div("Messages", cls="text-xs text-slate-400"),
+                                        cls="text-center"
+                                    ),
+                                    cls="grid grid-cols-2 gap-4"
+                                ),
+                                cls="border-t border-slate-600 pt-4"
+                            ),
+                            cls="space-y-4"
+                        ),
+                        title="Account Information"
+                    ),
+                    cls="space-y-6"
+                ),
+                
+                # Right column - Settings
+                Div(
+                    # Account settings
+                    gaia_card(
+                        Div(
+                            Form(
+                                Div(
+                                    gaia_input("name", "Display Name", value=user.get('name', ''), required=True),
+                                    cls="mb-4"
+                                ),
+                                Div(
+                                    gaia_input("email", "Email Address", type="email", value=user.get('email', ''), required=True),
+                                    cls="mb-4"
+                                ),
+                                gaia_button("Update Profile", type="submit", cls="w-full"),
+                                cls="space-y-4",
+                                **{"hx-post": "/api/profile/update"},
+                                **{"hx-target": "#profile-message"},
+                                **{"hx-swap": "innerHTML"}
+                            ),
+                            Div(id="profile-message", cls="mt-4"),
+                            cls="space-y-4"
+                        ),
+                        title="Account Settings"
+                    ),
+                    
+                    # Back to chat button
+                    Div(
+                        A(
+                            "← Back to Chat",
+                            href="/chat",
+                            cls="inline-flex items-center text-purple-400 hover:text-purple-300 transition-colors"
+                        ),
+                        cls="mt-6 text-center"
+                    ),
+                    cls="space-y-6"
+                ),
+                cls="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6"
+            ),
+            cls="flex-1 overflow-y-auto"
+        ),
+        show_sidebar=False,
+        user=user
     )
 
 
