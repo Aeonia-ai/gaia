@@ -114,6 +114,8 @@ services:
       - WEB_SESSION_SECRET=${SESSION_SECRET:-change-this-in-production}
       - WEB_LOG_LEVEL=INFO
       - WEB_DEBUG=true
+      - ENVIRONMENT=local
+      - WEB_SERVICE_BASE_URL=http://localhost:8080
     depends_on:
       - gateway
       - nats

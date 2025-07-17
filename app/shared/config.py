@@ -41,7 +41,7 @@ class GaiaSettings(BaseSettings):
     RATE_LIMIT_PERIOD: str = os.getenv("RATE_LIMIT_PERIOD", "minute")
     
     # CORS Configuration (from LLM Platform)
-    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:8666,http://localhost:3000")
+    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "http://localhost:8666,http://localhost:8080")
     
     @property
     def allowed_origins_list(self) -> List[str]:
@@ -118,7 +118,7 @@ class GaiaSettings(BaseSettings):
     GATEWAY_RETRY_DELAY: float = float(os.getenv("GATEWAY_RETRY_DELAY", "1.0"))
     
     # Environment and Deployment
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "local")
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     
     # Performance and Scaling
