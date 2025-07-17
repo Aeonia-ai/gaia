@@ -324,6 +324,11 @@ def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sid
                 cls="htmx-indicator fixed inset-0 bg-black/50 z-50 items-center justify-center",
                 style="display: none;"
             ),
+            # Toast container for notifications
+            Div(
+                id="toast-container",
+                cls="fixed top-4 right-4 z-50 space-y-2"
+            ),
             # Sidebar
             Div(
                 gaia_sidebar_header(user=user),
@@ -346,6 +351,11 @@ def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sid
     else:
         # No sidebar layout for auth pages
         return Div(
+            # Toast container for auth pages too
+            Div(
+                id="toast-container",
+                cls="fixed top-4 right-4 z-50 space-y-2"
+            ),
             main_content or "",
             cls=f"h-screen {GaiaDesign.BG_MAIN} {page_class}"
         )
@@ -575,18 +585,19 @@ def gaia_profile_page(user, stats=None):
     )
 
 
-def gaia_toast(message, type="info", duration=3000):
+def gaia_toast(message, type="info", duration=3000, dismissible=True):
     """
-    Toast notification component
+    Enhanced toast notification component
     type: 'success', 'error', 'warning', 'info'
-    duration: milliseconds to show toast
+    duration: milliseconds to show toast (0 = manual dismiss)
+    dismissible: whether to show close button
     """
     # Color schemes for different types
     colors = {
-        "success": "bg-green-600",
-        "error": "bg-red-600", 
-        "warning": "bg-yellow-600",
-        "info": "bg-purple-600"
+        "success": "bg-gradient-to-r from-green-600 to-green-700",
+        "error": "bg-gradient-to-r from-red-600 to-red-700", 
+        "warning": "bg-gradient-to-r from-yellow-600 to-yellow-700",
+        "info": "bg-gradient-to-r from-purple-600 to-purple-700"
     }
     
     icons = {
@@ -602,14 +613,306 @@ def gaia_toast(message, type="info", duration=3000):
     import uuid
     toast_id = f"toast-{str(uuid.uuid4())[:8]}"
     
+    # Auto-dismiss script
+    auto_dismiss = ""
+    if duration > 0:
+        auto_dismiss = f"setTimeout(() => {{ const toast = document.getElementById('{toast_id}'); if(toast) toast.remove(); }}, {duration});"
+    
+    # Close button
+    close_button = ""
+    if dismissible:
+        close_button = f'''
+            <button onclick="document.getElementById('{toast_id}').remove()" 
+                    class="ml-3 text-white hover:text-gray-200 font-bold text-lg leading-none"
+                    title="Dismiss">×</button>
+        '''
+    
+    from fasthtml.core import Script, NotStr
+    
     return Div(
         Div(
             Span(icon, cls="mr-2 text-lg"),
-            Span(message),
-            cls=f"{bg_color} text-white px-4 py-3 rounded-lg shadow-xl flex items-center"
+            Span(message, cls="flex-1"),
+            NotStr(close_button) if dismissible else "",
+            cls=f"{bg_color} text-white px-4 py-3 rounded-lg shadow-xl flex items-center min-w-[300px] max-w-[500px]"
+        ),
+        Script(NotStr(auto_dismiss)) if duration > 0 else "",
+        id=toast_id,
+        cls="fixed top-4 right-4 z-50 animate-slideInRight transform transition-all duration-300 hover:scale-105"
+    )
+
+
+def gaia_error_toast(message, details=None, retry_action=None):
+    """
+    Specialized error toast with optional retry button
+    """
+    import uuid
+    toast_id = f"error-toast-{str(uuid.uuid4())[:8]}"
+    
+    # Retry button if action provided
+    retry_button = ""
+    if retry_action:
+        retry_button = f'''
+            <button onclick="{retry_action}" 
+                    class="ml-2 px-3 py-1 bg-white bg-opacity-20 hover:bg-opacity-30 rounded text-sm font-medium transition-all duration-200">
+                Retry
+            </button>
+        '''
+    
+    # Details toggle if provided
+    details_content = ""
+    if details:
+        details_content = f'''
+            <div id="{toast_id}-details" class="mt-2 text-xs text-red-100 bg-black bg-opacity-20 p-2 rounded" style="display: none;">
+                {details}
+            </div>
+            <button onclick="
+                const details = document.getElementById('{toast_id}-details');
+                const btn = this;
+                if (details.style.display === 'none') {{
+                    details.style.display = 'block';
+                    btn.textContent = 'Hide Details';
+                }} else {{
+                    details.style.display = 'none';
+                    btn.textContent = 'Show Details';
+                }}
+            " class="ml-2 text-xs text-red-200 hover:text-white underline">Show Details</button>
+        '''
+    
+    from fasthtml.core import Script, NotStr
+    
+    return Div(
+        Div(
+            Div(
+                Span("❌", cls="mr-2 text-lg"),
+                Span(message, cls="flex-1"),
+                NotStr(retry_button),
+                Button(
+                    "×",
+                    onclick=f"document.getElementById('{toast_id}').remove()",
+                    cls="ml-2 text-white hover:text-gray-200 font-bold text-lg leading-none",
+                    title="Dismiss"
+                ),
+                cls="flex items-center"
+            ),
+            NotStr(details_content),
+            cls="bg-gradient-to-r from-red-600 to-red-700 text-white px-4 py-3 rounded-lg shadow-xl min-w-[300px] max-w-[500px]"
         ),
         id=toast_id,
-        cls="fixed top-4 right-4 z-50 animate-slideInRight",
-        # Auto-remove after duration
-        _=f"setTimeout(() => {{ document.getElementById('{toast_id}').remove(); }}, {duration});"
+        cls="fixed top-4 right-4 z-50 animate-slideInRight transform transition-all duration-300"
     )
+
+
+def gaia_loading_toast(message="Loading...", timeout_ms=30000):
+    """
+    Loading toast that auto-converts to error if timeout exceeded
+    """
+    import uuid
+    toast_id = f"loading-toast-{str(uuid.uuid4())[:8]}"
+    
+    from fasthtml.core import Script, NotStr
+    
+    timeout_script = NotStr(f'''
+        setTimeout(() => {{
+            const toast = document.getElementById('{toast_id}');
+            if (toast) {{
+                toast.innerHTML = `
+                    <div class="bg-gradient-to-r from-yellow-600 to-yellow-700 text-white px-4 py-3 rounded-lg shadow-xl min-w-[300px] max-w-[500px]">
+                        <div class="flex items-center">
+                            <span class="mr-2 text-lg">⚠️</span>
+                            <span class="flex-1">Request is taking longer than expected...</span>
+                            <button onclick="this.closest('[id]').remove()" 
+                                    class="ml-2 text-white hover:text-gray-200 font-bold text-lg leading-none"
+                                    title="Dismiss">×</button>
+                        </div>
+                    </div>
+                `;
+                toast.className = toast.className.replace('animate-pulse', '');
+            }}
+        }}, {timeout_ms});
+    ''')
+    
+    return Div(
+        Div(
+            Span("⏳", cls="mr-2 text-lg animate-pulse"),
+            Span(message, cls="flex-1"),
+            cls="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-lg shadow-xl min-w-[300px] max-w-[500px] flex items-center"
+        ),
+        Script(timeout_script),
+        id=toast_id,
+        cls="fixed top-4 right-4 z-50 animate-slideInRight"
+    )
+
+
+def gaia_toast_script():
+    """
+    JavaScript helper functions for toast management
+    """
+    from fasthtml.core import Script, NotStr
+    
+    return Script(NotStr('''
+        // Global toast management system
+        window.GaiaToast = {
+            // Show a toast notification
+            show: function(message, type = 'info', duration = 3000) {
+                const toastId = 'toast-' + Math.random().toString(36).substr(2, 9);
+                const colors = {
+                    success: 'from-green-600 to-green-700',
+                    error: 'from-red-600 to-red-700',
+                    warning: 'from-yellow-600 to-yellow-700',
+                    info: 'from-purple-600 to-purple-700'
+                };
+                const icons = {
+                    success: '✅',
+                    error: '❌',
+                    warning: '⚠️',
+                    info: 'ℹ️'
+                };
+                
+                const color = colors[type] || colors.info;
+                const icon = icons[type] || icons.info;
+                
+                const toast = document.createElement('div');
+                toast.id = toastId;
+                toast.className = 'bg-gradient-to-r ' + color + ' text-white px-4 py-3 rounded-lg shadow-xl min-w-[300px] max-w-[500px] animate-slideInRight transform transition-all duration-300 hover:scale-105 mb-2';
+                toast.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="mr-2 text-lg">${icon}</span>
+                        <span class="flex-1">${message}</span>
+                        <button onclick="this.closest('[id]').remove()" 
+                                class="ml-3 text-white hover:text-gray-200 font-bold text-lg leading-none"
+                                title="Dismiss">×</button>
+                    </div>
+                `;
+                
+                const container = document.getElementById('toast-container');
+                if (container) {
+                    container.appendChild(toast);
+                } else {
+                    document.body.appendChild(toast);
+                }
+                
+                // Auto-dismiss if duration > 0
+                if (duration > 0) {
+                    setTimeout(() => {
+                        if (document.getElementById(toastId)) {
+                            document.getElementById(toastId).remove();
+                        }
+                    }, duration);
+                }
+                
+                return toastId;
+            },
+            
+            // Show success toast
+            success: function(message, duration = 3000) {
+                return this.show(message, 'success', duration);
+            },
+            
+            // Show error toast
+            error: function(message, duration = 5000) {
+                return this.show(message, 'error', duration);
+            },
+            
+            // Show warning toast
+            warning: function(message, duration = 4000) {
+                return this.show(message, 'warning', duration);
+            },
+            
+            // Show info toast
+            info: function(message, duration = 3000) {
+                return this.show(message, 'info', duration);
+            },
+            
+            // Show loading toast
+            loading: function(message = 'Loading...', timeoutMs = 30000) {
+                const toastId = 'loading-toast-' + Math.random().toString(36).substr(2, 9);
+                const toast = document.createElement('div');
+                toast.id = toastId;
+                toast.className = 'bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-lg shadow-xl min-w-[300px] max-w-[500px] animate-slideInRight mb-2';
+                toast.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="mr-2 text-lg animate-pulse">⏳</span>
+                        <span class="flex-1">${message}</span>
+                    </div>
+                `;
+                
+                const container = document.getElementById('toast-container');
+                if (container) {
+                    container.appendChild(toast);
+                } else {
+                    document.body.appendChild(toast);
+                }
+                
+                // Convert to warning after timeout
+                setTimeout(() => {
+                    const loadingToast = document.getElementById(toastId);
+                    if (loadingToast) {
+                        loadingToast.className = 'bg-gradient-to-r from-yellow-600 to-yellow-700 text-white px-4 py-3 rounded-lg shadow-xl min-w-[300px] max-w-[500px] mb-2';
+                        loadingToast.innerHTML = `
+                            <div class="flex items-center">
+                                <span class="mr-2 text-lg">⚠️</span>
+                                <span class="flex-1">Request is taking longer than expected...</span>
+                                <button onclick="this.closest('[id]').remove()" 
+                                        class="ml-2 text-white hover:text-gray-200 font-bold text-lg leading-none"
+                                        title="Dismiss">×</button>
+                            </div>
+                        `;
+                    }
+                }, timeoutMs);
+                
+                return toastId;
+            },
+            
+            // Hide specific toast
+            hide: function(toastId) {
+                const toast = document.getElementById(toastId);
+                if (toast) {
+                    toast.remove();
+                }
+            },
+            
+            // Clear all toasts
+            clear: function() {
+                const container = document.getElementById('toast-container');
+                if (container) {
+                    container.innerHTML = '';
+                }
+            }
+        };
+        
+        // Enhanced HTMX error handling
+        document.body.addEventListener('htmx:responseError', function(evt) {
+            console.error('[HTMX] Response Error:', evt.detail);
+            const status = evt.detail.xhr.status;
+            let message = 'Request failed';
+            
+            if (status === 0) {
+                message = 'Connection lost. Please check your internet.';
+            } else if (status === 400) {
+                message = 'Invalid request. Please try again.';
+            } else if (status === 401) {
+                message = 'Please log in again.';
+            } else if (status === 403) {
+                message = 'Access denied.';
+            } else if (status === 404) {
+                message = 'Requested resource not found.';
+            } else if (status === 429) {
+                message = 'Too many requests. Please wait a moment.';
+            } else if (status >= 500) {
+                message = 'Server error. Please try again later.';
+            }
+            
+            GaiaToast.error(message);
+        });
+        
+        document.body.addEventListener('htmx:timeout', function(evt) {
+            console.error('[HTMX] Timeout:', evt.detail);
+            GaiaToast.error('Request timed out. Please try again.');
+        });
+        
+        document.body.addEventListener('htmx:sendError', function(evt) {
+            console.error('[HTMX] Send Error:', evt.detail);
+            GaiaToast.error('Failed to send request. Please check your connection.');
+        });
+    '''))

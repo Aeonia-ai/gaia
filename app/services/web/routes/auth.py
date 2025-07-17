@@ -7,7 +7,8 @@ from app.services.web.components.gaia_ui import (
     gaia_email_verification_notice,
     gaia_email_confirmed_success,
     gaia_email_not_verified_notice,
-    gaia_info_message
+    gaia_info_message,
+    gaia_toast_script
 )
 from app.services.web.utils.gateway_client import gateway_client, GaiaAPIClient
 from app.services.web.config import settings

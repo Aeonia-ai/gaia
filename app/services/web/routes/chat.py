@@ -5,7 +5,7 @@ from fasthtml.components import Div, H2, Button, P, A, H1, Style
 from starlette.responses import HTMLResponse
 from app.services.web.components.gaia_ui import (
     gaia_layout, gaia_conversation_item, gaia_message_bubble,
-    gaia_chat_input, gaia_loading_spinner, gaia_error_message
+    gaia_chat_input, gaia_loading_spinner, gaia_error_message, gaia_toast_script
 )
 from app.services.web.utils.gateway_client import GaiaAPIClient
 from app.services.web.utils.database_conversation_store import database_conversation_store
@@ -187,6 +187,7 @@ def setup_routes(app):
             ),
             gaia_chat_input(),  # No conversation ID yet
             debug_script,
+            gaia_toast_script(),  # Add toast management
             cls="flex flex-col h-full"
         )
         
@@ -409,6 +410,11 @@ def setup_routes(app):
     // Update conversation list
     htmx.ajax('GET', '/api/conversations', {{target: '#conversation-list', swap: 'innerHTML'}});
     
+    // Show success notification
+    if (window.GaiaToast) {{
+        GaiaToast.success('Message sent successfully!', 2000);
+    }}
+    
     // Fetch AI response with timeout handling
     setTimeout(() => {{
         const loadingEl = document.getElementById('loading-{message_id}');
@@ -443,8 +449,30 @@ def setup_routes(app):
             
         except Exception as e:
             logger.error(f"Error in send_message: {e}", exc_info=True)
-            # Return an error message that will be shown in the UI
-            return gaia_error_message(f"Failed to send message: {str(e)[:100]}")
+            
+            # Show toast error and return user-friendly error message
+            error_msg = str(e).lower()
+            if "connection" in error_msg or "network" in error_msg:
+                user_message = "Connection error. Please check your internet and try again."
+            elif "timeout" in error_msg:
+                user_message = "Request timed out. Please try again."
+            elif "validation" in error_msg or "invalid" in error_msg:
+                user_message = "Invalid message format. Please check your input."
+            else:
+                user_message = "Failed to send message. Please try again."
+            
+            # Return enhanced error with toast notification
+            from fasthtml.core import Script, NotStr
+            error_script = Script(NotStr(f'''
+                if (window.GaiaToast) {{
+                    GaiaToast.error('{user_message}', 5000);
+                }}
+            '''))
+            
+            return Div(
+                gaia_error_message(user_message),
+                error_script
+            )
     
     @app.get("/api/chat/response")
     async def get_response(request):
@@ -510,25 +538,51 @@ def setup_routes(app):
             error_msg = str(e).lower()
             if "timeout" in error_msg:
                 user_message = "Response timed out. Please try again."
+                error_type = "timeout"
             elif "rate limit" in error_msg:
                 user_message = "Rate limit reached. Please wait a moment."
+                error_type = "rate_limit"
             elif "api" in error_msg or "key" in error_msg:
                 user_message = "API error. Please check your configuration."
+                error_type = "api_error"
             elif "network" in error_msg or "connection" in error_msg:
                 user_message = "Connection error. Please check your internet."
+                error_type = "network_error"
             else:
                 user_message = "Something went wrong. Please try again."
+                error_type = "unknown_error"
             
-            # Return error message that replaces the loading indicator
+            # Enhanced error message with retry capability
+            retry_action = f"htmx.ajax('GET', '/api/chat/response?message={encoded_message}&id={message_id}&conversation_id={conversation_id}', {{target: '#loading-{message_id}', swap: 'outerHTML'}})"
+            
             error_html = f'''<div class="flex justify-start mb-4 assistant-message-placeholder">
     <div class="bg-red-900/50 border border-red-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
-        <div class="flex items-center">
-            <span class="mr-2">❌</span>
-            <span>{user_message}</span>
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <span class="mr-2">❌</span>
+                <span>{user_message}</span>
+            </div>
+            <button onclick="{retry_action}" 
+                    class="ml-3 px-3 py-1 bg-white bg-opacity-20 hover:bg-opacity-30 rounded text-sm font-medium transition-all duration-200">
+                Retry
+            </button>
         </div>
         <div class="text-xs opacity-70 mt-2">Error: {str(e)[:100]}...</div>
     </div>
-</div>'''
+</div>
+<script>
+    // Show toast notification for the error
+    if (window.GaiaToast) {{
+        const errorMessages = {{
+            'timeout': 'Response timed out. You can retry or try a shorter message.',
+            'rate_limit': 'You\\'re sending messages too quickly. Please wait a moment.',
+            'api_error': 'There\\'s an issue with the AI service. Please try again.',
+            'network_error': 'Network connection issue. Please check your internet.',
+            'unknown_error': 'An unexpected error occurred. Please try again.'
+        }};
+        GaiaToast.error(errorMessages['{error_type}'] || errorMessages['unknown_error'], 8000);
+    }}
+</script>'''
             
             return HTMLResponse(content=error_html)
     
