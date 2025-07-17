@@ -24,6 +24,9 @@ RUN pip install --no-cache-dir \
 # Copy shared modules
 COPY app/shared app/shared
 
+# Copy database models
+COPY app/models app/models
+
 # Copy web service
 COPY app/services/web app/services/web
 
