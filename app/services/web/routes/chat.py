@@ -69,6 +69,30 @@ def setup_routes(app):
             // Check if HTMX is loaded
             console.log('[HTMX] Loaded:', typeof htmx);
             
+            // Search functionality
+            const searchInput = document.getElementById('search-input');
+            const clearButton = document.getElementById('clear-search');
+            
+            if (searchInput && clearButton) {
+                // Show/hide clear button based on input content
+                searchInput.addEventListener('input', function() {
+                    if (this.value.length > 0) {
+                        clearButton.style.opacity = '1';
+                    } else {
+                        clearButton.style.opacity = '0';
+                    }
+                });
+                
+                // Clear search on Escape key
+                searchInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        this.value = '';
+                        clearButton.style.opacity = '0';
+                        htmx.ajax('GET', '/api/search-conversations', {target: '#conversation-list', swap: 'innerHTML'});
+                    }
+                });
+            }
+            
             // Add event listener for successful swaps to debug
             document.body.addEventListener('htmx:afterSwap', function(evt) {
                 console.log('[HTMX] After Swap:', evt.detail);
@@ -635,3 +659,64 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error deleting conversation: {e}", exc_info=True)
             return gaia_error_message(f"Failed to delete conversation: {str(e)[:100]}")
+    
+    @app.get("/api/search-conversations")
+    async def search_conversations(request):
+        """Search conversations by title or content"""
+        user = request.session.get("user", {})
+        user_id = user.get("id", "dev-user-id")
+        
+        query = request.query_params.get("query", "").strip()
+        logger.info(f"Searching conversations for user {user_id} with query: '{query}'")
+        
+        try:
+            if not query:
+                # If no query, return all conversations
+                conversations = database_conversation_store.get_conversations(user_id)
+            else:
+                # Search conversations
+                conversations = database_conversation_store.search_conversations(user_id, query)
+            
+            # Return updated conversation list with search results
+            if not conversations:
+                result_html = Div(
+                    Div(
+                        f"No conversations found for '{query}'" if query else "No conversations found",
+                        cls="text-xs text-slate-400 text-center py-4 italic"
+                    ),
+                    cls="space-y-2"
+                )
+                # Update search status
+                from fasthtml.core import Script, NotStr
+                status_script = Script(NotStr(f'''
+                    const status = document.getElementById('search-status');
+                    if (status) {{
+                        status.textContent = '{len(conversations)} results{f" for \\"{query}\\"" if query else ""}';
+                    }}
+                '''))
+                return Div(result_html, status_script)
+                
+            conversation_items = [gaia_conversation_item(conv) for conv in conversations]
+            
+            # Create result with status update
+            from fasthtml.core import Script, NotStr
+            status_script = Script(NotStr(f'''
+                const status = document.getElementById('search-status');
+                if (status) {{
+                    status.textContent = '{len(conversations)} result{\"s\" if len(conversations) != 1 else \"\"}{f" for \\"{query}\\"" if query else ""}';
+                }}
+            '''))
+            
+            return Div(
+                Div(
+                    *conversation_items,
+                    cls="space-y-2 stagger-children animate-fadeIn",
+                    id="conversation-list",
+                    style="--stagger-delay: 0;"
+                ),
+                status_script
+            )
+            
+        except Exception as e:
+            logger.error(f"Error searching conversations: {e}", exc_info=True)
+            return gaia_error_message(f"Search failed: {str(e)[:100]}")
