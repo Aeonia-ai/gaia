@@ -4,15 +4,25 @@ This document explains how to configure Supabase Site URL and redirect URLs for 
 
 ## Overview
 
-Supabase email confirmation links redirect users back to your application. The redirect URL must be configured correctly for each environment:
+Due to Supabase's free tier limitation of 2 projects per organization, we use a single Supabase project (`gaia-platform-v2`) configured to support all environments. The redirect URLs must be configured to accept requests from all deployment environments:
 
 - **Local Development**: `http://localhost:8080`
+- **Dev (Cloud)**: `https://gaia-web-dev.fly.dev`
 - **Staging**: `https://gaia-web-staging.fly.dev` 
 - **Production**: `https://gaia-web-production.fly.dev`
+
+## Important: Shared Authentication Limitation
+
+**⚠️ All environments share the same Supabase authentication database.** This means:
+- A user registered in dev can log into production with the same credentials
+- Test accounts have access to all environments
+- There is no built-in environment isolation for authentication
 
 ## Configuration per Environment
 
 The Gaia Platform follows a 4-environment deployment pipeline: **local → dev → staging → production**
+
+Each environment has its own PostgreSQL database for application data, but all share the same Supabase authentication.
 
 ### Local Development
 

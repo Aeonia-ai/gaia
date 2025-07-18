@@ -18,9 +18,12 @@
 
 ### Core Infrastructure - FULLY COMPLETE
 - **Gateway service**: Request routing and authentication
-- **Database**: PostgreSQL with SQLAlchemy 2.0
+- **Database Architecture**: Hybrid approach with PostgreSQL (per-environment) + Supabase (shared auth)
+- **PostgreSQL databases**: Local Docker + Fly.io clusters (dev, staging, production)
+- **Supabase integration**: Single project for all environment authentication
+- **Redis caching**: Per-environment caching layer for API keys
 - **NATS messaging**: Service coordination
-- **Authentication**: JWT + API key support
+- **Authentication**: JWT (Supabase) + API key (PostgreSQL) support
 
 ### FastHTML Web Interface - FULLY FUNCTIONAL ✨
 - **Chat Interface**: Working HTMX-based chat with AI responses displaying correctly

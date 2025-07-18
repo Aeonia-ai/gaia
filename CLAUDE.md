@@ -2,7 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 🎯 Current Development Focus (July 16, 2025)
+## 🚨 BEFORE YOU START: Required Reading
+1. **[Testing and Quality Assurance Guide](docs/testing-and-quality-assurance.md)** - Set up pre-commit hooks and run tests before making changes
+2. **[API Contracts Documentation](docs/api-contracts.md)** - Understand which endpoints must remain public
+3. **[API Key Configuration Guide](docs/api-key-configuration-guide.md)** - ALWAYS check this before setting up authentication
+4. **[Common Mistakes to Avoid](#-common-mistakes-to-avoid)** - Review this section to prevent known issues
+5. **[Essential Documentation Index](#-essential-documentation-index)** - Find the right guide for your task
+
+## 🎯 Current Development Focus (July 18, 2025)
+**Latest Fix**: Implemented unified authentication that uses the SAME CODE for local and remote deployments. The .env `API_KEY` is now properly stored in the local database (hashed) just like production API keys, ensuring 100% code parity between environments.
+
+**Key Authentication Principles**:
+- **Database-first**: ALL API keys validated through database (no special cases)
+- **Local-remote parity**: Same authentication code in both environments  
+- **.env API key pre-configured**: Local database initialization includes the .env API key
+- **Redis caching**: Performance optimization for all API key validations
+- **No environment-specific code**: What works locally works remotely
+
 Working on **FastHTML Web UI improvements**. Just completed debugging critical HTMX issues including loading indicator placement and conversation switching. Created comprehensive [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md). See [Web UI Development Status](docs/web-ui-development-status.md) for current state and next steps.
 
 ## 🧠 Development Philosophy & Problem-Solving Approach
@@ -31,6 +47,35 @@ Working on **FastHTML Web UI improvements**. Just completed debugging critical H
 - Capture both the specific fix AND the general approach that found it
 - Future you will thank present you for documenting the "why" not just the "what"
 
+## 📚 Essential Documentation Index
+
+**IMPORTANT**: Always consult these guides BEFORE making changes to avoid common pitfalls.
+
+### Configuration & Deployment
+- [API Key Configuration Guide](docs/api-key-configuration-guide.md) - **READ FIRST** for authentication setup
+- [Database Architecture](docs/database-architecture.md) - **IMPORTANT** - Understand the hybrid database setup
+- [Supabase Configuration Guide](docs/supabase-configuration.md) - Email confirmation URLs and auth setup
+- [Deployment Best Practices](docs/deployment-best-practices.md) - Local-remote parity strategies
+- [Fly.io Deployment Configuration](docs/flyio-deployment-config.md) - Platform-specific setup
+- [Smart Scripts & Deployment](docs/smart-scripts-deployment.md) - Automated deployment tools
+
+### Troubleshooting Guides
+- [API Key Authentication Troubleshooting](docs/troubleshooting-api-key-auth.md) - Common auth issues
+- [Fly.io DNS Troubleshooting](docs/troubleshooting-flyio-dns.md) - Internal DNS issues
+- [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md) - UI debugging
+
+### Architecture & Development
+- [Microservices Scaling Guide](docs/microservices-scaling.md) - Scaling patterns and strategies
+- [FastHTML Web Service Guide](docs/fasthtml-web-service.md) - Web UI architecture
+- [Command Reference](docs/command-reference.md) - Correct command syntax
+- [Implementation Status](docs/implementation-status.md) - Current progress tracking
+- [Web UI Development Status](docs/web-ui-development-status.md) - Frontend development state
+
+### Testing & Performance
+- [Mobile Testing Guide](docs/mobile-testing-guide.md) - Testing on mobile devices
+- [Optimization Guide](docs/optimization-guide.md) - Performance improvements
+- [Redis Integration](docs/redis-integration.md) - Caching implementation
+
 ## ⚠️ CRITICAL: Command Version Requirements
 
 **ALWAYS use these command versions:**
@@ -41,6 +86,28 @@ Working on **FastHTML Web UI improvements**. Just completed debugging critical H
 - `./scripts/curl_wrapper.sh` - NOT direct `curl` commands
 
 See [Command Reference](docs/command-reference.md) for complete list.
+
+## 🚫 Common Mistakes to Avoid
+
+### Configuration Mistakes
+1. **DON'T** rely on Pydantic's `env_prefix` alone - use `Field(env="VAR_NAME")`
+2. **DON'T** assume environment variables are loaded - always verify in logs
+3. **DON'T** mix API key names - web service uses `WEB_API_KEY`, not `API_KEY`
+
+### API Design Mistakes
+1. **DON'T** send extra fields in API requests - only send what's in the model
+2. **DON'T** assume endpoint paths - check the actual service implementation
+3. **DON'T** use public URLs for inter-service communication on Fly.io
+
+### Deployment Mistakes
+1. **DON'T** deploy without checking service health first
+2. **DON'T** ignore deployment timeouts - check if it succeeded anyway
+3. **DON'T** forget to set Fly.io secrets for new environment variables
+
+### Testing Mistakes
+1. **DON'T** use direct `curl` - use `./scripts/test.sh` or `./scripts/curl_wrapper.sh`
+2. **DON'T** test in production first - always test locally
+3. **DON'T** skip the verification scripts after configuration changes
 
 ## Development Commands
 
@@ -190,14 +257,23 @@ See [Fly.io Deployment Configuration](docs/flyio-deployment-config.md) for compl
    - Asset generation APIs: `STABILITY_API_KEY`, `MESHY_API_KEY`, etc.
 
 ### Supabase Email Configuration
-Environment-specific email confirmation URLs must be configured in Supabase dashboard:
+Due to Supabase's free tier limitation (2 projects per organization), we use a single Supabase project (`gaia-platform-v2`) configured to support all environments. The project must have ALL redirect URLs configured:
 
 **4-Environment Pipeline**: local → dev → staging → production
 
-- **Local**: `http://localhost:8080/auth/confirm`
-- **Dev**: `https://gaia-web-dev.fly.dev/auth/confirm`
-- **Staging**: `https://gaia-web-staging.fly.dev/auth/confirm`  
-- **Production**: `https://gaia-web-production.fly.dev/auth/confirm`
+**Required Redirect URLs in Supabase Dashboard**:
+- `http://localhost:8080/auth/confirm`
+- `http://localhost:8080/auth/callback`
+- `http://localhost:8080/`
+- `https://gaia-web-dev.fly.dev/auth/confirm`
+- `https://gaia-web-dev.fly.dev/auth/callback`
+- `https://gaia-web-dev.fly.dev/`
+- `https://gaia-web-staging.fly.dev/auth/confirm`
+- `https://gaia-web-staging.fly.dev/auth/callback`
+- `https://gaia-web-staging.fly.dev/`
+- `https://gaia-web-production.fly.dev/auth/confirm`
+- `https://gaia-web-production.fly.dev/auth/callback`
+- `https://gaia-web-production.fly.dev/`
 
 See [Supabase Configuration Guide](docs/supabase-configuration.md) for detailed setup instructions.
 
@@ -240,6 +316,9 @@ See [Supabase Configuration Guide](docs/supabase-configuration.md) for detailed 
 - Compatibility tests: `pytest -m compatibility` (verify LLM Platform API compatibility)
 - Performance tests: Redis caching validation and timing comparisons
 - Use test markers defined in `pytest.ini`
+
+### Email Testing Pattern
+When creating test accounts, always use the pattern `jason.asbahr+test#@gmail.com` where `#` is a unique identifier (e.g., timestamp, test name, etc.). This ensures test emails can be received for verification.
 
 ### Performance Optimization (In Progress)
 
@@ -288,6 +367,30 @@ See [Supabase Configuration Guide](docs/supabase-configuration.md) for detailed 
 - `ChatMessageEvent`: Chat processing coordination
 
 ## Troubleshooting
+
+### API Key Authentication Issues
+
+**Problem**: Services returning "Invalid API key" errors despite correct configuration.
+
+**Quick Fix**:
+```bash
+# 1. Run the automated verification script
+./scripts/verify-api-keys.sh
+
+# 2. If mismatches found, the script will show exact commands to fix them
+
+# 3. For manual checking:
+fly secrets list -a gaia-gateway-dev | grep API_KEY
+fly secrets list -a gaia-web-dev | grep WEB_API_KEY  # Note: WEB_ prefix!
+fly secrets list -a gaia-auth-dev | grep API_KEY
+
+# 4. Check web service is reading the key correctly
+fly logs -a gaia-web-dev | grep "API Key:"
+```
+
+**Root Cause**: Pydantic settings with env_prefix may not work as expected. Use explicit Field(env="VAR_NAME") instead.
+
+See [API Key Authentication Troubleshooting Guide](docs/troubleshooting-api-key-auth.md) for detailed debugging steps.
 
 ### Common Issues
 ```bash
@@ -416,6 +519,51 @@ htmx.config.logger = function(elt, event, data) {
 ```
 
 See [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md) for complete debugging checklist.
+
+### 🛡️ Layout Integrity Protection
+
+**⚠️ CRITICAL: Preventing Layout Breakages**
+
+We have comprehensive protection against the "mobile-width on desktop" bug:
+
+1. **Pre-commit hooks** - Catches layout issues before commit
+2. **Layout integrity tests** - Automated tests for all viewports  
+3. **CI/CD checks** - GitHub Actions validates every push
+4. **Layout check script** - Run locally with `./scripts/layout-check.sh`
+
+**Before ANY web UI changes:**
+```bash
+# Run layout integrity checks
+./scripts/layout-check.sh
+
+# Run layout tests
+pytest tests/web/test_layout_integrity.py -v
+
+# Install pre-commit hooks (one-time setup)
+pre-commit install
+```
+
+See [Layout Constraints Guide](docs/layout-constraints.md) for critical CSS rules that must NEVER be violated.
+
+### 🚨 FastHTML FT Async Error
+
+**CRITICAL: Never make FastHTML route handlers async if they return FT objects!**
+
+```python
+# ❌ WRONG - Causes "FT can't be used in 'await' expression"
+@app.post("/route")
+async def handler(request):
+    return gaia_error_message("Error")  # FT object
+
+# ✅ CORRECT
+@app.post("/route")  
+def handler(request):
+    return gaia_error_message("Error")  # FT object
+```
+
+**Rule: If it returns HTML components (FT objects), it CANNOT be async!**
+
+See [FastHTML FT Async Guide](docs/fasthtml-ft-async-guide.md) for complete explanation.
 
 ### Performance Monitoring
 ```bash
