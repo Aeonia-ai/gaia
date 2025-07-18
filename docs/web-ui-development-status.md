@@ -1,6 +1,6 @@
 # Web UI Development Status
 
-## Current State (July 16, 2025)
+## Current State (July 18, 2025)
 
 ### ✅ What's Working
 
@@ -24,6 +24,14 @@
 - **Conversation Switching**: Fixed with outerHTML swap and proper ID inclusion
 - **Logout Navigation**: Fixed with onclick handler to prevent HTMX interference
 
+#### UI Polish (Added - July 18, 2025)
+- **Entrance Animations**: Messages slide in from left (assistant) or right (user)
+- **Toast Notifications**: Global toast system with success/error/info/warning variants
+- **Auto-dismiss Toasts**: Notifications automatically disappear after 3 seconds
+- **Manual Toast Dismiss**: × button to close toasts immediately
+- **Contextual Error Messages**: Specific toast messages for different error types
+- **Success Feedback**: Toast notifications for successful actions (new chat, received response)
+
 ### 📁 Key Files Modified
 
 #### Components (`app/services/web/components/gaia_ui.py`)
@@ -45,7 +53,15 @@
   - Smooth transitions and hover effects
   - Custom scrollbar styling
 
-### ✅ Recently Fixed Issues (July 16, 2025)
+### ✅ Recently Fixed Issues (July 18, 2025)
+
+1. **UI Polish Implementation**
+   - **Issue**: Lack of visual feedback and smooth transitions
+   - **Solution**: Added entrance animations for messages and global toast notification system
+   - **Files Modified**: `gaia_ui.py` (added `gaia_toast`, `gaia_show_toast_script`, global `GaiaToast` utility), `chat.py` (integrated toasts)
+   - **Status**: ✅ Fixed - Messages animate smoothly, toasts provide immediate feedback
+
+### ✅ Previously Fixed Issues (July 16, 2025)
 
 1. **JavaScript Variable Redeclaration Bug**
    - **Issue**: Console error "Identifier 'convInput' has already been declared" 
@@ -71,11 +87,11 @@
 ### 🚀 Next Development Tasks
 
 #### Immediate Priorities
-1. **Visual Polish**
-   - Add entrance animations for new messages
-   - Smooth conversation switching transitions
-   - Loading skeletons for conversation list
-   - Success/error toast notifications
+1. **Visual Polish** (Partially Complete)
+   - ✅ Add entrance animations for new messages
+   - ✅ Success/error toast notifications
+   - ⏳ Smooth conversation switching transitions
+   - ⏳ Loading skeletons for conversation list
 
 2. **Fix Message Persistence**
    - Debug why messages show 0 in tests
