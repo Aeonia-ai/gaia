@@ -128,107 +128,154 @@ def setup_routes(app):
                 return gaia_error_message("Login failed. Please try again.")
     
     @app.post("/auth/register")
-    async def register(request):
+    @app.post("/auth/signup")  # Support both register and signup endpoints
+    def register(request):
         """Handle registration form submission"""
-        form_data = await request.form()
-        email = form_data.get("email")
-        password = form_data.get("password")
+        import asyncio
         
-        try:
-            # Call gateway register endpoint
-            async with GaiaAPIClient() as client:
-                result = await client.register(email, password)
+        async def _handle_register():
+            form_data = await request.form()
+            email = form_data.get("email")
+            password = form_data.get("password")
             
-            logger.info(f"Registration successful for {email}")
-            
-            # Check if user needs email verification
-            user_data = result.get("user", {})
-            email_confirmed_at = user_data.get("email_confirmed_at")
-            
-            if email_confirmed_at:
-                # Email already confirmed (shouldn't happen for new registrations)
-                logger.info(f"Email already confirmed for {email}")
-                return gaia_success_message("Registration successful! You can now log in.")
-            else:
-                # Email verification required - return the verification notice directly for HTMX
-                logger.info(f"Email verification required for {email}")
-                # Check if this is an HTMX request
-                is_htmx = request.headers.get("HX-Request") == "true"
-                if is_htmx:
-                    # Return the verification notice directly for HTMX to swap
-                    return gaia_email_verification_notice(email)
+            try:
+                # Call gateway register endpoint
+                async with GaiaAPIClient() as client:
+                    result = await client.register(email, password)
+                    
+                logger.info(f"Registration successful for {email}")
+                
+                # Check if user needs email verification
+                user_data = result.get("user", {})
+                email_confirmed_at = user_data.get("email_confirmed_at")
+                
+                if email_confirmed_at:
+                    # Email already confirmed (shouldn't happen for new registrations)
+                    logger.info(f"Email already confirmed for {email}")
+                    return gaia_success_message("Registration successful! You can now log in.")
                 else:
-                    # Non-HTMX request - do a full page redirect
-                    return RedirectResponse(url=f"/email-verification?email={email}", status_code=303)
-            
-        except Exception as e:
-            logger.error(f"Registration error for {email}: {e}")
-            
-            # Extract the actual error message from the response
-            error_str = str(e)
-            logger.error(f"Raw error string: {error_str}")
-            
-            # Try to extract the detail message from the error
-            if "detail" in error_str:
-                # Parse JSON error response if possible
-                try:
-                    import json
-                    import re
-                    
-                    # Look for nested error in Service error format
-                    service_error_match = re.search(r'Service error: ({.*})', error_str)
-                    if service_error_match:
-                        # Parse the nested error
-                        nested_error = json.loads(service_error_match.group(1))
-                        error_detail = nested_error.get("detail", "")
-                        logger.info(f"Extracted nested error: {error_detail}")
-                        return gaia_error_message(error_detail)
-                    
-                    # Otherwise try to extract JSON normally
-                    json_start = error_str.find('{')
-                    json_end = error_str.rfind('}') + 1
-                    if json_start >= 0 and json_end > json_start:
-                        error_json = json.loads(error_str[json_start:json_end])
-                        error_detail = error_json.get("detail", "")
+                    # Email verification required - return the verification notice directly for HTMX
+                    logger.info(f"Email verification required for {email}")
+                    # Check if this is an HTMX request
+                    is_htmx = request.headers.get("HX-Request") == "true"
+                    if is_htmx:
+                        # Return just the inner content for HTMX to swap into #auth-message
+                        return Div(
+                            Div(
+                                "📧 Check Your Email",
+                                cls="text-xl font-semibold text-white mb-3 text-center"
+                            ),
+                            Div(
+                                f"We've sent a verification link to: {email}",
+                                cls="text-slate-300 text-center mb-4"
+                            ),
+                            Div(
+                                "Please check your email and click the verification link to activate your account.",
+                                cls="text-slate-300 text-sm text-center"
+                            ),
+                            cls="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4"
+                        )
+                    else:
+                        # Non-HTMX request - do a full page redirect
+                        return RedirectResponse(url=f"/email-verification?email={email}", status_code=303)
                         
-                        # Handle nested Service error
-                        if error_detail.startswith("Service error:"):
-                            match = re.search(r'Service error: ({.*})', error_detail)
-                            if match:
-                                nested = json.loads(match.group(1))
-                                error_detail = nested.get("detail", error_detail)
+            except Exception as e:
+                logger.error(f"Registration error for {email}: {e}")
+                
+                # Extract the actual error message from the response
+                error_str = str(e)
+                logger.error(f"Raw error string: {error_str}")
+                
+                # Try to extract the detail message from the error
+                if "detail" in error_str:
+                    # Parse JSON error response if possible
+                    try:
+                        import json
+                        import re
                         
-                        # Clean up the error message
-                        if "Registration failed: " in error_detail:
-                            error_detail = error_detail.replace("Registration failed: ", "")
+                        # Look for nested error in Service error format
+                        service_error_match = re.search(r'Service error: ({.*})', error_str)
+                        if service_error_match:
+                            # Parse the nested error
+                            nested_error = json.loads(service_error_match.group(1))
+                            error_detail = nested_error.get("detail", "")
+                            logger.info(f"Extracted nested error: {error_detail}")
+                            return gaia_error_message(error_detail)
                         
-                        logger.info(f"Extracted error detail: {error_detail}")
-                        return gaia_error_message(error_detail)
-                except Exception as parse_error:
-                    logger.error(f"Error parsing JSON: {parse_error}")
-                    pass
-            
-            # Fallback to pattern matching
-            error_lower = error_str.lower()
-            
-            if "please enter a valid email" in error_lower:
-                return gaia_error_message("Please enter a valid email address.")
-            elif "already registered" in error_lower:
-                return gaia_error_message("This email is already registered. Please login instead.")
-            elif "password must be" in error_lower:
-                return gaia_error_message("Password must be at least 6 characters long.")
-            elif "not allowed for this email domain" in error_lower:
-                return gaia_error_message("Registration is not allowed for this email domain. Please use a different email.")
-            elif "rate limit" in error_lower:
-                return gaia_error_message("Too many attempts. Please try again later.")
-            else:
-                # Generic error
-                return gaia_error_message("Registration failed. Please check your email and password.")
+                        # Otherwise try to extract JSON normally
+                        json_start = error_str.find('{')
+                        json_end = error_str.rfind('}') + 1
+                        if json_start >= 0 and json_end > json_start:
+                            error_json = json.loads(error_str[json_start:json_end])
+                            error_detail = error_json.get("detail", "")
+                            
+                            # Handle nested Service error
+                            if error_detail.startswith("Service error:"):
+                                match = re.search(r'Service error: ({.*})', error_detail)
+                                if match:
+                                    nested = json.loads(match.group(1))
+                                    error_detail = nested.get("detail", error_detail)
+                            
+                            # Clean up the error message
+                            if "Registration failed: " in error_detail:
+                                error_detail = error_detail.replace("Registration failed: ", "")
+                            
+                            logger.info(f"Extracted error detail: {error_detail}")
+                            return gaia_error_message(error_detail)
+                    except Exception as parse_error:
+                        logger.error(f"Error parsing JSON: {parse_error}")
+                        pass
+                
+                # Fallback to pattern matching
+                error_lower = error_str.lower()
+                
+                if "please enter a valid email" in error_lower:
+                    return gaia_error_message("Please enter a valid email address.")
+                elif "already registered" in error_lower:
+                    return gaia_error_message("This email is already registered. Please login instead.")
+                elif "password must be" in error_lower:
+                    return gaia_error_message("Password must be at least 6 characters long.")
+                elif "not allowed for this email domain" in error_lower:
+                    return gaia_error_message("Registration is not allowed for this email domain. Please use a different email.")
+                elif "rate limit" in error_lower:
+                    return gaia_error_message("Too many attempts. Please try again later.")
+                else:
+                    # Generic error
+                    return gaia_error_message("Registration failed. Please check your email and password.")
+        
+        # Run the async function and return the result
+        return asyncio.run(_handle_register())
     
     @app.get("/auth/confirm")
-    async def confirm_email(request):
+    def confirm_email(request):
         """Handle email confirmation from Supabase link"""
-        # Get confirmation parameters from URL
+        # Check if we have hash parameters (Supabase sends data after #)
+        # If so, return a page that extracts and processes them
+        if not request.query_params:
+            from fasthtml.core import Script, NotStr
+            return Div(
+                Div(
+                    gaia_loading_spinner(message="Processing confirmation..."),
+                    cls="flex items-center justify-center h-screen"
+                ),
+                Script(NotStr('''
+                    // Extract parameters from URL hash
+                    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                    const accessToken = hashParams.get('access_token');
+                    const type = hashParams.get('type');
+                    
+                    if (accessToken && type === 'signup') {
+                        // Store the token and redirect to login
+                        localStorage.setItem('supabase_access_token', accessToken);
+                        window.location.href = '/login?verified=true';
+                    } else {
+                        window.location.href = '/login?error=invalid_confirmation';
+                    }
+                ''')),
+                cls="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/10 to-slate-900"
+            )
+        
+        # Legacy handling for query parameters (kept for compatibility)
         token = request.query_params.get("token")
         type_param = request.query_params.get("type")
         email = request.query_params.get("email")
@@ -237,28 +284,33 @@ def setup_routes(app):
             logger.error("Invalid confirmation link parameters")
             return gaia_error_message("Invalid confirmation link. Please try registering again.")
         
-        try:
-            # Confirm email via gateway
-            async with GaiaAPIClient() as client:
-                result = await client.confirm_email(token, email or "")
-            
-            logger.info(f"Email confirmation successful for {email}")
-            
-            # Show success message with login link
-            return Div(
-                gaia_email_confirmed_success(),
-                id="message-area"
-            )
-            
-        except Exception as e:
-            logger.error(f"Email confirmation error: {e}")
-            error_msg = str(e).lower()
-            if "expired" in error_msg:
-                return gaia_error_message("Confirmation link has expired. Please request a new one.")
-            elif "invalid" in error_msg:
-                return gaia_error_message("Invalid confirmation link. Please try registering again.")
-            else:
-                return gaia_error_message("Confirmation failed. Please try again or contact support.")
+        import asyncio
+        
+        async def _handle_confirm():
+            try:
+                # Confirm email via gateway
+                async with GaiaAPIClient() as client:
+                    result = await client.confirm_email(token, email or "")
+                
+                logger.info(f"Email confirmation successful for {email}")
+                
+                # Show success message with login link
+                return Div(
+                    gaia_email_confirmed_success(),
+                    id="message-area"
+                )
+                
+            except Exception as e:
+                logger.error(f"Email confirmation error: {e}")
+                error_msg = str(e).lower()
+                if "expired" in error_msg:
+                    return gaia_error_message("Confirmation link has expired. Please request a new one.")
+                elif "invalid" in error_msg:
+                    return gaia_error_message("Invalid confirmation link. Please try registering again.")
+                else:
+                    return gaia_error_message("Confirmation failed. Please try again or contact support.")
+        
+        return asyncio.run(_handle_confirm())
     
     @app.post("/auth/resend-verification")
     async def resend_verification(request):
@@ -307,6 +359,14 @@ def setup_routes(app):
         
         # Check for JWT in session
         if not request.session.get("jwt_token"):
-            return RedirectResponse(url="/login", status_code=303)
+            # Check if this is an HTMX request
+            if request.headers.get("HX-Request") == "true":
+                # For HTMX requests, return a response that triggers a full page redirect
+                response = HTMLResponse(content="", status_code=200)
+                response.headers["HX-Redirect"] = "/login"
+                return response
+            else:
+                # Regular redirect for non-HTMX requests
+                return RedirectResponse(url="/login", status_code=303)
         
         return await call_next(request)

@@ -78,12 +78,31 @@ async def index(request):
 
 # Login page
 @app.get("/login")
-async def login_page():
+async def login_page(request):
     """Login page"""
+    # Check if coming from email verification
+    verified = request.query_params.get("verified") == "true"
+    
+    content = []
+    
+    # Show success message if email was just verified
+    if verified:
+        from app.services.web.components.gaia_ui import gaia_success_message
+        content.append(
+            Div(
+                gaia_success_message("✅ Email verified successfully! You can now log in."),
+                cls="mb-4 max-w-md mx-auto"
+            )
+        )
+    
+    content.extend([
+        gaia_auth_form(is_login=True),
+        gaia_mobile_styles()
+    ])
+    
     return gaia_layout(
         main_content=Div(
-            gaia_auth_form(is_login=True),
-            gaia_mobile_styles(),
+            *content,
             cls="w-full"
         ),
         page_class="justify-center items-center",
@@ -268,6 +287,7 @@ async def startup():
     """Initialize services on startup"""
     logger.info(f"Starting {settings.service_name} service on port {settings.port}")
     logger.info(f"Gateway URL: {settings.gateway_url}")
+    logger.info(f"API Key: {settings.api_key[:10]}...")  # Debug: show first 10 chars
     logger.info(f"WebSocket enabled: {settings.enable_websocket}")
 
 # Shutdown event
