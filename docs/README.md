@@ -6,9 +6,13 @@ Welcome to the Gaia Platform documentation! This directory contains comprehensiv
 
 ### 🏗️ **Architecture & Design**
 - **[Scaling Architecture](scaling-architecture.md)** - Comprehensive guide to microservices scaling advantages, cost optimization, and performance improvements over monolithic architecture
+- **[MMOIRL Cluster Architecture](mmoirl-cluster-architecture.md)** - Cluster-per-game deployment strategy for MMOIRL games (RECOMMENDED)
+- **[Multi-Tenancy Migration Guide](multitenancy-migration-guide.md)** - Future migration path when you have 50+ games
 
 ### 🚀 **Getting Started** 
 - **[CLAUDE.md](../CLAUDE.md)** - Main development guide with setup instructions, service overview, and development commands
+- **[Implementation Status](implementation-status.md)** - Current feature status and MMOIRL capabilities
+- **[IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md)** - Main project status with performance metrics
 
 ### 🔧 **Operations & Deployment**
 - **[Deployment Pipeline](deployment-pipeline.md)** - Complete dev→staging→production workflow
@@ -82,6 +86,22 @@ Gaia Platform Microservices
 └─ Shared Infrastructure (PostgreSQL, NATS, Redis)
 ```
 
+## 🎮 MMOIRL Support
+
+- **Cluster-Per-Game Architecture** - Each game gets its own Gaia deployment
+- **MCP-Agent Integration** - Full tool support for real-world interactions
+- **Sub-500ms AI Responses** - Fast enough for real-time gameplay
+- **Flexible Deployment** - Docker Compose → Fly.io → Kubernetes path
+- **No Multi-Tenancy Complexity** - Ship games in weeks, not months
+
+### Quick Start for MMOIRL
+```bash
+# Deploy your first game
+docker compose -f docker-compose.yml up
+# Customize personas and tools in mcp_agent_remote.config.yaml
+# Deploy to Fly.io: fly apps create gaia-zombies-gateway
+```
+
 ## 🎉 Key Achievements
 
 - **78+ Endpoints** implemented with full LLM Platform compatibility
@@ -90,6 +110,7 @@ Gaia Platform Microservices
 - **Smart Operations** - Environment-aware testing, deployment, and management
 - **Production Deployed** - Live staging environment on Fly.io with co-located database
 - **Comprehensive Testing** - 80+ endpoint tests with intelligent failure handling
+- **MMOIRL Ready** - MCP tools, orchestration, and cluster-per-game architecture
 
 ## 🔗 External Resources
 

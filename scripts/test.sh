@@ -216,6 +216,64 @@ case "$1" in
         message="${2:-Hello}"
         test_streaming "$message"
         ;;
+    "ultrafast")
+        message="${2:-What is 2+2?}"
+        test_endpoint "POST" "/api/v1/chat/ultrafast" "{\"message\": \"$message\"}" "Ultrafast Chat (No History)"
+        ;;
+    "ultrafast-redis")
+        message="${2:-What is 2+2?}"
+        test_endpoint "POST" "/api/v1/chat/ultrafast-redis" "{\"message\": \"$message\"}" "Ultrafast Redis Chat"
+        ;;
+    "ultrafast-redis-v2")
+        message="${2:-What is 2+2?}"
+        test_endpoint "POST" "/api/v1/chat/ultrafast-redis-v2" "{\"message\": \"$message\"}" "Ultrafast Redis V2 (Optimized)"
+        ;;
+    "ultrafast-redis-v3")
+        message="${2:-What is 2+2?}"
+        test_endpoint "POST" "/api/v1/chat/ultrafast-redis-v3" "{\"message\": \"$message\"}" "Ultrafast Redis V3 (Parallel)"
+        ;;
+    "direct")
+        message="${2:-What is 2+2?}"
+        test_endpoint "POST" "/api/v1/chat/direct" "{\"message\": \"$message\"}" "Direct Chat (Simple)"
+        ;;
+    "direct-db")
+        message="${2:-What is 2+2?}"
+        test_endpoint "POST" "/api/v1/chat/direct-db" "{\"message\": \"$message\"}" "Direct Chat with DB"
+        ;;
+    "mcp-agent")
+        message="${2:-What is 2+2?}"
+        test_endpoint "POST" "/api/v1/chat/mcp-agent" "{\"message\": \"$message\"}" "MCP-Agent Chat"
+        ;;
+    "orchestrated")
+        message="${2:-What is 2+2?}"
+        test_endpoint "POST" "/api/v1/chat/orchestrated" "{\"message\": \"$message\"}" "Orchestrated Multi-Agent Chat"
+        ;;
+    "multi-provider")
+        message="${2:-What is 2+2?}"
+        test_endpoint "POST" "/api/v0.2/chat" "{\"message\": \"$message\", \"stream\": false}" "Multi-Provider Chat (v0.2)"
+        ;;
+    "mcp-agent-hot")
+        message="${2:-What is 2+2?}"
+        test_endpoint "POST" "/api/v1/chat/mcp-agent-hot" "{\"message\": \"$message\"}" "MCP-Agent Hot (Pre-initialized)"
+        ;;
+    "chat-status")
+        test_endpoint "GET" "/api/v1/chat/status" "" "Chat Service Status"
+        ;;
+    "reload-prompt")
+        test_endpoint "POST" "/api/v1/chat/reload-prompt" "{}" "Reload Prompt Templates"
+        ;;
+    "conversations")
+        test_endpoint "GET" "/api/v1/chat/personas" "" "List Personas (Conversations endpoint not exposed)"
+        ;;
+    "conversations-search")
+        query="${2:-test}"
+        echo -e "${BLUE}=== Search Conversations ===${NC}"
+        echo "Note: This endpoint is not exposed through the gateway yet"
+        ;;
+    "orchestrated-metrics")
+        echo -e "${BLUE}=== Orchestration Metrics ===${NC}"
+        echo "Note: This endpoint is not exposed through the gateway yet"
+        ;;
     "status")
         test_endpoint "GET" "/api/v0.2/chat/stream/status" "" "Stream Status"
         ;;
@@ -513,6 +571,20 @@ case "$1" in
         $0 --$ENVIRONMENT models
         $0 --$ENVIRONMENT cache
         ;;
+    "chat-all")
+        echo -e "${GREEN}Testing all chat endpoints with: 'What is 2+2?'${NC}\n"
+        $0 --$ENVIRONMENT chat "What is 2+2?"
+        $0 --$ENVIRONMENT direct "What is 2+2?"
+        $0 --$ENVIRONMENT direct-db "What is 2+2?"
+        $0 --$ENVIRONMENT ultrafast "What is 2+2?"
+        $0 --$ENVIRONMENT ultrafast-redis "What is 2+2?"
+        $0 --$ENVIRONMENT ultrafast-redis-v2 "What is 2+2?"
+        $0 --$ENVIRONMENT ultrafast-redis-v3 "What is 2+2?"
+        $0 --$ENVIRONMENT mcp-agent "What is 2+2?"
+        $0 --$ENVIRONMENT mcp-agent-hot "What is 2+2?"
+        $0 --$ENVIRONMENT orchestrated "What is 2+2?"
+        $0 --$ENVIRONMENT multi-provider "What is 2+2?"
+        ;;
     "providers-all")
         echo -e "${GREEN}Testing all provider endpoints...${NC}\n"
         $0 providers
@@ -590,6 +662,25 @@ case "$1" in
         echo "  $0 chat \"What is 2+2?\"       # Non-streaming chat"
         echo "  $0 stream \"Tell me a joke\"   # Streaming chat"
         echo ""
+        echo "MMOIRL Chat Endpoints:"
+        echo "  $0 ultrafast \"Question\"      # Ultrafast chat (no history, <500ms)"
+        echo "  $0 ultrafast-redis \"Q\"       # Ultrafast with Redis history"
+        echo "  $0 ultrafast-redis-v2 \"Q\"    # Optimized Redis chat"
+        echo "  $0 ultrafast-redis-v3 \"Q\"    # Parallel Redis chat (fastest!)"
+        echo "  $0 direct \"Question\"         # Direct Anthropic API"
+        echo "  $0 direct-db \"Question\"      # Direct with PostgreSQL storage"
+        echo "  $0 mcp-agent \"Question\"      # Full MCP-agent framework"
+        echo "  $0 mcp-agent-hot \"Q\"        # Pre-initialized MCP agent (faster)"
+        echo "  $0 orchestrated \"Question\"   # Multi-agent orchestration"
+        echo "  $0 multi-provider \"Q\"        # Auto-select best provider"
+        echo ""
+        echo "Chat Utility Endpoints:"
+        echo "  $0 chat-status               # Chat service detailed status"
+        echo "  $0 reload-prompt             # Reload prompt templates"
+        echo "  $0 conversations             # List all conversations"
+        echo "  $0 conversations-search      # Search conversations"
+        echo "  $0 orchestrated-metrics      # Orchestration performance metrics"
+        echo ""
         echo "Provider Tests:"
         echo "  $0 providers                 # List all providers"
         echo "  $0 provider-models claude    # List Claude models"
@@ -647,6 +738,7 @@ case "$1" in
         echo ""
         echo "Batch Tests:"
         echo "  $0 all                       # Run core tests"
+        echo "  $0 chat-all                  # Test all chat endpoints"
         echo "  $0 providers-all             # Test all provider endpoints"
         echo "  $0 pricing-all               # Test all pricing endpoints"
         echo "  $0 assets-all                # Test all asset generation endpoints"

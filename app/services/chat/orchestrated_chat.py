@@ -64,12 +64,14 @@ class OrchestratedChatService:
         self.metrics["total_requests"] += 1
         
         try:
-            # Extract message and context
-            messages = request.get("messages", [])
-            if not messages:
-                raise HTTPException(status_code=400, detail="No messages provided")
+            # Extract message from standard format
+            message = request.get("message")
+            if not message:
+                raise HTTPException(status_code=400, detail="No message provided")
             
-            latest_message = messages[-1]["content"]
+            # Convert to messages array for internal use
+            messages = [{"role": "user", "content": message}]
+            latest_message = message
             
             # Route the request
             route, decision = await self.router.route(latest_message)
@@ -235,7 +237,7 @@ class OrchestratedChatService:
             "id": f"msg_{int(time.time())}",
             "object": "chat.completion",
             "created": int(time.time()),
-            "model": self.settings.DEFAULT_MODEL,
+            "model": response.get("model", "claude-3-5-sonnet-20241022"),
             "choices": [{
                 "index": 0,
                 "message": {

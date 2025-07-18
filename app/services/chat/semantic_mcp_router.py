@@ -4,6 +4,7 @@ Semantic MCP Router - Using LLM for Intelligent Routing
 Instead of brittle string matching, use the LLM itself to understand intent
 """
 import json
+import re
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
