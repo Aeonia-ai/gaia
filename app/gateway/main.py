@@ -1361,6 +1361,54 @@ async def ultrafast_redis_chat(
         json_data=body
     )
 
+@app.post("/api/v1/chat/ultrafast-redis-v2", tags=["Chat"])
+async def ultrafast_redis_v2_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Forward optimized ultrafast Redis chat requests to chat service."""
+    body = await request.json()
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/ultrafast-redis-v2",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
+@app.post("/api/v1/chat/ultrafast-redis-v3", tags=["Chat"])
+async def ultrafast_redis_v3_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Forward parallel ultrafast Redis chat requests to chat service."""
+    body = await request.json()
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/ultrafast-redis-v3",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
 @app.post("/api/v1/chat/personas", tags=["Chat"])
 async def create_persona(
     request: Request,

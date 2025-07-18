@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 import logging
 import time
@@ -473,15 +473,16 @@ async def reload_system_prompt(
 async def clear_chat_history(
     auth_principal: Dict[str, Any] = Depends(get_current_auth)
 ):
-    """Clear the chat history and reinitialize with system prompt"""
+    """Clear the chat history in both memory and Redis"""
     try:
         # Use a unique key for chat history based on auth_principal
         auth_key = auth_principal.get("sub") or auth_principal.get("key")
         if not auth_key:
             raise ValueError("Could not determine unique auth key for chat history.")
 
+        # Clear in-memory history
         if auth_key in chat_histories:
-            logger.debug("Clearing chat history and reinitializing with system prompt")
+            logger.debug("Clearing in-memory chat history")
             system_prompt = await PromptManager.get_system_prompt(user_id=auth_key)
             chat_histories[auth_key] = [
                 Message(
@@ -489,7 +490,16 @@ async def clear_chat_history(
                     content=system_prompt
                 )
             ]
-        return {"status": "success"}
+        
+        # Clear Redis history
+        try:
+            from app.services.chat.redis_chat_history import redis_chat_history
+            redis_chat_history.clear_history(auth_key)
+            logger.debug("Cleared Redis chat history")
+        except Exception as e:
+            logger.warning(f"Could not clear Redis history: {e}")
+        
+        return {"status": "success", "cleared": ["memory", "redis"]}
     except Exception as e:
         logger.error(f"Error clearing chat history: {e}")
         raise HTTPException(
@@ -642,6 +652,53 @@ try:
     
 except Exception as e:
     logger.warning(f"⚠️ Could not import ultrafast Redis chat: {e}")
+
+# Import optimized ultrafast Redis chat
+try:
+    from .ultrafast_redis_optimized import ultrafast_redis_optimized_endpoint
+    
+    @router.post("/ultrafast-redis-v2")
+    async def ultrafast_redis_v2_chat(
+        request: ChatRequest,
+        auth_principal: Dict[str, Any] = Depends(get_current_auth)
+    ):
+        """
+        Optimized ultra-fast chat with Redis history.
+        
+        - Minimal context (3 messages)
+        - Lower token limit (500)
+        - Target: <500ms consistent
+        """
+        return await ultrafast_redis_optimized_endpoint(request, auth_principal)
+        
+    logger.info("✅ Ultrafast Redis V2 chat endpoint added")
+    
+except Exception as e:
+    logger.warning(f"⚠️ Could not import ultrafast Redis V2 chat: {e}")
+
+# Import parallel ultrafast Redis chat
+try:
+    from .ultrafast_redis_parallel import ultrafast_redis_parallel_endpoint
+    
+    @router.post("/ultrafast-redis-v3")
+    async def ultrafast_redis_v3_chat(
+        request: ChatRequest,
+        auth_principal: Dict[str, Any] = Depends(get_current_auth),
+        background_tasks: BackgroundTasks = BackgroundTasks()
+    ):
+        """
+        Ultra-fast chat with parallel Redis operations.
+        
+        - Redis pipelining for batch operations
+        - Background storage of responses
+        - Target: <400ms consistent
+        """
+        return await ultrafast_redis_parallel_endpoint(request, auth_principal, background_tasks)
+        
+    logger.info("✅ Ultrafast Redis V3 (parallel) chat endpoint added")
+    
+except Exception as e:
+    logger.warning(f"⚠️ Could not import ultrafast Redis V3 chat: {e}")
 
 # Import orchestrated chat service
 try:
