@@ -284,6 +284,10 @@ def setup_routes(app):
                 }}
                 // Update conversation list
                 htmx.ajax('GET', '/api/conversations', {{target: '#conversation-list', swap: 'innerHTML'}});
+                // Show success toast
+                if (window.GaiaToast) {{
+                    GaiaToast.success('New conversation created!');
+                }}
             }})();
         '''))
         
@@ -523,7 +527,15 @@ def setup_routes(app):
                 'class="flex justify-start mb-4 animate-slideInLeft"'
             )
             
-            return HTMLResponse(content=assistant_html)
+            # Add a small script to show success toast
+            from fasthtml.core import Script, NotStr
+            success_script = Script(NotStr('''
+                if (window.GaiaToast) {
+                    GaiaToast.success('Response received!', 2000);
+                }
+            '''))
+            
+            return HTMLResponse(content=assistant_html + str(success_script))
             
         except Exception as e:
             logger.error(f"Error getting response: {e}", exc_info=True)
@@ -546,8 +558,20 @@ def setup_routes(app):
                 user_message = "Something went wrong. Please try again."
                 error_type = "unknown_error"
             
+            # URL encode the message for retry
+            from urllib.parse import quote
+            encoded_message = quote(message or "", safe='')
+            
             # Enhanced error message with retry capability
             retry_action = f"htmx.ajax('GET', '/api/chat/response?message={encoded_message}&id={message_id}&conversation_id={conversation_id}', {{target: '#loading-{message_id}', swap: 'outerHTML'}})"
+            
+            # Show error toast
+            from fasthtml.core import Script, NotStr
+            error_toast_script = Script(NotStr(f'''
+                if (window.GaiaToast) {{
+                    GaiaToast.error('{user_message}', 5000);
+                }}
+            '''))
             
             error_html = f'''<div class="flex justify-start mb-4 assistant-message-placeholder">
     <div class="bg-red-900/50 border border-red-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
@@ -578,7 +602,7 @@ def setup_routes(app):
     }}
 </script>'''
             
-            return HTMLResponse(content=error_html)
+            return HTMLResponse(content=error_html + str(error_toast_script))
     
     @app.get("/test/htmx")
     async def test_htmx(request):

@@ -92,8 +92,11 @@ def gaia_card(content, title=None):
 
 
 def gaia_message_bubble(content, role="user", timestamp=None):
-    """Chat message bubble component"""
+    """Chat message bubble component with entrance animations"""
     bubble_cls = GaiaDesign.MSG_USER if role == "user" else GaiaDesign.MSG_ASSISTANT
+    
+    # Add animation classes based on role
+    animation_cls = "animate-slideInRight" if role == "user" else "animate-slideInLeft"
     
     children = [
         Div(content, cls="whitespace-pre-wrap break-words")
@@ -105,7 +108,7 @@ def gaia_message_bubble(content, role="user", timestamp=None):
         )
     
     return Div(
-        Div(*children, cls=bubble_cls),
+        Div(*children, cls=f"{bubble_cls} {animation_cls}"),
         cls=f"flex {'justify-end' if role == 'user' else 'justify-start'} mb-4"
     )
 
@@ -346,6 +349,60 @@ def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sid
                 id="toast-container",
                 cls="fixed top-4 right-4 z-50 space-y-2"
             ),
+            # Global toast utility script
+            Script(NotStr('''
+                window.GaiaToast = {
+                    show: function(message, variant = 'info', duration = 3000) {
+                        const toastContainer = document.getElementById('toast-container');
+                        if (!toastContainer) return;
+                        
+                        const toastId = 'toast-' + Date.now();
+                        const variants = {
+                            success: { icon: '✓', bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-200' },
+                            error: { icon: '⚠️', bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-200' },
+                            info: { icon: 'ℹ️', bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-200' },
+                            warning: { icon: '⚡', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', text: 'text-yellow-200' }
+                        };
+                        
+                        const v = variants[variant] || variants.info;
+                        
+                        const toast = document.createElement('div');
+                        toast.id = toastId;
+                        toast.className = 'transition-all duration-300 transform animate-slideInFromTop mb-2';
+                        toast.innerHTML = `
+                            <div class="flex items-center justify-between ${v.bg} backdrop-blur-sm border ${v.border} ${v.text} px-4 py-3 rounded-lg shadow-lg min-w-[300px]">
+                                <div class="flex items-center space-x-2">
+                                    ${v.icon} ${message}
+                                </div>
+                                <button class="ml-4 text-xl leading-none hover:opacity-70" onclick="document.getElementById('${toastId}').remove()">×</button>
+                            </div>
+                        `;
+                        
+                        toastContainer.appendChild(toast);
+                        
+                        setTimeout(() => {
+                            const el = document.getElementById(toastId);
+                            if (el) {
+                                el.style.opacity = '0';
+                                el.style.transform = 'translateX(100%)';
+                                setTimeout(() => el.remove(), 300);
+                            }
+                        }, duration);
+                    },
+                    success: function(message, duration) {
+                        this.show(message, 'success', duration);
+                    },
+                    error: function(message, duration) {
+                        this.show(message, 'error', duration);
+                    },
+                    info: function(message, duration) {
+                        this.show(message, 'info', duration);
+                    },
+                    warning: function(message, duration) {
+                        this.show(message, 'warning', duration);
+                    }
+                };
+            ''')),
             # Mobile overlay for sidebar (only visible when sidebar is open on mobile)
             Div(
                 id="sidebar-overlay",
@@ -430,7 +487,7 @@ def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sid
             
             gaia_mobile_sidebar_script(),
             
-            cls=f"flex flex-col md:flex-row h-screen {GaiaDesign.BG_MAIN} {page_class}"
+            cls=f"flex h-screen {GaiaDesign.BG_MAIN} {page_class}"
         )
     else:
         # No sidebar layout for auth pages
@@ -497,6 +554,116 @@ def gaia_info_message(message):
         ),
         cls="bg-purple-500/10 backdrop-blur-sm border border-purple-500/30 text-purple-200 px-4 py-3 rounded-lg shadow-lg"
     )
+
+
+def gaia_toast(message, variant="info", duration=3000):
+    """Toast notification component with auto-dismiss"""
+    from fasthtml.core import Script, NotStr
+    import time
+    
+    toast_id = f"toast-{int(time.time() * 1000)}"
+    
+    # Choose icon and colors based on variant
+    variants = {
+        "success": {
+            "icon": "✓",
+            "bg": "bg-green-500/10",
+            "border": "border-green-500/30",
+            "text": "text-green-200"
+        },
+        "error": {
+            "icon": "⚠️",
+            "bg": "bg-red-500/10",
+            "border": "border-red-500/30",
+            "text": "text-red-200"
+        },
+        "info": {
+            "icon": "ℹ️",
+            "bg": "bg-purple-500/10",
+            "border": "border-purple-500/30",
+            "text": "text-purple-200"
+        },
+        "warning": {
+            "icon": "⚡",
+            "bg": "bg-yellow-500/10",
+            "border": "border-yellow-500/30",
+            "text": "text-yellow-200"
+        }
+    }
+    
+    v = variants.get(variant, variants["info"])
+    
+    return Div(
+        Div(
+            Div(
+                f"{v['icon']} {message}",
+                cls="flex items-center space-x-2"
+            ),
+            Button(
+                "×",
+                cls="ml-4 text-xl leading-none hover:opacity-70",
+                onclick=f"document.getElementById('{toast_id}').remove()"
+            ),
+            cls=f"flex items-center justify-between {v['bg']} backdrop-blur-sm border {v['border']} {v['text']} px-4 py-3 rounded-lg shadow-lg min-w-[300px]"
+        ),
+        Script(NotStr(f'''
+            setTimeout(() => {{
+                const toast = document.getElementById('{toast_id}');
+                if (toast) {{
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    setTimeout(() => toast.remove(), 300);
+                }}
+            }}, {duration});
+        ''')),
+        id=toast_id,
+        cls="transition-all duration-300 transform animate-slideInFromTop",
+        style="animation: slideInFromTop 0.3s ease-out forwards;"
+    )
+
+
+def gaia_show_toast_script(message, variant="info", duration=3000):
+    """Generate script to show a toast notification"""
+    from fasthtml.core import Script, NotStr
+    
+    return Script(NotStr(f'''
+        (function() {{
+            const toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) return;
+            
+            const toastId = 'toast-' + Date.now();
+            const variants = {{
+                success: {{ icon: '✓', bg: 'bg-green-500/10', border: 'border-green-500/30', text: 'text-green-200' }},
+                error: {{ icon: '⚠️', bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-200' }},
+                info: {{ icon: 'ℹ️', bg: 'bg-purple-500/10', border: 'border-purple-500/30', text: 'text-purple-200' }},
+                warning: {{ icon: '⚡', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', text: 'text-yellow-200' }}
+            }};
+            
+            const v = variants['{variant}'] || variants.info;
+            
+            const toast = document.createElement('div');
+            toast.id = toastId;
+            toast.className = 'transition-all duration-300 transform animate-slideInFromTop mb-2';
+            toast.innerHTML = `
+                <div class="flex items-center justify-between ${{v.bg}} backdrop-blur-sm border ${{v.border}} ${{v.text}} px-4 py-3 rounded-lg shadow-lg min-w-[300px]">
+                    <div class="flex items-center space-x-2">
+                        ${{v.icon}} {message}
+                    </div>
+                    <button class="ml-4 text-xl leading-none hover:opacity-70" onclick="document.getElementById('${{toastId}}').remove()">×</button>
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            setTimeout(() => {{
+                if (document.getElementById(toastId)) {{
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    setTimeout(() => toast.remove(), 300);
+                }}
+            }}, {duration});
+        }})();
+    '''))
 
 
 def gaia_email_verification_notice(email: str):
