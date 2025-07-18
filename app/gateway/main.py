@@ -22,6 +22,7 @@ from typing import Dict, Any, Optional
 
 from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -42,6 +43,7 @@ from app.shared import (
     supabase_health_check
 )
 from app.shared.redis_client import redis_client, CacheManager
+from app.gateway.cache_middleware import CacheMiddleware
 
 # Configure logging for gateway service
 logger = configure_logging_for_service("gateway")
@@ -79,6 +81,12 @@ app = FastAPI(
     description="AI-powered language model API with multi-provider support",
     version="0.2"
 )
+
+# Add response caching middleware for static endpoints
+app.add_middleware(CacheMiddleware)
+
+# Add GZip compression middleware (30-50% smaller responses)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Add CORS middleware (identical to LLM Platform)
 app.add_middleware(
@@ -1183,6 +1191,174 @@ async def get_personas(
         method="GET",
         headers=dict(request.headers),
         params=dict(request.query_params)
+    )
+
+@app.post("/api/v1/chat/mcp-agent", tags=["Chat"])
+async def mcp_agent_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Forward MCP-agent chat requests to chat service."""
+    body = await request.json()
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/mcp-agent",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
+@app.post("/api/v1/chat/direct", tags=["Chat"])
+async def direct_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Forward direct chat requests to chat service (no framework overhead)."""
+    body = await request.json()
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/direct",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
+@app.post("/api/v1/chat/mcp-agent-hot", tags=["Chat"])
+async def mcp_agent_hot_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Forward hot-loaded MCP-agent chat requests to chat service."""
+    body = await request.json()
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/mcp-agent-hot",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
+@app.post("/api/v1/chat/direct-db", tags=["Chat"])
+async def direct_db_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Forward direct chat with DB requests to chat service."""
+    body = await request.json()
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/direct-db",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
+@app.post("/api/v1/chat/orchestrated", tags=["Chat"])
+async def orchestrated_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Forward orchestrated chat requests to chat service."""
+    body = await request.json()
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/orchestrated",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
+@app.post("/api/v1/chat/ultrafast", tags=["Chat"])
+async def ultrafast_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Forward ultrafast chat requests to chat service."""
+    body = await request.json()
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/ultrafast",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
+@app.post("/api/v1/chat/ultrafast-redis", tags=["Chat"])
+async def ultrafast_redis_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Forward ultrafast Redis chat requests to chat service."""
+    body = await request.json()
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/ultrafast-redis",
+        method="POST",
+        headers=headers,
+        json_data=body
     )
 
 @app.post("/api/v1/chat/personas", tags=["Chat"])
