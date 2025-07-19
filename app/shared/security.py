@@ -269,6 +269,7 @@ async def validate_auth_for_service(auth_data: Dict[str, Any]) -> Authentication
     """
     Validate authentication data passed between services.
     Used for service-to-service authentication validation.
+    Supports JWT tokens for both user authentication and service-to-service auth.
     """
     auth_type = auth_data.get("auth_type")
     
@@ -280,6 +281,20 @@ async def validate_auth_for_service(auth_data: Dict[str, Any]) -> Authentication
                 detail="Invalid JWT authentication data"
             )
         return AuthenticationResult(auth_type="jwt", user_id=user_id)
+    
+    elif auth_type == "service_jwt":
+        # New: Service-to-service JWT validation
+        service_name = auth_data.get("service")
+        if not service_name:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid service JWT authentication data"
+            )
+        return AuthenticationResult(
+            auth_type="service_jwt", 
+            user_id=f"service:{service_name}",  # Use service: prefix for service accounts
+            scopes=["service:all"]  # Grant full service permissions
+        )
     
     elif auth_type == "user_api_key":
         user_id = auth_data.get("user_id")

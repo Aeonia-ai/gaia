@@ -39,12 +39,15 @@ services:
       dockerfile: Dockerfile.auth
     volumes:
       - ./app:/app/app
+      - ./certs:/app/certs:ro
     env_file:
       - .env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
+      - JWT_PRIVATE_KEY_PATH=/app/certs/jwt-signing.key
+      - JWT_PUBLIC_KEY_PATH=/app/certs/jwt-signing.pub
     depends_on:
       - db
       - nats

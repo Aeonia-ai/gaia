@@ -202,29 +202,50 @@ async def validate_authentication(request: AuthValidationRequest):
     """
     Validate authentication credentials (JWT or API key).
     Used by gateway and other services for auth validation.
+    Supports user JWTs, service JWTs, and API keys.
     """
     logger.info(f"Auth validation request: JWT={bool(request.token)}, API_Key={bool(request.api_key)}")
     
     # Try JWT validation first
     if request.token:
         try:
+            # First try as Supabase user JWT
             from fastapi.security import HTTPAuthorizationCredentials
             credentials = HTTPAuthorizationCredentials(
                 scheme="Bearer",
                 credentials=request.token
             )
             
-            jwt_payload = await validate_supabase_jwt(credentials)
-            user_id = jwt_payload.get('sub')
-            
-            log_auth_event("auth", "jwt", user_id, success=True)
-            
-            return AuthValidationResponse(
-                valid=True,
-                auth_type="jwt",
-                user_id=user_id
-            )
-            
+            try:
+                jwt_payload = await validate_supabase_jwt(credentials)
+                user_id = jwt_payload.get('sub')
+                
+                log_auth_event("auth", "jwt", user_id, success=True)
+                
+                return AuthValidationResponse(
+                    valid=True,
+                    auth_type="jwt",
+                    user_id=user_id
+                )
+            except:
+                # Try as service JWT
+                from app.shared.jwt_service import validate_service_jwt
+                
+                try:
+                    service_payload = await validate_service_jwt(request.token)
+                    service_name = service_payload.get('service')
+                    
+                    log_auth_event("auth", "service_jwt", f"service:{service_name}", success=True)
+                    
+                    return AuthValidationResponse(
+                        valid=True,
+                        auth_type="service_jwt",
+                        user_id=f"service:{service_name}"
+                    )
+                except Exception as service_e:
+                    logger.warning(f"Service JWT validation failed: {service_e}")
+                    log_auth_event("auth", "jwt", success=False)
+                    
         except HTTPException as e:
             logger.warning(f"JWT validation failed: {e.detail}")
             log_auth_event("auth", "jwt", success=False)
@@ -503,6 +524,54 @@ async def internal_auth_validation(auth_data: Dict[str, Any]):
             "valid": False,
             "error": "Internal validation error"
         }
+
+@app.post("/internal/service-token", tags=["Internal"])
+async def generate_service_token(request: Dict[str, Any]):
+    """
+    Generate a JWT token for service-to-service communication.
+    This endpoint should only be accessible internally.
+    """
+    try:
+        from app.shared.jwt_service import generate_service_jwt
+        
+        service_name = request.get("service_name")
+        if not service_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Service name is required"
+            )
+        
+        # Optional: Validate that the service is allowed to request tokens
+        allowed_services = ["gateway", "auth-service", "asset-service", "chat-service", "web-service"]
+        if service_name not in allowed_services:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Service '{service_name}' is not authorized"
+            )
+        
+        # Generate service JWT
+        token = await generate_service_jwt(
+            service_name=service_name,
+            additional_claims=request.get("claims", {})
+        )
+        
+        log_auth_event("auth", "service_token_issued", f"service:{service_name}", success=True)
+        logger.info(f"Issued service token for: {service_name}")
+        
+        return {
+            "token": token,
+            "expires_in": 3600,  # 1 hour
+            "token_type": "Bearer"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Service token generation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate service token"
+        )
 
 # ========================================================================================
 # SERVICE LIFECYCLE
