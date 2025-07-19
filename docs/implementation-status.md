@@ -21,9 +21,14 @@
 - **Database Architecture**: Hybrid approach with PostgreSQL (per-environment) + Supabase (shared auth)
 - **PostgreSQL databases**: Local Docker + Fly.io clusters (dev, staging, production)
 - **Supabase integration**: Single project for all environment authentication
-- **Redis caching**: Per-environment caching layer for API keys
+- **Redis caching**: Per-environment caching layer for API keys (97% performance improvement)
 - **NATS messaging**: Service coordination
-- **Authentication**: JWT (Supabase) + API key (PostgreSQL) support
+- **mTLS + JWT Authentication**: **COMPLETE** Phases 1-3 deployed
+  - **Certificate Infrastructure**: CA, service certificates, JWT signing keys
+  - **Service-to-Service mTLS**: Secure inter-service communication
+  - **Unified Authentication**: `get_current_auth_unified()` handles API keys + JWTs
+  - **Database-First**: All API keys validated through PostgreSQL with local-remote parity
+  - **Dual Authentication**: API keys + Supabase JWTs working simultaneously
 
 ### FastHTML Web Interface - FULLY FUNCTIONAL ✨
 - **Chat Interface**: Working HTMX-based chat with AI responses displaying correctly

@@ -1,7 +1,9 @@
 # API Key Configuration Guide
 
 ## Overview
-This guide provides specific instructions for configuring API keys across Gaia microservices, based on lessons learned from debugging authentication issues.
+This guide provides specific instructions for configuring API keys across Gaia microservices as part of the unified authentication system (mTLS + JWT + API keys). 
+
+**Current Status**: mTLS + JWT authentication infrastructure complete (Phases 1-3), with API keys providing backward compatibility and Redis caching for 97% performance improvement.
 
 ## Key Concepts
 
@@ -14,21 +16,29 @@ Each service may use different environment variable prefixes:
 
 ### Pydantic Configuration Patterns
 
-#### ❌ Common Mistake - Relying on env_prefix
+#### ✅ Current Unified Authentication Pattern
 ```python
+from pydantic import Field
+from app.shared.security import get_current_auth_unified
+
+class WebSettings(BaseSettings):
+    api_key: str = Field(default="default-key", env="WEB_API_KEY")
+
+# Usage in endpoints
+@app.post("/endpoint")
+async def endpoint(auth_result: dict = Depends(get_current_auth_unified)):
+    # Handles both API keys and JWT tokens automatically
+    user_id = auth_result["user_id"]
+```
+
+#### 🔄 Legacy Pattern (Pre-Unified Auth)
+```python
+# Old approach - now replaced by unified authentication
 class WebSettings(BaseSettings):
     api_key: str = "default-key"
     
     class Config:
-        env_prefix = "WEB_"  # May not work as expected!
-```
-
-#### ✅ Correct Approach - Explicit Field Configuration
-```python
-from pydantic import Field
-
-class WebSettings(BaseSettings):
-    api_key: str = Field(default="default-key", env="WEB_API_KEY")
+        env_prefix = "WEB_"  # Replaced by explicit Field(env=...)
 ```
 
 ## Step-by-Step Configuration

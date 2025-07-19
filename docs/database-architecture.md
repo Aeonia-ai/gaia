@@ -5,9 +5,10 @@ This document explains the complete database architecture for the Gaia Platform 
 ## Overview
 
 The Gaia Platform uses a **hybrid database architecture**:
-- **PostgreSQL**: Application data (isolated per environment)
-- **Supabase**: Authentication only (shared across all environments)
-- **Redis**: Caching layer (isolated per environment)
+- **PostgreSQL**: Application data (isolated per environment) with user-associated API keys
+- **Supabase**: Authentication only (shared across all environments) for JWT validation
+- **Redis**: Caching layer (isolated per environment) providing 97% performance improvement
+- **Certificate Storage**: Development certificates mounted as Docker volumes
 
 ## Database Distribution
 

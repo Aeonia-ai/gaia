@@ -34,11 +34,26 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);
 CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_keys_is_active ON api_keys(is_active);
 
+-- Create conversations table (required for chat messages)
+CREATE TABLE IF NOT EXISTS conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL DEFAULT 'New Conversation',
+    preview TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_created_at ON conversations(created_at);
+CREATE INDEX IF NOT EXISTS idx_conversations_is_active ON conversations(is_active);
+
 -- Create chat messages table
 CREATE TABLE IF NOT EXISTS chat_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id),
-    conversation_id UUID NOT NULL,
+    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     role VARCHAR(50) NOT NULL,
     content TEXT NOT NULL,
     model VARCHAR(100),
@@ -196,8 +211,15 @@ ON CONFLICT (email) DO NOTHING;
 DO $$
 DECLARE
     dev_user_id UUID;
+    dev_conversation_id UUID;
 BEGIN
     SELECT id INTO dev_user_id FROM users WHERE email = 'dev@gaia.local';
+    
+    -- Create a default conversation for the dev user
+    INSERT INTO conversations (user_id, title, preview)
+    VALUES (dev_user_id, 'Welcome to Gaia', 'Your first conversation')
+    ON CONFLICT DO NOTHING
+    RETURNING id INTO dev_conversation_id;
     
     -- Insert API key for development user
     INSERT INTO api_keys (user_id, key_hash, name, permissions, is_active)
