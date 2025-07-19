@@ -201,6 +201,30 @@ async def kb_list_directory(
     """
     return await kb_list_directory_endpoint(request, auth)
 
+# Cache management endpoints
+@app.get("/cache/stats")
+async def get_cache_stats(auth: dict = Depends(get_current_auth)) -> dict:
+    """Get KB cache statistics"""
+    from .kb_mcp_server import kb_server
+    stats = await kb_server.cache.get_stats()
+    return {
+        "status": "success",
+        "cache": stats
+    }
+
+@app.post("/cache/invalidate")
+async def invalidate_cache(
+    pattern: str = "*",
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """Invalidate cache entries matching pattern"""
+    from .kb_mcp_server import kb_server
+    await kb_server.cache.invalidate_pattern(pattern)
+    return {
+        "status": "success",
+        "message": f"Cache invalidated for pattern: {pattern}"
+    }
+
 # Add v0.2 API compatibility router if needed
 from .v0_2_api import router as v0_2_router
 app.include_router(v0_2_router, prefix="/api/v0.2")

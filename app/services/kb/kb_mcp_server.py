@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 
 from app.shared.logging import get_logger
 from app.shared.config import settings
+from app.services.kb.kb_cache import kb_cache
 
 logger = get_logger(__name__)
 
@@ -82,7 +83,7 @@ class KBMCPServer:
     
     def __init__(self, kb_path: str = "/kb"):
         self.kb_path = Path(kb_path)
-        self.cache = {}  # Simple in-memory cache
+        self.cache = kb_cache  # Use Redis cache
         self.cache_ttl = 300  # 5 minutes
         
         # Validate KB path exists
@@ -204,6 +205,12 @@ class KBMCPServer:
             Dict with search results and metadata
         """
         try:
+            # Check cache first
+            cached_result = await self.cache.get_search_results(query, contexts)
+            if cached_result:
+                logger.info(f"Cache hit for KB search: '{query}'")
+                return cached_result
+            
             logger.info(f"Searching KB for: '{query}' in contexts: {contexts}")
             
             search_paths = []
@@ -263,7 +270,7 @@ class KBMCPServer:
                 
                 search_results.append(result.model_dump())
             
-            return {
+            result = {
                 "success": True,
                 "query": query,
                 "contexts": contexts,
@@ -271,6 +278,11 @@ class KBMCPServer:
                 "results": search_results,
                 "timestamp": datetime.now().isoformat()
             }
+            
+            # Cache the result
+            await self.cache.set_search_results(query, result, contexts)
+            
+            return result
             
         except Exception as e:
             logger.error(f"KB search failed: {e}", exc_info=True)
@@ -365,6 +377,12 @@ class KBMCPServer:
             Dict with context structure and content
         """
         try:
+            # Check cache first
+            cached_context = await self.cache.get_context(context_name)
+            if cached_context:
+                logger.info(f"Cache hit for context: {context_name}")
+                return cached_context
+            
             logger.info(f"Loading KOS context: {context_name}")
             
             # Look for context index file
@@ -419,12 +437,17 @@ class KBMCPServer:
                 summary=content[:500] + "..." if len(content) > 500 else content
             )
             
-            return {
+            result = {
                 "success": True,
                 "context": context.model_dump(),
                 "index_content": index_content,
                 "total_files": len(context_files)
             }
+            
+            # Cache the context
+            await self.cache.set_context(context_name, result)
+            
+            return result
             
         except Exception as e:
             logger.error(f"Failed to load KOS context {context_name}: {e}", exc_info=True)

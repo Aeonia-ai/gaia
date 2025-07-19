@@ -1,0 +1,63 @@
+# KB Service Production Dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies including git for KB sync
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    ripgrep \
+    cron \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1001 gaia && \
+    mkdir -p /kb /kb_cache && \
+    chown -R gaia:gaia /kb /kb_cache
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy sync script
+COPY scripts/sync-kb.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/sync-kb.sh
+
+# Copy application code
+COPY --chown=gaia:gaia . .
+
+# Create startup script that syncs KB before starting service
+RUN echo '#!/bin/bash\n\
+# Initial KB sync\n\
+if [ -n "$KB_GIT_URL" ]; then\n\
+    echo "Syncing KB from Git..."\n\
+    /usr/local/bin/sync-kb.sh\n\
+    \n\
+    # Set up cron job for periodic sync if interval is set\n\
+    if [ -n "$KB_SYNC_INTERVAL" ]; then\n\
+        echo "*/$KB_SYNC_INTERVAL * * * * /usr/local/bin/sync-kb.sh >> /var/log/kb-sync.log 2>&1" | crontab -\n\
+        cron &\n\
+    fi\n\
+else\n\
+    echo "KB_GIT_URL not set, skipping sync"\n\
+fi\n\
+\n\
+# Start the KB service\n\
+exec uvicorn app.services.kb.main:app --host 0.0.0.0 --port 8000' > /usr/local/bin/start-kb-service.sh && \
+    chmod +x /usr/local/bin/start-kb-service.sh
+
+# Switch to non-root user
+USER gaia
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Use the startup script as entrypoint
+ENTRYPOINT ["/usr/local/bin/start-kb-service.sh"]
