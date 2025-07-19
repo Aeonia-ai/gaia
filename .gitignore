@@ -195,6 +195,12 @@ docker-compose.override.yml
 *.json
 *.key
 *.pem
+*.pub
+*.crt
+*.csr
+
+# Certificates directory
+certs/
 
 # Local development
 .env.local

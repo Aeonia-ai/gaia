@@ -80,7 +80,8 @@ def get_private_key() -> str:
     global _private_key_cache
     
     if _private_key_cache is None:
-        generate_dev_keys_if_missing()
+        # Don't try to generate keys in containers - they should be mounted
+        # generate_dev_keys_if_missing()
         
         try:
             with open(JWT_PRIVATE_KEY_PATH, 'r') as f:
@@ -97,7 +98,8 @@ def get_public_key() -> str:
     global _public_key_cache
     
     if _public_key_cache is None:
-        generate_dev_keys_if_missing()
+        # Don't try to generate keys in containers - they should be mounted
+        # generate_dev_keys_if_missing()
         
         try:
             with open(JWT_PUBLIC_KEY_PATH, 'r') as f:

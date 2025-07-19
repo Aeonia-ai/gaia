@@ -12,6 +12,7 @@ services:
       - ./app:/app/app
       - mcp_data:/app/data/kb
       - ../Dendron:/app/data/wiki
+      - ./certs:/app/certs:ro
     env_file:
       - .env
     environment:
@@ -21,6 +22,11 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8000
       - ASSET_SERVICE_URL=http://asset-service:8000
       - CHAT_SERVICE_URL=http://chat-service:8000
+      - TLS_CERT_PATH=/app/certs/gateway/cert.pem
+      - TLS_KEY_PATH=/app/certs/gateway/key.pem
+      - TLS_CA_PATH=/app/certs/ca.pem
+      - JWT_PRIVATE_KEY_PATH=/app/certs/jwt-signing.key
+      - JWT_PUBLIC_KEY_PATH=/app/certs/jwt-signing.pub
     depends_on:
       - db
       - nats
@@ -46,6 +52,9 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
+      - TLS_CERT_PATH=/app/certs/auth-service/cert.pem
+      - TLS_KEY_PATH=/app/certs/auth-service/key.pem
+      - TLS_CA_PATH=/app/certs/ca.pem
       - JWT_PRIVATE_KEY_PATH=/app/certs/jwt-signing.key
       - JWT_PUBLIC_KEY_PATH=/app/certs/jwt-signing.pub
     depends_on:
@@ -63,12 +72,18 @@ services:
       dockerfile: Dockerfile.asset
     volumes:
       - ./app:/app/app
+      - ./certs:/app/certs:ro
     env_file:
       - .env
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
+      - TLS_CERT_PATH=/app/certs/asset-service/cert.pem
+      - TLS_KEY_PATH=/app/certs/asset-service/key.pem
+      - TLS_CA_PATH=/app/certs/ca.pem
+      - JWT_PRIVATE_KEY_PATH=/app/certs/jwt-signing.key
+      - JWT_PUBLIC_KEY_PATH=/app/certs/jwt-signing.pub
     depends_on:
       - db
       - nats
@@ -85,6 +100,7 @@ services:
     volumes:
       - ./app:/app/app
       - mcp_data:/app/data/kb
+      - ./certs:/app/certs:ro
     env_file:
       - .env
     environment:
@@ -92,6 +108,11 @@ services:
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       - MCP_FILESYSTEM_ROOT=/app/data
+      - TLS_CERT_PATH=/app/certs/chat-service/cert.pem
+      - TLS_KEY_PATH=/app/certs/chat-service/key.pem
+      - TLS_CA_PATH=/app/certs/ca.pem
+      - JWT_PRIVATE_KEY_PATH=/app/certs/jwt-signing.key
+      - JWT_PUBLIC_KEY_PATH=/app/certs/jwt-signing.pub
     depends_on:
       - db
       - nats
@@ -109,6 +130,7 @@ services:
       - "8080:8000"  # Web UI on port 8080
     volumes:
       - ./app:/app/app
+      - ./certs:/app/certs:ro
     env_file:
       - .env
     environment:
@@ -119,6 +141,11 @@ services:
       - WEB_DEBUG=true
       - ENVIRONMENT=local
       - WEB_SERVICE_BASE_URL=http://localhost:8080
+      - TLS_CERT_PATH=/app/certs/web-service/cert.pem
+      - TLS_KEY_PATH=/app/certs/web-service/key.pem
+      - TLS_CA_PATH=/app/certs/ca.pem
+      - JWT_PRIVATE_KEY_PATH=/app/certs/jwt-signing.key
+      - JWT_PUBLIC_KEY_PATH=/app/certs/jwt-signing.pub
     depends_on:
       - gateway
       - nats

@@ -45,6 +45,7 @@ from .security import (
     validate_supabase_jwt,
     get_current_auth,
     get_current_auth_legacy,
+    get_current_auth_unified,
     validate_auth_for_service,
     require_authentication
 )

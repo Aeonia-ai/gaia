@@ -36,6 +36,7 @@ from app.shared import (
     log_service_startup,
     log_service_shutdown,
     get_current_auth_legacy,
+    get_current_auth_unified,
     ensure_nats_connection,
     NATSSubjects,
     ServiceHealthEvent,
@@ -359,7 +360,7 @@ async def v0_2_reload_prompt(
 @app.post("/api/v0.2/chat/stream", tags=["v0.2 Streaming"])
 async def v0_2_stream_chat(
     request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
+    auth: dict = Depends(get_current_auth_unified)
 ):
     """v0.2 streaming chat endpoint with SSE support"""
     from fastapi.responses import StreamingResponse
@@ -404,7 +405,7 @@ async def v0_2_stream_chat(
 @app.post("/api/v0.2/chat/stream/cache/invalidate", tags=["v0.2 Streaming"])
 async def v0_2_invalidate_streaming_cache(
     request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
+    auth: dict = Depends(get_current_auth_unified)
 ):
     """Invalidate v0.2 streaming cache"""
     return await forward_request_to_service(
@@ -418,7 +419,7 @@ async def v0_2_invalidate_streaming_cache(
 @app.get("/api/v0.2/chat/stream/cache/status", tags=["v0.2 Streaming"])
 async def v0_2_get_streaming_cache_status(
     request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
+    auth: dict = Depends(get_current_auth_unified)
 ):
     """Get v0.2 streaming cache status"""
     return await forward_request_to_service(
@@ -431,7 +432,7 @@ async def v0_2_get_streaming_cache_status(
 @app.get("/api/v0.2/chat/stream/status", tags=["v0.2 Streaming"])
 async def v0_2_get_streaming_status(
     request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
+    auth: dict = Depends(get_current_auth_unified)
 ):
     """Get v0.2 streaming status"""
     return await forward_request_to_service(
@@ -444,7 +445,7 @@ async def v0_2_get_streaming_status(
 @app.delete("/api/v0.2/chat/stream/history", tags=["v0.2 Streaming"])
 async def v0_2_clear_streaming_history(
     request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
+    auth: dict = Depends(get_current_auth_unified)
 ):
     """Clear v0.2 streaming history"""
     return await forward_request_to_service(
@@ -457,7 +458,7 @@ async def v0_2_clear_streaming_history(
 @app.get("/api/v0.2/chat/stream/models", tags=["v0.2 Streaming"])
 async def v0_2_list_streaming_models(
     request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
+    auth: dict = Depends(get_current_auth_unified)
 ):
     """List v0.2 streaming models"""
     return await forward_request_to_service(
@@ -471,7 +472,7 @@ async def v0_2_list_streaming_models(
 @app.get("/api/v0.2/chat/stream/models/performance", tags=["v0.2 Streaming"])
 async def v0_2_get_streaming_model_performance(
     request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
+    auth: dict = Depends(get_current_auth_unified)
 ):
     """Get v0.2 streaming model performance comparison"""
     return await forward_request_to_service(
