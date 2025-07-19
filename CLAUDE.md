@@ -9,17 +9,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 4. **[Common Mistakes to Avoid](#-common-mistakes-to-avoid)** - Review this section to prevent known issues
 5. **[Essential Documentation Index](#-essential-documentation-index)** - Find the right guide for your task
 
-## 🎯 Current Development Focus (July 18, 2025)
-**Latest Fix**: Implemented unified authentication that uses the SAME CODE for local and remote deployments. The .env `API_KEY` is now properly stored in the local database (hashed) just like production API keys, ensuring 100% code parity between environments.
+## 🎯 Current Development Focus (July 19, 2025)
+**Latest Achievement**: Completed Phase 2-3 of mTLS + JWT authentication migration. The gateway now supports BOTH API keys and Supabase JWTs with zero breaking changes.
 
-**Key Authentication Principles**:
-- **Database-first**: ALL API keys validated through database (no special cases)
-- **Local-remote parity**: Same authentication code in both environments  
-- **.env API key pre-configured**: Local database initialization includes the .env API key
-- **Redis caching**: Performance optimization for all API key validations
-- **No environment-specific code**: What works locally works remotely
+**Authentication Status**:
+- **Dual Authentication**: Gateway accepts both X-API-Key and Bearer tokens
+- **Web UI Ready**: Automatically uses JWTs after Supabase login
+- **Backward Compatible**: All existing clients continue working unchanged
+- **Service-to-Service**: mTLS certificates + JWT tokens for internal auth
+- **Migration Path**: Gradual transition enabled, no forced updates
 
-Working on **FastHTML Web UI improvements**. Just completed debugging critical HTMX issues including loading indicator placement and conversation switching. Created comprehensive [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md). See [Web UI Development Status](docs/web-ui-development-status.md) for current state and next steps.
+**Key Files**:
+- [Authentication Guide](docs/authentication-guide.md) - How dual auth works
+- [Phase 3 Completion Report](docs/phase3-completion-report.md) - What was implemented
+- `app/shared/security.py` - See `get_current_auth_unified()` function
+
+**Next**: Token refresh mechanisms and Phase 4 cleanup (removing legacy auth).
 
 ## 🧠 Development Philosophy & Problem-Solving Approach
 
@@ -52,7 +57,8 @@ Working on **FastHTML Web UI improvements**. Just completed debugging critical H
 **IMPORTANT**: Always consult these guides BEFORE making changes to avoid common pitfalls.
 
 ### Configuration & Deployment
-- [API Key Configuration Guide](docs/api-key-configuration-guide.md) - **READ FIRST** for authentication setup
+- [Authentication Guide](docs/authentication-guide.md) - **NEW** - Dual auth (API keys + JWTs)
+- [API Key Configuration Guide](docs/api-key-configuration-guide.md) - Legacy API key setup
 - [Database Architecture](docs/database-architecture.md) - **IMPORTANT** - Understand the hybrid database setup
 - [Supabase Configuration Guide](docs/supabase-configuration.md) - Email confirmation URLs and auth setup
 - [Deployment Best Practices](docs/deployment-best-practices.md) - Local-remote parity strategies
