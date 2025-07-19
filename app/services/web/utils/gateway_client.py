@@ -29,6 +29,7 @@ class GaiaAPIClient:
         try:
             response = await self.client.post(
                 "/api/v1/auth/login",
+                # No authentication required for login
                 json={"email": email, "password": password}
             )
             response.raise_for_status()
@@ -45,10 +46,10 @@ class GaiaAPIClient:
         try:
             response = await self.client.post(
                 "/api/v1/auth/register",
+                # No authentication required for registration
                 json={
                     "email": email,
-                    "password": password,
-                    "username": username or email.split("@")[0]
+                    "password": password
                 }
             )
             response.raise_for_status()
@@ -82,7 +83,7 @@ class GaiaAPIClient:
                 "POST",
                 "/api/v0.2/chat/stream",
                 headers={
-                    "X-API-Key": "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"
+                    "X-API-Key": settings.api_key
                 },
                 json={
                     "message": messages[-1]["content"] if messages else "",
@@ -117,7 +118,7 @@ class GaiaAPIClient:
                 headers["Authorization"] = f"Bearer {jwt_token}"
             else:
                 # Fall back to API key for dev/testing
-                headers["X-API-Key"] = "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"
+                headers["X-API-Key"] = settings.api_key
             
             # Always use v0.2 endpoint format
             endpoint = "/api/v0.2/chat"

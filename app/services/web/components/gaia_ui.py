@@ -334,6 +334,8 @@ def gaia_chat_input(conversation_id=None):
 
 def gaia_layout(sidebar_content=None, main_content=None, page_class="", show_sidebar=True, user=None):
     """Main layout component with mobile-responsive sidebar"""
+    from fasthtml.core import Script, NotStr
+    
     if show_sidebar:
         return Div(
             # Hidden loading indicator (outside main-content so it doesn't get replaced)

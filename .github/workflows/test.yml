@@ -1,0 +1,204 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gaia_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio pytest-cov httpx
+    
+    - name: Set up test environment
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gaia_test
+        REDIS_URL: redis://localhost:6379
+        ENVIRONMENT: test
+        SUPABASE_JWT_SECRET: test-secret-key-for-jwt-validation
+        API_KEY: test-api-key
+        WEB_API_KEY: test-web-api-key
+      run: |
+        # Create test database schema
+        python -c "from app.shared.database import Base, engine; Base.metadata.create_all(bind=engine)"
+    
+    - name: Run unit tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gaia_test
+        REDIS_URL: redis://localhost:6379
+        ENVIRONMENT: test
+        SUPABASE_JWT_SECRET: test-secret-key-for-jwt-validation
+        API_KEY: test-api-key
+        WEB_API_KEY: test-web-api-key
+      run: |
+        pytest tests/ -v -m "not integration" --cov=app --cov-report=xml
+    
+    - name: Run integration tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gaia_test
+        REDIS_URL: redis://localhost:6379
+        ENVIRONMENT: test
+        SUPABASE_JWT_SECRET: test-secret-key-for-jwt-validation
+        API_KEY: test-api-key
+        WEB_API_KEY: test-web-api-key
+      run: |
+        pytest tests/ -v -m integration
+    
+    - name: Run authentication contract tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gaia_test
+        REDIS_URL: redis://localhost:6379
+        ENVIRONMENT: test
+      run: |
+        # Run specific auth flow tests to ensure public endpoints stay public
+        pytest tests/web/test_auth_flow.py -v
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+    
+    - name: Check for auth endpoint changes
+      run: |
+        # Script to detect if auth endpoints were modified
+        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E "(auth|gateway_client)"; then
+          echo "⚠️  Auth-related files changed. Please ensure:"
+          echo "1. Public endpoints remain public (no auth required)"
+          echo "2. Contract tests pass"
+          echo "3. Changes are documented in api-contracts.md"
+        fi
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install linting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff black isort mypy
+    
+    - name: Run ruff
+      run: ruff check app/ tests/
+    
+    - name: Check black formatting
+      run: black --check app/ tests/
+    
+    - name: Check import sorting
+      run: isort --check-only app/ tests/
+    
+    - name: Run mypy type checking
+      run: mypy app/ --ignore-missing-imports
+
+  docker:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Build Docker images
+      run: |
+        docker compose build --no-cache
+    
+    - name: Start services
+      run: |
+        docker compose up -d
+        sleep 30  # Wait for services to be ready
+    
+    - name: Check service health
+      run: |
+        # Check gateway health
+        curl -f http://localhost:8666/health || exit 1
+        
+        # Check web service health
+        curl -f http://localhost:8080/health || exit 1
+    
+    - name: Test public endpoints
+      run: |
+        # Test that public endpoints don't require auth
+        curl -X POST http://localhost:8666/api/v1/auth/register \
+          -H "Content-Type: application/json" \
+          -d '{"email": "test@example.com", "password": "testpass123"}' \
+          -w "\nHTTP Status: %{http_code}\n" | grep -v "401\|403"
+    
+    - name: Run Layout Integrity Checks
+      run: |
+        echo "🔍 Running layout integrity checks..."
+        chmod +x ./scripts/layout-check.sh
+        ./scripts/layout-check.sh
+    
+    - name: Run Web UI Layout Tests
+      run: |
+        docker compose run test pytest tests/web/test_layout_integrity.py -v --tb=short
+    
+    - name: Check for layout-breaking patterns
+      run: |
+        # Check for nested layout containers
+        if grep -r "flex h-screen.*flex h-screen" app/services/web/ | grep -v "test_" | grep -v ".md"; then
+          echo "❌ ERROR: Nested layout containers found!"
+          exit 1
+        fi
+        
+        # Check auth pages don't have chat elements
+        if grep -E "(#sidebar|#chat-form)" app/services/web/routes/auth.py; then
+          echo "⚠️ WARNING: Auth routes may contain chat elements"
+        fi
+    
+    - name: Clean up
+      if: always()
+      run: docker compose down -v

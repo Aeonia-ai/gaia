@@ -46,3 +46,88 @@ def setup_routes(app):
                 {"status": "unhealthy", "error": str(e)},
                 status_code=503
             )
+    
+    @app.post("/api/v1/auth/register")
+    async def api_register(request):
+        """API proxy for user registration"""
+        try:
+            body = await request.json()
+            email = body.get("email")
+            password = body.get("password")
+            
+            if not email or not password:
+                return JSONResponse(
+                    {"detail": "Email and password are required"}, 
+                    status_code=400
+                )
+            
+            # Use the gateway client to register the user
+            from app.services.web.utils.gateway_client import GaiaAPIClient
+            async with GaiaAPIClient() as client:
+                result = await client.register(email, password)
+                
+            return JSONResponse(result)
+            
+        except Exception as e:
+            logger.error(f"API registration error: {e}")
+            
+            # Parse error message for better user feedback
+            error_str = str(e)
+            if "detail" in error_str:
+                try:
+                    import json
+                    import re
+                    
+                    # Look for Service error format
+                    service_error_match = re.search(r'Service error: ({.*})', error_str)
+                    if service_error_match:
+                        nested_error = json.loads(service_error_match.group(1))
+                        return JSONResponse(
+                            {"detail": nested_error.get("detail", "Registration failed")},
+                            status_code=400
+                        )
+                    
+                    # Otherwise try to extract JSON normally
+                    json_start = error_str.find('{')
+                    json_end = error_str.rfind('}') + 1
+                    if json_start >= 0 and json_end > json_start:
+                        error_json = json.loads(error_str[json_start:json_end])
+                        return JSONResponse(
+                            {"detail": error_json.get("detail", "Registration failed")},
+                            status_code=400
+                        )
+                except:
+                    pass
+            
+            return JSONResponse(
+                {"detail": "Registration failed. Please try again."},
+                status_code=500
+            )
+    
+    @app.post("/api/v1/auth/login")
+    async def api_login(request):
+        """API proxy for user login"""
+        try:
+            body = await request.json()
+            email = body.get("email")
+            password = body.get("password")
+            
+            if not email or not password:
+                return JSONResponse(
+                    {"detail": "Email and password are required"}, 
+                    status_code=400
+                )
+            
+            # Use the gateway client to login the user
+            from app.services.web.utils.gateway_client import GaiaAPIClient
+            async with GaiaAPIClient() as client:
+                result = await client.login(email, password)
+                
+            return JSONResponse(result)
+            
+        except Exception as e:
+            logger.error(f"API login error: {e}")
+            return JSONResponse(
+                {"detail": "Login failed. Please check your credentials."},
+                status_code=400
+            )

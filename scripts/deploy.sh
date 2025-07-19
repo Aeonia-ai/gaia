@@ -28,7 +28,7 @@ function print_usage() {
     echo "Optional Options:"
     echo "  --region REGION             # Fly.io region (default: lax)"
     echo "  --services SERVICE_LIST     # Services to deploy (default: all for dev, gateway for staging/prod)"
-    echo "                              # Options: gateway, auth, asset, chat, all"
+    echo "                              # Options: gateway, auth, asset, chat, web, all"
     echo "  --database fly|supabase     # Database type (default: fly)"
     echo "  --rebuild                   # Force rebuild containers"
     echo "  --dry-run                   # Show what would be deployed without deploying"
@@ -123,14 +123,14 @@ fi
 
 # Validate services
 case "$DEPLOY_SERVICES" in
-    "gateway"|"auth"|"asset"|"chat")
+    "gateway"|"auth"|"asset"|"chat"|"web")
         ;;
     "all")
-        DEPLOY_SERVICES="gateway auth asset chat"
+        DEPLOY_SERVICES="gateway auth asset chat web"
         ;;
     *)
         log_error "Invalid services: $DEPLOY_SERVICES"
-        log_error "Valid options: gateway, auth, asset, chat, all"
+        log_error "Valid options: gateway, auth, asset, chat, web, all"
         exit 1
         ;;
 esac
@@ -270,6 +270,29 @@ function deploy_service() {
         local app_url="https://$app_name.fly.dev"
         if curl -s "$app_url/health" | grep -q "healthy\|degraded"; then
             log_info "✅ Health check passed for $app_url"
+            
+            # For auth service, also validate secrets configuration
+            if [[ "$service" == "auth" ]]; then
+                log_step "Validating auth service secrets configuration..."
+                local health_response=$(curl -s "$app_url/health")
+                
+                # Check if secrets health is included and validate
+                if echo "$health_response" | grep -q '"secrets"'; then
+                    local secrets_status=$(echo "$health_response" | grep -o '"secrets":[^}]*}' | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+                    
+                    if [[ "$secrets_status" == "healthy" ]]; then
+                        log_info "✅ Secrets configuration validated"
+                    elif [[ "$secrets_status" == "warning" ]]; then
+                        log_warn "⚠️  Secrets configuration has warnings"
+                        echo "$health_response" | grep -o '"warnings":\[[^\]]*\]' || true
+                    else
+                        log_error "❌ Secrets configuration is unhealthy"
+                        echo "$health_response" | grep -o '"error":"[^"]*"' || true
+                    fi
+                else
+                    log_warn "⚠️  Unable to validate secrets configuration (old auth service version?)"
+                fi
+            fi
         else
             log_warn "⚠️  Health check failed or service not ready yet"
             log_warn "Service may still be starting up..."
@@ -313,6 +336,9 @@ function setup_secrets() {
                 ;;
             "auth")
                 secrets+=("SUPABASE_URL" "SUPABASE_ANON_KEY" "SUPABASE_JWT_SECRET")
+                ;;
+            "web")
+                secrets+=("API_KEY")
                 ;;
         esac
         

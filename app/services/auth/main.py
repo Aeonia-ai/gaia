@@ -89,6 +89,68 @@ class ResendVerificationRequest(BaseModel):
 # HEALTH AND STATUS ENDPOINTS
 # ========================================================================================
 
+async def check_secrets_health():
+    """Check if secrets are properly configured and up to date."""
+    import os
+    try:
+        # Check required Supabase secrets
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_anon_key = os.getenv("SUPABASE_ANON_KEY")
+        supabase_jwt_secret = os.getenv("SUPABASE_JWT_SECRET")
+        
+        missing_secrets = []
+        if not supabase_url:
+            missing_secrets.append("SUPABASE_URL")
+        if not supabase_anon_key:
+            missing_secrets.append("SUPABASE_ANON_KEY")
+        if not supabase_jwt_secret:
+            missing_secrets.append("SUPABASE_JWT_SECRET")
+        
+        if missing_secrets:
+            return {
+                "status": "unhealthy",
+                "error": f"Missing secrets: {', '.join(missing_secrets)}",
+                "missing_count": len(missing_secrets)
+            }
+        
+        # Basic validation of secret format
+        warnings = []
+        if supabase_url and not supabase_url.startswith("https://"):
+            warnings.append("SUPABASE_URL should start with https://")
+        
+        if supabase_anon_key and not supabase_anon_key.startswith("eyJ"):
+            warnings.append("SUPABASE_ANON_KEY appears to have invalid JWT format")
+        
+        # Check if we can create a Supabase client (validates JWT secret)
+        try:
+            supabase = get_supabase_client()
+            # Simple test to validate JWT secret works
+            test_health = await supabase_health_check()
+            if test_health["status"] != "healthy":
+                warnings.append("Supabase credentials may be outdated or invalid")
+        except Exception as e:
+            warnings.append(f"Supabase client creation failed: {str(e)[:100]}")
+        
+        status = "healthy" if not warnings else "warning"
+        result = {
+            "status": status,
+            "secrets_configured": 3,
+            "last_checked": datetime.now().isoformat()
+        }
+        
+        if warnings:
+            result["warnings"] = warnings
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"Secrets health check failed: {e}")
+        return {
+            "status": "unhealthy",
+            "error": f"Health check failed: {str(e)}",
+            "last_checked": datetime.now().isoformat()
+        }
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint for auth service."""
@@ -96,8 +158,13 @@ async def health_check():
     db_health = await database_health_check()
     supabase_health = await supabase_health_check()
     
+    # Check secret configuration status
+    secrets_health = await check_secrets_health()
+    
     overall_status = "healthy"
-    if db_health["status"] != "healthy" or supabase_health["status"] != "healthy":
+    if (db_health["status"] != "healthy" or 
+        supabase_health["status"] != "healthy" or 
+        secrets_health["status"] != "healthy"):
         overall_status = "unhealthy"
     
     return {
@@ -106,6 +173,7 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "database": db_health,
         "supabase": supabase_health,
+        "secrets": secrets_health,
         "version": "0.2"
     }
 

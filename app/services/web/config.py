@@ -1,37 +1,34 @@
 """Web service configuration"""
-from pydantic_settings import BaseSettings
+from app.shared import settings as shared_settings
 from typing import Optional
 
 
-class WebSettings(BaseSettings):
-    """Web service specific settings"""
+class WebSettings:
+    """Web service specific settings - inherits from shared"""
     # Service info
     service_name: str = "web"
     host: str = "0.0.0.0"
     port: int = 8000
     
-    # Gateway connection
-    gateway_url: str = "http://gateway:8000"
+    # Gateway connection - use shared settings
+    gateway_url: str = shared_settings.GATEWAY_URL
+    api_key: str = shared_settings.API_KEY
     
     # Session configuration
-    session_secret: str = "change-this-in-production"
+    session_secret: str = shared_settings.SESSION_SECRET if hasattr(shared_settings, 'SESSION_SECRET') else "gaia-dev-session-secret-2025"
     session_cookie_name: str = "gaia_session"
     session_max_age: int = 86400  # 24 hours
     
     # NATS configuration
-    nats_url: Optional[str] = "nats://nats:4222"
+    nats_url: Optional[str] = shared_settings.NATS_URL
     
     # Frontend settings
     enable_websocket: bool = True
     enable_htmx: bool = True
     
     # Debug settings
-    debug: bool = True
-    log_level: str = "INFO"
-    
-    class Config:
-        env_prefix = "WEB_"
-        env_file = ".env"
+    debug: bool = shared_settings.DEBUG
+    log_level: str = shared_settings.LOG_LEVEL
 
 
 # Global settings instance

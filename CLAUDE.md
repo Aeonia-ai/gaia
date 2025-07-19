@@ -368,6 +368,49 @@ When creating test accounts, always use the pattern `jason.asbahr+test#@gmail.co
 
 ## Troubleshooting
 
+### Secret Management Issues (Primary Prevention)
+
+⚠️ **CRITICAL: Always validate secrets after deployment**
+
+```bash
+# Quick secret validation for an environment
+./scripts/validate-secrets.sh --env dev
+
+# Validate and automatically fix issues
+./scripts/validate-secrets.sh --env dev --fix
+
+# Compare secrets between environments
+./scripts/validate-secrets.sh --compare dev staging
+
+# Emergency secret sync (if validation script unavailable)
+fly secrets set SUPABASE_ANON_KEY="$(grep SUPABASE_ANON_KEY .env | cut -d'=' -f2-)" -a gaia-auth-dev
+fly secrets set SUPABASE_JWT_SECRET="$(grep SUPABASE_JWT_SECRET .env | cut -d'=' -f2-)" -a gaia-auth-dev
+```
+
+**Enhanced Secret Health Monitoring:**
+```bash
+# Check auth service secrets health (enhanced health endpoint)
+curl https://gaia-auth-dev.fly.dev/health | jq '.secrets'
+
+# Expected healthy response:
+# {
+#   "status": "healthy",
+#   "secrets_configured": 3,
+#   "last_checked": "2025-07-19T00:15:00Z"
+# }
+
+# Warning signs:
+# "status": "warning" - Secrets may be misconfigured
+# "status": "unhealthy" - Missing or invalid secrets
+# Missing "secrets" field - Old auth service version
+```
+
+**Deployment Best Practices:**
+1. **Always use enhanced deploy script**: `./scripts/deploy.sh --env dev --services auth`
+2. **Validate after deployment**: Script automatically checks secret health
+3. **Monitor for drift**: Use `./scripts/validate-secrets.sh --compare dev staging`
+4. **See full checklist**: [Deployment Validation Guide](docs/deployment-validation-checklist.md)
+
 ### API Key Authentication Issues
 
 **Problem**: Services returning "Invalid API key" errors despite correct configuration.

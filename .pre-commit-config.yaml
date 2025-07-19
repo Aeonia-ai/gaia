@@ -1,0 +1,67 @@
+# Pre-commit hooks configuration
+# Prevents common issues including layout breakages
+
+repos:
+  # Python code quality
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  - repo: https://github.com/psf/black
+    rev: 23.9.1
+    hooks:
+      - id: black
+        language_version: python3.11
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-json
+      - id: check-merge-conflict
+      - id: debug-statements
+
+  # Custom layout integrity checks
+  - repo: local
+    hooks:
+      - id: check-layout-integrity
+        name: Check Layout Integrity
+        entry: bash -c 'scripts/layout-check.sh'
+        language: system
+        pass_filenames: false
+        always_run: true
+        files: ^app/services/web/
+        
+      - id: check-nested-containers
+        name: Check for nested layout containers
+        entry: bash -c 'if grep -r "flex h-screen.*flex h-screen" app/services/web/ | grep -v "test_" | grep -v ".md"; then echo "ERROR: Nested layout containers found!"; exit 1; fi'
+        language: system
+        pass_filenames: false
+        files: ^app/services/web/.*\.(py|html)$
+        
+      - id: check-auth-isolation
+        name: Check auth page isolation
+        entry: bash -c 'if grep -E "(#sidebar|#chat-form|#messages)" app/services/web/routes/auth.py 2>/dev/null; then echo "WARNING: Auth routes contain chat elements!"; exit 1; fi'
+        language: system
+        pass_filenames: false
+        files: ^app/services/web/routes/auth\.py$
+        
+      - id: check-css-patterns
+        name: Check for problematic CSS patterns
+        entry: bash -c 'if grep -r "flex-col md:flex-row" app/services/web/ | grep -v "test_" | grep -v ".md"; then echo "WARNING: Found flex-col md:flex-row pattern that can break layouts!"; fi'
+        language: system
+        pass_filenames: false
+        files: ^app/services/web/.*\.(py|css)$

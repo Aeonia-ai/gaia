@@ -209,9 +209,10 @@ async def get_current_auth(
     api_key_header: Optional[str] = Security(api_key_header)
 ) -> AuthenticationResult:
     """
-    Provides authentication for JWT, global API keys, or user-associated API keys.
+    Provides authentication for JWT or user-associated API keys.
     Returns AuthenticationResult object with standardized format.
     Compatible with LLM Platform behavior.
+    All API keys are validated through database for consistency.
     """
     logger.debug(f"Authentication attempt. JWT: {credentials is not None}, API Key: {api_key_header is not None}")
 
@@ -233,11 +234,11 @@ async def get_current_auth(
             db_gen = get_database_session()
             db = next(db_gen)
             
-            logger.debug("Validating user-associated API key")
+            logger.debug("Validating API key in database")
             user_api_result = await validate_user_api_key(api_key_header, db)
             
             if user_api_result:
-                logger.debug(f"Authenticated via user API key: {user_api_result.user_id}")
+                logger.debug(f"Authenticated via API key for user: {user_api_result.user_id}")
                 return user_api_result
             else:
                 logger.warning("Invalid API Key provided - not found in database")
@@ -282,7 +283,7 @@ async def validate_auth_for_service(auth_data: Dict[str, Any]) -> Authentication
     
     elif auth_type == "user_api_key":
         user_id = auth_data.get("user_id")
-        api_key = auth_data.get("api_key")
+        api_key = auth_data.get("api_key") or auth_data.get("key")  # Support both formats
         api_key_id = auth_data.get("api_key_id")
         
         if not user_id or not api_key:
@@ -325,8 +326,10 @@ async def get_current_auth_legacy(
     """
     Legacy authentication format for backward compatibility.
     Returns dict format identical to LLM Platform.
+    All API keys (including .env) are validated through database for consistency.
     """
-    # Get database session using proper dependency injection
+    # Use the standard authentication flow for all API keys
+    # This ensures local development mirrors production exactly
     from app.shared.database import get_database_session
     
     # Get database session
