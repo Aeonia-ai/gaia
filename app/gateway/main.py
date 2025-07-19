@@ -84,7 +84,8 @@ app = FastAPI(
 )
 
 # Add response caching middleware for static endpoints
-app.add_middleware(CacheMiddleware)
+# TODO: Fix Content-Length issue with CacheMiddleware
+# app.add_middleware(CacheMiddleware)
 
 # Add GZip compression middleware (30-50% smaller responses)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
