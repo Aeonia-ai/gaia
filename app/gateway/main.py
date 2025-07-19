@@ -998,6 +998,144 @@ async def v0_2_initialize_default_persona(
         params=dict(request.query_params)
     )
 
+# =============================================================================
+# KB-Enhanced Chat Endpoints (KOS Integration)
+# =============================================================================
+
+@app.post("/api/v1/chat/kb-enhanced", tags=["KB Chat"])
+async def kb_enhanced_multiagent_chat(request: Request, auth: dict = Depends(get_current_auth_legacy)):
+    """
+    KB-Enhanced multiagent chat with Knowledge Base integration.
+    
+    Features:
+    - Direct KB access via MCP tools
+    - Context-aware agent behaviors
+    - Knowledge synthesis across domains
+    - Adaptive scenario selection
+    """
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/kb-enhanced",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v1/chat/kb-research", tags=["KB Chat"])
+async def kb_research_chat(request: Request, auth: dict = Depends(get_current_auth_legacy)):
+    """KB research with specialized knowledge agents"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/kb-research",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v1/chat/kb-gamemaster", tags=["KB Chat"])
+async def kb_gamemaster_chat(request: Request, auth: dict = Depends(get_current_auth_legacy)):
+    """Game mastering with KB-powered world knowledge"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/kb-gamemaster",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v1/chat/kb-development", tags=["KB Chat"])
+async def kb_development_chat(request: Request, auth: dict = Depends(get_current_auth_legacy)):
+    """Development guidance using KB codebase knowledge"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/kb-development",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v1/chat/kb-search", tags=["KB Chat"])
+async def kb_search_chat(request: Request, auth: dict = Depends(get_current_auth_legacy)):
+    """Direct KB search interface"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/kb-search",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v1/chat/kb-context", tags=["KB Chat"])
+async def kb_context_chat(request: Request, auth: dict = Depends(get_current_auth_legacy)):
+    """KOS context loading interface"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/kb-context",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v1/chat/kb-multitask", tags=["KB Chat"])
+async def kb_multitask_chat(request: Request, auth: dict = Depends(get_current_auth_legacy)):
+    """Parallel KB task execution"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/kb-multitask",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
 # ========================================================================================
 # PERFORMANCE MONITORING ENDPOINTS - Operational insights and system health
 # ========================================================================================

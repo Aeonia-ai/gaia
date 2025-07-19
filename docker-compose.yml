@@ -74,7 +74,7 @@ services:
       - gaia_net
     command: uvicorn app.services.asset.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Chat Service (MCP-Agent powered)
+  # Chat Service (MCP-Agent powered with KB integration)
   chat-service:
     build:
       context: .
@@ -82,6 +82,8 @@ services:
     volumes:
       - ./app:/app/app
       - mcp_data:/app/data/kb
+      # Mount Knowledge Base for KB-enhanced multiagent capabilities
+      - ${KB_PATH:-/Users/jasonasbahr/Development/Aeonia/Vaults/KB}:/kb:ro
     env_file:
       - .env
     environment:
@@ -89,6 +91,10 @@ services:
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       - MCP_FILESYSTEM_ROOT=/app/data
+      # KB configuration
+      - KB_PATH=/kb
+      - KB_MCP_ENABLED=true
+      - KB_MODE=local
     depends_on:
       - db
       - nats

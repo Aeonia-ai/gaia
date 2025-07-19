@@ -264,6 +264,34 @@ case "$1" in
         message="${2:-Design a complex multiplayer puzzle for 6-8 players called The Resonance Chamber}"
         test_endpoint "POST" "/api/v1/chat/problemsolving" "{\"message\": \"$message\"}" "Expert Team Problem Solving"
         ;;
+    "kb-enhanced")
+        message="${2:-Search the KB for information about consciousness and synthesize insights across domains}"
+        test_endpoint "POST" "/api/v1/chat/kb-enhanced" "{\"message\": \"$message\"}" "KB-Enhanced Multiagent Chat"
+        ;;
+    "kb-research")
+        message="${2:-Research the implementation of consciousness frameworks in MMOIRL}"
+        test_endpoint "POST" "/api/v1/chat/kb-research" "{\"message\": \"$message\"}" "KB Research with Knowledge Agents"
+        ;;
+    "kb-gamemaster")
+        message="${2:-Create a tavern scene using established world lore and character backgrounds}"
+        test_endpoint "POST" "/api/v1/chat/kb-gamemaster" "{\"message\": \"$message\"}" "KB-Enhanced Game Master"
+        ;;
+    "kb-development")
+        message="${2:-How should I implement KB caching in the multiagent orchestrator?}"
+        test_endpoint "POST" "/api/v1/chat/kb-development" "{\"message\": \"$message\"}" "KB Development Advisor"
+        ;;
+    "kb-search")
+        query="${2:-consciousness}"
+        test_endpoint "POST" "/api/v1/chat/kb-search" "{\"message\": \"$query\"}" "Direct KB Search"
+        ;;
+    "kb-context")
+        context="${2:-gaia}"
+        test_endpoint "POST" "/api/v1/chat/kb-context" "{\"message\": \"$context\"}" "KOS Context Loading"
+        ;;
+    "kb-multitask")
+        message="${2:-Search for 'multiagent' and load the 'gaia' context}"
+        test_endpoint "POST" "/api/v1/chat/kb-multitask" "{\"message\": \"$message\"}" "KB Multi-Task Execution"
+        ;;
     "multi-provider")
         message="${2:-What is 2+2?}"
         test_endpoint "POST" "/api/v0.2/chat" "{\"message\": \"$message\", \"stream\": false}" "Multi-Provider Chat (v0.2)"
@@ -605,6 +633,14 @@ case "$1" in
         $0 --$ENVIRONMENT worldbuilding
         $0 --$ENVIRONMENT storytelling
         $0 --$ENVIRONMENT problemsolving
+        echo -e "\n${BLUE}Testing KB-enhanced multiagent capabilities...${NC}"
+        $0 --$ENVIRONMENT kb-enhanced
+        $0 --$ENVIRONMENT kb-research
+        $0 --$ENVIRONMENT kb-gamemaster
+        $0 --$ENVIRONMENT kb-development
+        $0 --$ENVIRONMENT kb-search "consciousness"
+        $0 --$ENVIRONMENT kb-context "gaia"
+        $0 --$ENVIRONMENT kb-multitask
         ;;
     "providers-all")
         echo -e "${GREEN}Testing all provider endpoints...${NC}\n"
@@ -694,6 +730,15 @@ case "$1" in
         echo "  $0 mcp-agent-hot \"Q\"        # Pre-initialized MCP agent (faster)"
         echo "  $0 orchestrated \"Question\"   # Multi-agent orchestration"
         echo "  $0 multi-provider \"Q\"        # Auto-select best provider"
+        echo ""
+        echo "KB-Enhanced Chat Endpoints (KOS Integration):"
+        echo "  $0 kb-enhanced \"Query\"        # Adaptive KB-enhanced multiagent"
+        echo "  $0 kb-research \"Topic\"        # Research with knowledge agents"
+        echo "  $0 kb-gamemaster \"Scene\"      # Game master with world knowledge"
+        echo "  $0 kb-development \"Question\"  # Development guidance from KB"
+        echo "  $0 kb-search \"Keywords\"       # Direct KB search interface"
+        echo "  $0 kb-context \"ContextName\"   # Load KOS context (gaia, mmoirl, etc)"
+        echo "  $0 kb-multitask \"Tasks\"       # Parallel KB task execution"
         echo ""
         echo "Chat Utility Endpoints:"
         echo "  $0 chat-status               # Chat service detailed status"
