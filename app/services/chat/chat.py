@@ -516,17 +516,20 @@ try:
         auth_principal: Dict[str, Any] = Depends(get_current_auth)
     ):
         """
-        Chat endpoint using mcp-agent framework.
+        Advanced multiagent chat endpoint using mcp-agent orchestration.
         
-        Note: Has initialization overhead (~3-5s) but provides:
-        - MCP tool integration capabilities
-        - Built-in conversation management
-        - Foundation for consciousness patterns
+        Provides sophisticated agent coordination:
+        - Game Master + multiple NPCs for interactive scenes
+        - Collaborative specialist teams for complex problems
+        - Multi-perspective storytelling
+        - Automatic scenario detection and routing
+        
+        Perfect for MMOIRL's complex interaction requirements.
         """
         try:
-            # Import at runtime to avoid startup issues
-            from .lightweight_chat import lightweight_chat_endpoint
-            return await lightweight_chat_endpoint(request, auth_principal)
+            # Import sophisticated multiagent orchestrator
+            from .multiagent_orchestrator import multiagent_orchestrator_endpoint
+            return await multiagent_orchestrator_endpoint(request, "auto", auth_principal)
         except ImportError as ie:
             logger.error(f"Import error in mcp-agent endpoint: {ie}")
             # Fall back to simple response for testing
@@ -550,6 +553,45 @@ try:
             raise HTTPException(status_code=500, detail=str(e))
         
     logger.info("✅ MCP-agent chat endpoint added with runtime import")
+    
+    # Add specific multiagent scenario endpoints
+    @router.post("/gamemaster")
+    async def gamemaster_chat(
+        request: ChatRequest,
+        auth_principal: Dict[str, Any] = Depends(get_current_auth)
+    ):
+        """Game Master orchestrating multiple NPCs for interactive scenes"""
+        from .multiagent_orchestrator import gamemaster_scenario_endpoint
+        return await gamemaster_scenario_endpoint(request, auth_principal)
+    
+    @router.post("/worldbuilding")
+    async def worldbuilding_chat(
+        request: ChatRequest,
+        auth_principal: Dict[str, Any] = Depends(get_current_auth)
+    ):
+        """Collaborative world building with specialist agents"""
+        from .multiagent_orchestrator import worldbuilding_scenario_endpoint
+        return await worldbuilding_scenario_endpoint(request, auth_principal)
+    
+    @router.post("/storytelling")
+    async def storytelling_chat(
+        request: ChatRequest,
+        auth_principal: Dict[str, Any] = Depends(get_current_auth)
+    ):
+        """Multi-perspective storytelling with different narrative viewpoints"""
+        from .multiagent_orchestrator import storytelling_scenario_endpoint
+        return await storytelling_scenario_endpoint(request, auth_principal)
+    
+    @router.post("/problemsolving")
+    async def problemsolving_chat(
+        request: ChatRequest,
+        auth_principal: Dict[str, Any] = Depends(get_current_auth)
+    ):
+        """Expert team collaboration for complex problem solving"""
+        from .multiagent_orchestrator import problemsolving_scenario_endpoint
+        return await problemsolving_scenario_endpoint(request, auth_principal)
+    
+    logger.info("✅ Advanced multiagent orchestration endpoints added")
     
 except Exception as e:
     logger.warning(f"⚠️ Could not create mcp-agent chat endpoint: {e}")

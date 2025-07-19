@@ -248,6 +248,22 @@ case "$1" in
         message="${2:-What is 2+2?}"
         test_endpoint "POST" "/api/v1/chat/orchestrated" "{\"message\": \"$message\"}" "Orchestrated Multi-Agent Chat"
         ;;
+    "gamemaster")
+        message="${2:-A hooded figure enters the tavern and asks about missing merchants}"
+        test_endpoint "POST" "/api/v1/chat/gamemaster" "{\"message\": \"$message\"}" "Game Master + NPCs Orchestration"
+        ;;
+    "worldbuilding")
+        message="${2:-Create a new fantasy region called The Crimson Reaches}"
+        test_endpoint "POST" "/api/v1/chat/worldbuilding" "{\"message\": \"$message\"}" "Collaborative World Building"
+        ;;
+    "storytelling")
+        message="${2:-Tell the story of a powerful artifact discovery from multiple perspectives}"
+        test_endpoint "POST" "/api/v1/chat/storytelling" "{\"message\": \"$message\"}" "Multi-Perspective Storytelling"
+        ;;
+    "problemsolving")
+        message="${2:-Design a complex multiplayer puzzle for 6-8 players called The Resonance Chamber}"
+        test_endpoint "POST" "/api/v1/chat/problemsolving" "{\"message\": \"$message\"}" "Expert Team Problem Solving"
+        ;;
     "multi-provider")
         message="${2:-What is 2+2?}"
         test_endpoint "POST" "/api/v0.2/chat" "{\"message\": \"$message\", \"stream\": false}" "Multi-Provider Chat (v0.2)"
@@ -584,6 +600,11 @@ case "$1" in
         $0 --$ENVIRONMENT mcp-agent-hot "What is 2+2?"
         $0 --$ENVIRONMENT orchestrated "What is 2+2?"
         $0 --$ENVIRONMENT multi-provider "What is 2+2?"
+        echo -e "\n${BLUE}Testing sophisticated multiagent capabilities...${NC}"
+        $0 --$ENVIRONMENT gamemaster
+        $0 --$ENVIRONMENT worldbuilding
+        $0 --$ENVIRONMENT storytelling
+        $0 --$ENVIRONMENT problemsolving
         ;;
     "providers-all")
         echo -e "${GREEN}Testing all provider endpoints...${NC}\n"

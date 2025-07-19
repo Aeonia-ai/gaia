@@ -1409,6 +1409,90 @@ async def ultrafast_redis_v3_chat(
         json_data=body
     )
 
+@app.post("/api/v1/chat/gamemaster", tags=["Chat"])
+async def gamemaster_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Game Master orchestrating multiple NPCs for interactive scenes."""
+    body = await request.json()
+    
+    # Remove content-length headers to prevent issues
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/gamemaster",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
+@app.post("/api/v1/chat/worldbuilding", tags=["Chat"])
+async def worldbuilding_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Collaborative world building with specialist agents."""
+    body = await request.json()
+    
+    # Remove content-length headers to prevent issues
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/worldbuilding",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
+@app.post("/api/v1/chat/storytelling", tags=["Chat"])
+async def storytelling_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Multi-perspective storytelling with different narrative viewpoints."""
+    body = await request.json()
+    
+    # Remove content-length headers to prevent issues
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/storytelling",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
+@app.post("/api/v1/chat/problemsolving", tags=["Chat"])
+async def problemsolving_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Expert team collaboration for complex problem solving."""
+    body = await request.json()
+    
+    # Remove content-length headers to prevent issues
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/chat/problemsolving",
+        method="POST",
+        headers=headers,
+        json_data=body
+    )
+
 @app.post("/api/v1/chat/personas", tags=["Chat"])
 async def create_persona(
     request: Request,
