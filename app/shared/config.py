@@ -92,6 +92,7 @@ class GaiaSettings(BaseSettings):
     AUTH_SERVICE_URL: str = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
     ASSET_SERVICE_URL: str = os.getenv("ASSET_SERVICE_URL", "http://localhost:8002") 
     CHAT_SERVICE_URL: str = os.getenv("CHAT_SERVICE_URL", "http://localhost:8003")
+    KB_SERVICE_URL: str = os.getenv("KB_SERVICE_URL", "http://localhost:8004")
     GATEWAY_URL: str = os.getenv("GATEWAY_URL", "http://localhost:8666")
     
     # Service Configuration

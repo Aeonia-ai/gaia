@@ -105,7 +105,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 SERVICE_URLS = {
     "auth": settings.AUTH_SERVICE_URL,
     "asset": settings.ASSET_SERVICE_URL,
-    "chat": settings.CHAT_SERVICE_URL
+    "chat": settings.CHAT_SERVICE_URL,
+    "kb": settings.KB_SERVICE_URL
 }
 
 # HTTP client for service communication
@@ -1021,8 +1022,8 @@ async def kb_enhanced_multiagent_chat(request: Request, auth: dict = Depends(get
     headers.pop("Content-Length", None)
     
     return await forward_request_to_service(
-        service_name="chat",
-        path="/kb-enhanced",
+        service_name="kb",
+        path="/search",
         method="POST",
         json_data=body,
         headers=headers
@@ -1039,8 +1040,8 @@ async def kb_research_chat(request: Request, auth: dict = Depends(get_current_au
     headers.pop("Content-Length", None)
     
     return await forward_request_to_service(
-        service_name="chat",
-        path="/kb-research",
+        service_name="kb",
+        path="/search",
         method="POST",
         json_data=body,
         headers=headers
@@ -1057,8 +1058,8 @@ async def kb_gamemaster_chat(request: Request, auth: dict = Depends(get_current_
     headers.pop("Content-Length", None)
     
     return await forward_request_to_service(
-        service_name="chat",
-        path="/kb-gamemaster",
+        service_name="kb",
+        path="/search",
         method="POST",
         json_data=body,
         headers=headers
@@ -1075,8 +1076,8 @@ async def kb_development_chat(request: Request, auth: dict = Depends(get_current
     headers.pop("Content-Length", None)
     
     return await forward_request_to_service(
-        service_name="chat",
-        path="/kb-development",
+        service_name="kb",
+        path="/search",
         method="POST",
         json_data=body,
         headers=headers
@@ -1093,8 +1094,8 @@ async def kb_search_chat(request: Request, auth: dict = Depends(get_current_auth
     headers.pop("Content-Length", None)
     
     return await forward_request_to_service(
-        service_name="chat",
-        path="/kb-search",
+        service_name="kb",
+        path="/search",
         method="POST",
         json_data=body,
         headers=headers
@@ -1111,8 +1112,8 @@ async def kb_context_chat(request: Request, auth: dict = Depends(get_current_aut
     headers.pop("Content-Length", None)
     
     return await forward_request_to_service(
-        service_name="chat",
-        path="/kb-context",
+        service_name="kb",
+        path="/context",
         method="POST",
         json_data=body,
         headers=headers
@@ -1129,8 +1130,8 @@ async def kb_multitask_chat(request: Request, auth: dict = Depends(get_current_a
     headers.pop("Content-Length", None)
     
     return await forward_request_to_service(
-        service_name="chat",
-        path="/kb-multitask",
+        service_name="kb",
+        path="/multitask",
         method="POST",
         json_data=body,
         headers=headers

@@ -21,6 +21,7 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8000
       - ASSET_SERVICE_URL=http://asset-service:8000
       - CHAT_SERVICE_URL=http://chat-service:8000
+      - KB_SERVICE_URL=http://kb-service:8000
     depends_on:
       - db
       - nats
@@ -28,6 +29,7 @@ services:
       - auth-service
       - asset-service
       - chat-service
+      - kb-service
     networks:
       - gaia_net
     command: uvicorn app.gateway.main:app --host 0.0.0.0 --port 8000 --reload
@@ -102,6 +104,33 @@ services:
     networks:
       - gaia_net
     command: uvicorn app.services.chat.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # KB Service (Knowledge Base integration)
+  kb-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.kb
+    volumes:
+      - ./app:/app/app
+      # Mount Knowledge Base for direct file access
+      - ${KB_PATH:-/Users/jasonasbahr/Development/Aeonia/Vaults/KB}:/kb:ro
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
+      # KB configuration
+      - KB_PATH=/kb
+      - KB_MCP_ENABLED=true
+      - KB_MODE=local
+    depends_on:
+      - db
+      - nats
+      - redis
+    networks:
+      - gaia_net
+    command: uvicorn app.services.kb.main:app --host 0.0.0.0 --port 8000 --reload
 
   # Web Service (FastHTML UI)
   web-service:
