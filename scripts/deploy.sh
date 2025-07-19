@@ -338,7 +338,7 @@ function setup_secrets() {
                 secrets+=("SUPABASE_URL" "SUPABASE_ANON_KEY" "SUPABASE_JWT_SECRET")
                 ;;
             "web")
-                secrets+=("API_KEY")
+                secrets+=("WEB_API_KEY")
                 ;;
         esac
         
