@@ -206,6 +206,13 @@ docker-compose.override.yml
 llm_platform_venv/
 .gcloud/
 
+# Gaia specific
+gaia-mcp-env/
+test_*.py
+*_example.py
+manual_*.py
+endpoint_test_results.json
+
 # Editor specific
 *.swp
 *.swo

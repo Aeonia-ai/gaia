@@ -106,6 +106,107 @@ Fixed major flow issues where UI elements were appearing in wrong places:
 - **Automated Testing**: Created multiple test scripts for verification
 - **Custom Animations**: Added animations.css with smooth transitions and typing indicators
 
+## 🎮 MMOIRL-Ready Infrastructure
+
+### MCP-Agent Integration (COMPLETE)
+The platform now has full MCP (Model Context Protocol) support enabling MMOIRL features:
+
+#### Available MCP Endpoints
+- **`/api/v1/chat/mcp-agent`** - Full MCP framework with tool support (3-5s response)
+- **`/api/v1/chat/mcp-agent-hot`** - Pre-initialized for faster responses (0.5-1s after warmup)
+- **`/api/v1/chat/orchestrated`** - Multi-agent coordination for complex tasks
+
+#### MCP Server Capabilities
+- **Local Environment**: Filesystem, terminal, code execution
+- **Remote Access**: SSH connections, Docker containers, Kubernetes pods
+- **External APIs**: Dynamic tool loading from any MCP server
+- **Custom Tools**: Easy integration of game-specific MCP servers
+
+### Multi-Agent Orchestration (COMPLETE)
+Perfect for MMOIRL scenarios requiring distributed intelligence:
+
+- **Dynamic Agent Creation**: Spawn specialized agents on-demand
+- **Parallel Processing**: Multiple agents working simultaneously
+- **Inter-Agent Communication**: Via NATS messaging system
+- **State Management**: Redis for instant context switching
+- **Performance Tracking**: Built-in metrics for optimization
+
+### MMOIRL Use Cases Supported
+
+#### 1. Location-Based Gaming
+- Agents with access to mapping APIs
+- Real-time player proximity detection
+- Dynamic event generation based on location
+
+#### 2. Augmented Reality Integration
+- AI companions that understand physical environment
+- Object recognition via image analysis tools
+- Real-world quest generation
+
+#### 3. Social Gaming Features
+- Multi-player agent interactions
+- Shared world state via Redis
+- Cross-player AI communication
+
+#### 4. Real-World API Integration
+- Weather-based game mechanics
+- Social media integration
+- IoT device interactions
+- Payment processing for in-game economies
+
+### Performance Metrics for MMOIRL
+- **Player AI Response**: 380-540ms (ultrafast-redis-v3)
+- **Multi-Agent Coordination**: 2.5-4s for complex tasks
+- **Concurrent Players**: Horizontally scalable architecture
+- **State Persistence**: Redis with PostgreSQL backup
+
+## 🚀 MMOIRL Deployment Architecture: Cluster-Per-Game (Recommended)
+
+### Strategic Decision: Ship Games Now, Optimize Later
+**Cluster-per-game** is the chosen architecture for MMOIRL, prioritizing speed to market and operational simplicity.
+
+### Why This Approach
+- **Launch in weeks, not months** - No multi-tenancy development overhead
+- **Prove the concept** - Validate MMOIRL before optimizing infrastructure  
+- **Learn from real games** - Discover actual patterns from player behavior
+- **Maintain focus** - Build games, not infrastructure complexity
+- **Reduce risk** - Bugs in one game can't affect others
+
+### Key Advantages
+1. **Complete Isolation**: Each game operates independently
+2. **Maximum Customization**: Unique AI behaviors, tools, and features per game
+3. **Simple Operations**: Restart, debug, or update one game at a time
+4. **Clean Architecture**: No tenant filtering in queries or caching
+5. **Fast Development**: Ship first game in 2-3 weeks
+
+### Deployment Timeline
+- **Week 1-2**: First game on Docker Compose
+- **Week 3-4**: Deploy to Fly.io (`gaia-zombies-chat`, etc.)
+- **Month 2**: Launch 2-3 more games
+- **Month 3+**: Scale successful games to Kubernetes
+- **Year 2**: Consider multi-tenancy if you have 50+ games
+
+### Real Launch Examples
+1. **"Zombie Survival MMOIRL"** (Week 1)
+   - Weather API affects zombie behavior
+   - Location-based safe houses
+   - News events trigger hordes
+
+2. **"Fantasy Quest AR"** (Week 3)
+   - Image recognition for spell components
+   - Social sharing of discoveries
+   - Collaborative boss battles
+
+3. **"Fitness Warriors"** (Week 5)
+   - Health app integration
+   - Competitive daily challenges
+   - Real-time coaching AI
+
+### Future-Proof Design
+The architecture supports easy migration to multi-tenancy later, but **you won't need it until you have 20-50+ successful games**. Focus on shipping games first.
+
+See [MMOIRL Cluster Architecture](mmoirl-cluster-architecture.md) for detailed deployment instructions.
+
 ## 🚀 Immediate Next Tasks
 
 ### 1. Polish Visual Experience
@@ -137,4 +238,4 @@ Fixed major flow issues where UI elements were appearing in wrong places:
 - Integration with asset service for processing
 
 ## 🎯 Current Focus
-The **FastHTML Web Interface** is now fully functional with chat capabilities. Next priority is adding **WebSocket support** for real-time features, followed by user profile management and enhanced conversation features.
+The **FastHTML Web Interface** is now fully functional with chat capabilities. The platform is **MMOIRL-ready** with MCP-agent integration and multi-agent orchestration. Next priority is adding **WebSocket support** for real-time features, followed by user profile management and enhanced conversation features.

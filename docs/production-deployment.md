@@ -1,12 +1,19 @@
 # Production Deployment Guide
 
-This guide walks through deploying the Gaia Platform to production on Fly.io.
+This guide walks through deploying the Gaia Platform to production using the **cluster-per-game** architecture for MMOIRL games.
 
 ## Prerequisites
 
 1. **Fly.io Account**: Must be logged in with access to `aeonia-dev` organization
 2. **Environment Variables**: All API keys configured in `.env` file
 3. **Staging Tested**: Verify staging deployment is working
+
+## Cluster-Per-Game Deployment Strategy
+
+Each MMOIRL game gets its own isolated cluster. Use this naming pattern:
+- **Apps**: `gaia-{game-id}-{service}` (e.g., `gaia-zombies-gateway`)
+- **Database**: `gaia-{game-id}-db` (e.g., `gaia-zombies-db`)
+- **Redis**: `gaia-{game-id}-redis` (e.g., `gaia-zombies-redis`)
 
 ## Pre-Deployment Checklist
 
@@ -17,23 +24,27 @@ This guide walks through deploying the Gaia Platform to production on Fly.io.
 fly orgs list
 # Should show: aeonia-dev
 
+# For a new game "zombies", check if resources exist:
+GAME_ID="zombies"
+
 # Check existing databases
-fly mpg list
-# Look for: gaia-db-production
+fly mpg list | grep $GAME_ID
 
 # Check existing apps
-fly apps list
-# Look for: gaia-gateway-production
+fly apps list | grep $GAME_ID
 ```
 
-### 2. Database Setup
+### 2. Database Setup for Your Game
 
-If `gaia-db-production` doesn't exist:
+Create a dedicated database for each game:
 
 ```bash
-# Create production database
+# Set your game ID
+GAME_ID="zombies"  # Replace with your game name
+
+# Create game-specific database
 fly postgres create \
-  --name gaia-db-production \
+  --name gaia-${GAME_ID}-db \
   --region lax \
   --vm-size shared-cpu-1x \
   --volume-size 10 \
@@ -41,63 +52,85 @@ fly postgres create \
   --org aeonia-dev
 
 # Get connection string
-fly postgres connect -a gaia-db-production --command "echo \$DATABASE_URL"
+fly postgres connect -a gaia-${GAME_ID}-db --command "echo \$DATABASE_URL"
 ```
 
-### 3. Update Production Config
+### 3. Create Game-Specific Config
 
-Edit `fly.production.toml`:
-1. Replace `DATABASE_URL` with actual connection string
-2. Verify all environment variables are correct
-3. Confirm organization and region settings
+Create a config file for your game:
+
+```bash
+# Copy template
+cp fly.production.toml fly.${GAME_ID}.toml
+
+# Edit fly.zombies.toml:
+# 1. Change app name to gaia-zombies-gateway
+# 2. Update DATABASE_URL to point to gaia-zombies-db
+# 3. Add game-specific environment variables
+```
 
 ## Deployment Steps
 
-### Option 1: Using Smart Deploy Script (Recommended)
+### Quick Deploy Script for New Game
 
 ```bash
-# Deploy gateway-only to production
-./scripts/deploy.sh --env production
+# Create deployment script for your game
+cat > deploy-${GAME_ID}.sh << 'EOF'
+#!/bin/bash
+GAME_ID="zombies"  # Your game ID
 
-# Or deploy with full microservices
-./scripts/deploy.sh --env production --services all
+# Deploy each service
+for SERVICE in gateway auth chat asset; do
+  echo "Deploying gaia-${GAME_ID}-${SERVICE}..."
+  fly apps create gaia-${GAME_ID}-${SERVICE} --org aeonia-dev
+  fly deploy --app gaia-${GAME_ID}-${SERVICE} --config fly.${GAME_ID}.${SERVICE}.toml
+done
+EOF
+
+chmod +x deploy-${GAME_ID}.sh
+./deploy-${GAME_ID}.sh
 ```
 
-### Option 2: Manual Deployment
+### Manual Service Deployment
 
 ```bash
-# Set secrets first
-fly secrets set API_KEY=$API_KEY -a gaia-gateway-production
-fly secrets set OPENAI_API_KEY=$OPENAI_API_KEY -a gaia-gateway-production
-fly secrets set ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY -a gaia-gateway-production
+GAME_ID="zombies"
 
-# Deploy the application
-fly deploy --config fly.production.toml
+# Deploy Gateway
+fly apps create gaia-${GAME_ID}-gateway --org aeonia-dev
+fly secrets set API_KEY=$API_KEY -a gaia-${GAME_ID}-gateway
+fly secrets set OPENAI_API_KEY=$OPENAI_API_KEY -a gaia-${GAME_ID}-gateway
+fly deploy --app gaia-${GAME_ID}-gateway --config fly.${GAME_ID}.gateway.toml
 
-# Monitor deployment
-fly logs -a gaia-gateway-production
+# Deploy Chat Service
+fly apps create gaia-${GAME_ID}-chat --org aeonia-dev
+fly deploy --app gaia-${GAME_ID}-chat --config fly.${GAME_ID}.chat.toml
+
+# Continue for auth, asset services...
 ```
 
 ## Post-Deployment Verification
 
 ### 1. Health Check
 
-**⚠️ ALWAYS use test scripts, NOT raw curl commands**
+Test your game cluster:
 
 ```bash
-# ✅ CORRECT: Use smart test script
-./scripts/test.sh --prod health
+GAME_ID="zombies"
 
-# ❌ WRONG: Raw curl (no environment awareness, auth handling, or error context)
-# curl https://gaia-gateway-production.fly.dev/health
+# Test gateway health
+curl https://gaia-${GAME_ID}-gateway.fly.dev/health
 
-# Expected output:
-# ✅ Status: 200
-# {
-#   "status": "healthy",  # or "degraded" for partial deployment
-#   "timestamp": "...",
-#   "version": "0.2"
-# }
+# Test with API key
+curl -H "X-API-Key: YOUR_API_KEY" \
+  https://gaia-${GAME_ID}-gateway.fly.dev/api/v1/chat/status
+
+# Test chat endpoint
+curl -X POST https://gaia-${GAME_ID}-gateway.fly.dev/api/v1/chat/direct \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello from Zombie Survival!"}'
+```
 ```
 
 ### 2. Core Functionality Test
@@ -179,11 +212,34 @@ fly deploy --image <previous-image-id> -a gaia-gateway-production
 - [ ] Supabase JWT secrets are configured
 - [ ] No development/debug endpoints exposed
 
+## Game-Specific Configuration
+
+### Custom AI Personas
+```toml
+# In fly.zombies.toml
+[env]
+  GAME_PERSONAS = "survivor_guide,zombie_expert,medic"
+  GAME_THEME = "post-apocalyptic survival"
+```
+
+### MCP Tools Configuration
+```yaml
+# mcp_zombies.config.yaml
+mcp:
+  servers:
+    weather:
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-weather"]
+    location:
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-location"]
+```
+
 ## Monitoring & Alerts
 
-1. **Fly.io Dashboard**: https://fly.io/apps/gaia-gateway-production
-2. **Metrics**: Available in Fly.io dashboard
-3. **Health Endpoint**: Monitor externally via uptime services
+1. **Per-Game Dashboard**: `https://fly.io/apps/gaia-{game-id}-gateway`
+2. **Unified Monitoring**: Set up Grafana with game tags
+3. **Health Endpoints**: Monitor each game cluster separately
 
 ## Troubleshooting
 

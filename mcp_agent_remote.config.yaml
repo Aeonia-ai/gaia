@@ -1,0 +1,48 @@
+execution_engine: asyncio
+logger:
+  transports: [console]
+  level: info
+
+# Example: Connecting to MCP servers in different locations
+mcp:
+  servers:
+    # Local filesystem (current setup)
+    filesystem:
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem"]
+      description: "Local filesystem access"
+    
+    # MCP server in another Docker container
+    postgres_docker:
+      command: "docker"
+      args: ["exec", "-i", "postgres-container", "mcp-server-postgres"]
+      env:
+        POSTGRES_URL: "postgresql://user:pass@postgres:5432/db"
+      description: "PostgreSQL in Docker container"
+    
+    # Remote MCP server via SSH
+    remote_files:
+      command: "ssh"
+      args: ["user@remote-server", "npx", "-y", "@modelcontextprotocol/server-filesystem", "/data"]
+      description: "Remote filesystem via SSH"
+    
+    # MCP server via kubectl (Kubernetes)
+    k8s_service:
+      command: "kubectl"
+      args: ["exec", "-i", "mcp-pod-xyz", "--", "mcp-server-custom"]
+      description: "MCP server in Kubernetes pod"
+    
+    # Future: WebSocket/HTTP transports (when mcp-agent supports them)
+    # api_gateway:
+    #   transport: "websocket"
+    #   url: "ws://mcp-gateway:8080/servers/api"
+    #   auth:
+    #     type: "bearer"
+    #     token: "${MCP_API_TOKEN}"
+
+# LLM configuration
+anthropic:
+  default_model: claude-3-5-sonnet-20241022
+  
+openai:
+  default_model: gpt-4o

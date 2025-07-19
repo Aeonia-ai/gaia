@@ -1,0 +1,25 @@
+execution_engine: asyncio
+logger:
+  transports: [console]
+  level: info
+  path: "logs/mcp-agent.jsonl"
+
+# MCP servers configuration matching Gaia's setup
+mcp:
+  servers:
+    fetch:
+      command: "uvx"
+      args: ["mcp-server-fetch"]
+      description: "Fetch content from URLs"
+    filesystem:
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem"]
+      description: "Read and write files in allowed directories"
+
+# Anthropic configuration (matches Gaia's primary LLM)
+anthropic:
+  default_model: claude-3-5-sonnet-20241022
+  
+# OpenAI configuration (for multi-provider support)
+openai:
+  default_model: gpt-4o

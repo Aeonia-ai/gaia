@@ -1,0 +1,114 @@
+--- a/app/services/chat/orchestrated_chat.py
++++ b/app/services/chat/orchestrated_chat.py
+@@ -30,7 +30,7 @@ class OrchestratedChatService:
+     - Seamless fallback to standard chat
+     """
+     
+-    def __init__(self, settings: Optional[Settings] = None):
++    def __init__(self, settings: Optional[Settings] = None, redis_service=None):
+         self.settings = settings or Settings()
+         self.anthropic = Anthropic(api_key=self.settings.ANTHROPIC_API_KEY)
++        self.redis_service = redis_service  # Optional Redis integration
+         
+@@ -51,25 +51,43 @@ class OrchestratedChatService:
+     async def process_chat(
+         self,
+         request: Dict[str, Any],
+         auth_principal: Dict[str, Any]
+     ) -> Dict[str, Any]:
+         """
+-        Main entry point for orchestrated chat
+-        
+-        1. Route the request
+-        2. Execute with appropriate strategy
+-        3. Return unified response
++        Process chat request with intelligent routing
++        
++        Accepts standard format: {"message": "...", ...}
+         """
+         start_time = time.time()
+         self.metrics["total_requests"] += 1
+         
+         try:
+-            # Extract message and context
+-            messages = request.get("messages", [])
+-            if not messages:
+-                raise HTTPException(status_code=400, detail="No messages provided")
++            # Extract message from standard format
++            message = request.get("message")
++            if not message:
++                raise HTTPException(status_code=400, detail="No message provided")
+             
+-            latest_message = messages[-1]["content"]
++            # Optionally get conversation history from Redis
++            user_id = auth_principal.get("user_id")
++            conversation_id = request.get("conversation_id")
++            
++            # Build messages array for internal processing
++            messages = []
++            
++            # Add history if available and needed
++            if self.redis_service and user_id and conversation_id:
++                try:
++                    # Get recent history from Redis (last 5 messages for context)
++                    history = await self.redis_service.get_chat_history(
++                        user_id=user_id,
++                        conversation_id=conversation_id,
++                        limit=5
++                    )
++                    messages.extend(history)
++                except Exception as e:
++                    logger.warning(f"Could not retrieve history: {e}")
++            
++            # Add current message
++            messages.append({"role": "user", "content": message})
+             
+             # Route the request
+-            route, decision = await self.router.route(latest_message)
++            route, decision = await self.router.route(message)
+             logger.info(f"Routed to: {route} (confidence: {decision.confidence})")
+@@ -99,6 +117,21 @@ class OrchestratedChatService:
+             execution_time = time.time() - start_time
+             self._update_avg_response_time(execution_time)
+             
+-            # Format response
+-            return self._format_response(response, execution_time, route)
++            # Store in Redis if available
++            if self.redis_service and user_id:
++                try:
++                    await self.redis_service.store_message(
++                        user_id=user_id,
++                        conversation_id=conversation_id,
++                        message=message,
++                        response=response.get("content", ""),
++                        metadata={"route": route, "execution_time": execution_time}
++                    )
++                except Exception as e:
++                    logger.warning(f"Could not store in Redis: {e}")
++            
++            # Format response to match standard chat response
++            return self._format_standard_response(response, execution_time, route)
+             
+         except Exception as e:
+             logger.error(f"Chat processing error: {e}")
+             raise HTTPException(status_code=500, detail=str(e))
++    
++    def _format_standard_response(
++        self,
++        response: Dict[str, Any],
++        execution_time: float,
++        route: str
++    ) -> Dict[str, Any]:
++        """Format response to match standard chat endpoint format"""
++        return {
++            "response": response.get("content", ""),
++            "model": response.get("model", "claude-3-5-sonnet-20241022"),
++            "usage": response.get("usage", {}),
++            "_metadata": {
++                "route": route,
++                "execution_time_ms": int(execution_time * 1000),
++                "type": response.get("type", "unknown"),
++                "tools_used": response.get("tools_used", []),
++                "agents_used": response.get("agents_used", [])
++            }
++        }

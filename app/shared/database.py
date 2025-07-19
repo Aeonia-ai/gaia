@@ -24,6 +24,10 @@ engine = create_engine(
     echo=os.getenv("DATABASE_ECHO", "false").lower() == "true",
     pool_pre_ping=True,  # Verify connections before use
     pool_recycle=3600,   # Recycle connections every hour
+    pool_size=int(os.getenv("DATABASE_POOL_SIZE", "20")),      # Increased from 5
+    max_overflow=int(os.getenv("DATABASE_MAX_OVERFLOW", "30")), # Increased from 10
+    pool_timeout=30,
+    pool_reset_on_return='commit'  # Better connection hygiene
 )
 
 # Session factory
@@ -89,8 +93,8 @@ def get_database_settings() -> dict:
     return {
         "url": DATABASE_URL,
         "echo": os.getenv("DATABASE_ECHO", "false").lower() == "true",
-        "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "5")),
-        "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "10")),
+        "pool_size": int(os.getenv("DATABASE_POOL_SIZE", "20")),
+        "max_overflow": int(os.getenv("DATABASE_MAX_OVERFLOW", "30")),
         "pool_timeout": int(os.getenv("DATABASE_POOL_TIMEOUT", "30")),
         "pool_recycle": int(os.getenv("DATABASE_POOL_RECYCLE", "3600")),
     }
