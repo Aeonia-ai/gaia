@@ -323,8 +323,30 @@ function setup_secrets() {
     if [[ -f ".env" ]]; then
         log_info "Loading secrets from .env file..."
         
-        # Common secrets for all services (API_KEY removed - now user-associated in database)
+        # Common secrets for all services (API_KEY removed - now user-associated in database)  
         local secrets=()
+        
+        # Check if Redis exists for this environment and get connection URL
+        local redis_name="gaia-redis-${ENVIRONMENT}"
+        local redis_url=""
+        
+        log_info "Checking Redis instance: $redis_name"
+        if fly redis status "$redis_name" >/dev/null 2>&1; then
+            # Get Redis URL from fly redis status command  
+            redis_url=$(fly redis status "$redis_name" | grep "Private URL" | awk '{print $4}')
+            if [[ -n "$redis_url" ]]; then
+                log_info "Found Redis instance: $redis_name"
+                log_info "Setting Redis URL for environment: $ENVIRONMENT"
+                echo "$redis_url" | fly secrets set "REDIS_URL=-" -a "$app_name" >/dev/null 2>&1
+                log_info "✅ Redis URL configured successfully"
+            else
+                log_warn "Could not extract Redis URL from status output"
+            fi
+        else
+            log_warn "Redis instance $redis_name not found for $ENVIRONMENT environment"
+            log_warn "Redis caching will be disabled. Create Redis with:"
+            log_warn "  fly redis create $redis_name --org aeonia-dev --region $REGION --no-replicas --enable-eviction"
+        fi
         
         # Service-specific secrets
         case "$service" in
