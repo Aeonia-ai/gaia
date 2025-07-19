@@ -53,6 +53,8 @@ Working on **FastHTML Web UI improvements**. Just completed debugging critical H
 
 ### Configuration & Deployment
 - [API Key Configuration Guide](docs/api-key-configuration-guide.md) - **READ FIRST** for authentication setup
+- [KB Git Sync Guide](docs/kb-git-sync-guide.md) - **NEW** - Complete Git synchronization setup
+- [KB Remote Deployment Authentication](docs/kb-remote-deployment-auth.md) - **NEW** - Git auth for production
 - [Database Architecture](docs/database-architecture.md) - **IMPORTANT** - Understand the hybrid database setup
 - [Supabase Configuration Guide](docs/supabase-configuration.md) - Email confirmation URLs and auth setup
 - [Deployment Best Practices](docs/deployment-best-practices.md) - Local-remote parity strategies
@@ -201,10 +203,16 @@ docker compose up
 ./scripts/test.sh --local all              # Full local test suite
 ./scripts/test.sh --staging all            # Staging tests (expects some failures)
 
+# KB Git Sync Testing and Management
+./scripts/setup-aeonia-kb.sh               # Configure Aeonia Obsidian vault sync
+./scripts/setup-kb-git-repo.sh             # Configure any Git repository sync
+./scripts/test-kb-git-sync.sh              # Test KB Git sync functionality
+
 # Manual service health checks (if needed)
 curl http://auth-service:8000/health
 curl http://asset-service:8000/health
 curl http://chat-service:8000/health
+curl http://kb-service:8000/health
 ```
 
 ## Architecture Overview
@@ -277,11 +285,106 @@ Due to Supabase's free tier limitation (2 projects per organization), we use a s
 
 See [Supabase Configuration Guide](docs/supabase-configuration.md) for detailed setup instructions.
 
+### KB (Knowledge Base) Configuration
+
+**NEW: Git Repository Sync Support (July 2025)**
+
+The KB service now supports automatic synchronization with external Git repositories (e.g., Obsidian vaults, documentation repos).
+
+**Quick Setup for Aeonia Team**:
+```bash
+# 1. Add GitHub Personal Access Token to .env:
+KB_STORAGE_MODE=hybrid
+KB_GIT_REPO_URL=https://github.com/Aeonia-ai/Obsidian-Vault.git
+KB_GIT_AUTH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # Your GitHub PAT
+KB_GIT_AUTO_CLONE=true
+
+# 2. Start the KB service:
+docker compose up kb-service
+
+# 3. The service automatically clones your repository on startup
+# Repository is stored inside the container at /kb (ephemeral storage)
+```
+
+**Creating GitHub Personal Access Token**:
+1. Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Generate new token with `repo` scope (for private repos) or `public_repo` (for public)
+3. Add to `.env` as `KB_GIT_AUTH_TOKEN`
+4. See [KB Remote Deployment Auth Guide](docs/kb-remote-deployment-auth.md) for details
+
+**Storage Mode Options**:
+- **`git`**: File-based storage with Git version control
+- **`database`**: PostgreSQL storage for fast search and collaboration
+- **`hybrid`**: PostgreSQL primary + Git backup (recommended for production)
+
+**Git Sync Features**:
+- **Auto-clone**: Repository automatically cloned on every container startup (1000+ files tested)
+- **Container-only storage**: KB data lives at `/kb` inside container (ephemeral)
+- **Local-remote parity**: Same behavior in local Docker and production deployments
+- **Authentication**: Supports GitHub, GitLab, Bitbucket with Personal Access Tokens
+- **Manual sync endpoints**: `/sync/from-git`, `/sync/to-git`, `/sync/status` (when hybrid mode active)
+
+**Your Daily Workflow**:
+1. **Edit KB files** in your local Obsidian vault or Git repository
+2. **Git commit and push** your changes to GitHub
+3. **Redeploy or restart** KB service to get latest changes
+4. **AI agents access content** through MCP tools with latest data
+
+**Container-Only Storage (Local-Remote Parity)**:
+- KB data is **ephemeral** - stored only inside container at `/kb`
+- Every new container clones fresh from Git (just like production)
+- No local volume mounts - ensures testing matches deployment
+- Changes inside container are lost on restart (use Git for persistence)
+
+**Troubleshooting Git Sync**:
+```bash
+# Verify Git is installed in container
+docker compose exec kb-service git --version  # Should show: git version 2.39.5
+
+# Check repository inside container
+docker compose exec kb-service ls -la /kb/
+
+# View clone logs
+docker compose logs kb-service | grep -E "(Cloning|Successfully cloned)"
+
+# Manual sync commands (when hybrid mode active)
+curl -X POST -H "X-API-Key: $API_KEY" http://kb-service:8000/sync/from-git
+
+# Check sync status
+curl -H "X-API-Key: $API_KEY" http://kb-service:8000/sync/status
+
+# Test everything
+./scripts/test-kb-git-sync.sh
+```
+
+**Performance Comparison** (from testing):
+- **Search**: PostgreSQL 79x faster (14ms vs 1,116ms)
+- **Collaboration**: PostgreSQL supports real-time multi-user editing
+- **Version Control**: Git provides complete history and backup
+- **External Edits**: Automatic sync from your Git repository
+
+**Setup Steps**:
+1. **Configure Aeonia KB**: `./scripts/setup-aeonia-kb.sh` (handles everything automatically)
+2. **Or manual setup**: `./scripts/setup-kb-git-repo.sh` for other repositories
+3. **Test sync**: `./scripts/test-kb-git-sync.sh`
+
+**Remote Deployment Authentication**:
+For production deployments, configure GitHub Personal Access Token:
+```bash
+# Fly.io
+fly secrets set KB_GIT_AUTH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx -a gaia-kb-prod
+
+# Docker/AWS
+KB_GIT_AUTH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+```
+See [Remote Deployment Authentication Guide](docs/kb-remote-deployment-auth.md) for complete setup.
+
 ### Service URLs (Inter-service Communication)
 - Gateway: `http://gateway:8000` (external: `localhost:8666`)
 - Auth: `http://auth-service:8000`
 - Asset: `http://asset-service:8000`
 - Chat: `http://chat-service:8000`
+- **KB: `http://kb-service:8000` (Knowledge Base)**
 - Web: `http://web-service:8000` (external: `localhost:8080`)
 - Redis: `redis://redis:6379` (caching layer)
 

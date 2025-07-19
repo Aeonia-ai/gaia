@@ -98,6 +98,27 @@ class GaiaSettings(BaseSettings):
     # Service Configuration
     SERVICE_NAME: str = os.getenv("SERVICE_NAME", "unknown")
     SERVICE_VERSION: str = os.getenv("SERVICE_VERSION", "1.0.0")
+    
+    # KB Configuration
+    KB_PATH: str = os.getenv("KB_PATH", "/kb")
+    KB_STORAGE_MODE: str = os.getenv("KB_STORAGE_MODE", "git")  # "git", "database", "hybrid"
+    KB_MCP_ENABLED: bool = os.getenv("KB_MCP_ENABLED", "true").lower() == "true"
+    KB_CACHE_TTL: int = int(os.getenv("KB_CACHE_TTL", "300"))  # 5 minutes
+    KB_GIT_BACKUP_ENABLED: bool = os.getenv("KB_GIT_BACKUP_ENABLED", "true").lower() == "true"
+    KB_BACKUP_INTERVAL: int = int(os.getenv("KB_BACKUP_INTERVAL", "300"))  # 5 minutes
+    KB_BATCH_COMMITS: bool = os.getenv("KB_BATCH_COMMITS", "true").lower() == "true"
+    KB_PUSH_ENABLED: bool = os.getenv("KB_PUSH_ENABLED", "false").lower() == "true"
+    
+    # KB Git Sync Configuration
+    KB_GIT_AUTO_SYNC: bool = os.getenv("KB_GIT_AUTO_SYNC", "true").lower() == "true"
+    KB_SYNC_INTERVAL: int = int(os.getenv("KB_SYNC_INTERVAL", "3600"))  # 1 hour
+    KB_GIT_REMOTE: str = os.getenv("KB_GIT_REMOTE", "origin")
+    KB_GIT_BRANCH: str = os.getenv("KB_GIT_BRANCH", "main")
+    
+    # KB Git Repository Configuration
+    KB_GIT_REPO_URL: Optional[str] = os.getenv("KB_GIT_REPO_URL")  # e.g., "https://github.com/user/kb.git"
+    KB_GIT_AUTH_TOKEN: Optional[str] = os.getenv("KB_GIT_AUTH_TOKEN")  # GitHub token for private repos
+    KB_GIT_AUTO_CLONE: bool = os.getenv("KB_GIT_AUTO_CLONE", "true").lower() == "true"
     SERVICE_HOST: str = os.getenv("SERVICE_HOST", "0.0.0.0")
     SERVICE_PORT: int = int(os.getenv("SERVICE_PORT", "8000"))
     

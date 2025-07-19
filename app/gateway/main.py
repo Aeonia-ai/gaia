@@ -1226,6 +1226,202 @@ async def v0_2_reset_performance_metrics(
     )
 
 # ========================================================================================
+# API v0.2 KB ENDPOINTS - Knowledge Base Management
+# ========================================================================================
+
+# KB Read endpoints
+@app.post("/api/v0.2/kb/search", tags=["v0.2 KB"])
+async def v0_2_kb_search(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Search KB using ripgrep for fast full-text search"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/search",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v0.2/kb/read", tags=["v0.2 KB"])
+async def v0_2_kb_read(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Read a specific KB file"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/read",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v0.2/kb/context", tags=["v0.2 KB"])
+async def v0_2_kb_context(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Load a KOS context by name"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/context",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v0.2/kb/navigate", tags=["v0.2 KB"])
+async def v0_2_kb_navigate(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Navigate KB using the manual index system"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/navigate",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+# KB Write endpoints
+@app.post("/api/v0.2/kb/write", tags=["v0.2 KB"])
+async def v0_2_kb_write(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Write or update a file in the KB"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/write",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.delete("/api/v0.2/kb/delete", tags=["v0.2 KB"])
+async def v0_2_kb_delete(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Delete a file from the KB"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/delete",
+        method="DELETE",
+        json_data=body,
+        headers=headers
+    )
+
+@app.post("/api/v0.2/kb/move", tags=["v0.2 KB"])
+async def v0_2_kb_move(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Move or rename a file in the KB"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/move",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.get("/api/v0.2/kb/git/status", tags=["v0.2 KB"])
+async def v0_2_kb_git_status(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get the current Git status of the KB repository"""
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/git/status",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+# KB Cache management
+@app.get("/api/v0.2/kb/cache/stats", tags=["v0.2 KB"])
+async def v0_2_kb_cache_stats(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get KB cache statistics"""
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/cache/stats",
+        method="GET",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.post("/api/v0.2/kb/cache/invalidate", tags=["v0.2 KB"])
+async def v0_2_kb_cache_invalidate(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Invalidate KB cache entries"""
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/cache/invalidate",
+        method="POST",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+# ========================================================================================
 # API v1 ENDPOINTS - Maintain LLM Platform compatibility
 # ========================================================================================
 

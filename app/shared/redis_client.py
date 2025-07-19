@@ -149,6 +149,16 @@ class RedisClient:
         
         return default_value
     
+    async def ping(self) -> bool:
+        """Async ping to test Redis connection."""
+        try:
+            if self._client:
+                self._client.ping()
+                return True
+        except (ConnectionError, RedisError) as e:
+            logger.warning(f"Redis ping failed: {e}")
+        return False
+    
     def flush_pattern(self, pattern: str) -> int:
         """Delete all keys matching pattern."""
         try:

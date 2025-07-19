@@ -112,8 +112,8 @@ services:
       dockerfile: Dockerfile.kb
     volumes:
       - ./app:/app/app
-      # Mount Knowledge Base for direct file access
-      - ${KB_PATH:-/Users/jasonasbahr/Development/Aeonia/Vaults/KB}:/kb:ro
+      # NO local KB mount - container-only storage for local-remote parity
+      # KB will clone from Git on every start, just like production
     env_file:
       - .env
     environment:

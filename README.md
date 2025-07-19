@@ -29,6 +29,8 @@ Unity/Unreal/Web → (Port 8666)    → ├─ Auth Service (Supabase JWT + API 
 - **Auth Service**: JWT validation, user-associated API key auth, user management via Supabase  
 - **Asset Service**: Universal Asset Server functionality from LLM Platform
 - **Chat Service**: LLM interactions with MCP-agent workflows
+- **KB Service**: Knowledge Base with Git sync (Obsidian vaults, documentation repos)
+- **Web Service**: FastHTML frontend for chat interface (port 8080)
 - **Shared Modules**: Common utilities, database, NATS, security, portable database architecture
 
 ### Infrastructure
@@ -58,6 +60,10 @@ Unity/Unreal/Web → (Port 8666)    → ├─ Auth Service (Supabase JWT + API 
    ```bash
    cp .env.example .env
    # Edit .env with your configuration
+   
+   # For KB Service with Git sync (optional):
+   # KB_GIT_REPO_URL=https://github.com/your-org/your-kb.git
+   # KB_GIT_AUTH_TOKEN=ghp_xxxxxxxxxxxx  # GitHub Personal Access Token
    ```
 
 3. **Start Services**

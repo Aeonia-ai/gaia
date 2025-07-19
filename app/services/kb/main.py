@@ -35,6 +35,8 @@ from .kb_service import (
     kb_read_file_endpoint,
     kb_list_directory_endpoint
 )
+from .kb_editor import kb_editor
+from app.models.kb import WriteRequest, DeleteRequest, MoveRequest
 
 # Configure logging
 logger = configure_logging_for_service("kb")
@@ -66,10 +68,37 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Redis not available, caching disabled: {e}")
     
+    # Initialize KB repository (clone from Git if needed)
+    try:
+        from .kb_startup import initialize_kb_repository
+        await initialize_kb_repository()
+    except Exception as e:
+        logger.error(f"Failed to initialize KB repository: {e}")
+    
+    # Initialize Git sync manager
+    try:
+        storage_mode = getattr(config_settings, 'KB_STORAGE_MODE', 'git')
+        if storage_mode == 'hybrid':
+            logger.info("Git sync manager initialization deferred - hybrid mode setup needed")
+        else:
+            logger.info(f"Git sync not applicable for storage mode: {storage_mode}")
+        
+    except Exception as e:
+        logger.warning(f"Git sync manager not available: {e}")
+    
     yield
     
     # Shutdown
     log_service_shutdown("kb")
+    
+    # Shutdown Git sync manager
+    try:
+        from .kb_git_sync import kb_git_sync
+        if kb_git_sync:
+            await kb_git_sync.shutdown()
+            logger.info("KB Git sync manager shutdown")
+    except Exception as e:
+        logger.warning(f"Error shutting down Git sync manager: {e}")
     
     # Publish shutdown event
     try:
@@ -224,6 +253,225 @@ async def invalidate_cache(
         "status": "success",
         "message": f"Cache invalidated for pattern: {pattern}"
     }
+
+# KB Write/Edit Endpoints
+@app.post("/write")
+async def kb_write_file(
+    request: WriteRequest,
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Write or update a file in the KB.
+    
+    Requires write permissions. Creates a Git commit with the changes.
+    """
+    try:
+        # Extract author info from auth if available
+        author = None
+        if auth.get("email"):
+            author = {
+                "name": auth.get("name", auth.get("email").split("@")[0]),
+                "email": auth["email"]
+            }
+        
+        result = await kb_editor.write_file(
+            path=request.path,
+            content=request.content,
+            message=request.message,
+            author=author,
+            validate=request.validate_content
+        )
+        
+        if result["success"]:
+            logger.info(f"KB file written: {request.path} by {auth.get('email', 'unknown')}")
+        else:
+            logger.error(f"KB write failed: {request.path} - {result.get('error', 'Unknown error')}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"KB write endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/delete")
+async def kb_delete_file(
+    request: DeleteRequest,
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Delete a file from the KB.
+    
+    Requires write permissions. Creates a Git commit for the deletion.
+    """
+    try:
+        # Extract author info from auth if available
+        author = None
+        if auth.get("email"):
+            author = {
+                "name": auth.get("name", auth.get("email").split("@")[0]),
+                "email": auth["email"]
+            }
+        
+        result = await kb_editor.delete_file(
+            path=request.path,
+            message=request.message,
+            author=author
+        )
+        
+        if result["success"]:
+            logger.info(f"KB file deleted: {request.path} by {auth.get('email', 'unknown')}")
+        else:
+            logger.error(f"KB delete failed: {request.path} - {result.get('error', 'Unknown error')}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"KB delete endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/move")
+async def kb_move_file(
+    request: MoveRequest,
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Move or rename a file in the KB.
+    
+    Requires write permissions. Creates a Git commit for the move operation.
+    """
+    try:
+        # Extract author info from auth if available
+        author = None
+        if auth.get("email"):
+            author = {
+                "name": auth.get("name", auth.get("email").split("@")[0]),
+                "email": auth["email"]
+            }
+        
+        result = await kb_editor.move_file(
+            old_path=request.old_path,
+            new_path=request.new_path,
+            message=request.message,
+            author=author
+        )
+        
+        if result["success"]:
+            logger.info(f"KB file moved: {request.old_path} -> {request.new_path} by {auth.get('email', 'unknown')}")
+        else:
+            logger.error(f"KB move failed: {request.old_path} - {result.get('error', 'Unknown error')}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"KB move endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/git/status")
+async def kb_git_status(auth: dict = Depends(get_current_auth)) -> dict:
+    """
+    Get the current Git status of the KB repository.
+    
+    Shows modified, added, deleted, and untracked files.
+    """
+    try:
+        result = await kb_editor.get_git_status()
+        
+        if not result["success"]:
+            logger.error(f"KB git status failed: {result.get('error', 'Unknown error')}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"KB git status endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Git Sync Endpoints
+@app.post("/sync/from-git")
+async def sync_from_git(
+    force: bool = False,
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Sync KB content from Git repository to database.
+    
+    Pulls latest changes from Git and updates the database.
+    Use force=true to sync even if no new commits detected.
+    """
+    try:
+        from .kb_git_sync import kb_git_sync
+        
+        if not kb_git_sync:
+            raise HTTPException(status_code=503, detail="Git sync not available")
+        
+        result = await kb_git_sync.sync_from_git(force=force)
+        
+        if result["success"]:
+            logger.info(f"Git sync from Git completed by {auth.get('email', 'unknown')}: {result.get('stats', {})}")
+        else:
+            logger.error(f"Git sync from Git failed: {result.get('message', 'Unknown error')}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Sync from Git endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/sync/to-git")
+async def sync_to_git(
+    commit_message: str = None,
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Sync KB content from database to Git repository.
+    
+    Exports database content to files and creates a Git commit.
+    """
+    try:
+        from .kb_git_sync import kb_git_sync
+        
+        if not kb_git_sync:
+            raise HTTPException(status_code=503, detail="Git sync not available")
+        
+        result = await kb_git_sync.sync_to_git(commit_message=commit_message)
+        
+        if result["success"]:
+            logger.info(f"Git sync to Git completed by {auth.get('email', 'unknown')}: {result.get('stats', {})}")
+        else:
+            logger.error(f"Git sync to Git failed: {result.get('message', 'Unknown error')}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Sync to Git endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sync/status")
+async def get_sync_status(auth: dict = Depends(get_current_auth)) -> dict:
+    """
+    Get current synchronization status between Git and database.
+    
+    Returns information about:
+    - Current Git commit vs last sync
+    - Remote changes available
+    - Local changes pending
+    - Database statistics
+    """
+    try:
+        from .kb_git_sync import kb_git_sync
+        
+        if not kb_git_sync:
+            return {
+                "success": False,
+                "error": "git_sync_not_available",
+                "message": "Git sync functionality not enabled"
+            }
+        
+        result = await kb_git_sync.get_sync_status()
+        return result
+        
+    except Exception as e:
+        logger.error(f"Get sync status endpoint error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Add v0.2 API compatibility router if needed
 from .v0_2_api import router as v0_2_router
