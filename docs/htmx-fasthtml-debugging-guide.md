@@ -81,6 +81,45 @@ return Div(
 )
 ```
 
+### 5. Auth Form Replacement Bug (CRITICAL)
+
+**❌ WRONG: Form targets sibling element with innerHTML**
+```python
+# Form structure that causes form+message mixing bug
+Form(
+    # ... form fields
+    hx_post="/auth/register",
+    hx_target="#auth-message",  # Targets sibling div
+    hx_swap="innerHTML"         # Adds content, doesn't replace form
+),
+Div(id="auth-message", cls="mt-4")  # Sibling div for messages
+```
+
+**✅ CORRECT: Form targets container with outerHTML**
+```python
+# Wrap form in container for proper replacement
+Div(
+    Form(
+        # ... form fields
+        hx_post="/auth/register",
+        hx_target="#auth-form-container",  # Targets the wrapper
+        hx_swap="outerHTML"                # Replaces entire container
+    ),
+    id="auth-form-container"  # Container that gets replaced
+)
+
+# Server response must return new container with same ID
+def auth_page_replacement(title, content, actions=None):
+    return Div(
+        H1(title),
+        *content_paragraphs,
+        *action_buttons,
+        id="auth-form-container"  # Same ID for replacement
+    )
+```
+
+**Why this matters:** The auth form replacement bug caused registration forms to show alongside verification messages instead of being replaced. This was the #1 recurring layout bug.
+
 ## 🔍 Debugging Techniques
 
 ### 1. Enable Comprehensive HTMX Logging

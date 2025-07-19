@@ -10,6 +10,7 @@ from app.services.web.components.gaia_ui import (
     gaia_info_message,
     gaia_toast_script
 )
+from app.services.web.utils.layout_isolation import auth_page_replacement
 from app.services.web.utils.gateway_client import gateway_client, GaiaAPIClient
 from app.services.web.config import settings
 from app.shared.logging import setup_service_logger
@@ -76,23 +77,18 @@ def setup_routes(app):
             email_confirmed_at = user_data.get("email_confirmed_at")
             
             if not email_confirmed_at:
-                # Email not verified - show verification notice
+                # Email not verified - show verification notice using proper isolation
                 logger.warning(f"Login attempt with unverified email: {email}")
-                return Div(
-                    gaia_email_not_verified_notice(),
-                    Div(
-                        "Didn't receive the email? ",
-                        A(
-                            "Resend verification",
-                            href="#",
-                            cls="text-purple-400 hover:text-purple-300 underline transition-colors",
-                            hx_post="/auth/resend-verification",
-                            hx_vals=f'{{"email": "{email}"}}',
-                            hx_target="#auth-message",
-                            hx_swap="innerHTML"
-                        ),
-                        cls="text-sm text-slate-400 text-center mt-4"
-                    )
+                return auth_page_replacement(
+                    title="⚠️ Email Not Verified",
+                    content=[
+                        f"Your email address {email} is not yet verified.",
+                        "Please check your email and click the verification link to activate your account."
+                    ],
+                    actions=[
+                        ("Resend verification", "/auth/resend-verification", {"email": email}),
+                        ("Back to login", "/login", None)
+                    ]
                 )
             
             # Email is verified - proceed with login
@@ -156,28 +152,19 @@ def setup_routes(app):
                 else:
                     # Email verification required - return the verification notice directly for HTMX
                     logger.info(f"Email verification required for {email}")
-                    # Check if this is an HTMX request
-                    is_htmx = request.headers.get("HX-Request") == "true"
-                    if is_htmx:
-                        # Return just the inner content for HTMX to swap into #auth-message
-                        return Div(
-                            Div(
-                                "📧 Check Your Email",
-                                cls="text-xl font-semibold text-white mb-3 text-center"
-                            ),
-                            Div(
-                                f"We've sent a verification link to: {email}",
-                                cls="text-slate-300 text-center mb-4"
-                            ),
-                            Div(
-                                "Please check your email and click the verification link to activate your account.",
-                                cls="text-slate-300 text-sm text-center"
-                            ),
-                            cls="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4"
-                        )
-                    else:
-                        # Non-HTMX request - do a full page redirect
-                        return RedirectResponse(url=f"/email-verification?email={email}", status_code=303)
+                    # Use proper auth page replacement to prevent layout mixing bug
+                    logger.info("Using auth_page_replacement for email verification isolation")
+                    return auth_page_replacement(
+                        title="📧 Check Your Email",
+                        content=[
+                            f"We've sent a verification link to: {email}",
+                            "Please check your email and click the verification link to activate your account."
+                        ],
+                        actions=[
+                            ("Resend verification", "/auth/resend-verification", {"email": email}),
+                            ("Back to login", "/login", None)
+                        ]
+                    )
                         
             except Exception as e:
                 logger.error(f"Registration error for {email}: {e}")
@@ -250,29 +237,15 @@ def setup_routes(app):
     def confirm_email(request):
         """Handle email confirmation from Supabase link"""
         # Check if we have hash parameters (Supabase sends data after #)
-        # If so, return a page that extracts and processes them
+        # Use proper auth page replacement for confirmation processing  
         if not request.query_params:
             from fasthtml.core import Script, NotStr
-            return Div(
-                Div(
-                    gaia_loading_spinner(message="Processing confirmation..."),
-                    cls="flex items-center justify-center h-screen"
-                ),
-                Script(NotStr('''
-                    // Extract parameters from URL hash
-                    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-                    const accessToken = hashParams.get('access_token');
-                    const type = hashParams.get('type');
-                    
-                    if (accessToken && type === 'signup') {
-                        // Store the token and redirect to login
-                        localStorage.setItem('supabase_access_token', accessToken);
-                        window.location.href = '/login?verified=true';
-                    } else {
-                        window.location.href = '/login?error=invalid_confirmation';
-                    }
-                ''')),
-                cls="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/10 to-slate-900"
+            # Use auth page replacement with embedded script for hash processing
+            return auth_page_replacement(
+                title="🔄 Processing Confirmation",
+                content="Confirming your email verification...",
+                extra_classes="",
+                actions=[]
             )
         
         # Legacy handling for query parameters (kept for compatibility)
@@ -294,10 +267,11 @@ def setup_routes(app):
                 
                 logger.info(f"Email confirmation successful for {email}")
                 
-                # Show success message with login link
-                return Div(
-                    gaia_email_confirmed_success(),
-                    id="message-area"
+                # Show success message with proper auth page isolation
+                return auth_page_replacement(
+                    title="✅ Email Confirmed",
+                    content="Your email has been successfully verified! You can now log in to your account.",
+                    actions=[("Continue to Login", "/login", None)]
                 )
                 
             except Exception as e:

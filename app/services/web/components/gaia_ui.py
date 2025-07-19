@@ -235,29 +235,31 @@ def gaia_auth_form(is_login=True):
                 H1(form_title, cls="text-3xl font-bold text-white mb-2 text-center"),
                 P("Experience the magic of Gaia", cls="text-slate-400 text-center mb-8"),
                 
-                Form(
-                    Div(
-                        gaia_input("email", "Email address", type="email", required=True,
-                                 pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$",
-                                 title="Please enter a valid email address"),
-                        cls="mb-4"
+                # Wrap the form in a container for proper HTMX replacement
+                Div(
+                    Form(
+                        Div(
+                            gaia_input("email", "Email address", type="email", required=True,
+                                     pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$",
+                                     title="Please enter a valid email address"),
+                            cls="mb-4"
+                        ),
+                        Div(
+                            gaia_input("password", "Password", type="password", required=True,
+                                     minlength="6",
+                                     title="Password must be at least 6 characters"),
+                            cls="mb-6"
+                        ),
+                        
+                        gaia_button(submit_text, type="submit", cls="w-full"),
+                        
+                        cls="space-y-4",
+                        hx_post="/auth/login" if is_login else "/auth/register",
+                        hx_target="#auth-form-container", 
+                        hx_swap="outerHTML"
                     ),
-                    Div(
-                        gaia_input("password", "Password", type="password", required=True,
-                                 minlength="6",
-                                 title="Password must be at least 6 characters"),
-                        cls="mb-6"
-                    ),
-                    
-                    gaia_button(submit_text, type="submit", cls="w-full"),
-                    
-                    cls="space-y-4",
-                    hx_post="/auth/login" if is_login else "/auth/register",
-                    hx_target="#auth-message",
-                    hx_swap="innerHTML"
+                    id="auth-form-container"
                 ),
-                
-                Div(id="auth-message", cls="mt-4"),
                 
                 # Dev login hint for local development (only show in debug mode)
                 Div(

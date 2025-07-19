@@ -6,8 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. **[Testing and Quality Assurance Guide](docs/testing-and-quality-assurance.md)** - Set up pre-commit hooks and run tests before making changes
 2. **[API Contracts Documentation](docs/api-contracts.md)** - Understand which endpoints must remain public
 3. **[API Key Configuration Guide](docs/api-key-configuration-guide.md)** - ALWAYS check this before setting up authentication
-4. **[Common Mistakes to Avoid](#-common-mistakes-to-avoid)** - Review this section to prevent known issues
-5. **[Essential Documentation Index](#-essential-documentation-index)** - Find the right guide for your task
+4. **[HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md)** - **MANDATORY** read before ANY web UI changes
+5. **[Auth Layout Isolation Rules](docs/auth-layout-isolation.md)** - CRITICAL: Prevent recurring layout bugs
+6. **[Common Mistakes to Avoid](#-common-mistakes-to-avoid)** - Review this section to prevent known issues
+7. **[Essential Documentation Index](#-essential-documentation-index)** - Find the right guide for your task
+
+## ⚠️ REMINDER TO CLAUDE CODE
+**BEFORE ANY WEB UI CHANGES:** You MUST read the HTMX + FastHTML Debugging Guide and Auth Layout Isolation docs first. The user will remind you if you don't, because layout bugs "keep coming back" when documentation is ignored. Always use `auth_page_replacement()` for auth responses and proper HTMX container targeting patterns.
 
 ## 🎯 Current Development Focus (July 19, 2025)
 **Latest Achievement**: ✅ **mTLS + JWT Authentication Migration COMPLETE** (Phases 1-3). Escaped the "hellscape" of API key management with modern authentication infrastructure while maintaining 100% backward compatibility.
