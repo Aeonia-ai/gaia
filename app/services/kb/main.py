@@ -41,6 +41,16 @@ from app.models.kb import WriteRequest, DeleteRequest, MoveRequest
 # Configure logging
 logger = configure_logging_for_service("kb")
 
+# Import RBAC-enabled storage if multi-user is enabled
+if getattr(settings, 'KB_MULTI_USER_ENABLED', False):
+    from .kb_storage_with_rbac import kb_storage_rbac as kb_storage
+    from .kb_storage_with_rbac import router as kb_rbac_router
+    logger.info("Multi-user KB mode enabled with RBAC")
+else:
+    from .kb_storage_manager import kb_storage
+    kb_rbac_router = None
+    logger.info("Single-user KB mode enabled")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage service lifecycle"""
@@ -477,6 +487,11 @@ async def get_sync_status(auth: dict = Depends(get_current_auth)) -> dict:
 from .v0_2_api import router as v0_2_router
 app.include_router(v0_2_router, prefix="/api/v0.2")
 logger.info("✅ v0.2 API router included for KB service")
+
+# Add RBAC router if multi-user is enabled
+if kb_rbac_router:
+    app.include_router(kb_rbac_router, prefix="/api/v1")
+    logger.info("✅ RBAC endpoints added for multi-user KB")
 
 from datetime import datetime
 

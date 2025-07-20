@@ -9,17 +9,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 4. **[Common Mistakes to Avoid](#-common-mistakes-to-avoid)** - Review this section to prevent known issues
 5. **[Essential Documentation Index](#-essential-documentation-index)** - Find the right guide for your task
 
-## 🎯 Current Development Focus (July 18, 2025)
-**Latest Fix**: Implemented unified authentication that uses the SAME CODE for local and remote deployments. The .env `API_KEY` is now properly stored in the local database (hashed) just like production API keys, ensuring 100% code parity between environments.
+## 🎯 Current Development Focus (July 19, 2025)
+**Latest Updates**: 
+- **KB Service**: Fully integrated with Aeonia's Obsidian Vault (1074+ files) using container-only storage for local-remote parity
+- **RBAC System**: Designed flexible role-based access control starting with KB, extensible platform-wide
+- **Multi-User KB**: Architecture supports teams, workspaces, and granular permissions
 
-**Key Authentication Principles**:
+**Key Authentication & Authorization**:
 - **Database-first**: ALL API keys validated through database (no special cases)
+- **RBAC Integration**: Role-based permissions for KB and platform resources
+- **Multi-User Ready**: User namespaces, team/workspace support, sharing mechanisms
 - **Local-remote parity**: Same authentication code in both environments  
-- **.env API key pre-configured**: Local database initialization includes the .env API key
-- **Redis caching**: Performance optimization for all API key validations
-- **No environment-specific code**: What works locally works remotely
+- **Redis caching**: Performance optimization for all permission checks
 
-Working on **FastHTML Web UI improvements**. Just completed debugging critical HTMX issues including loading indicator placement and conversation switching. Created comprehensive [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md). See [Web UI Development Status](docs/web-ui-development-status.md) for current state and next steps.
+**Active Development**:
+- Implementing KB permission manager with RBAC
+- FastAPI integration for automatic permission checks
+- Multi-user KB namespaces and sharing features
 
 ## 🧠 Development Philosophy & Problem-Solving Approach
 
@@ -53,8 +59,10 @@ Working on **FastHTML Web UI improvements**. Just completed debugging critical H
 
 ### Configuration & Deployment
 - [API Key Configuration Guide](docs/api-key-configuration-guide.md) - **READ FIRST** for authentication setup
-- [KB Git Sync Guide](docs/kb-git-sync-guide.md) - **NEW** - Complete Git synchronization setup
-- [KB Remote Deployment Authentication](docs/kb-remote-deployment-auth.md) - **NEW** - Git auth for production
+- [RBAC System Guide](docs/rbac-system-guide.md) - **NEW** - Role-based access control implementation
+- [Multi-User KB Guide](docs/multi-user-kb-guide.md) - **NEW** - Teams, workspaces, and sharing
+- [KB Git Sync Guide](docs/kb-git-sync-guide.md) - Complete Git synchronization setup
+- [KB Remote Deployment Authentication](docs/kb-remote-deployment-auth.md) - Git auth for production
 - [Database Architecture](docs/database-architecture.md) - **IMPORTANT** - Understand the hybrid database setup
 - [Supabase Configuration Guide](docs/supabase-configuration.md) - Email confirmation URLs and auth setup
 - [Deployment Best Practices](docs/deployment-best-practices.md) - Local-remote parity strategies

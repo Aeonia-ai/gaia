@@ -119,6 +119,18 @@ class GaiaSettings(BaseSettings):
     KB_GIT_REPO_URL: Optional[str] = os.getenv("KB_GIT_REPO_URL")  # e.g., "https://github.com/user/kb.git"
     KB_GIT_AUTH_TOKEN: Optional[str] = os.getenv("KB_GIT_AUTH_TOKEN")  # GitHub token for private repos
     KB_GIT_AUTO_CLONE: bool = os.getenv("KB_GIT_AUTO_CLONE", "true").lower() == "true"
+    
+    # Multi-User KB Configuration
+    KB_MULTI_USER_ENABLED: bool = os.getenv("KB_MULTI_USER_ENABLED", "false").lower() == "true"
+    KB_USER_ISOLATION: str = os.getenv("KB_USER_ISOLATION", "strict")  # "strict" or "permissive"
+    KB_DEFAULT_VISIBILITY: str = os.getenv("KB_DEFAULT_VISIBILITY", "private")  # "private" or "public"
+    KB_SHARING_ENABLED: bool = os.getenv("KB_SHARING_ENABLED", "true").lower() == "true"
+    KB_WORKSPACE_ENABLED: bool = os.getenv("KB_WORKSPACE_ENABLED", "true").lower() == "true"
+    KB_TEAM_ENABLED: bool = os.getenv("KB_TEAM_ENABLED", "true").lower() == "true"
+    
+    # RBAC Configuration
+    RBAC_CACHE_TTL: int = int(os.getenv("RBAC_CACHE_TTL", "300"))  # 5 minutes
+    RBAC_AUDIT_ENABLED: bool = os.getenv("RBAC_AUDIT_ENABLED", "true").lower() == "true"
     SERVICE_HOST: str = os.getenv("SERVICE_HOST", "0.0.0.0")
     SERVICE_PORT: int = int(os.getenv("SERVICE_PORT", "8000"))
     

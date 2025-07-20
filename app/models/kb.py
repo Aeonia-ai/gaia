@@ -30,10 +30,28 @@ class MoveRequest(BaseModel):
 
 
 class ShareRequest(BaseModel):
-    """Request model for sharing KB artifacts (future feature)"""
+    """Request model for sharing KB artifacts"""
     path: str = Field(..., description="Path to share")
     recipients: Optional[List[str]] = Field(None, description="User IDs to share with")
-    workspace_id: Optional[str] = Field(None, description="Workspace to share to")
+    teams: Optional[List[str]] = Field(None, description="Team IDs to share with")
+    workspaces: Optional[List[str]] = Field(None, description="Workspace IDs to share with")
     permissions: List[str] = Field(["read"], description="Permissions to grant")
     message: Optional[str] = Field(None, description="Optional share message")
-    expires_in_days: Optional[int] = Field(None, description="Optional expiration")
+    expires_at: Optional[str] = Field(None, description="ISO datetime when access expires")
+
+
+class WorkspaceCreateRequest(BaseModel):
+    """Request model for creating a workspace"""
+    name: str = Field(..., description="Workspace name (slug)")
+    display_name: str = Field(..., description="Human-readable workspace name")
+    description: Optional[str] = Field(None, description="Workspace description")
+    initial_members: Optional[List[str]] = Field(None, description="Initial member user IDs")
+    workspace_type: str = Field("project", description="Type of workspace (project, temporary, etc.)")
+
+
+class TeamCreateRequest(BaseModel):
+    """Request model for creating a team"""
+    name: str = Field(..., description="Team name (slug)")
+    display_name: str = Field(..., description="Human-readable team name")
+    description: Optional[str] = Field(None, description="Team description")
+    parent_team_id: Optional[str] = Field(None, description="Parent team ID for nested teams")

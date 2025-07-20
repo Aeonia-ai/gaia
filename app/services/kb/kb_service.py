@@ -9,7 +9,14 @@ from typing import Dict, Any
 from fastapi import HTTPException
 
 from app.models.chat import ChatRequest
-from .kb_mcp_server import kb_server, kb_orchestrator
+from app.shared.config import settings
+
+# Use RBAC-wrapped server when multi-user is enabled
+if getattr(settings, 'KB_MULTI_USER_ENABLED', False):
+    from .kb_rbac_integration import kb_server_with_rbac as kb_server
+    from .kb_mcp_server import kb_orchestrator
+else:
+    from .kb_mcp_server import kb_server, kb_orchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +26,21 @@ async def kb_search_endpoint(request: ChatRequest, auth_principal: Dict[str, Any
         query = request.message
         logger.info(f"🔍 KB search: {query}")
         
+        # Get user_id if multi-user mode is enabled
+        kwargs = {
+            "query": query,
+            "limit": 20,
+            "include_content": True
+        }
+        
+        if getattr(settings, 'KB_MULTI_USER_ENABLED', False):
+            user_id = auth_principal.get("user_id")
+            if user_id:
+                kwargs["user_id"] = user_id
+                logger.info(f"Multi-user KB search for user: {user_id}")
+        
         # Execute search using KB server
-        search_result = await kb_server.search_kb(
-            query=query,
-            limit=20,
-            include_content=True
-        )
+        search_result = await kb_server.search_kb(**kwargs)
         
         if search_result["success"]:
             results = search_result["results"]
