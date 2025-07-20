@@ -35,13 +35,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Load API key from .env file
+# Load environment variables from .env file
 if [ -f ".env" ]; then
-    export $(grep -E '^API_KEY=' .env | head -1 | xargs)
+    export $(grep -v '^#' .env | xargs)
 fi
 
-# Fallback API key if not in .env
-API_KEY="${API_KEY:-FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE}"
+# Use Jason's API key if available, otherwise fallback
+API_KEY="${JASON_API_KEY:-${API_KEY:-FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE}}"
 
 # Environment-specific API keys
 case $ENVIRONMENT in

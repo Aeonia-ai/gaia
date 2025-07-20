@@ -1316,6 +1316,27 @@ async def v0_2_kb_navigate(
         headers=headers
     )
 
+@app.post("/api/v0.2/kb/list", tags=["v0.2 KB"])
+async def v0_2_kb_list(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """List files in a KB directory"""
+    body = await request.json()
+    body["_auth"] = auth
+    
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/list",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
 # KB Write endpoints
 @app.post("/api/v0.2/kb/write", tags=["v0.2 KB"])
 async def v0_2_kb_write(
@@ -1419,6 +1440,20 @@ async def v0_2_kb_cache_invalidate(
         service_name="kb",
         path="/cache/invalidate",
         method="POST",
+        headers=dict(request.headers),
+        params=dict(request.query_params)
+    )
+
+@app.get("/api/v0.2/kb/health", tags=["v0.2 KB"])
+async def v0_2_kb_health(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get KB service health status"""
+    return await forward_request_to_service(
+        service_name="kb",
+        path="/health",
+        method="GET",
         headers=dict(request.headers),
         params=dict(request.query_params)
     )

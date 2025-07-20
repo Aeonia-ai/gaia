@@ -64,6 +64,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Capture both the specific fix AND the general approach that found it
 - Future you will thank present you for documenting the "why" not just the "what"
 
+**🚀 COMMIT TO SIMPLICITY**
+- When choosing PostgreSQL as the "fast approach", use it simply - don't recreate document DB complexity
+- Avoid compatibility layers between different paradigms (e.g., making asyncpg work like SQLAlchemy)
+- If you're building abstractions to make one tool work like another, you're using the wrong tool
+- See [PostgreSQL Simplicity Lessons](docs/postgresql-simplicity-lessons.md) for detailed learnings
+
+**🧪 USE TEST SCRIPTS, NOT CURL**
+- ALWAYS use test scripts (`./scripts/test.sh`) instead of manual curl commands
+- If you need to test something new, ADD it to a test script, don't just run curl
+- Test scripts capture knowledge, curl commands vanish with your terminal
+- See [Testing Philosophy](docs/testing-philosophy.md) for why this matters
+
 ## 📚 Essential Documentation Index
 
 **IMPORTANT**: Always consult these guides BEFORE making changes to avoid common pitfalls.
@@ -88,6 +100,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md) - UI debugging
 
 ### Architecture & Development
+- [PostgreSQL Simplicity Lessons](docs/postgresql-simplicity-lessons.md) - **IMPORTANT** - Avoiding overengineering
 - [Microservices Scaling Guide](docs/microservices-scaling.md) - Scaling patterns and strategies
 - [FastHTML Web Service Guide](docs/fasthtml-web-service.md) - Web UI architecture
 - [Command Reference](docs/command-reference.md) - Correct command syntax
@@ -95,9 +108,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Web UI Development Status](docs/web-ui-development-status.md) - Frontend development state
 
 ### Testing & Performance
+- [Testing Philosophy](docs/testing-philosophy.md) - **IMPORTANT** - Why we use test scripts, not curl
 - [Mobile Testing Guide](docs/mobile-testing-guide.md) - Testing on mobile devices
 - [Optimization Guide](docs/optimization-guide.md) - Performance improvements
 - [Redis Integration](docs/redis-integration.md) - Caching implementation
+
+## 🏗️ Architecture Guidelines
+
+### Avoid Overengineering
+1. **Use tools for their strengths** - PostgreSQL for relational data, Redis for caching, etc.
+2. **No unnecessary abstractions** - If you need a compatibility layer, you're probably using the wrong tool
+3. **Start simple** - You can always add complexity later, but you can't easily remove it
+4. **Direct is better** - `await conn.fetch()` is better than layers of abstraction
+
+### Signs You're Overcomplicating
+- Building compatibility layers between technologies
+- Error messages getting more complex over time
+- Writing more infrastructure code than business logic
+- The "fast approach" taking longer than the "proper approach"
 
 ## ⚠️ CRITICAL: Command Version Requirements
 
@@ -128,9 +156,11 @@ See [Command Reference](docs/command-reference.md) for complete list.
 3. **DON'T** forget to set Fly.io secrets for new environment variables
 
 ### Testing Mistakes
-1. **DON'T** use direct `curl` - use `./scripts/test.sh` or `./scripts/curl_wrapper.sh`
+1. **DON'T** use direct `curl` - use test scripts that capture the knowledge
 2. **DON'T** test in production first - always test locally
 3. **DON'T** skip the verification scripts after configuration changes
+4. **DON'T** create one-off test commands - add them to test scripts
+5. **DON'T** forget that terminal history is temporary - test scripts are permanent
 
 ## Development Commands
 
@@ -215,14 +245,19 @@ docker compose up
 # Initial setup
 ./scripts/setup.sh
 
-# Smart testing (PREFERRED - use test script, not curl)
-./scripts/test.sh --local health           # Local development
-./scripts/test.sh --staging health         # Staging deployment
-./scripts/test.sh --prod health            # Production deployment
+# ALWAYS USE TEST SCRIPTS - NOT MANUAL CURL!
+./scripts/test-comprehensive.sh            # Full test suite (RECOMMENDED)
+./scripts/test.sh --local all              # Legacy test suite
+./scripts/test-kb-operations.sh            # KB-specific tests
 
-# Environment-aware testing
-./scripts/test.sh --local all              # Full local test suite
-./scripts/test.sh --staging all            # Staging tests (expects some failures)
+# Testing specific features
+./scripts/test.sh --local providers        # Test provider listing
+./scripts/test.sh --local chat "Hi"        # Test chat completion
+
+# User management
+./scripts/manage-users.sh list             # List all users
+./scripts/manage-users.sh create user@example.com  # Create user with API key
+./scripts/manage-users.sh grant-kb user@example.com # Grant KB access
 
 # KB Git Sync Testing and Management
 ./scripts/setup-aeonia-kb.sh               # Configure Aeonia Obsidian vault sync

@@ -8,12 +8,13 @@ This module provides a unified RBAC implementation that:
 4. Integrates with existing auth infrastructure
 """
 
-from typing import List, Dict, Any, Optional, Set, Tuple
+from typing import List, Dict, Any, Optional, Set, Tuple, Union
 from datetime import datetime
 from uuid import UUID
 import asyncio
 from functools import lru_cache
 from enum import Enum
+import uuid
 
 from sqlalchemy import select, and_, or_, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -25,6 +26,31 @@ from .redis_client import redis_client
 from .config import settings
 
 logger = get_logger("rbac")
+
+# ========================================================================
+# UTILITY FUNCTIONS
+# ========================================================================
+
+def ensure_uuid(user_id: Union[str, UUID]) -> str:
+    """
+    Ensure user_id is in a format that works with PostgreSQL UUID casting.
+    Returns the string representation that can be safely cast to UUID.
+    """
+    if isinstance(user_id, UUID):
+        return str(user_id)
+    
+    # If it's already a valid UUID string, return as-is
+    if isinstance(user_id, str):
+        try:
+            # Validate it's a proper UUID
+            uuid.UUID(user_id)
+            return user_id
+        except ValueError:
+            # Not a valid UUID - this might be a legacy user ID
+            logger.warning(f"Invalid UUID format for user_id: {user_id}")
+            raise ValueError(f"user_id must be a valid UUID, got: {user_id}")
+    
+    raise TypeError(f"user_id must be str or UUID, got {type(user_id)}")
 
 # ========================================================================
 # ENUMS AND CONSTANTS
@@ -372,7 +398,7 @@ class RBACManager:
             await session.execute(
                 text("""
                     DELETE FROM user_roles 
-                    WHERE user_id = :user_id 
+                    WHERE user_id = :user_id::uuid 
                       AND role_id = :role_id
                       AND COALESCE(context_id, 'global') = COALESCE(:context_id, 'global')
                 """),
@@ -513,6 +539,13 @@ class RBACManager:
         Returns:
             List of KB paths the user can access
         """
+        # Validate and ensure UUID format
+        try:
+            validated_user_id = ensure_uuid(user_id)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid user_id in get_accessible_kb_paths: {e}")
+            return []  # Return empty list for invalid user IDs
+        
         paths = []
         
         # Always include personal KB
@@ -522,25 +555,21 @@ class RBACManager:
         paths.append("/kb/shared")
         
         # Get team memberships
-        async with get_db_session() as session:
-            teams_result = await session.execute(
-                text("""
-                    SELECT team_id FROM team_members WHERE user_id = :user_id
-                """),
-                {"user_id": user_id}
+        async with get_db_session() as connection:
+            teams_result = await connection.fetch(
+                "SELECT team_id FROM team_members WHERE user_id = $1",
+                validated_user_id
             )
             for row in teams_result:
-                paths.append(f"/kb/teams/{row.team_id}")
+                paths.append(f"/kb/teams/{row['team_id']}")
         
             # Get workspace memberships
-            workspaces_result = await session.execute(
-                text("""
-                    SELECT workspace_id FROM workspace_members WHERE user_id = :user_id
-                """),
-                {"user_id": user_id}
+            workspaces_result = await connection.fetch(
+                "SELECT workspace_id FROM workspace_members WHERE user_id = $1",
+                validated_user_id
             )
             for row in workspaces_result:
-                paths.append(f"/kb/workspaces/{row.workspace_id}")
+                paths.append(f"/kb/workspaces/{row['workspace_id']}")
         
         # Get explicitly shared paths
         shared_paths = await self._get_shared_resource_paths(user_id, ResourceType.KB)

@@ -9,12 +9,10 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 import logging
 
-from app.shared.rbac import (
+from app.shared.rbac_simple import (
     rbac_manager,
     ResourceType,
-    Action,
-    ContextType,
-    require_permission
+    Action
 )
 from app.shared.config import settings
 from app.shared.logging import get_logger
@@ -34,9 +32,8 @@ class KBStorageWithRBAC(KBStorageManager):
         self,
         query: str,
         user_id: Optional[str] = None,
-        limit: int = 20,
-        offset: int = 0,
         contexts: Optional[List[str]] = None,
+        limit: int = 20,
         include_content: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
@@ -65,9 +62,8 @@ class KBStorageWithRBAC(KBStorageManager):
         # Perform search with filtered contexts
         results = await super().search_documents(
             query=query,
-            limit=limit,
-            offset=offset,
             contexts=contexts or accessible_paths,
+            limit=limit,
             include_content=include_content,
             **kwargs
         )
@@ -76,7 +72,7 @@ class KBStorageWithRBAC(KBStorageManager):
         filtered_results = []
         for result in results.get("results", []):
             doc_path = result.get("path", "")
-            if await rbac_manager.check_kb_access(user_id, doc_path, Action.READ):
+            if await rbac_manager.check_kb_access(user_id, doc_path, "read"):
                 filtered_results.append(result)
         
         results["results"] = filtered_results
@@ -99,7 +95,7 @@ class KBStorageWithRBAC(KBStorageManager):
         
         # Check read permission
         kb_path = self._normalize_kb_path(path)
-        if not await rbac_manager.check_kb_access(user_id, kb_path, Action.READ):
+        if not await rbac_manager.check_kb_access(user_id, kb_path, "read"):
             logger.warning(f"User {user_id} denied read access to: {kb_path}")
             return None
         
@@ -128,7 +124,7 @@ class KBStorageWithRBAC(KBStorageManager):
         kb_path = self._normalize_kb_path(path)
         
         # Check write permission
-        if not await rbac_manager.check_kb_access(user_id, kb_path, Action.WRITE):
+        if not await rbac_manager.check_kb_access(user_id, kb_path, "write"):
             logger.warning(f"User {user_id} denied write access to: {kb_path}")
             return {
                 "success": False,
@@ -177,7 +173,7 @@ class KBStorageWithRBAC(KBStorageManager):
         
         # Check delete permission
         kb_path = self._normalize_kb_path(path)
-        if not await rbac_manager.check_kb_access(user_id, kb_path, Action.DELETE):
+        if not await rbac_manager.check_kb_access(user_id, kb_path, "delete"):
             logger.warning(f"User {user_id} denied delete access to: {kb_path}")
             return {
                 "success": False,
@@ -204,7 +200,7 @@ class KBStorageWithRBAC(KBStorageManager):
         
         # Check if user can read this directory
         kb_path = self._normalize_kb_path(directory)
-        if not await rbac_manager.check_kb_access(user_id, kb_path, Action.READ):
+        if not await rbac_manager.check_kb_access(user_id, kb_path, "read"):
             logger.warning(f"User {user_id} denied list access to: {kb_path}")
             return []
         
@@ -220,7 +216,7 @@ class KBStorageWithRBAC(KBStorageManager):
         accessible_docs = []
         for doc in all_docs:
             doc_path = doc.get("path", "")
-            if await rbac_manager.check_kb_access(user_id, doc_path, Action.READ):
+            if await rbac_manager.check_kb_access(user_id, doc_path, "read"):
                 accessible_docs.append(doc)
         
         return accessible_docs
@@ -242,7 +238,7 @@ class KBStorageWithRBAC(KBStorageManager):
         kb_path = self._normalize_kb_path(path)
         
         # Check if user can share this document
-        if not await rbac_manager.check_kb_access(shared_by, kb_path, Action.SHARE):
+        if not await rbac_manager.check_kb_access(shared_by, kb_path, "share"):
             return {
                 "success": False,
                 "error": "permission_denied",
@@ -262,11 +258,11 @@ class KBStorageWithRBAC(KBStorageManager):
         action_perms = []
         for perm in permissions:
             if perm == "read":
-                action_perms.append(Action.READ)
+                action_perms.append("read")
             elif perm == "write":
-                action_perms.append(Action.WRITE)
+                action_perms.append("write")
             elif perm == "delete":
-                action_perms.append(Action.DELETE)
+                action_perms.append("delete")
         
         # Share with individual users
         if recipients:
