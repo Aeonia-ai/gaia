@@ -269,6 +269,7 @@ async def validate_auth_for_service(auth_data: Dict[str, Any]) -> Authentication
     """
     Validate authentication data passed between services.
     Used for service-to-service authentication validation.
+    Supports JWT tokens for both user authentication and service-to-service auth.
     """
     auth_type = auth_data.get("auth_type")
     
@@ -280,6 +281,20 @@ async def validate_auth_for_service(auth_data: Dict[str, Any]) -> Authentication
                 detail="Invalid JWT authentication data"
             )
         return AuthenticationResult(auth_type="jwt", user_id=user_id)
+    
+    elif auth_type == "service_jwt":
+        # New: Service-to-service JWT validation
+        service_name = auth_data.get("service")
+        if not service_name:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid service JWT authentication data"
+            )
+        return AuthenticationResult(
+            auth_type="service_jwt", 
+            user_id=f"service:{service_name}",  # Use service: prefix for service accounts
+            scopes=["service:all"]  # Grant full service permissions
+        )
     
     elif auth_type == "user_api_key":
         user_id = auth_data.get("user_id")
@@ -316,6 +331,61 @@ def require_authentication(auth_result: AuthenticationResult) -> AuthenticationR
             detail="Authentication required"
         )
     return auth_result
+
+# Unified authentication supporting both API keys and Supabase JWTs
+async def get_current_auth_unified(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Security(oauth2_scheme),
+    api_key_header: Optional[str] = Security(api_key_header)
+) -> dict:
+    """
+    Unified authentication that supports both:
+    1. API Keys (X-API-Key header) - for backward compatibility
+    2. Supabase JWTs (Authorization: Bearer) - for web/mobile clients
+    
+    Returns dict format identical to LLM Platform for compatibility.
+    """
+    # First try Supabase JWT if Bearer token is provided
+    if credentials and credentials.credentials:
+        try:
+            # Validate Supabase JWT
+            jwt_payload = await validate_supabase_jwt(credentials)
+            
+            # Convert JWT payload to legacy format
+            return {
+                "user_id": jwt_payload.get("sub"),  # Supabase user ID
+                "email": jwt_payload.get("email"),
+                "auth_type": "supabase_jwt",
+                "role": jwt_payload.get("role", "authenticated"),
+                "metadata": jwt_payload.get("user_metadata", {})
+            }
+        except HTTPException as e:
+            # JWT validation failed, try API key next
+            logger.debug(f"JWT validation failed: {e.detail}")
+            pass
+    
+    # Fall back to API key authentication
+    if api_key_header:
+        from app.shared.database import get_database_session
+        db = get_database_session()
+        try:
+            auth_result = validate_user_api_key(api_key_header, db)
+            if auth_result:
+                return {
+                    "user_id": auth_result.user_id,
+                    "api_key": auth_result.api_key,
+                    "api_key_id": auth_result.api_key_id,
+                    "auth_type": "user_api_key",
+                    "scopes": auth_result.scopes
+                }
+        finally:
+            db.close()
+    
+    # No valid authentication found
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated. Provide a valid JWT or API Key."
+    )
 
 # For backward compatibility with LLM Platform clients
 async def get_current_auth_legacy(

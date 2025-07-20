@@ -75,16 +75,21 @@ class GaiaAPIClient:
         model: str = "claude-3-5-sonnet-20241022"
     ):
         """Stream chat completion response from gateway"""
-        headers = {"Authorization": f"Bearer {jwt_token}"}
+        # Use JWT token if available, otherwise fall back to API key
+        headers = {}
+        if jwt_token and jwt_token != "dev-token-12345":  # Real JWT token
+            headers["Authorization"] = f"Bearer {jwt_token}"
+            logger.debug("Using Supabase JWT for gateway request")
+        else:
+            headers["X-API-Key"] = settings.api_key
+            logger.debug("Using API key for gateway request")
         
         try:
-            # Use v0.2 streaming endpoint with API key auth
+            # Use v0.2 streaming endpoint with appropriate auth
             async with self.client.stream(
                 "POST",
                 "/api/v0.2/chat/stream",
-                headers={
-                    "X-API-Key": settings.api_key
-                },
+                headers=headers,
                 json={
                     "message": messages[-1]["content"] if messages else "",
                     "model": model

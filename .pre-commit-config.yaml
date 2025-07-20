@@ -59,6 +59,13 @@ repos:
         pass_filenames: false
         files: ^app/services/web/routes/auth\.py$
         
+      - id: check-htmx-form-patterns
+        name: Check for dangerous HTMX form patterns
+        entry: bash -c 'if grep -E "hx_target=\"#[^\"]*message\".*hx_swap=\"innerHTML\"" app/services/web/ -r 2>/dev/null; then echo "ERROR: Found dangerous HTMX pattern that causes form+message mixing bug!"; echo "Fix: Use container targeting with outerHTML instead of message targeting with innerHTML"; exit 1; fi'
+        language: system
+        pass_filenames: false
+        files: ^app/services/web/.*\.py$
+        
       - id: check-css-patterns
         name: Check for problematic CSS patterns
         entry: bash -c 'if grep -r "flex-col md:flex-row" app/services/web/ | grep -v "test_" | grep -v ".md"; then echo "WARNING: Found flex-col md:flex-row pattern that can break layouts!"; fi'

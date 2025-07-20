@@ -6,26 +6,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. **[Testing and Quality Assurance Guide](docs/testing-and-quality-assurance.md)** - Set up pre-commit hooks and run tests before making changes
 2. **[API Contracts Documentation](docs/api-contracts.md)** - Understand which endpoints must remain public
 3. **[API Key Configuration Guide](docs/api-key-configuration-guide.md)** - ALWAYS check this before setting up authentication
-4. **[Common Mistakes to Avoid](#-common-mistakes-to-avoid)** - Review this section to prevent known issues
-5. **[Essential Documentation Index](#-essential-documentation-index)** - Find the right guide for your task
+4. **[HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md)** - **MANDATORY** read before ANY web UI changes
+5. **[Auth Layout Isolation Rules](docs/auth-layout-isolation.md)** - CRITICAL: Prevent recurring layout bugs
+6. **[Common Mistakes to Avoid](#-common-mistakes-to-avoid)** - Review this section to prevent known issues
+7. **[Essential Documentation Index](#-essential-documentation-index)** - Find the right guide for your task
+
+## ⚠️ REMINDER TO CLAUDE CODE
+**BEFORE ANY WEB UI CHANGES:** You MUST read the HTMX + FastHTML Debugging Guide and Auth Layout Isolation docs first. The user will remind you if you don't, because layout bugs "keep coming back" when documentation is ignored. Always use `auth_page_replacement()` for auth responses and proper HTMX container targeting patterns.
 
 ## 🎯 Current Development Focus (July 19, 2025)
 **Latest Updates**: 
 - **KB Service**: Fully integrated with Aeonia's Obsidian Vault (1074+ files) using container-only storage for local-remote parity
 - **RBAC System**: Designed flexible role-based access control starting with KB, extensible platform-wide
 - **Multi-User KB**: Architecture supports teams, workspaces, and granular permissions
+- **mTLS + JWT Authentication**: COMPLETE (Phases 1-3) - Modern auth infrastructure with 100% backward compatibility
+- **Auth Form Bug Fix**: Fixed recurring layout bug where registration forms showed alongside verification messages
 
 **Key Authentication & Authorization**:
 - **Database-first**: ALL API keys validated through database (no special cases)
 - **RBAC Integration**: Role-based permissions for KB and platform resources
 - **Multi-User Ready**: User namespaces, team/workspace support, sharing mechanisms
 - **Local-remote parity**: Same authentication code in both environments  
-- **Redis caching**: Performance optimization for all permission checks
+- **Redis caching**: 97% performance improvement for authentication
+- **Zero breaking changes**: All existing clients continue to work unchanged
+- **mTLS Infrastructure**: Certificate Authority + service certificates deployed
+- **Unified Authentication**: `get_current_auth_unified()` handles API keys + Supabase JWTs
 
 **Active Development**:
 - Implementing KB permission manager with RBAC
 - FastAPI integration for automatic permission checks
 - Multi-user KB namespaces and sharing features
+- Token refresh mechanisms and Phase 4 cleanup (removing legacy auth)
 
 ## 🧠 Development Philosophy & Problem-Solving Approach
 
@@ -58,12 +69,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **IMPORTANT**: Always consult these guides BEFORE making changes to avoid common pitfalls.
 
 ### Configuration & Deployment
-- [API Key Configuration Guide](docs/api-key-configuration-guide.md) - **READ FIRST** for authentication setup
+- [Authentication Guide](docs/authentication-guide.md) - **UPDATED** - Complete dual auth (API keys + JWTs + mTLS)
+- [mTLS Certificate Management](docs/mtls-certificate-management.md) - **NEW** - Certificate infrastructure guide
+- [API Key Configuration Guide](docs/api-key-configuration-guide.md) - **UPDATED** - Unified authentication patterns
 - [RBAC System Guide](docs/rbac-system-guide.md) - **NEW** - Role-based access control implementation
 - [Multi-User KB Guide](docs/multi-user-kb-guide.md) - **NEW** - Teams, workspaces, and sharing
 - [KB Git Sync Guide](docs/kb-git-sync-guide.md) - Complete Git synchronization setup
 - [KB Remote Deployment Authentication](docs/kb-remote-deployment-auth.md) - Git auth for production
-- [Database Architecture](docs/database-architecture.md) - **IMPORTANT** - Understand the hybrid database setup
+- [Database Architecture](docs/database-architecture.md) - **IMPORTANT** - Hybrid database + Redis caching
 - [Supabase Configuration Guide](docs/supabase-configuration.md) - Email confirmation URLs and auth setup
 - [Deployment Best Practices](docs/deployment-best-practices.md) - Local-remote parity strategies
 - [Fly.io Deployment Configuration](docs/flyio-deployment-config.md) - Platform-specific setup

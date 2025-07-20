@@ -55,9 +55,46 @@ for element in "${FORBIDDEN_IN_AUTH[@]}"; do
     fi
 done
 
+# Check for dangerous Div() patterns in auth routes
+if grep -q "return Div(" app/services/web/routes/auth.py 2>/dev/null; then
+    if [ $auth_issues -eq 0 ]; then
+        echo -e "${RED}❌ FAILED${NC}"
+        echo -e "${RED}ERROR: Auth layout violations found:${NC}"
+    fi
+    echo "  - Found raw 'return Div()' in auth.py (causes form+verification mixing)"
+    echo "  - Fix: Use auth_page_replacement() instead"
+    ((auth_issues++))
+fi
+
+# Check for dangerous HTMX form patterns (the actual bug we just fixed)
+if grep -rE "hx_target=\"#[^\"]*message\".*hx_swap=\"innerHTML\"" app/services/web/ 2>/dev/null | grep -v "test_" | grep -v ".md"; then
+    if [ $auth_issues -eq 0 ]; then
+        echo -e "${RED}❌ FAILED${NC}"
+        echo -e "${RED}ERROR: Dangerous HTMX patterns found:${NC}"
+    fi
+    echo "  - Found form targeting message element with innerHTML (causes form+message mixing)"
+    echo "  - Fix: Use container targeting with outerHTML instead"
+    echo "  - Wrong: hx_target=\"#auth-message\" hx_swap=\"innerHTML\""
+    echo "  - Right: hx_target=\"#auth-form-container\" hx_swap=\"outerHTML\""
+    ((auth_issues++))
+fi
+
+# Check for missing auth_page_replacement import
+if ! grep -q "auth_page_replacement" app/services/web/routes/auth.py 2>/dev/null; then
+    if [ $auth_issues -eq 0 ]; then
+        echo -e "${YELLOW}⚠️  WARNING${NC}"
+        echo -e "${YELLOW}WARNING: Auth isolation patterns missing:${NC}"
+    fi
+    echo "  - auth_page_replacement not imported (needed for proper isolation)"
+    echo "  - Add: from app.services.web.utils.layout_isolation import auth_page_replacement"
+fi
+
 if [ $auth_issues -eq 0 ]; then
     echo -e "${GREEN}✅ PASSED${NC}"
 else
+    echo ""
+    echo "Critical auth layout violations found!"
+    echo "See: docs/auth-layout-isolation.md"
     exit 1
 fi
 

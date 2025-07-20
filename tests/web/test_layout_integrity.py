@@ -1,16 +1,128 @@
 """
 Layout Integrity Tests
-Prevents layout issues like mobile-width/desktop-height rendering
+
+These tests ensure that layout isolation rules are enforced and prevent
+the recurring "mobile width on desktop" and layout mixing bugs.
+
+This includes both unit tests for isolation utilities and integration
+tests with real browser rendering.
 """
 import pytest
 from playwright.async_api import async_playwright, expect
 import asyncio
 from pathlib import Path
 import json
+from fasthtml.components import Div, A, Button
+from starlette.responses import HTMLResponse
+
+# Import our layout isolation utilities
+try:
+    from app.services.web.utils.layout_isolation import (
+        auth_page_replacement,
+        chat_content_replacement, 
+        safe_htmx_response,
+        validate_layout_isolation
+    )
+    LAYOUT_UTILS_AVAILABLE = True
+except ImportError:
+    LAYOUT_UTILS_AVAILABLE = False
+
+
+@pytest.mark.skipif(not LAYOUT_UTILS_AVAILABLE, reason="Layout isolation utilities not available")
+class TestAuthLayoutIsolation:
+    """Test auth page layout isolation rules (Unit Tests)"""
+    
+    def test_auth_page_replacement_basic(self):
+        """Test basic auth page replacement works"""
+        response = auth_page_replacement(
+            title="Test Auth Page",
+            content="Test content"
+        )
+        
+        assert isinstance(response, HTMLResponse)
+        content_str = response.body.decode()
+        
+        # Must contain auth container
+        assert 'id="auth-container"' in content_str
+        
+        # Must not contain sidebar or chat elements
+        assert 'id="sidebar"' not in content_str
+        assert 'id="chat-form"' not in content_str
+        assert 'id="messages"' not in content_str
+    
+    def test_auth_page_replacement_forbids_sidebar(self):
+        """Test that auth pages cannot have sidebar"""
+        with pytest.raises(ValueError, match="Auth pages must never show sidebar"):
+            auth_page_replacement(
+                title="Test",
+                content="Test",
+                show_sidebar=True  # This should raise an error
+            )
+    
+    def test_auth_page_with_actions(self):
+        """Test auth page with action buttons"""
+        response = auth_page_replacement(
+            title="📧 Check Your Email",
+            content=["We sent a link", "Check your email"],
+            actions=[
+                ("Resend", "/resend", {"email": "test@example.com"}),
+                ("Back to login", "/login", None)
+            ]
+        )
+        
+        content_str = response.body.decode()
+        
+        # Should contain action buttons
+        assert "Resend" in content_str
+        assert "Back to login" in content_str
+    
+    def test_email_verification_isolation(self):
+        """Test the exact email verification scenario that keeps breaking"""
+        response = auth_page_replacement(
+            title="📧 Check Your Email",
+            content=[
+                "We've sent a verification link to: test@example.com",
+                "Please check your email and click the verification link to activate your account."
+            ],
+            actions=[("Resend verification", "/auth/resend-verification", {"email": "test@example.com"})]
+        )
+        
+        content_str = response.body.decode()
+        
+        # CRITICAL: Must not contain any form input elements
+        assert '<input' not in content_str
+        assert 'type="email"' not in content_str
+        assert 'type="password"' not in content_str
+        
+        # Must contain verification message
+        assert "Check Your Email" in content_str
+        assert "test@example.com" in content_str
+        
+        # Must be properly isolated
+        assert 'id="auth-container"' in content_str
+        assert 'id="sidebar"' not in content_str
+
+
+@pytest.mark.skipif(not LAYOUT_UTILS_AVAILABLE, reason="Layout isolation utilities not available")  
+class TestHTMXSafety:
+    """Test HTMX response safety rules"""
+    
+    def test_safe_htmx_response_blocks_dangerous_targets(self):
+        """Test that dangerous HTMX targets are blocked"""
+        dangerous_targets = ["#app", "body", ".flex.h-screen"]
+        
+        for target in dangerous_targets:
+            with pytest.raises(ValueError, match="layout-breaking and forbidden"):
+                safe_htmx_response("content", target)
+    
+    def test_auth_container_requires_outer_html(self):
+        """Test that auth container replacement requires outerHTML"""
+        with pytest.raises(ValueError, match="Auth container replacement must use outerHTML"):
+            safe_htmx_response("content", "#auth-container", swap="innerHTML")
 
 
 class TestLayoutIntegrity:
-    """Critical tests to prevent layout breakages"""
+    """Critical browser-based tests to prevent layout breakages"""
     
     @pytest.mark.asyncio
     async def test_chat_layout_full_width(self):
@@ -158,6 +270,38 @@ class TestLayoutIntegrity:
                 "Layout width changed after HTMX navigation"
             assert initial_box['height'] == after_box['height'], \
                 "Layout height changed after HTMX navigation"
+            
+            await browser.close()
+    
+    @pytest.mark.asyncio
+    async def test_email_verification_no_form_elements(self):
+        """Test that email verification page doesn't show form elements (the recurring bug)"""
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            
+            # Go to registration page and submit
+            await page.goto('http://localhost:8080/register') 
+            await page.fill('input[name="email"]', 'test@example.com')
+            await page.fill('input[name="password"]', 'testtest123')
+            await page.click('button[type="submit"]')
+            
+            # Wait for verification response
+            await page.wait_for_timeout(1000)
+            
+            # CRITICAL: After registration, must NOT show form elements alongside verification
+            email_inputs = await page.query_selector_all('input[type="email"]')
+            password_inputs = await page.query_selector_all('input[type="password"]')
+            
+            # If verification message is shown, form elements must be gone
+            verification_msg = await page.query_selector('text="Check Your Email"')
+            if verification_msg:
+                assert len(email_inputs) == 0, "Email verification page must not show email input"
+                assert len(password_inputs) == 0, "Email verification page must not show password input"
+                
+                # Should show verification message
+                assert await page.query_selector('text="We\'ve sent a verification link"'), \
+                    "Must show verification message"
             
             await browser.close()
     
