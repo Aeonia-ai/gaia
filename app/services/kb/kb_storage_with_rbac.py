@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 import logging
 
-from app.shared.rbac_fixed import (
+from app.shared.rbac import (
     rbac_manager,
     ResourceType,
     Action,
