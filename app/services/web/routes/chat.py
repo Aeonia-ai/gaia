@@ -21,9 +21,16 @@ def setup_routes(app):
     async def chat_index(request):
         """Main chat interface"""
         from fasthtml.core import Script
+        from starlette.responses import RedirectResponse
         
+        # Check authentication
         jwt_token = request.session.get("jwt_token")
-        user = request.session.get("user", {})
+        user = request.session.get("user")
+        
+        if not user or not jwt_token:
+            # Redirect to login if not authenticated
+            return RedirectResponse(url="/login", status_code=303)
+        
         user_id = user.get("id", "dev-user-id")
         
         # Get user's conversations - simplified for debugging
@@ -199,8 +206,17 @@ def setup_routes(app):
         logger.info(f"Request headers: {dict(request.headers)}")
         logger.info(f"Is HTMX request: {request.headers.get('hx-request')}")
         
+        # Check authentication
         jwt_token = request.session.get("jwt_token")
-        user = request.session.get("user", {})
+        user = request.session.get("user")
+        
+        if not user or not jwt_token:
+            from starlette.responses import RedirectResponse
+            # For HTMX requests, return a client-side redirect
+            if request.headers.get('hx-request'):
+                return HTMLResponse('<script>window.location.href="/login"</script>')
+            return RedirectResponse(url="/login", status_code=303)
+        
         user_id = user.get("id", "dev-user-id")
         
         logger.info(f"Loading conversation {conversation_id} for user {user_id}")
@@ -262,8 +278,13 @@ def setup_routes(app):
     @app.post("/chat/new")
     async def new_chat(request):
         """Create new conversation"""
+        # Check authentication
         jwt_token = request.session.get("jwt_token")
-        user = request.session.get("user", {})
+        user = request.session.get("user")
+        
+        if not user or not jwt_token:
+            return gaia_error_message("Please log in to create a new conversation")
+        
         user_id = user.get("id", "dev-user-id")
         
         logger.info(f"New chat requested for user {user_id}")
@@ -319,8 +340,13 @@ def setup_routes(app):
         logger.info("Chat send endpoint called")
         
         try:
+            # Check authentication
             jwt_token = request.session.get("jwt_token")
-            user = request.session.get("user", {})
+            user = request.session.get("user")
+            
+            if not user or not jwt_token:
+                return gaia_error_message("Please log in to send messages")
+            
             user_id = user.get("id", "dev-user-id")
             
             form_data = await request.form()
@@ -689,7 +715,11 @@ def setup_routes(app):
     @app.get("/api/conversations")
     async def get_conversations(request):
         """Get updated conversation list"""
-        user = request.session.get("user", {})
+        # Check authentication
+        user = request.session.get("user")
+        if not user:
+            return gaia_error_message("Please log in to view conversations")
+        
         user_id = user.get("id", "dev-user-id")
         
         conversations = database_conversation_store.get_conversations(user_id)
@@ -707,7 +737,11 @@ def setup_routes(app):
     @app.delete("/api/conversations/{conversation_id}")
     async def delete_conversation(request, conversation_id: str):
         """Delete a conversation"""
-        user = request.session.get("user", {})
+        # Check authentication
+        user = request.session.get("user")
+        if not user:
+            return gaia_error_message("Please log in to delete conversations")
+        
         user_id = user.get("id", "dev-user-id")
         
         logger.info(f"Deleting conversation {conversation_id} for user {user_id}")
@@ -739,7 +773,11 @@ def setup_routes(app):
     @app.get("/api/search-conversations")
     async def search_conversations(request):
         """Search conversations by title or content"""
-        user = request.session.get("user", {})
+        # Check authentication
+        user = request.session.get("user")
+        if not user:
+            return gaia_error_message("Please log in to search conversations")
+        
         user_id = user.get("id", "dev-user-id")
         
         query = request.query_params.get("query", "").strip()
