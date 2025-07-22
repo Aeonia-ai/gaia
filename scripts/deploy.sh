@@ -121,10 +121,10 @@ if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "staging" && "$ENVIRONMENT" !
     exit 1
 fi
 
-# Set default services for dev environment
-if [[ "$ENVIRONMENT" == "dev" && "$DEPLOY_SERVICES" == "gateway" ]]; then
+# Set default services if none specified
+if [[ -z "$DEPLOY_SERVICES" ]]; then
     DEPLOY_SERVICES="all"
-    log_info "Dev environment: defaulting to deploy all services"
+    log_info "No services specified: defaulting to deploy all services"
 fi
 
 # Validate services
