@@ -2,6 +2,7 @@
 import json
 from datetime import datetime
 from fasthtml.components import Div, H2, Button, P, A, H1, Style
+from fasthtml.core import Script, NotStr
 from starlette.responses import HTMLResponse
 from app.services.web.components.gaia_ui import (
     gaia_layout, gaia_conversation_item, gaia_message_bubble,
@@ -189,9 +190,15 @@ def setup_routes(app):
             debug_script,
             gaia_toast_script(),  # Add toast management
             gaia_mobile_styles(),  # Add mobile-responsive styles
-            cls="flex flex-col h-full"
+            cls="flex flex-col h-full",
+            id="main-content"  # Add ID for HTMX targeting
         )
         
+        # For HTMX requests, return just the main content
+        if request.headers.get('hx-request'):
+            return main_content
+        
+        # For full page loads, return the complete layout
         return gaia_layout(
             sidebar_content=sidebar_content,
             main_content=main_content,
@@ -267,8 +274,24 @@ def setup_routes(app):
             return Div(
                 messages_container,
                 gaia_chat_input(conversation_id=conversation_id),
+                # Add script to update active conversation in sidebar
+                Script(NotStr(f'''
+                    // Update active conversation in sidebar
+                    document.querySelectorAll('#conversation-list a').forEach(a => {{
+                        a.parentElement.classList.remove('bg-gradient-to-r', 'from-purple-600/30', 'to-pink-600/30', 'border-l-3', 'border-purple-500', 'shadow-lg');
+                        a.parentElement.classList.add('hover:bg-slate-700/50', 'hover:shadow-md');
+                    }});
+                    const activeLink = document.querySelector('#conversation-list a[href="/chat/{conversation_id}"]');
+                    if (activeLink) {{
+                        activeLink.parentElement.classList.remove('hover:bg-slate-700/50', 'hover:shadow-md');
+                        activeLink.parentElement.classList.add('bg-gradient-to-r', 'from-purple-600/30', 'to-pink-600/30', 'border-l-3', 'border-purple-500', 'shadow-lg');
+                    }}
+                    // Update browser URL without reload
+                    history.pushState(null, '', '/chat/{conversation_id}');
+                ''')),
                 cls="flex flex-col h-full",
-                data_conversation_id=conversation_id
+                data_conversation_id=conversation_id,
+                id="main-content"
             )
             
         except Exception as e:
@@ -331,7 +354,8 @@ def setup_routes(app):
             gaia_chat_input(conversation_id=conversation['id']),
             update_script,
             cls="flex flex-col h-full",
-            data_conversation_id=conversation['id']
+            data_conversation_id=conversation['id'],
+            id="main-content"
         )
     
     @app.post("/api/chat/send")

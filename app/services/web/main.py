@@ -34,6 +34,34 @@ app = FastHTML(
             .htmx-request .htmx-indicator { display: none !important; }
             .htmx-request.htmx-indicator { display: none !important; }
         """),
+        # Global HTMX configuration for SPA-like behavior
+        Script("""
+            document.addEventListener('DOMContentLoaded', function() {
+                // Configure HTMX for better SPA experience
+                htmx.config.historyCacheSize = 10;
+                htmx.config.refreshOnHistoryMiss = false;
+                
+                // Add page transition effects
+                document.body.addEventListener('htmx:beforeSwap', function(evt) {
+                    // Fade out effect
+                    if (evt.detail.target.id === 'main-content') {
+                        evt.detail.target.style.opacity = '0';
+                        evt.detail.target.style.transform = 'translateY(10px)';
+                    }
+                });
+                
+                document.body.addEventListener('htmx:afterSwap', function(evt) {
+                    // Fade in effect
+                    if (evt.detail.target.id === 'main-content') {
+                        setTimeout(() => {
+                            evt.detail.target.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                            evt.detail.target.style.opacity = '1';
+                            evt.detail.target.style.transform = 'translateY(0)';
+                        }, 10);
+                    }
+                });
+            });
+        """),
     ),
     title="Gaia Platform"
     # Removed static_dir parameter - FastHTML() doesn't support it
