@@ -230,18 +230,37 @@ async def get_current_auth(
     # Try user-associated API key authentication
     if api_key_header:
         try:
+            # Check if we should use Supabase for API key validation
+            auth_backend = os.getenv("AUTH_BACKEND", "postgres")
+            
+            if auth_backend == "supabase" or os.getenv("SUPABASE_AUTH_ENABLED", "false").lower() == "true":
+                # Try Supabase first
+                logger.debug("Validating API key in Supabase")
+                try:
+                    from app.shared.supabase_auth import validate_api_key_supabase
+                    supabase_result = await validate_api_key_supabase(api_key_header)
+                    
+                    if supabase_result:
+                        logger.debug(f"Authenticated via Supabase API key for user: {supabase_result.user_id}")
+                        return supabase_result
+                    else:
+                        logger.debug("API key not found in Supabase, trying PostgreSQL")
+                except Exception as e:
+                    logger.warning(f"Supabase auth check failed: {e}, falling back to PostgreSQL")
+            
+            # Fall back to PostgreSQL
             from app.shared.database import get_database_session
             db_gen = get_database_session()
             db = next(db_gen)
             
-            logger.debug("Validating API key in database")
+            logger.debug("Validating API key in PostgreSQL database")
             user_api_result = await validate_user_api_key(api_key_header, db)
             
             if user_api_result:
-                logger.debug(f"Authenticated via API key for user: {user_api_result.user_id}")
+                logger.debug(f"Authenticated via PostgreSQL API key for user: {user_api_result.user_id}")
                 return user_api_result
             else:
-                logger.warning("Invalid API Key provided - not found in database")
+                logger.warning("Invalid API Key provided - not found in any database")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Could not validate credentials"
@@ -249,7 +268,7 @@ async def get_current_auth(
         except HTTPException:
             raise  # Re-raise HTTP exceptions as-is
         except Exception as e:
-            logger.error(f"Database error during API Key validation: {str(e)}")
+            logger.error(f"Error during API Key validation: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Internal server error during authentication"

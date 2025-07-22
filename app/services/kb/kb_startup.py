@@ -20,88 +20,122 @@ logger = get_logger(__name__)
 
 async def initialize_kb_repository():
     """
-    Initialize KB repository on startup.
-    Clones from Git if:
-    1. KB directory doesn't exist
-    2. KB directory exists but is empty
-    3. KB directory exists but has no .git folder
+    Initialize KB repository on startup with deferred clone.
     
-    This ensures local Docker behaves exactly like remote deployments.
+    Fast startup approach:
+    1. Check if repository already exists - if so, we're done
+    2. Create empty directory structure for immediate service startup
+    3. Schedule background git clone (non-blocking)
+    
+    This ensures services start immediately while git clone happens in background.
+    """
+    kb_path = Path(getattr(settings, 'KB_PATH', '/kb'))
+    git_repo_url = getattr(settings, 'KB_GIT_REPO_URL', None)
+    auto_clone = getattr(settings, 'KB_GIT_AUTO_CLONE', True)
+    
+    # Always ensure the KB directory exists for immediate service startup
+    kb_path.mkdir(parents=True, exist_ok=True)
+    
+    # Check if repository already exists and is complete
+    if (kb_path / '.git').exists() and any(kb_path.iterdir()):
+        file_count = sum(1 for _ in kb_path.rglob("*") if _.is_file())
+        logger.info(f"KB repository already exists with {file_count} files, startup complete")
+        return True
+    
+    # Repository doesn't exist or is incomplete
+    if not git_repo_url:
+        logger.info("No KB_GIT_REPO_URL configured, KB will start empty")
+        return True  # Return True so service starts normally
+    
+    if not auto_clone:
+        logger.info("KB_GIT_AUTO_CLONE disabled, KB will start empty")
+        return True  # Return True so service starts normally
+    
+    # Schedule background clone (non-blocking)
+    logger.info(f"Scheduling background clone from {git_repo_url}")
+    task = asyncio.create_task(_background_clone())
+    
+    # Add error callback to see if task fails
+    def log_task_exception(task):
+        try:
+            task.result()
+        except Exception as e:
+            logger.error(f"Background clone task failed: {e}")
+    
+    task.add_done_callback(log_task_exception)
+    
+    return True  # Service starts immediately
+
+
+async def _background_clone():
+    """
+    Perform git clone in background after service startup.
+    This prevents blocking service startup on large repositories.
     """
     kb_path = Path(getattr(settings, 'KB_PATH', '/kb'))
     git_repo_url = getattr(settings, 'KB_GIT_REPO_URL', None)
     git_auth_token = getattr(settings, 'KB_GIT_AUTH_TOKEN', None)
-    auto_clone = getattr(settings, 'KB_GIT_AUTO_CLONE', True)
     
-    if not git_repo_url:
-        logger.info("No KB_GIT_REPO_URL configured, skipping repository initialization")
-        return False
-    
-    if not auto_clone:
-        logger.info("KB_GIT_AUTO_CLONE is disabled, skipping repository initialization")
-        return False
-    
-    # Check if we need to clone
-    needs_clone = False
-    
-    if not kb_path.exists():
-        logger.info(f"KB path {kb_path} does not exist, will clone repository")
-        needs_clone = True
-    elif not any(kb_path.iterdir()):
-        logger.info(f"KB path {kb_path} is empty, will clone repository")
-        needs_clone = True
-    elif not (kb_path / '.git').exists():
-        logger.info(f"KB path {kb_path} exists but has no .git directory, will clone repository")
-        needs_clone = True
-    else:
-        logger.info(f"KB repository already exists at {kb_path}, skipping clone")
-        return True
-    
-    if needs_clone:
-        try:
-            # Prepare the clone URL with authentication
-            clone_url = _prepare_authenticated_url(git_repo_url, git_auth_token)
-            
-            # Ensure parent directory exists
-            kb_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # If directory exists but needs clone, remove it first
-            if kb_path.exists():
-                logger.info(f"Removing existing non-git directory at {kb_path}")
-                shutil.rmtree(kb_path)
-            
-            logger.info(f"Cloning repository from {git_repo_url} to {kb_path}")
-            
-            # Clone the repository
-            process = await asyncio.create_subprocess_exec(
-                'git', 'clone', clone_url, str(kb_path),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            stdout, stderr = await process.communicate()
-            
-            if process.returncode != 0:
-                error_msg = stderr.decode() if stderr else "Unknown error"
-                # Remove auth token from error message for security
-                if git_auth_token:
-                    error_msg = error_msg.replace(git_auth_token, "***")
-                raise Exception(f"Git clone failed: {error_msg}")
-            
-            # Configure git for any future operations
-            await _configure_git(kb_path)
-            
-            # Count files for logging
-            file_count = sum(1 for _ in kb_path.rglob("*") if _.is_file())
-            logger.info(f"Successfully cloned repository with {file_count} files")
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to clone repository: {e}")
-            # Create empty directory so service can still start
+    try:
+        logger.info("Starting background git clone...")
+        
+        # If directory has content but no .git, clean it first
+        if kb_path.exists() and any(kb_path.iterdir()) and not (kb_path / '.git').exists():
+            logger.info(f"Cleaning non-git directory at {kb_path}")
+            shutil.rmtree(kb_path)
             kb_path.mkdir(parents=True, exist_ok=True)
-            return False
+        
+        # Prepare the clone URL with authentication
+        clone_url = _prepare_authenticated_url(git_repo_url, git_auth_token)
+        
+        logger.info(f"Cloning repository from {git_repo_url} to {kb_path}")
+        
+        # Clone to persistent volume using temp directory approach
+        # This ensures the repository persists across container restarts
+        temp_clone_path = kb_path.parent / f"{kb_path.name}_temp"
+        
+        # Clone to temp location first
+        process = await asyncio.create_subprocess_exec(
+            'git', 'clone', clone_url, str(temp_clone_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            error_msg = stderr.decode() if stderr else "Unknown error"
+            # Remove auth token from error message for security
+            if git_auth_token:
+                error_msg = error_msg.replace(git_auth_token, "***")
+            raise Exception(f"Git clone failed: {error_msg}")
+        
+        # Move contents to persistent volume (preserving .git)
+        for item in temp_clone_path.iterdir():
+            dest = kb_path / item.name
+            if dest.exists():
+                if dest.is_dir():
+                    shutil.rmtree(dest)
+                else:
+                    dest.unlink()
+            shutil.move(str(item), str(dest))
+        
+        # Remove temp directory
+        temp_clone_path.rmdir()
+        
+        logger.info(f"Repository moved to persistent volume at {kb_path}")
+        
+        # Configure git for any future operations
+        await _configure_git(kb_path)
+        
+        # Count files for logging
+        file_count = sum(1 for _ in kb_path.rglob("*") if _.is_file())
+        logger.info(f"✅ Background clone completed successfully with {file_count} files")
+        
+    except Exception as e:
+        logger.error(f"❌ Background clone failed: {e}")
+        # Ensure directory exists even if clone failed
+        kb_path.mkdir(parents=True, exist_ok=True)
 
 
 def _prepare_authenticated_url(repo_url: str, auth_token: Optional[str]) -> str:

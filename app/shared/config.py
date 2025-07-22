@@ -214,18 +214,87 @@ def get_supabase_redirect_urls() -> dict:
     }
 
 def get_nats_config() -> dict:
-    """Get NATS configuration."""
+    """Get NATS configuration with smart service discovery."""
+    # Check if we have separate NATS_HOST and NATS_PORT (multi-cloud approach)
+    nats_host = os.getenv("NATS_HOST")
+    nats_port = os.getenv("NATS_PORT")
+    
+    if nats_host and nats_port:
+        # Environment-based service discovery for multi-cloud portability
+        nats_url = f"nats://{nats_host}:{nats_port}"
+    else:
+        # Fallback to hardcoded NATS_URL or default
+        nats_url = settings.NATS_URL
+    
     return {
-        "url": settings.NATS_URL,
+        "url": nats_url,
         "timeout": settings.NATS_TIMEOUT,
         "max_reconnect_attempts": settings.NATS_MAX_RECONNECT_ATTEMPTS
     }
 
+def get_service_url(service_name: str) -> str:
+    """
+    Get service URL with smart cloud-agnostic service discovery.
+    
+    Supports multiple deployment patterns:
+    1. Environment-based URLs (ENVIRONMENT=dev -> gaia-{service}-dev.fly.dev)
+    2. Explicit URL override via {SERVICE}_URL environment variable
+    3. Local development defaults
+    """
+    service_name = service_name.lower()
+    
+    # Check for explicit URL override first
+    url_env_var = f"{service_name.upper()}_SERVICE_URL"
+    explicit_url = os.getenv(url_env_var)
+    if explicit_url:
+        return explicit_url
+    
+    # Use environment-based service discovery
+    environment = settings.ENVIRONMENT.lower()
+    
+    if environment in ["local", "development"]:
+        # Local development
+        port_map = {
+            "auth": 8001,
+            "asset": 8002, 
+            "chat": 8003,
+            "kb": 8004,
+            "gateway": 8666,
+            "web": 8080,
+            "nats": 4222
+        }
+        port = port_map.get(service_name, 8000)
+        return f"http://localhost:{port}"
+    
+    else:
+        # Cloud deployment - auto-generate URL based on environment
+        # Format: gaia-{service}-{environment}.fly.dev
+        # This pattern can be adapted for other cloud providers
+        cloud_provider = os.getenv("CLOUD_PROVIDER", "fly")
+        
+        if cloud_provider == "fly":
+            return f"https://gaia-{service_name}-{environment}.fly.dev"
+        elif cloud_provider == "aws":
+            region = os.getenv("AWS_REGION", "us-west-2") 
+            return f"https://gaia-{service_name}-{environment}.{region}.elb.amazonaws.com"
+        elif cloud_provider == "gcp":
+            region = os.getenv("GCP_REGION", "us-west1")
+            project = os.getenv("GCP_PROJECT", "gaia-platform")
+            return f"https://gaia-{service_name}-{environment}-{region}.run.app"
+        elif cloud_provider == "azure":
+            region = os.getenv("AZURE_REGION", "westus2")
+            return f"https://gaia-{service_name}-{environment}.{region}.azurecontainer.io"
+        else:
+            # Fallback to fly.io pattern
+            return f"https://gaia-{service_name}-{environment}.fly.dev"
+
 def get_service_urls() -> dict:
     """Get all service URLs for inter-service communication."""
     return {
-        "auth": settings.AUTH_SERVICE_URL,
-        "asset": settings.ASSET_SERVICE_URL,
-        "chat": settings.CHAT_SERVICE_URL,
-        "gateway": settings.GATEWAY_URL
+        "auth": get_service_url("auth"),
+        "asset": get_service_url("asset"),
+        "chat": get_service_url("chat"),
+        "kb": get_service_url("kb"),
+        "gateway": get_service_url("gateway"),
+        "web": get_service_url("web")
     }
