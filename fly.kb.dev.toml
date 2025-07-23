@@ -37,9 +37,9 @@ kill_timeout = 5
   HEALTH_CHECK_ENABLED = "true"
 
 [mounts]
-  source = "gaia_kb_dev_3gb"
+  source = "gaia_kb_dev_large"
   destination = "/kb"
-  # 3GB persistent volume - 3x the repository size for overhead
+  # 10GB persistent volume - 3x the repository size for overhead
 
 [[services]]
   protocol = "tcp"
