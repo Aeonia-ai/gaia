@@ -68,11 +68,22 @@ class SupabaseAuthClient:
                 if result.get('is_valid', False):
                     logger.debug(f"Valid API key for user: {result['user_id']}")
                     
+                    # Convert permissions dict to scopes list for compatibility
+                    permissions = result.get('permissions', {})
+                    scopes = []
+                    if isinstance(permissions, dict):
+                        # Convert permission flags to scope strings
+                        if permissions.get('admin'):
+                            scopes.append('admin')
+                        if permissions.get('kb_access'):
+                            scopes.append('kb:read')
+                            scopes.append('kb:write')
+                    
                     return AuthenticationResult(
                         auth_type="user_api_key",
                         user_id=result['user_id'],
                         api_key=api_key,
-                        permissions=result.get('permissions', {})
+                        scopes=scopes
                     )
                 else:
                     logger.warning("API key is inactive or expired")
