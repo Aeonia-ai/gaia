@@ -47,14 +47,18 @@ class IntelligentChatService:
     async def process_intelligent_chat(
         self,
         request: ChatRequest,
-        auth_principal: Dict[str, Any]
+        auth_principal: Dict[str, Any],
+        always_route: bool = False
     ) -> Any:
         """
         Process chat with intelligent routing.
         
-        1. Quick classification (~200ms)
+        1. Quick classification (pattern match: <1ms, LLM: ~200ms)
         2. Route to optimal endpoint
         3. Return response with routing metadata
+        
+        Args:
+            always_route: If False (default), may bypass routing for obvious simple messages
         """
         start_time = time.time()
         self._metrics["total_requests"] += 1
@@ -86,8 +90,33 @@ class IntelligentChatService:
                 f"estimated time: {classification['estimated_response_time']})"
             )
             
-            # Route to appropriate handler based on classification
-            if endpoint == "/chat/direct":
+            # Check if we already have a complete response from classification
+            if classification.get("is_complete", False):
+                # Ultra-fast path - LLM already provided the response during classification!
+                # No additional endpoint call needed
+                logger.info("Using ultra-fast direct response from classification")
+                
+                response = {
+                    "id": f"chat-{auth_key}-{int(time.time())}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": classification.get("model_used", "claude-3-haiku-20240307"),
+                    "choices": [{
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": classification.get("direct_response", "")
+                        },
+                        "finish_reason": "stop"
+                    }],
+                    "usage": {
+                        "prompt_tokens": len(request.message.split()),
+                        "completion_tokens": len(classification.get("direct_response", "").split()),
+                        "total_tokens": len(request.message.split()) + len(classification.get("direct_response", "").split())
+                    }
+                }
+            
+            elif endpoint == "/chat/direct":
                 # Fast path - direct to LLM
                 response = await simple_lightweight_chat_endpoint(request, auth_principal)
             

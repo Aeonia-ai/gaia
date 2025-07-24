@@ -56,6 +56,52 @@ class IntelligentRouter:
         """
         start_time = time.time()
         
+        # Ultra-fast pattern matching for common simple messages
+        # This bypasses LLM classification entirely for obvious cases
+        simple_patterns = [
+            # Greetings
+            r"^(hi|hello|hey|howdy|greetings|good\s*(morning|afternoon|evening|day))[\s!?.]*$",
+            # Simple questions
+            r"^(how\s+are\s+you|what'?s?\s+your\s+name|who\s+are\s+you)[\s!?.]*$",
+            # Thanks/acknowledgments
+            r"^(thanks?|thank\s+you|ty|thx|cheers|appreciate\s+it)[\s!?.]*$",
+            # Farewells
+            r"^(bye|goodbye|see\s+you|farewell|later|ttyl|gotta\s+go)[\s!?.]*$",
+            # Simple affirmations
+            r"^(ok|okay|sure|yes|yeah|yep|no|nope|alright|got\s+it)[\s!?.]*$",
+            # Basic requests
+            r"^(tell\s+me\s+a\s+joke|what\s+time\s+is\s+it|help|test)[\s!?.]*$"
+        ]
+        
+        import re
+        message_lower = message.lower().strip()
+        
+        for pattern in simple_patterns:
+            if re.match(pattern, message_lower):
+                # Instant classification - no LLM needed!
+                classification_time = (time.time() - start_time) * 1000
+                
+                logger.info(
+                    f"Pattern-matched simple message in {classification_time:.0f}ms - "
+                    f"ultra-fast bypass activated"
+                )
+                
+                self._routing_metrics["simple"] += 1
+                self._routing_metrics["total_classifications"] += 1
+                
+                return {
+                    "complexity": ChatComplexity.SIMPLE,
+                    "reasoning": "Pattern-matched as simple greeting/question",
+                    "domains": [],
+                    "requires_tools": False,
+                    "requires_multiagent": False,
+                    "suggested_endpoint": "/chat/direct",
+                    "estimated_response_time": "~1s",
+                    "use_streaming": True,
+                    "classification_time_ms": classification_time,
+                    "bypass_classification": True  # Indicates pattern matching was used
+                }
+        
         # Define the classification function for the LLM
         classification_function = {
             "name": "classify_chat_complexity",
@@ -91,29 +137,36 @@ class IntelligentRouter:
         }
         
         # Create classification prompt
-        system_prompt = """You are a chat complexity classifier. Analyze messages and determine:
+        system_prompt = """You are an intelligent chat assistant with routing capabilities.
 
-SIMPLE (use for ~70% of messages):
-- Greetings, farewells, small talk
-- Simple questions with straightforward answers
+For ULTRA-SIMPLE messages (greetings, basic chat, simple questions), just respond directly without using the classification function. This includes:
+- Greetings like "Hello", "Hi", "Good morning"
+- Simple questions like "How are you?", "What's your name?"
+- Basic requests like "Tell me a joke", "Thanks"
+- Any message you can answer in 1-2 sentences without needing tools or analysis
+
+For messages that need routing, use the classify_chat_complexity function:
+
+SIMPLE (use for ~60% of remaining messages):
+- Questions with straightforward answers
 - Basic information requests
 - Casual conversation
-- Single-turn responses
+- Single-turn responses that need more than 2 sentences
 
-MODERATE (use for ~20% of messages):
+MODERATE (use for ~30% of remaining messages):
 - Questions requiring some research or analysis
 - Requests needing tool usage (search, calculations)
 - Technical questions in a single domain
 - Multi-step but straightforward tasks
 
-COMPLEX (use for ~10% of messages):
+COMPLEX (use for ~10% of remaining messages):
 - Multi-domain questions requiring expertise
 - Creative tasks (worldbuilding, storytelling)
 - Complex problem-solving needing multiple perspectives
 - Requests explicitly asking for multiple viewpoints
 - Tasks requiring coordination of multiple specialists
 
-Be biased towards SIMPLE for conversational messages."""
+Remember: If you can answer immediately in 1-2 sentences, just do it! Don't overthink simple messages."""
         
         # Prepare messages for classification
         messages = [
@@ -126,19 +179,20 @@ Be biased towards SIMPLE for conversational messages."""
             provider = LLMProvider.ANTHROPIC
             model = "claude-3-haiku-20240307"  # Fastest model for classification
             
-            # Make the classification call with function
+            # Make the classification call with function as optional (not forced)
             response = await multi_provider_selector.chat_completion(
                 messages=messages,
                 model=model,
                 provider=provider,
                 tools=[{"type": "function", "function": classification_function}],
-                tool_choice={"type": "function", "function": {"name": "classify_chat_complexity"}},
+                tool_choice="auto",  # Let LLM decide if it needs to classify
                 temperature=0.3,  # Low temperature for consistent classification
-                max_tokens=200
+                max_tokens=1000  # Enough for a direct response
             )
             
-            # Parse function call response
+            # Check if LLM made a function call or just responded directly
             if response.get("tool_calls"):
+                # LLM decided to classify - parse the function call
                 function_args = json.loads(response["tool_calls"][0]["function"]["arguments"])
                 complexity = ChatComplexity(function_args["complexity"])
                 
@@ -177,9 +231,41 @@ Be biased towards SIMPLE for conversational messages."""
                 }
                 
             else:
-                # Fallback if no function call (shouldn't happen with tool_choice)
-                logger.warning("No function call in response, defaulting to simple")
-                return self._default_simple_routing()
+                # LLM responded directly without classification - this IS the response!
+                # This is the ultra-fast path for truly simple messages
+                classification_time = (time.time() - start_time) * 1000
+                
+                logger.info(
+                    f"LLM provided direct response without classification in {classification_time:.0f}ms - "
+                    f"ultra-fast path activated"
+                )
+                
+                # Extract the direct response
+                direct_response = response.get("response", "")
+                
+                # Update metrics for direct responses
+                self._routing_metrics["simple"] += 1
+                self._routing_metrics["total_classifications"] += 1
+                avg = self._routing_metrics["avg_classification_time_ms"]
+                total = self._routing_metrics["total_classifications"]
+                self._routing_metrics["avg_classification_time_ms"] = (
+                    (avg * (total - 1) + classification_time) / total
+                )
+                
+                return {
+                    "complexity": ChatComplexity.SIMPLE,
+                    "reasoning": "Direct response without classification - ultra simple",
+                    "domains": [],
+                    "requires_tools": False,
+                    "requires_multiagent": False,
+                    "suggested_endpoint": "DIRECT_RESPONSE",  # Special flag
+                    "estimated_response_time": f"{int(classification_time)}ms",
+                    "use_streaming": False,
+                    "classification_time_ms": classification_time,
+                    "direct_response": direct_response,  # Include the actual response
+                    "model_used": model,
+                    "is_complete": True  # This response is already complete
+                }
                 
         except Exception as e:
             logger.error(f"Classification error: {e}, defaulting to simple")

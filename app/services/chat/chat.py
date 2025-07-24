@@ -800,15 +800,32 @@ try:
         """
         Intelligent chat with automatic routing based on message complexity.
         
-        Uses LLM function calling to classify messages and route to optimal endpoint:
-        - Simple dialog → Direct LLM (~1s)
-        - Tool usage needed → Hot MCP agent (~2-3s)
-        - Complex orchestration → Full multiagent (~3-5s)
-        
-        The routing decision adds only ~200ms overhead but ensures
-        optimal response times for all types of requests.
+        Features:
+        - Pattern matching for ultra-fast simple messages (<1ms classification)
+        - LLM classification for complex routing (~200ms)
+        - Routes to optimal endpoint:
+          - Simple dialog → Direct LLM (~1s)
+          - Tool usage needed → Hot MCP agent (~2-3s)
+          - Complex orchestration → Full multiagent (~3-5s)
         """
         return await intelligent_chat_endpoint(request, auth_principal)
+    
+    @router.post("/fast")
+    async def fast_direct_chat(
+        request: ChatRequest,
+        auth_principal: Dict[str, Any] = Depends(get_current_auth)
+    ):
+        """
+        Fast direct chat - bypasses ALL routing for guaranteed speed.
+        
+        Use this when you need the fastest possible response (~1s) and
+        know the message doesn't need tools or orchestration.
+        
+        Same as the original /chat/direct endpoint.
+        """
+        # Direct to simple endpoint, no routing overhead at all
+        from .lightweight_chat_simple import simple_lightweight_chat_endpoint
+        return await simple_lightweight_chat_endpoint(request, auth_principal)
     
     @router.get("/intelligent/metrics")
     async def intelligent_metrics(auth_principal: Dict[str, Any] = Depends(get_current_auth)):
