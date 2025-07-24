@@ -56,52 +56,6 @@ class IntelligentRouter:
         """
         start_time = time.time()
         
-        # Ultra-fast pattern matching for common simple messages
-        # This bypasses LLM classification entirely for obvious cases
-        simple_patterns = [
-            # Greetings
-            r"^(hi|hello|hey|howdy|greetings|good\s*(morning|afternoon|evening|day))[\s!?.]*$",
-            # Simple questions
-            r"^(how\s+are\s+you|what'?s?\s+your\s+name|who\s+are\s+you)[\s!?.]*$",
-            # Thanks/acknowledgments
-            r"^(thanks?|thank\s+you|ty|thx|cheers|appreciate\s+it)[\s!?.]*$",
-            # Farewells
-            r"^(bye|goodbye|see\s+you|farewell|later|ttyl|gotta\s+go)[\s!?.]*$",
-            # Simple affirmations
-            r"^(ok|okay|sure|yes|yeah|yep|no|nope|alright|got\s+it)[\s!?.]*$",
-            # Basic requests
-            r"^(tell\s+me\s+a\s+joke|what\s+time\s+is\s+it|help|test)[\s!?.]*$"
-        ]
-        
-        import re
-        message_lower = message.lower().strip()
-        
-        for pattern in simple_patterns:
-            if re.match(pattern, message_lower):
-                # Instant classification - no LLM needed!
-                classification_time = (time.time() - start_time) * 1000
-                
-                logger.info(
-                    f"Pattern-matched simple message in {classification_time:.0f}ms - "
-                    f"ultra-fast bypass activated"
-                )
-                
-                self._routing_metrics["simple"] += 1
-                self._routing_metrics["total_classifications"] += 1
-                
-                return {
-                    "complexity": ChatComplexity.SIMPLE,
-                    "reasoning": "Pattern-matched as simple greeting/question",
-                    "domains": [],
-                    "requires_tools": False,
-                    "requires_multiagent": False,
-                    "suggested_endpoint": "/chat/direct",
-                    "estimated_response_time": "~1s",
-                    "use_streaming": True,
-                    "classification_time_ms": classification_time,
-                    "bypass_classification": True  # Indicates pattern matching was used
-                }
-        
         # Define the classification function for the LLM
         classification_function = {
             "name": "classify_chat_complexity",
@@ -136,58 +90,42 @@ class IntelligentRouter:
             }
         }
         
-        # Create classification prompt
-        system_prompt = """You are an intelligent chat assistant with routing capabilities.
+        # Create classification prompt that encourages direct responses
+        system_prompt = """You are an intelligent chat assistant. 
 
-For ULTRA-SIMPLE messages (greetings, basic chat, simple questions), just respond directly without using the classification function. This includes:
-- Greetings like "Hello", "Hi", "Good morning"
-- Simple questions like "How are you?", "What's your name?"
-- Basic requests like "Tell me a joke", "Thanks"
-- Any message you can answer in 1-2 sentences without needing tools or analysis
+For messages you can answer directly without needing special tools or multiple agents:
+- Just respond naturally 
+- Don't use the classification function
+- This includes greetings, simple questions, basic requests, general knowledge
 
-For messages that need routing, use the classify_chat_complexity function:
+ONLY use the classify_chat_complexity function when:
+- The request explicitly needs tools (search, calculations, file operations)
+- Multiple specialist perspectives are needed (worldbuilding, storytelling)
+- Complex orchestration is required (game design, multi-domain analysis)
+- You genuinely cannot provide a good answer without additional capabilities
 
-SIMPLE (use for ~60% of remaining messages):
-- Questions with straightforward answers
-- Basic information requests
-- Casual conversation
-- Single-turn responses that need more than 2 sentences
-
-MODERATE (use for ~30% of remaining messages):
-- Questions requiring some research or analysis
-- Requests needing tool usage (search, calculations)
-- Technical questions in a single domain
-- Multi-step but straightforward tasks
-
-COMPLEX (use for ~10% of remaining messages):
-- Multi-domain questions requiring expertise
-- Creative tasks (worldbuilding, storytelling)
-- Complex problem-solving needing multiple perspectives
-- Requests explicitly asking for multiple viewpoints
-- Tasks requiring coordination of multiple specialists
-
-Remember: If you can answer immediately in 1-2 sentences, just do it! Don't overthink simple messages."""
+The classification function is a TOOL for routing complex requests, not a requirement for every message."""
         
-        # Prepare messages for classification
+        # Prepare messages - just pass the user's message naturally
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Classify this message: {message}"}
+            {"role": "user", "content": message}  # Natural message, not "classify this"
         ]
         
         try:
-            # Use fastest available model for classification (e.g., Claude Haiku)
+            # Use a capable model that can both respond and classify
             provider = LLMProvider.ANTHROPIC
-            model = "claude-3-haiku-20240307"  # Fastest model for classification
+            model = "claude-3-5-sonnet-20241022"  # Better model for quality responses
             
-            # Make the classification call with function as optional (not forced)
+            # Make a single call that can either respond directly or classify
             response = await multi_provider_selector.chat_completion(
                 messages=messages,
                 model=model,
                 provider=provider,
                 tools=[{"type": "function", "function": classification_function}],
-                tool_choice="auto",  # Let LLM decide if it needs to classify
-                temperature=0.3,  # Low temperature for consistent classification
-                max_tokens=1000  # Enough for a direct response
+                tool_choice="auto",  # Let LLM decide: respond directly or classify
+                temperature=0.7,  # Natural temperature for good responses
+                max_tokens=2000  # Enough for a full response
             )
             
             # Check if LLM made a function call or just responded directly
