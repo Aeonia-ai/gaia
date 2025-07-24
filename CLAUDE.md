@@ -14,18 +14,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## ⚠️ REMINDER TO CLAUDE CODE
 **BEFORE ANY WEB UI CHANGES:** You MUST read the HTMX + FastHTML Debugging Guide and Auth Layout Isolation docs first. The user will remind you if you don't, because layout bugs "keep coming back" when documentation is ignored. Always use `auth_page_replacement()` for auth responses and proper HTMX container targeting patterns.
 
-## 🎯 Current Development Focus (July 22, 2025)
+## 🎯 Current Development Focus (July 24, 2025)
 **Latest Updates**: 
-- **Supabase Authentication**: IMPLEMENTED - Centralized API key validation working locally, remote needs service role key
-- **KB Git Sync**: COMPLETE - Deferred initialization pattern for fast startup, 3GB volumes for 1GB repos
-- **KB Service**: Fully integrated with Aeonia's Obsidian Vault (1074+ files) using container-only storage for local-remote parity
+- **Supabase Authentication**: FULLY IMPLEMENTED - No PostgreSQL fallback when AUTH_BACKEND=supabase
+- **KB Git Sync**: COMPLETE - Deferred initialization pattern for fast startup, 10GB volumes
+- **KB Service**: Fully integrated with Aeonia's Obsidian Vault (1234 files) on remote dev environment
 - **RBAC System**: Designed flexible role-based access control starting with KB, extensible platform-wide
 - **Multi-User KB**: Architecture supports teams, workspaces, and granular permissions
 - **mTLS + JWT Authentication**: COMPLETE (Phases 1-2) - Modern auth infrastructure with 100% backward compatibility
 
 **Key Authentication & Authorization**:
-- **Supabase-first**: API keys validated through Supabase with PostgreSQL fallback
-- **Database-first**: ALL API keys validated through database (no special cases)
+- **Supabase-first**: API keys validated through Supabase ONLY (no fallback) when configured
+- **Clean separation**: AUTH_BACKEND=supabase means Supabase-only validation
 - **RBAC Integration**: Role-based permissions for KB and platform resources
 - **Multi-User Ready**: User namespaces, team/workspace support, sharing mechanisms
 - **Local-remote parity**: Same authentication code in both environments  
@@ -33,6 +33,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Zero breaking changes**: All existing clients continue to work unchanged
 - **mTLS Infrastructure**: Certificate Authority + service certificates deployed
 - **Unified Authentication**: `get_current_auth_unified()` handles API keys + Supabase JWTs
+
+**Important**: See [Supabase Auth Migration Learnings](docs/supabase-auth-migration-learnings.md) for key architectural decisions and deployment strategies
 
 **Active Development**:
 - Getting Supabase service role key for full remote functionality

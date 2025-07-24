@@ -22,6 +22,10 @@ BASE_URL="${BASE_URL:-http://localhost:8666}"
 
 # Set base URL based on environment
 case $ENVIRONMENT in
+    "dev")
+        BASE_URL="https://gaia-gateway-dev.fly.dev"
+        API_KEY="${DEV_API_KEY:-$API_KEY}"
+        ;;
     "staging")
         BASE_URL="https://gaia-gateway-staging.fly.dev"
         API_KEY="${STAGING_API_KEY:-$API_KEY}"
