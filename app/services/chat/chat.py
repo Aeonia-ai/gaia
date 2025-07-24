@@ -785,6 +785,9 @@ except Exception as e:
     logger.warning(f"⚠️ Orchestrated Traceback: {traceback.format_exc()}")
     orchestrated_chat_service = None
 
+# KB-enhanced multiagent orchestrator moved to separate KB service
+# KB endpoints are now handled by kb-service and routed through the gateway
+
 # Add orchestrated chat endpoints if service is available
 if orchestrated_chat_service:
     @router.post("/orchestrated")

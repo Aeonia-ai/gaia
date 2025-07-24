@@ -18,6 +18,7 @@ FORCE_REBUILD=false
 DEPLOY_SERVICES="gateway"  # Default to gateway only
 DATABASE_TYPE="fly"  # fly or supabase
 DRY_RUN=false
+REMOTE_ONLY=false  # Use Fly.io remote builders
 
 function print_usage() {
     echo "Usage: $0 --env {dev|staging|production} [options]"
@@ -28,9 +29,10 @@ function print_usage() {
     echo "Optional Options:"
     echo "  --region REGION             # Fly.io region (default: lax)"
     echo "  --services SERVICE_LIST     # Services to deploy (default: all for dev, gateway for staging/prod)"
-    echo "                              # Options: gateway, auth, asset, chat, web, all"
+    echo "                              # Options: gateway, auth, asset, chat, web, kb, all"
     echo "  --database fly|supabase     # Database type (default: fly)"
     echo "  --rebuild                   # Force rebuild containers"
+    echo "  --remote-only               # Use Fly.io remote builders (no local Docker)"
     echo "  --dry-run                   # Show what would be deployed without deploying"
     echo "  --help                      # Show this help"
     echo ""
@@ -87,6 +89,10 @@ while [[ $# -gt 0 ]]; do
             FORCE_REBUILD=true
             shift
             ;;
+        --remote-only)
+            REMOTE_ONLY=true
+            shift
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -115,22 +121,22 @@ if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "staging" && "$ENVIRONMENT" !
     exit 1
 fi
 
-# Set default services for dev environment
-if [[ "$ENVIRONMENT" == "dev" && "$DEPLOY_SERVICES" == "gateway" ]]; then
+# Set default services if none specified
+if [[ -z "$DEPLOY_SERVICES" ]]; then
     DEPLOY_SERVICES="all"
-    log_info "Dev environment: defaulting to deploy all services"
+    log_info "No services specified: defaulting to deploy all services"
 fi
 
 # Validate services
 case "$DEPLOY_SERVICES" in
-    "gateway"|"auth"|"asset"|"chat"|"web")
+    "gateway"|"auth"|"asset"|"chat"|"web"|"kb")
         ;;
     "all")
-        DEPLOY_SERVICES="gateway auth asset chat web"
+        DEPLOY_SERVICES="gateway auth asset chat web kb"
         ;;
     *)
         log_error "Invalid services: $DEPLOY_SERVICES"
-        log_error "Valid options: gateway, auth, asset, chat, web, all"
+        log_error "Valid options: gateway, auth, asset, chat, web, kb, all"
         exit 1
         ;;
 esac
@@ -151,8 +157,8 @@ function check_prerequisites() {
         exit 1
     fi
     
-    # Check if Docker is running
-    if ! docker info &> /dev/null; then
+    # Check if Docker is running (skip if using remote-only builds)
+    if [[ "$REMOTE_ONLY" != "true" ]] && ! docker info &> /dev/null; then
         log_error "Docker is not running. Please start Docker Desktop."
         exit 1
     fi
@@ -247,6 +253,11 @@ function deploy_service() {
         deploy_args+=("--no-cache")
     fi
     
+    if [[ "$REMOTE_ONLY" == "true" ]]; then
+        deploy_args+=("--remote-only")
+        log_info "Using Fly.io remote builders - no local Docker required"
+    fi
+    
     # Deploy based on service deployment pattern
     if [[ "$DEPLOY_SERVICES" == "gateway" ]]; then
         log_info "🚀 Gateway-Only Deployment Pattern:"
@@ -291,6 +302,49 @@ function deploy_service() {
                     fi
                 else
                     log_warn "⚠️  Unable to validate secrets configuration (old auth service version?)"
+                fi
+            fi
+            
+            # For KB service, check and trigger git clone if needed
+            if [[ "$service" == "kb" ]]; then
+                log_step "Checking KB repository status..."
+                
+                # Wait a bit more for KB to fully start
+                sleep 10
+                
+                # Get health status
+                local kb_health=$(curl -s "$app_url/health" 2>/dev/null)
+                local file_count=$(echo "$kb_health" | jq -r '.repository.file_count // 0' 2>/dev/null)
+                local has_git_url=$(echo "$kb_health" | jq -r '.repository.git_url_configured // false' 2>/dev/null)
+                local has_git_token=$(echo "$kb_health" | jq -r '.repository.git_token_configured // false' 2>/dev/null)
+                
+                if [[ "$has_git_url" != "true" ]] || [[ "$has_git_token" != "true" ]]; then
+                    log_warn "⚠️  KB Git secrets not properly configured"
+                    log_info "Please ensure KB_GIT_REPO_URL and KB_GIT_AUTH_TOKEN are set"
+                elif [ "$file_count" -eq 0 ]; then
+                    log_info "Repository not cloned yet, triggering clone..."
+                    log_info "This may take 2-3 minutes for large repositories..."
+                    
+                    # Trigger clone with timeout
+                    local clone_response=$(curl -s -X POST "$app_url/trigger-clone" --max-time 300 2>/dev/null)
+                    local clone_status=$(echo "$clone_response" | jq -r '.status // "failed"' 2>/dev/null)
+                    
+                    if [[ "$clone_status" == "success" ]]; then
+                        local cloned_files=$(echo "$clone_response" | jq -r '.file_count // 0' 2>/dev/null)
+                        log_success "✅ Repository cloned successfully with $cloned_files files"
+                    elif [[ "$clone_status" == "already_cloned" ]]; then
+                        log_info "✅ Repository was already cloned"
+                    else
+                        log_warn "⚠️  Clone may have failed or timed out"
+                        if [[ -n "$clone_response" ]]; then
+                            echo "Response: $clone_response" | head -5
+                        fi
+                        log_info ""
+                        log_info "You can manually trigger clone later with:"
+                        log_info "  curl -X POST $app_url/trigger-clone"
+                    fi
+                else
+                    log_success "✅ Repository already cloned with $file_count files"
                 fi
             fi
         else
@@ -361,6 +415,9 @@ function setup_secrets() {
                 ;;
             "web")
                 secrets+=("WEB_API_KEY")
+                ;;
+            "kb")
+                secrets+=("KB_GIT_REPO_URL" "KB_GIT_AUTH_TOKEN")
                 ;;
         esac
         

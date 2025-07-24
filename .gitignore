@@ -224,3 +224,9 @@ endpoint_test_results.json
 *.swo
 
 cookies*.txt
+
+# Sensitive files - API keys and credentials
+jason_api_key.txt
+jason_credentials.txt
+*_api_key.txt
+*_credentials.txt

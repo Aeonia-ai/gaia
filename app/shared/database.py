@@ -9,6 +9,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from functools import lru_cache
 import logging
+from contextlib import asynccontextmanager
+import asyncpg
 
 logger = logging.getLogger(__name__)
 
@@ -98,3 +100,50 @@ def get_database_settings() -> dict:
         "pool_timeout": int(os.getenv("DATABASE_POOL_TIMEOUT", "30")),
         "pool_recycle": int(os.getenv("DATABASE_POOL_RECYCLE", "3600")),
     }
+
+# Async database pool for asyncpg
+_async_pool = None
+
+async def get_async_pool():
+    """Get or create async database pool."""
+    global _async_pool
+    if _async_pool is None:
+        # Parse database URL to get connection params
+        import urllib.parse
+        parsed = urllib.parse.urlparse(DATABASE_URL)
+        _async_pool = await asyncpg.create_pool(
+            host=parsed.hostname,
+            port=parsed.port or 5432,
+            user=parsed.username,
+            password=parsed.password,
+            database=parsed.path[1:],  # Remove leading /
+            min_size=5,
+            max_size=20,
+            command_timeout=10
+        )
+    return _async_pool
+
+async def close_async_pool():
+    """Close the async database pool."""
+    global _async_pool
+    if _async_pool:
+        await _async_pool.close()
+        _async_pool = None
+
+@asynccontextmanager
+async def get_db_session():
+    """Async context manager for database sessions."""
+    pool = await get_async_pool()
+    async with pool.acquire() as connection:
+        yield connection
+
+def get_database():
+    """Get database connection pool (for KB storage compatibility)."""
+    # This returns a pool-like object for KB storage
+    class AsyncPoolWrapper:
+        @asynccontextmanager
+        async def acquire(self):
+            async with get_db_session() as conn:
+                yield conn
+    
+    return AsyncPoolWrapper()

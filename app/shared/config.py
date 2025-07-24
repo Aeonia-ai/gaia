@@ -92,11 +92,45 @@ class GaiaSettings(BaseSettings):
     AUTH_SERVICE_URL: str = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
     ASSET_SERVICE_URL: str = os.getenv("ASSET_SERVICE_URL", "http://localhost:8002") 
     CHAT_SERVICE_URL: str = os.getenv("CHAT_SERVICE_URL", "http://localhost:8003")
+    KB_SERVICE_URL: str = os.getenv("KB_SERVICE_URL", "http://localhost:8004")
     GATEWAY_URL: str = os.getenv("GATEWAY_URL", "http://localhost:8666")
     
     # Service Configuration
     SERVICE_NAME: str = os.getenv("SERVICE_NAME", "unknown")
     SERVICE_VERSION: str = os.getenv("SERVICE_VERSION", "1.0.0")
+    
+    # KB Configuration
+    KB_PATH: str = os.getenv("KB_PATH", "/kb")
+    KB_STORAGE_MODE: str = os.getenv("KB_STORAGE_MODE", "git")  # "git", "database", "hybrid"
+    KB_MCP_ENABLED: bool = os.getenv("KB_MCP_ENABLED", "true").lower() == "true"
+    KB_CACHE_TTL: int = int(os.getenv("KB_CACHE_TTL", "300"))  # 5 minutes
+    KB_GIT_BACKUP_ENABLED: bool = os.getenv("KB_GIT_BACKUP_ENABLED", "true").lower() == "true"
+    KB_BACKUP_INTERVAL: int = int(os.getenv("KB_BACKUP_INTERVAL", "300"))  # 5 minutes
+    KB_BATCH_COMMITS: bool = os.getenv("KB_BATCH_COMMITS", "true").lower() == "true"
+    KB_PUSH_ENABLED: bool = os.getenv("KB_PUSH_ENABLED", "false").lower() == "true"
+    
+    # KB Git Sync Configuration
+    KB_GIT_AUTO_SYNC: bool = os.getenv("KB_GIT_AUTO_SYNC", "true").lower() == "true"
+    KB_SYNC_INTERVAL: int = int(os.getenv("KB_SYNC_INTERVAL", "3600"))  # 1 hour
+    KB_GIT_REMOTE: str = os.getenv("KB_GIT_REMOTE", "origin")
+    KB_GIT_BRANCH: str = os.getenv("KB_GIT_BRANCH", "main")
+    
+    # KB Git Repository Configuration
+    KB_GIT_REPO_URL: Optional[str] = os.getenv("KB_GIT_REPO_URL")  # e.g., "https://github.com/user/kb.git"
+    KB_GIT_AUTH_TOKEN: Optional[str] = os.getenv("KB_GIT_AUTH_TOKEN")  # GitHub token for private repos
+    KB_GIT_AUTO_CLONE: bool = os.getenv("KB_GIT_AUTO_CLONE", "true").lower() == "true"
+    
+    # Multi-User KB Configuration
+    KB_MULTI_USER_ENABLED: bool = os.getenv("KB_MULTI_USER_ENABLED", "false").lower() == "true"
+    KB_USER_ISOLATION: str = os.getenv("KB_USER_ISOLATION", "strict")  # "strict" or "permissive"
+    KB_DEFAULT_VISIBILITY: str = os.getenv("KB_DEFAULT_VISIBILITY", "private")  # "private" or "public"
+    KB_SHARING_ENABLED: bool = os.getenv("KB_SHARING_ENABLED", "true").lower() == "true"
+    KB_WORKSPACE_ENABLED: bool = os.getenv("KB_WORKSPACE_ENABLED", "true").lower() == "true"
+    KB_TEAM_ENABLED: bool = os.getenv("KB_TEAM_ENABLED", "true").lower() == "true"
+    
+    # RBAC Configuration
+    RBAC_CACHE_TTL: int = int(os.getenv("RBAC_CACHE_TTL", "300"))  # 5 minutes
+    RBAC_AUDIT_ENABLED: bool = os.getenv("RBAC_AUDIT_ENABLED", "true").lower() == "true"
     SERVICE_HOST: str = os.getenv("SERVICE_HOST", "0.0.0.0")
     SERVICE_PORT: int = int(os.getenv("SERVICE_PORT", "8000"))
     
@@ -180,18 +214,87 @@ def get_supabase_redirect_urls() -> dict:
     }
 
 def get_nats_config() -> dict:
-    """Get NATS configuration."""
+    """Get NATS configuration with smart service discovery."""
+    # Check if we have separate NATS_HOST and NATS_PORT (multi-cloud approach)
+    nats_host = os.getenv("NATS_HOST")
+    nats_port = os.getenv("NATS_PORT")
+    
+    if nats_host and nats_port:
+        # Environment-based service discovery for multi-cloud portability
+        nats_url = f"nats://{nats_host}:{nats_port}"
+    else:
+        # Fallback to hardcoded NATS_URL or default
+        nats_url = settings.NATS_URL
+    
     return {
-        "url": settings.NATS_URL,
+        "url": nats_url,
         "timeout": settings.NATS_TIMEOUT,
         "max_reconnect_attempts": settings.NATS_MAX_RECONNECT_ATTEMPTS
     }
 
+def get_service_url(service_name: str) -> str:
+    """
+    Get service URL with smart cloud-agnostic service discovery.
+    
+    Supports multiple deployment patterns:
+    1. Environment-based URLs (ENVIRONMENT=dev -> gaia-{service}-dev.fly.dev)
+    2. Explicit URL override via {SERVICE}_URL environment variable
+    3. Local development defaults
+    """
+    service_name = service_name.lower()
+    
+    # Check for explicit URL override first
+    url_env_var = f"{service_name.upper()}_SERVICE_URL"
+    explicit_url = os.getenv(url_env_var)
+    if explicit_url:
+        return explicit_url
+    
+    # Use environment-based service discovery
+    environment = settings.ENVIRONMENT.lower()
+    
+    if environment in ["local", "development"]:
+        # Local development
+        port_map = {
+            "auth": 8001,
+            "asset": 8002, 
+            "chat": 8003,
+            "kb": 8004,
+            "gateway": 8666,
+            "web": 8080,
+            "nats": 4222
+        }
+        port = port_map.get(service_name, 8000)
+        return f"http://localhost:{port}"
+    
+    else:
+        # Cloud deployment - auto-generate URL based on environment
+        # Format: gaia-{service}-{environment}.fly.dev
+        # This pattern can be adapted for other cloud providers
+        cloud_provider = os.getenv("CLOUD_PROVIDER", "fly")
+        
+        if cloud_provider == "fly":
+            return f"https://gaia-{service_name}-{environment}.fly.dev"
+        elif cloud_provider == "aws":
+            region = os.getenv("AWS_REGION", "us-west-2") 
+            return f"https://gaia-{service_name}-{environment}.{region}.elb.amazonaws.com"
+        elif cloud_provider == "gcp":
+            region = os.getenv("GCP_REGION", "us-west1")
+            project = os.getenv("GCP_PROJECT", "gaia-platform")
+            return f"https://gaia-{service_name}-{environment}-{region}.run.app"
+        elif cloud_provider == "azure":
+            region = os.getenv("AZURE_REGION", "westus2")
+            return f"https://gaia-{service_name}-{environment}.{region}.azurecontainer.io"
+        else:
+            # Fallback to fly.io pattern
+            return f"https://gaia-{service_name}-{environment}.fly.dev"
+
 def get_service_urls() -> dict:
     """Get all service URLs for inter-service communication."""
     return {
-        "auth": settings.AUTH_SERVICE_URL,
-        "asset": settings.ASSET_SERVICE_URL,
-        "chat": settings.CHAT_SERVICE_URL,
-        "gateway": settings.GATEWAY_URL
+        "auth": get_service_url("auth"),
+        "asset": get_service_url("asset"),
+        "chat": get_service_url("chat"),
+        "kb": get_service_url("kb"),
+        "gateway": get_service_url("gateway"),
+        "web": get_service_url("web")
     }

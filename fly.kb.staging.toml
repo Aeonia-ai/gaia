@@ -1,0 +1,75 @@
+# fly.kb.staging.toml
+# Knowledge Base Service Configuration for Staging
+
+app = "gaia-kb-staging"
+primary_region = "lax"
+kill_signal = "SIGINT"
+kill_timeout = 5
+
+[build]
+  dockerfile = "Dockerfile.kb"
+
+[env]
+  # Service Configuration
+  SERVICE_NAME = "kb"
+  SERVICE_PORT = "8000"
+  
+  # Python Path
+  PYTHONPATH = "/app"
+  
+  # Environment-based service discovery (works across cloud providers)
+  ENVIRONMENT = "staging"
+  CLOUD_PROVIDER = "fly"
+  
+  # NATS configuration - auto-discovered via environment
+  NATS_HOST = "gaia-nats-staging.fly.dev"
+  NATS_PORT = "4222"
+  
+  # KB-specific settings  
+  KB_PATH = "/kb"
+  KB_GIT_AUTO_CLONE = "true"
+  
+  # Enable sync for remote deployment
+  KB_GIT_AUTO_SYNC = "true"
+  KB_GIT_SYNC_INTERVAL = "900"  # 15 minutes
+  
+  # Health check
+  HEALTH_CHECK_ENABLED = "true"
+
+[mounts]
+  source = "gaia_kb_staging_3gb"
+  destination = "/kb"
+  # 3GB persistent volume - 3x the repository size for overhead
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8000
+  
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+  
+  [[services.http_checks]]
+    interval = "10s"
+    grace_period = "30s"
+    method = "get"
+    path = "/health"
+    timeout = "5s"
+    
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+    
+  [[services.tcp_checks]]
+    interval = "10s"
+    grace_period = "30s"
+    timeout = "5s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

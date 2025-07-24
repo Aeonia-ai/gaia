@@ -18,6 +18,7 @@ primary_region = 'lax'
   AUTH_SERVICE_URL = "http://localhost:8000"
   ASSET_SERVICE_URL = "http://localhost:8000"
   CHAT_SERVICE_URL = "http://localhost:8000"
+  KB_SERVICE_URL = "https://gaia-kb-production.fly.dev"
   
   # Database - Fly.io Managed Postgres (co-located in LAX)
   # Using staging database for now - create separate production DB for real production use

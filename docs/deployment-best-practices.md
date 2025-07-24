@@ -17,37 +17,112 @@ The goal is to ensure that what works locally will work identically in remote en
 - Local: All services read from shared `.env` file
 - Remote: Secrets are synced to all services using `sync-secrets.sh`
 
-### 3. Service Communication
-- Local: Docker DNS (`http://service-name:8000`)
-- Remote: Fly.io internal DNS (`http://app-name.internal:8000`)
-- Never use public URLs for inter-service communication
+### 3. Smart Service Discovery (NEW)
+- **Smart URL Generation**: Services auto-discover each other based on environment and cloud provider
+- **Implementation**: `app/shared/config.py` - `get_service_url()` function
+- **Multi-Cloud Support**: Same code works on Fly.io, AWS, GCP, Azure
+- **Local Development**: Automatic localhost mapping with port detection
+- **Configuration**: Only requires `ENVIRONMENT` and `CLOUD_PROVIDER` environment variables
+
+**Pattern**:
+```python
+# Auto-generates appropriate URLs:
+# Local: http://localhost:8001
+# Fly.io: https://gaia-auth-dev.fly.dev  
+# AWS: https://gaia-auth-dev.us-west-2.elb.amazonaws.com
+auth_url = get_service_url("auth")
+```
+
+### 3.1 Service Communication (UPDATED)
+- **NEVER use Fly.io internal DNS** (`.internal`) - it's unreliable and causes 503 errors
+- **Always use public URLs** for inter-service communication on Fly.io
+- **Smart discovery handles this automatically** - no manual URL configuration needed
 
 ### 4. Testing Parity
 - Same test suite runs locally and remotely
 - Results are compared to ensure identical behavior
 - Automated parity checking before production deployment
 
-## Deployment Workflow
+## Service-Specific Deployment Guides
 
-### 1. Initial Setup
+### Knowledge Base (KB) Service
+The KB service requires special deployment steps due to Git repository cloning and persistent volumes:
+- See [KB Deployment Checklist](kb-deployment-checklist.md) for complete deployment guide
+- Requires GitHub Personal Access Token for repository access
+- Uses persistent volumes to avoid re-cloning on container restarts
+- Supports manual clone trigger if auto-clone fails
+
+## NEW Service Deployment Workflow
+
+### 1. Pre-Deployment Setup
 ```bash
 # Ensure all secrets are in .env
 cp .env.example .env
 # Edit .env with your actual values
+
+# Create .dockerignore to prevent build hangs
+cat > .dockerignore << EOF
+.venv/
+venv/
+ENV/
+*.log
+.git/
+EOF
 ```
 
-### 2. Deploy a Service
+### 2. Smart Service Configuration
+Create `fly.service.env.toml`:
+```toml
+app = "gaia-service-env"
+primary_region = "lax"
+
+[env]
+  # Smart service discovery - NO hardcoded URLs needed!
+  ENVIRONMENT = "dev"
+  CLOUD_PROVIDER = "fly"
+  SERVICE_NAME = "service"
+  SERVICE_PORT = "8000"
+  
+  # NATS (if needed)
+  NATS_HOST = "gaia-nats-dev.fly.dev"
+  NATS_PORT = "4222"
+
+# Volume configuration (use subdirectories!)
+[mounts]
+  source = "gaia_service_dev"
+  destination = "/data"
+```
+
+### 3. Deploy with Remote Builds (REQUIRED)
+```bash
+# ALWAYS use remote builds for network reliability
+./scripts/deploy.sh --env dev --services service --remote-only
+
+# OR deploy directly with fly
+fly deploy --config fly.service.env.toml --remote-only
+```
+
+**Why Remote Builds?**
+- Eliminates local network dependency issues
+- Consistent build environment
+- Faster for large codebases
+- No Docker Desktop required
+
+### 4. Wait for Service Startup
+```bash
+# Services need 30-60 seconds to fully start
+# 503 errors during startup are normal
+sleep 30
+
+# Test health endpoint
+./scripts/test.sh --url https://gaia-service-env.fly.dev health
+```
+
+### 5. Legacy Deploy Script (Still Works)
 ```bash
 # Deploy with automatic secret sync and verification
 ./scripts/deploy-service.sh gateway dev
 ```
-
-This script:
-- Deploys the service
-- Syncs secrets from local .env
-- Waits for health check
-- Runs verification tests
-- Executes integration tests
 
 ### 3. Verify Deployment
 ```bash

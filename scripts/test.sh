@@ -35,13 +35,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Load API key from .env file
+# Load environment variables from .env file
 if [ -f ".env" ]; then
-    export $(grep -E '^API_KEY=' .env | head -1 | xargs)
+    export $(grep -v '^#' .env | xargs)
 fi
 
-# Fallback API key if not in .env
-API_KEY="${API_KEY:-FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE}"
+# Use Jason's API key if available, otherwise fallback
+API_KEY="${JASON_API_KEY:-${API_KEY:-FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE}}"
 
 # Environment-specific API keys
 case $ENVIRONMENT in
@@ -263,6 +263,67 @@ case "$1" in
     "problemsolving")
         message="${2:-Design a complex multiplayer puzzle for 6-8 players called The Resonance Chamber}"
         test_endpoint "POST" "/api/v1/chat/problemsolving" "{\"message\": \"$message\"}" "Expert Team Problem Solving"
+        ;;
+    "kb-enhanced")
+        message="${2:-Search the KB for information about consciousness and synthesize insights across domains}"
+        test_endpoint "POST" "/api/v1/chat/kb-enhanced" "{\"message\": \"$message\"}" "KB-Enhanced Multiagent Chat"
+        ;;
+    "kb-research")
+        message="${2:-Research the implementation of consciousness frameworks in MMOIRL}"
+        test_endpoint "POST" "/api/v1/chat/kb-research" "{\"message\": \"$message\"}" "KB Research with Knowledge Agents"
+        ;;
+    "kb-gamemaster")
+        message="${2:-Create a tavern scene using established world lore and character backgrounds}"
+        test_endpoint "POST" "/api/v1/chat/kb-gamemaster" "{\"message\": \"$message\"}" "KB-Enhanced Game Master"
+        ;;
+    "kb-development")
+        message="${2:-How should I implement KB caching in the multiagent orchestrator?}"
+        test_endpoint "POST" "/api/v1/chat/kb-development" "{\"message\": \"$message\"}" "KB Development Advisor"
+        ;;
+    "kb-health")
+        echo -e "${BLUE}=== KB Health Check ===${NC}"
+        # For KB service, use the direct URL not gateway
+        if [[ "$ENVIRONMENT" == "local" ]]; then
+            kb_url="http://localhost:8005"  # KB service port
+        else
+            kb_url="https://gaia-kb-$ENVIRONMENT.fly.dev"
+        fi
+        
+        response=$(curl -s -w "\n\nHTTP Status: %{http_code}" "$kb_url/health" -H "X-API-Key: $API_KEY")
+        http_code=$(echo "$response" | tail -n1 | cut -d' ' -f3)
+        body=$(echo "$response" | sed '$d' | sed '$d')
+        
+        if [[ "$http_code" -eq 200 ]]; then
+            echo -e "${GREEN}✅ Status: $http_code${NC}"
+            echo "$body" | jq '.'
+            
+            # Show repository status specifically
+            repo_status=$(echo "$body" | jq -r '.repository.status // "Not available"' 2>/dev/null)
+            file_count=$(echo "$body" | jq -r '.repository.file_count // 0' 2>/dev/null)
+            has_git=$(echo "$body" | jq -r '.repository.has_git // false' 2>/dev/null)
+            
+            echo -e "\n${BLUE}Repository Details:${NC}"
+            echo "  Status: $repo_status"
+            echo "  Has Git: $has_git"
+            if [[ "$file_count" -gt 0 ]]; then
+                echo -e "  Files: ${GREEN}$file_count${NC}"
+            fi
+        else
+            echo -e "${RED}❌ Status: $http_code${NC}"
+            echo "$body"
+        fi
+        ;;
+    "kb-search")
+        query="${2:-consciousness}"
+        test_endpoint "POST" "/api/v0.2/kb/search" "{\"message\": \"$query\"}" "Direct KB Search"
+        ;;
+    "kb-context")
+        context="${2:-gaia}"
+        test_endpoint "POST" "/api/v0.2/kb/context" "{\"message\": \"$context\"}" "KOS Context Loading"
+        ;;
+    "kb-multitask")
+        message="${2:-Search for 'multiagent' and load the 'gaia' context}"
+        test_endpoint "POST" "/api/v0.2/kb/multitask" "{\"message\": \"$message\"}" "KB Multi-Task Execution"
         ;;
     "multi-provider")
         message="${2:-What is 2+2?}"
@@ -605,6 +666,14 @@ case "$1" in
         $0 --$ENVIRONMENT worldbuilding
         $0 --$ENVIRONMENT storytelling
         $0 --$ENVIRONMENT problemsolving
+        echo -e "\n${BLUE}Testing KB-enhanced multiagent capabilities...${NC}"
+        $0 --$ENVIRONMENT kb-enhanced
+        $0 --$ENVIRONMENT kb-research
+        $0 --$ENVIRONMENT kb-gamemaster
+        $0 --$ENVIRONMENT kb-development
+        $0 --$ENVIRONMENT kb-search "consciousness"
+        $0 --$ENVIRONMENT kb-context "gaia"
+        $0 --$ENVIRONMENT kb-multitask
         ;;
     "providers-all")
         echo -e "${GREEN}Testing all provider endpoints...${NC}\n"
@@ -694,6 +763,16 @@ case "$1" in
         echo "  $0 mcp-agent-hot \"Q\"        # Pre-initialized MCP agent (faster)"
         echo "  $0 orchestrated \"Question\"   # Multi-agent orchestration"
         echo "  $0 multi-provider \"Q\"        # Auto-select best provider"
+        echo ""
+        echo "KB-Enhanced Chat Endpoints (KOS Integration):"
+        echo "  $0 kb-enhanced \"Query\"        # Adaptive KB-enhanced multiagent"
+        echo "  $0 kb-research \"Topic\"        # Research with knowledge agents"
+        echo "  $0 kb-gamemaster \"Scene\"      # Game master with world knowledge"
+        echo "  $0 kb-development \"Question\"  # Development guidance from KB"
+        echo "  $0 kb-health                  # KB health with repository status"
+        echo "  $0 kb-search \"Keywords\"       # Direct KB search interface"
+        echo "  $0 kb-context \"ContextName\"   # Load KOS context (gaia, mmoirl, etc)"
+        echo "  $0 kb-multitask \"Tasks\"       # Parallel KB task execution"
         echo ""
         echo "Chat Utility Endpoints:"
         echo "  $0 chat-status               # Chat service detailed status"

@@ -14,23 +14,169 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## ⚠️ REMINDER TO CLAUDE CODE
 **BEFORE ANY WEB UI CHANGES:** You MUST read the HTMX + FastHTML Debugging Guide and Auth Layout Isolation docs first. The user will remind you if you don't, because layout bugs "keep coming back" when documentation is ignored. Always use `auth_page_replacement()` for auth responses and proper HTMX container targeting patterns.
 
-## 🎯 Current Development Focus (July 19, 2025)
-**Latest Achievement**: ✅ **mTLS + JWT Authentication Migration COMPLETE** (Phases 1-3). Escaped the "hellscape" of API key management with modern authentication infrastructure while maintaining 100% backward compatibility.
+## 🎯 Current Development Focus (July 24, 2025)
+**Latest Updates**: 
+- **Supabase Authentication**: FULLY IMPLEMENTED - No PostgreSQL fallback when AUTH_BACKEND=supabase
+- **KB Git Sync**: COMPLETE - Deferred initialization pattern for fast startup, 10GB volumes
+- **KB Service**: Fully integrated with Aeonia's Obsidian Vault (1234 files) on remote dev environment
+- **RBAC System**: Designed flexible role-based access control starting with KB, extensible platform-wide
+- **Multi-User KB**: Architecture supports teams, workspaces, and granular permissions
+- **mTLS + JWT Authentication**: COMPLETE (Phases 1-2) - Modern auth infrastructure with 100% backward compatibility
 
-**Completed mTLS + JWT Infrastructure**:
-- **Certificate Authority**: Development CA with service certificates deployed
-- **Service-to-Service mTLS**: Secure inter-service communication operational
-- **Unified Authentication**: `get_current_auth_unified()` handles API keys + Supabase JWTs
-- **Database-first**: ALL API keys validated through PostgreSQL with local-remote parity
+**Key Authentication & Authorization**:
+- **Supabase-first**: API keys validated through Supabase ONLY (no fallback) when configured
+- **Clean separation**: AUTH_BACKEND=supabase means Supabase-only validation
+- **RBAC Integration**: Role-based permissions for KB and platform resources
+- **Multi-User Ready**: User namespaces, team/workspace support, sharing mechanisms
+- **Local-remote parity**: Same authentication code in both environments  
 - **Redis caching**: 97% performance improvement for authentication
 - **Zero breaking changes**: All existing clients continue to work unchanged
+- **mTLS Infrastructure**: Certificate Authority + service certificates deployed
+- **Unified Authentication**: `get_current_auth_unified()` handles API keys + Supabase JWTs
 
-**Key Files**:
-- [Authentication Guide](docs/authentication-guide.md) - How dual auth works
-- [Phase 3 Completion Report](docs/phase3-completion-report.md) - What was implemented
-- `app/shared/security.py` - See `get_current_auth_unified()` function
+**Important**: See [Supabase Auth Migration Learnings](docs/supabase-auth-migration-learnings.md) for key architectural decisions and deployment strategies
 
-**Next**: Token refresh mechanisms and Phase 4 cleanup (removing legacy auth).
+**Active Development**:
+- Getting Supabase service role key for full remote functionality
+- Implementing KB permission manager with RBAC
+- FastAPI integration for automatic permission checks
+- Multi-user KB namespaces and sharing features
+- Phase 3: Migrate web/mobile clients to Supabase JWTs
+- Phase 4: Remove legacy API key validation
+
+## 🚀 Smart Service Deployment & Discovery
+
+**🎯 SOLVED: No More Hardcoded Service URLs**
+
+We've implemented a **cloud-agnostic smart service discovery system** that eliminates the need to hardcode service URLs every time we deploy a new service.
+
+### Smart Service Discovery Pattern
+
+**Implementation**: Located in `app/shared/config.py`
+```python
+def get_service_url(service_name: str) -> str:
+    # Auto-generates URLs based on environment and cloud provider:
+    # Fly.io: gaia-{service}-{environment}.fly.dev
+    # AWS: gaia-{service}-{environment}.{region}.elb.amazonaws.com  
+    # GCP: gaia-{service}-{environment}-{region}.run.app
+    # Local: localhost:{port}
+```
+
+**Service Configuration** (Example):
+```toml
+[env]
+  ENVIRONMENT = "dev"           # Auto-discovery based on environment
+  CLOUD_PROVIDER = "fly"       # Multi-cloud support  
+  NATS_HOST = "gaia-nats-dev.fly.dev"    # NATS discovery
+  NATS_PORT = "4222"
+  # No hardcoded service URLs needed!
+```
+
+### New Service Deployment Checklist
+
+**1. 🏗️ Remote Builds (REQUIRED)**
+```bash
+# Always use remote builds for network reliability
+fly deploy --config fly.service.env.toml --remote-only
+```
+
+**2. 📁 .dockerignore (CRITICAL)**
+Create `.dockerignore` to prevent build hangs:
+```
+.venv/          # Can be 500MB+ 
+venv/
+ENV/
+*.log
+.git/
+```
+
+**3. 🗂️ Volume Configuration**
+For persistent storage, always use subdirectories:
+```toml
+[mounts]
+  source = "gaia_service_dev"
+  destination = "/data"
+
+[env]
+  SERVICE_DATA_PATH = "/data/repository"  # NOT just "/data"
+```
+
+**4. ⏱️ Deployment Patience**
+- Remote builds: 2-5 minutes
+- Service startup: 30-60 seconds after deployment
+- 503 errors during startup are normal
+- Wait for health checks: `./scripts/test.sh --url https://service-url health`
+
+**5. 🌐 Network Configuration**
+**CRITICAL**: Never use Fly.io internal DNS (`.internal`) - it's unreliable
+```bash
+# ❌ Unreliable
+AUTH_SERVICE_URL = "http://gaia-auth-dev.internal:8000"
+
+# ✅ Reliable (auto-generated by smart discovery)
+AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
+```
+
+### Multi-Cloud Deployment
+
+To deploy to different cloud providers, just change the configuration:
+```toml
+# Fly.io
+CLOUD_PROVIDER = "fly"
+ENVIRONMENT = "dev"
+# Results in: gaia-service-dev.fly.dev
+
+# AWS  
+CLOUD_PROVIDER = "aws"
+AWS_REGION = "us-west-2"
+# Results in: gaia-service-dev.us-west-2.elb.amazonaws.com
+
+# GCP
+CLOUD_PROVIDER = "gcp" 
+GCP_REGION = "us-west1"
+# Results in: gaia-service-dev-us-west1.run.app
+```
+
+### Service Template
+
+**New services should follow this pattern**:
+```toml
+# fly.service.env.toml
+app = "gaia-service-env"
+primary_region = "lax"
+
+[env]
+  # Smart service discovery
+  ENVIRONMENT = "dev"
+  CLOUD_PROVIDER = "fly"
+  SERVICE_NAME = "service"
+  
+  # Service-specific config
+  SERVICE_PORT = "8000"
+  PYTHONPATH = "/app"
+  
+  # NATS (if needed)
+  NATS_HOST = "gaia-nats-dev.fly.dev"
+  NATS_PORT = "4222"
+
+[mounts]
+  source = "gaia_service_dev"
+  destination = "/data"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8000
+  
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+    
+  [[services.http_checks]]
+    interval = "10s"
+    path = "/health"
+```
+
+**Key Insight**: This system **eliminates configuration drift** and **scales to any cloud provider** without code changes.
 
 ## 🧠 Development Philosophy & Problem-Solving Approach
 
@@ -58,14 +204,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Capture both the specific fix AND the general approach that found it
 - Future you will thank present you for documenting the "why" not just the "what"
 
+**🚀 COMMIT TO SIMPLICITY**
+- When choosing PostgreSQL as the "fast approach", use it simply - don't recreate document DB complexity
+- Avoid compatibility layers between different paradigms (e.g., making asyncpg work like SQLAlchemy)
+- If you're building abstractions to make one tool work like another, you're using the wrong tool
+- See [PostgreSQL Simplicity Lessons](docs/postgresql-simplicity-lessons.md) for detailed learnings
+
+**🧪 USE TEST SCRIPTS, NOT CURL**
+- ALWAYS use test scripts (`./scripts/test.sh`) instead of manual curl commands
+- If you need to test something new, ADD it to a test script, don't just run curl
+- Test scripts capture knowledge, curl commands vanish with your terminal
+- See [Testing Philosophy](docs/testing-philosophy.md) for why this matters
+
 ## 📚 Essential Documentation Index
 
 **IMPORTANT**: Always consult these guides BEFORE making changes to avoid common pitfalls.
 
 ### Configuration & Deployment
+- [Supabase Auth Implementation Guide](docs/supabase-auth-implementation-guide.md) - **NEW** - Complete Supabase authentication setup
+- [KB Git Sync Learnings](docs/kb-git-sync-learnings.md) - **NEW** - Deferred init, volume sizing, deployment patterns
 - [Authentication Guide](docs/authentication-guide.md) - **UPDATED** - Complete dual auth (API keys + JWTs + mTLS)
-- [mTLS Certificate Management](docs/mtls-certificate-management.md) - **NEW** - Certificate infrastructure guide
+- [mTLS Certificate Management](docs/mtls-certificate-management.md) - Certificate infrastructure guide
 - [API Key Configuration Guide](docs/api-key-configuration-guide.md) - **UPDATED** - Unified authentication patterns
+- [RBAC System Guide](docs/rbac-system-guide.md) - Role-based access control implementation
+- [Multi-User KB Guide](docs/multi-user-kb-guide.md) - Teams, workspaces, and sharing
+- [KB Git Sync Guide](docs/kb-git-sync-guide.md) - Complete Git synchronization setup
+- [KB Remote Deployment Authentication](docs/kb-remote-deployment-auth.md) - Git auth for production
+- [KB Deployment Checklist](docs/kb-deployment-checklist.md) - Step-by-step KB deployment to staging/prod
 - [Database Architecture](docs/database-architecture.md) - **IMPORTANT** - Hybrid database + Redis caching
 - [Supabase Configuration Guide](docs/supabase-configuration.md) - Email confirmation URLs and auth setup
 - [Deployment Best Practices](docs/deployment-best-practices.md) - Local-remote parity strategies
@@ -76,8 +241,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [API Key Authentication Troubleshooting](docs/troubleshooting-api-key-auth.md) - Common auth issues
 - [Fly.io DNS Troubleshooting](docs/troubleshooting-flyio-dns.md) - Internal DNS issues
 - [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md) - UI debugging
+- [KB Git Clone Learnings](docs/kb-git-clone-learnings.md) - **NEW** - Volume sizing and clone issues
 
 ### Architecture & Development
+- [PostgreSQL Simplicity Lessons](docs/postgresql-simplicity-lessons.md) - **IMPORTANT** - Avoiding overengineering
+- [Deferred Initialization Pattern](docs/deferred-initialization-pattern.md) - **NEW** - Fast startup with background tasks
 - [Microservices Scaling Guide](docs/microservices-scaling.md) - Scaling patterns and strategies
 - [FastHTML Web Service Guide](docs/fasthtml-web-service.md) - Web UI architecture
 - [Command Reference](docs/command-reference.md) - Correct command syntax
@@ -85,9 +253,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Web UI Development Status](docs/web-ui-development-status.md) - Frontend development state
 
 ### Testing & Performance
+- [Testing Philosophy](docs/testing-philosophy.md) - **IMPORTANT** - Why we use test scripts, not curl
 - [Mobile Testing Guide](docs/mobile-testing-guide.md) - Testing on mobile devices
 - [Optimization Guide](docs/optimization-guide.md) - Performance improvements
 - [Redis Integration](docs/redis-integration.md) - Caching implementation
+
+## 🏗️ Architecture Guidelines
+
+### Avoid Overengineering
+1. **Use tools for their strengths** - PostgreSQL for relational data, Redis for caching, etc.
+2. **No unnecessary abstractions** - If you need a compatibility layer, you're probably using the wrong tool
+3. **Start simple** - You can always add complexity later, but you can't easily remove it
+4. **Direct is better** - `await conn.fetch()` is better than layers of abstraction
+
+### Signs You're Overcomplicating
+- Building compatibility layers between technologies
+- Error messages getting more complex over time
+- Writing more infrastructure code than business logic
+- The "fast approach" taking longer than the "proper approach"
 
 ## ⚠️ CRITICAL: Command Version Requirements
 
@@ -118,9 +301,11 @@ See [Command Reference](docs/command-reference.md) for complete list.
 3. **DON'T** forget to set Fly.io secrets for new environment variables
 
 ### Testing Mistakes
-1. **DON'T** use direct `curl` - use `./scripts/test.sh` or `./scripts/curl_wrapper.sh`
+1. **DON'T** use direct `curl` - use test scripts that capture the knowledge
 2. **DON'T** test in production first - always test locally
 3. **DON'T** skip the verification scripts after configuration changes
+4. **DON'T** create one-off test commands - add them to test scripts
+5. **DON'T** forget that terminal history is temporary - test scripts are permanent
 
 ## Development Commands
 
@@ -188,6 +373,23 @@ docker compose run test pytest -m compatibility
 docker compose exec -e PYTHONPATH=/app web-service pytest /app/tests/web/ -v
 ```
 
+### Remote Authentication Setup
+
+**⚠️ IMPORTANT: Local and remote environments use separate PostgreSQL databases**
+
+```bash
+# Setup authentication for remote environments
+./scripts/setup-remote-auth.sh --env dev --email jason@aeonia.ai
+
+# This creates a user and API key in the remote database
+# SAVE THE API KEY - it's only shown once!
+
+# Test remote authentication
+API_KEY=<generated-key> ./scripts/test.sh --url https://gaia-gateway-dev.fly.dev kb-search "test"
+```
+
+See [Authentication Strategy](docs/authentication-strategy.md) for long-term solution.
+
 ### Local Docker Development
 ```bash
 # Start full microservices stack locally
@@ -205,19 +407,30 @@ docker compose up
 # Initial setup
 ./scripts/setup.sh
 
-# Smart testing (PREFERRED - use test script, not curl)
-./scripts/test.sh --local health           # Local development
-./scripts/test.sh --staging health         # Staging deployment
-./scripts/test.sh --prod health            # Production deployment
+# ALWAYS USE TEST SCRIPTS - NOT MANUAL CURL!
+./scripts/test-comprehensive.sh            # Full test suite (RECOMMENDED)
+./scripts/test.sh --local all              # Legacy test suite
+./scripts/test-kb-operations.sh            # KB-specific tests
 
-# Environment-aware testing
-./scripts/test.sh --local all              # Full local test suite
-./scripts/test.sh --staging all            # Staging tests (expects some failures)
+# Testing specific features
+./scripts/test.sh --local providers        # Test provider listing
+./scripts/test.sh --local chat "Hi"        # Test chat completion
+
+# User management
+./scripts/manage-users.sh list             # List all users
+./scripts/manage-users.sh create user@example.com  # Create user with API key
+./scripts/manage-users.sh grant-kb user@example.com # Grant KB access
+
+# KB Git Sync Testing and Management
+./scripts/setup-aeonia-kb.sh               # Configure Aeonia Obsidian vault sync
+./scripts/setup-kb-git-repo.sh             # Configure any Git repository sync
+./scripts/test-kb-git-sync.sh              # Test KB Git sync functionality
 
 # Manual service health checks (if needed)
 curl http://auth-service:8000/health
 curl http://asset-service:8000/health
 curl http://chat-service:8000/health
+curl http://kb-service:8000/health
 ```
 
 ## Architecture Overview
@@ -290,11 +503,110 @@ Due to Supabase's free tier limitation (2 projects per organization), we use a s
 
 See [Supabase Configuration Guide](docs/supabase-configuration.md) for detailed setup instructions.
 
+### KB (Knowledge Base) Configuration
+
+**NEW: Git Repository Sync Support (July 2025)**
+
+The KB service now supports automatic synchronization with external Git repositories (e.g., Obsidian vaults, documentation repos).
+
+**Quick Setup for Aeonia Team**:
+```bash
+# 1. Add GitHub Personal Access Token to .env:
+KB_STORAGE_MODE=hybrid
+KB_GIT_REPO_URL=https://github.com/Aeonia-ai/Obsidian-Vault.git
+KB_GIT_AUTH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # Your GitHub PAT
+KB_GIT_AUTO_CLONE=true
+
+# 2. Start the KB service:
+docker compose up kb-service
+
+# 3. The service automatically clones your repository on startup
+# Repository is stored inside the container at /kb (ephemeral storage)
+```
+
+**Creating GitHub Personal Access Token**:
+1. Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Generate new token with `repo` scope (for private repos) or `public_repo` (for public)
+3. Add to `.env` as `KB_GIT_AUTH_TOKEN`
+4. See [KB Remote Deployment Auth Guide](docs/kb-remote-deployment-auth.md) for details
+
+**Storage Mode Options**:
+- **`git`**: File-based storage with Git version control
+- **`database`**: PostgreSQL storage for fast search and collaboration
+- **`hybrid`**: PostgreSQL primary + Git backup (recommended for production)
+
+**Git Sync Features**:
+- **Auto-clone**: Repository automatically cloned on every container startup (1000+ files tested)
+- **Container-only storage**: KB data lives at `/kb` inside container (ephemeral)
+- **Local-remote parity**: Same behavior in local Docker and production deployments
+- **Authentication**: Supports GitHub, GitLab, Bitbucket with Personal Access Tokens
+- **Manual sync endpoints**: `/sync/from-git`, `/sync/to-git`, `/sync/status` (when hybrid mode active)
+
+**Your Daily Workflow**:
+1. **Edit KB files** in your local Obsidian vault or Git repository
+2. **Git commit and push** your changes to GitHub
+3. **Redeploy or restart** KB service to get latest changes
+4. **AI agents access content** through MCP tools with latest data
+
+**Persistent Volume Storage with Deferred Clone**:
+- KB uses **persistent volume** at `/kb` (not `/kb/repository`)
+- **Deferred clone**: Service starts immediately, git clone happens in background
+- **One-time setup**: Once cloned, repository persists across deployments
+- **Fast restarts**: After initial clone, service starts instantly with existing data
+- Changes persist in volume (use Git sync for remote backup)
+
+**Troubleshooting Git Sync**:
+```bash
+# Verify Git is installed in container
+docker compose exec kb-service git --version  # Should show: git version 2.39.5
+
+# Check repository inside container
+docker compose exec kb-service ls -la /kb/
+
+# Check KB health with repository status
+./scripts/test.sh --url https://gaia-kb-dev.fly.dev kb-health
+
+# View clone logs
+docker compose logs kb-service | grep -E "(Cloning|Successfully cloned)"
+
+# Manual sync commands (when hybrid mode active)
+curl -X POST -H "X-API-Key: $API_KEY" http://kb-service:8000/sync/from-git
+
+# Check sync status
+curl -H "X-API-Key: $API_KEY" http://kb-service:8000/sync/status
+
+# Test everything
+./scripts/test-kb-git-sync.sh
+```
+
+**Performance Comparison** (from testing):
+- **Search**: PostgreSQL 79x faster (14ms vs 1,116ms)
+- **Collaboration**: PostgreSQL supports real-time multi-user editing
+- **Version Control**: Git provides complete history and backup
+- **External Edits**: Automatic sync from your Git repository
+
+**Setup Steps**:
+1. **Configure Aeonia KB**: `./scripts/setup-aeonia-kb.sh` (handles everything automatically)
+2. **Or manual setup**: `./scripts/setup-kb-git-repo.sh` for other repositories
+3. **Test sync**: `./scripts/test-kb-git-sync.sh`
+
+**Remote Deployment Authentication**:
+For production deployments, configure GitHub Personal Access Token:
+```bash
+# Fly.io
+fly secrets set KB_GIT_AUTH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx -a gaia-kb-prod
+
+# Docker/AWS
+KB_GIT_AUTH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
+```
+See [Remote Deployment Authentication Guide](docs/kb-remote-deployment-auth.md) for complete setup.
+
 ### Service URLs (Inter-service Communication)
 - Gateway: `http://gateway:8000` (external: `localhost:8666`)
 - Auth: `http://auth-service:8000`
 - Asset: `http://asset-service:8000`
 - Chat: `http://chat-service:8000`
+- **KB: `http://kb-service:8000` (Knowledge Base)**
 - Web: `http://web-service:8000` (external: `localhost:8080`)
 - Redis: `redis://redis:6379` (caching layer)
 

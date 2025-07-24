@@ -149,6 +149,16 @@ class RedisClient:
         
         return default_value
     
+    async def ping(self) -> bool:
+        """Async ping to test Redis connection."""
+        try:
+            if self._client:
+                self._client.ping()
+                return True
+        except (ConnectionError, RedisError) as e:
+            logger.warning(f"Redis ping failed: {e}")
+        return False
+    
     def flush_pattern(self, pattern: str) -> int:
         """Delete all keys matching pattern."""
         try:
@@ -158,6 +168,29 @@ class RedisClient:
             return 0
         except (ConnectionError, RedisError) as e:
             logger.warning(f"Redis pattern flush failed for {pattern}: {e}")
+            return 0
+    
+    async def scan_iter(self, match: str = None, count: int = 100):
+        """Async generator for scanning Redis keys matching pattern."""
+        if not self.is_connected():
+            return
+        
+        try:
+            # Use sync scan_iter but yield results asynchronously
+            for key in self.client.scan_iter(match=match, count=count):
+                yield key
+        except (ConnectionError, RedisError) as e:
+            logger.error(f"Redis scan error: {e}")
+    
+    async def delete(self, *keys):
+        """Delete one or more keys."""
+        if not keys or not self.is_connected():
+            return 0
+        
+        try:
+            return self.client.delete(*keys)
+        except (ConnectionError, RedisError) as e:
+            logger.error(f"Redis delete error: {e}")
             return 0
 
 # Global Redis client instance

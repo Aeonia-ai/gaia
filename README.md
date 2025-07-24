@@ -29,7 +29,9 @@ Unity/Unreal/Web → (Port 8666)    → ├─ Auth Service (Supabase JWT + API 
 - **Auth Service**: JWT validation, user-associated API key auth, user management via Supabase  
 - **Asset Service**: Universal Asset Server functionality from LLM Platform
 - **Chat Service**: LLM interactions with MCP-agent workflows
-- **Shared Modules**: Common utilities, database, NATS, security, portable database architecture
+- **KB Service**: Knowledge Base with Git sync, multi-user support (teams/workspaces)
+- **Web Service**: FastHTML frontend for chat interface (port 8080)
+- **Shared Modules**: Common utilities, database, NATS, security, RBAC system
 
 ### Infrastructure
 
@@ -58,6 +60,10 @@ Unity/Unreal/Web → (Port 8666)    → ├─ Auth Service (Supabase JWT + API 
    ```bash
    cp .env.example .env
    # Edit .env with your configuration
+   
+   # For KB Service with Git sync (optional):
+   # KB_GIT_REPO_URL=https://github.com/your-org/your-kb.git
+   # KB_GIT_AUTH_TOKEN=ghp_xxxxxxxxxxxx  # GitHub Personal Access Token
    ```
 
 3. **Start Services**
@@ -279,19 +285,26 @@ docker-compose -f gaia/docker-compose.yml up
 
 ## 🛣️ Roadmap
 
-### Phase 1: Foundation (Current)
+### Phase 1: Foundation (Complete)
 - ✅ Service extraction and microservices architecture
 - ✅ Client compatibility preservation  
 - ✅ Basic NATS coordination
-- 🔄 Testing and validation
+- ✅ KB service with Git integration
+- 🔄 RBAC system implementation (in progress)
 
-### Phase 2: Memory & Research (Next)
+### Phase 2: Access Control & Multi-User (Current)
+- 🔄 Role-Based Access Control (RBAC) - database schema complete
+- 📋 Multi-user KB with teams/workspaces
+- 📋 Permission management UI
+- 📋 Sharing and collaboration features
+
+### Phase 3: Memory & Intelligence (Next)
 - 📋 Basic chat memory (PostgreSQL-based)
 - 📋 Memory framework research (Mem0, MiniRAG)
 - 📋 Usage pattern analysis
 - 📋 Evidence-based memory enhancement
 
-### Phase 3+: Advanced Features (Future)
+### Phase 4+: Advanced Features (Future)
 - 📋 Sophisticated player modeling
 - 📋 Advanced cross-platform coordination
 - 📋 Real-time collaboration features
