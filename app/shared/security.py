@@ -234,7 +234,7 @@ async def get_current_auth(
             auth_backend = os.getenv("AUTH_BACKEND", "postgres")
             
             if auth_backend == "supabase" or os.getenv("SUPABASE_AUTH_ENABLED", "false").lower() == "true":
-                # Try Supabase first
+                # Use Supabase exclusively when configured
                 logger.debug("Validating API key in Supabase")
                 try:
                     from app.shared.supabase_auth import validate_api_key_supabase
@@ -244,27 +244,37 @@ async def get_current_auth(
                         logger.debug(f"Authenticated via Supabase API key for user: {supabase_result.user_id}")
                         return supabase_result
                     else:
-                        logger.debug("API key not found in Supabase, trying PostgreSQL")
+                        logger.warning("Invalid API Key provided - not found in Supabase")
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Could not validate credentials"
+                        )
+                except HTTPException:
+                    raise  # Re-raise HTTP exceptions
                 except Exception as e:
-                    logger.warning(f"Supabase auth check failed: {e}, falling back to PostgreSQL")
-            
-            # Fall back to PostgreSQL
-            from app.shared.database import get_database_session
-            db_gen = get_database_session()
-            db = next(db_gen)
-            
-            logger.debug("Validating API key in PostgreSQL database")
-            user_api_result = await validate_user_api_key(api_key_header, db)
-            
-            if user_api_result:
-                logger.debug(f"Authenticated via PostgreSQL API key for user: {user_api_result.user_id}")
-                return user_api_result
+                    logger.error(f"Supabase auth check failed: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Authentication service error"
+                    )
             else:
-                logger.warning("Invalid API Key provided - not found in any database")
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Could not validate credentials"
-                )
+                # Use PostgreSQL when Supabase is not configured
+                from app.shared.database import get_database_session
+                db_gen = get_database_session()
+                db = next(db_gen)
+                
+                logger.debug("Validating API key in PostgreSQL database")
+                user_api_result = await validate_user_api_key(api_key_header, db)
+                
+                if user_api_result:
+                    logger.debug(f"Authenticated via PostgreSQL API key for user: {user_api_result.user_id}")
+                    return user_api_result
+                else:
+                    logger.warning("Invalid API Key provided - not found in PostgreSQL")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Could not validate credentials"
+                    )
         except HTTPException:
             raise  # Re-raise HTTP exceptions as-is
         except Exception as e:
