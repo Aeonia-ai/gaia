@@ -244,6 +244,9 @@ primary_region = "lax"
 - [KB Git Clone Learnings](docs/kb-git-clone-learnings.md) - **NEW** - Volume sizing and clone issues
 
 ### Architecture & Development
+- [Adding New Microservice](docs/adding-new-microservice.md) - **NEW** - Simplified service creation process
+- [Service Creation Automation](docs/service-creation-automation.md) - **NEW** - Detailed automation guide
+- [Service Registry Pattern](docs/service-registry-pattern.md) - **NEW** - Centralized service configuration
 - [PostgreSQL Simplicity Lessons](docs/postgresql-simplicity-lessons.md) - **IMPORTANT** - Avoiding overengineering
 - [Deferred Initialization Pattern](docs/deferred-initialization-pattern.md) - **NEW** - Fast startup with background tasks
 - [Microservices Scaling Guide](docs/microservices-scaling.md) - Scaling patterns and strategies
