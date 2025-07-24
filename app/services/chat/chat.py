@@ -788,6 +788,38 @@ except Exception as e:
 # KB-enhanced multiagent orchestrator moved to separate KB service
 # KB endpoints are now handled by kb-service and routed through the gateway
 
+# Import intelligent chat with smart routing
+try:
+    from .intelligent_chat import intelligent_chat_endpoint, intelligent_chat_metrics_endpoint
+    
+    @router.post("/intelligent")
+    async def intelligent_chat(
+        request: ChatRequest,
+        auth_principal: Dict[str, Any] = Depends(get_current_auth)
+    ):
+        """
+        Intelligent chat with automatic routing based on message complexity.
+        
+        Uses LLM function calling to classify messages and route to optimal endpoint:
+        - Simple dialog → Direct LLM (~1s)
+        - Tool usage needed → Hot MCP agent (~2-3s)
+        - Complex orchestration → Full multiagent (~3-5s)
+        
+        The routing decision adds only ~200ms overhead but ensures
+        optimal response times for all types of requests.
+        """
+        return await intelligent_chat_endpoint(request, auth_principal)
+    
+    @router.get("/intelligent/metrics")
+    async def intelligent_metrics(auth_principal: Dict[str, Any] = Depends(get_current_auth)):
+        """Get metrics for intelligent chat routing"""
+        return await intelligent_chat_metrics_endpoint(auth_principal)
+    
+    logger.info("✅ Intelligent chat endpoints added")
+    
+except Exception as e:
+    logger.warning(f"⚠️ Could not import intelligent chat: {e}")
+
 # Add orchestrated chat endpoints if service is available
 if orchestrated_chat_service:
     @router.post("/orchestrated")

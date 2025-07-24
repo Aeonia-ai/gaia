@@ -9,6 +9,7 @@ from fastapi import Depends, HTTPException
 import logging
 import time
 import json
+import asyncio
 
 from mcp_agent.app import MCPApp
 from mcp_agent.agents.agent import Agent
@@ -36,14 +37,71 @@ class MMOIRLMultiagentOrchestrator:
         self.app = MCPApp(name="gaia_mmoirl_multiagent")
         self.session_orchestrators: Dict[str, Any] = {}
         self._initialized = False
+        self._mcp_context = None
+        self._agents_cache: Dict[str, List[Agent]] = {}  # Cache agents by scenario type
+        self._lock = asyncio.Lock()
     
     async def initialize(self):
-        """Initialize the multiagent system"""
+        """Initialize the multiagent system with hot-loaded MCP context"""
         if self._initialized:
             return
         
-        logger.info("🤖 Initializing MMOIRL multiagent orchestrator...")
-        self._initialized = True
+        async with self._lock:
+            if self._initialized:  # Double-check after acquiring lock
+                return
+                
+            logger.info("🤖 Initializing MMOIRL multiagent orchestrator with hot loading...")
+            start_time = time.time()
+            
+            # Start MCPApp context and keep it running for the lifetime of the service
+            self._mcp_context = self.app.run()
+            await self._mcp_context.__aenter__()
+            
+            # Pre-create agents for each scenario type to avoid per-request initialization
+            await self._precreate_agents()
+            
+            init_time = time.time() - start_time
+            logger.info(f"✅ Hot-loaded multiagent orchestrator ready in {init_time:.2f}s")
+            self._initialized = True
+    
+    async def _precreate_agents(self):
+        """Pre-create and cache agents for all scenario types"""
+        logger.info("Pre-creating agents for all scenarios...")
+        
+        # Create and cache agents for each scenario type
+        self._agents_cache["gamemaster"] = self._create_game_master_agents()
+        self._agents_cache["worldbuilding"] = self._create_world_building_agents()
+        self._agents_cache["storytelling"] = self._create_storytelling_agents()
+        self._agents_cache["problemsolving"] = self._create_expert_problem_solving_agents()
+        
+        # Initialize all agents
+        for scenario_type, agents in self._agents_cache.items():
+            for agent in agents:
+                await agent.__aenter__()
+            logger.debug(f"Initialized {len(agents)} agents for {scenario_type} scenario")
+    
+    async def cleanup(self):
+        """Cleanup when service shuts down"""
+        if self._initialized:
+            logger.info("🛑 Shutting down hot-loaded multiagent orchestrator...")
+            
+            # Clean up all cached agents
+            for agents in self._agents_cache.values():
+                for agent in agents:
+                    try:
+                        await agent.__aexit__(None, None, None)
+                    except Exception as e:
+                        logger.error(f"Error cleaning up agent: {e}")
+            
+            # Clean up MCPApp context
+            if self._mcp_context:
+                try:
+                    await self._mcp_context.__aexit__(None, None, None)
+                except Exception as e:
+                    logger.error(f"Error cleaning up MCP context: {e}")
+            
+            self._initialized = False
+            self._agents_cache.clear()
     
     def _create_game_master_agents(self) -> List[Agent]:
         """Create specialized NPC agents for game master scenarios"""
@@ -183,102 +241,99 @@ class MMOIRLMultiagentOrchestrator:
             auth_principal: Authentication details
             scenario_type: Type of multiagent scenario to use
         """
+        # Ensure the service is initialized with hot-loaded context
         await self.initialize()
         
         auth_key = auth_principal.get("sub") or auth_principal.get("key")
         if not auth_key:
             raise HTTPException(status_code=401, detail="Invalid auth")
         
-        async with self.app.run() as mcp_app:
-            start_time = time.time()
-            
-            # Determine scenario type from message content if auto
-            if scenario_type == "auto":
-                scenario_type = self._detect_scenario_type(request.message)
-            
-            logger.info(f"🎭 Processing multiagent request - scenario: {scenario_type}")
-            
-            # Select appropriate agent team and create orchestrator
-            if scenario_type == "gamemaster":
-                agents = self._create_game_master_agents()
-                orchestrator_name = "game_master"
-                scenario_prompt = self._enhance_gamemaster_prompt(request.message)
-                
-            elif scenario_type == "worldbuilding":
-                agents = self._create_world_building_agents()
-                orchestrator_name = "world_architect"
-                scenario_prompt = self._enhance_worldbuilding_prompt(request.message)
-                
-            elif scenario_type == "storytelling":
-                agents = self._create_storytelling_agents()
-                orchestrator_name = "story_weaver"
-                scenario_prompt = self._enhance_storytelling_prompt(request.message)
-                
-            elif scenario_type == "problemsolving":
-                agents = self._create_expert_problem_solving_agents()
-                orchestrator_name = "expert_team"
-                scenario_prompt = self._enhance_problemsolving_prompt(request.message)
-                
-            else:
-                # Default to game master for unknown scenarios
-                agents = self._create_game_master_agents()
-                orchestrator_name = "adaptive_coordinator"
-                scenario_prompt = request.message
-            
-            # Create LLM factory
-            def llm_factory(agent: Agent):
-                return AnthropicAugmentedLLM(agent=agent)
-            
-            # Create orchestrator for this scenario
-            orchestrator = Orchestrator(
-                llm_factory=llm_factory,
-                available_agents=agents,
-                plan_type="iterative",  # Dynamic, responsive coordination
-                name=orchestrator_name
+        # No need for 'async with' - we're using the pre-initialized context
+        start_time = time.time()
+        
+        # Determine scenario type from message content if auto
+        if scenario_type == "auto":
+            scenario_type = self._detect_scenario_type(request.message)
+        
+        logger.info(f"🎭 Processing multiagent request - scenario: {scenario_type}")
+        
+        # Use cached agents instead of creating new ones
+        if scenario_type in self._agents_cache:
+            agents = self._agents_cache[scenario_type]
+        else:
+            # Fallback to gamemaster if unknown scenario type
+            scenario_type = "gamemaster"
+            agents = self._agents_cache["gamemaster"]
+        
+        # Set orchestrator name and enhance prompt based on scenario
+        orchestrator_configs = {
+            "gamemaster": ("game_master", self._enhance_gamemaster_prompt),
+            "worldbuilding": ("world_architect", self._enhance_worldbuilding_prompt),
+            "storytelling": ("story_weaver", self._enhance_storytelling_prompt),
+            "problemsolving": ("expert_team", self._enhance_problemsolving_prompt)
+        }
+        
+        orchestrator_name, prompt_enhancer = orchestrator_configs.get(
+            scenario_type, 
+            ("adaptive_coordinator", lambda x: x)
+        )
+        scenario_prompt = prompt_enhancer(request.message)
+        
+        # Create LLM factory
+        def llm_factory(agent: Agent):
+            return AnthropicAugmentedLLM(agent=agent)
+        
+        # Create orchestrator for this scenario (lightweight, just coordinates existing agents)
+        orchestrator = Orchestrator(
+            llm_factory=llm_factory,
+            available_agents=agents,
+            plan_type="iterative",  # Dynamic, responsive coordination
+            name=orchestrator_name
+        )
+        
+        # Process the request through multiagent orchestration
+        response = await orchestrator.generate_str(
+            message=scenario_prompt,
+            request_params=RequestParams(
+                model=request.model or "claude-3-5-sonnet-20241022",
+                temperature=0.8,  # Higher creativity for storytelling
+                maxTokens=2500,
+                max_iterations=3
             )
-            
-            # Process the request through multiagent orchestration
-            response = await orchestrator.generate_str(
-                message=scenario_prompt,
-                request_params=RequestParams(
-                    model=request.model or "claude-3-5-sonnet-20241022",
-                    temperature=0.8,  # Higher creativity for storytelling
-                    maxTokens=2500,
-                    max_iterations=3
-                )
-            )
-            
-            elapsed = time.time() - start_time
-            
-            logger.info(f"✅ Multiagent coordination completed in {elapsed:.2f}s")
-            
-            # Return Gaia-compatible response with multiagent metadata
-            return {
-                "id": f"multiagent-{auth_key}-{int(time.time())}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": request.model or "claude-3-5-sonnet-20241022",
-                "choices": [{
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": response
-                    },
-                    "finish_reason": "stop"
-                }],
-                "usage": {
-                    "prompt_tokens": len(scenario_prompt.split()),
-                    "completion_tokens": len(response.split()),
-                    "total_tokens": len(scenario_prompt.split()) + len(response.split())
+        )
+        
+        elapsed = time.time() - start_time
+        
+        logger.info(f"✅ Multiagent coordination completed in {elapsed:.2f}s")
+        
+        # Return Gaia-compatible response with multiagent metadata
+        return {
+            "id": f"multiagent-{auth_key}-{int(time.time())}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": request.model or "claude-3-5-sonnet-20241022",
+            "choices": [{
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": response
                 },
-                "_multiagent": {
-                    "scenario_type": scenario_type,
-                    "orchestrator": orchestrator_name,
-                    "agent_count": len(agents),
-                    "coordination_time_ms": int(elapsed * 1000),
-                    "agent_names": [agent.name for agent in agents]
-                }
+                "finish_reason": "stop"
+            }],
+            "usage": {
+                "prompt_tokens": len(scenario_prompt.split()),
+                "completion_tokens": len(response.split()),
+                "total_tokens": len(scenario_prompt.split()) + len(response.split())
+            },
+            "_multiagent": {
+                "scenario_type": scenario_type,
+                "orchestrator": orchestrator_name,
+                "agent_count": len(agents),
+                "coordination_time_ms": int(elapsed * 1000),
+                "agent_names": [agent.name for agent in agents],
+                "hot_loaded": True  # Indicate this used hot-loaded agents
             }
+        }
     
     def _detect_scenario_type(self, message: str) -> str:
         """Detect the appropriate multiagent scenario based on message content"""

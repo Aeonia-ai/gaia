@@ -31,6 +31,22 @@ async def lifespan(app: FastAPI):
     # Connect to NATS
     await nats_client.connect()
     
+    # Initialize multiagent orchestrator with hot loading
+    try:
+        from .multiagent_orchestrator import multiagent_orchestrator
+        await multiagent_orchestrator.initialize()
+        logger.info("✅ Multiagent orchestrator initialized with hot loading")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not initialize multiagent orchestrator: {e}")
+    
+    # Initialize hot chat service if available
+    try:
+        from .lightweight_chat_hot import hot_chat_service
+        await hot_chat_service.initialize()
+        logger.info("✅ Hot chat service initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not initialize hot chat service: {e}")
+    
     # Publish service ready event
     await nats_client.publish(
         "gaia.service.ready",
@@ -45,6 +61,21 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("🛑 Shutting down Chat Service...")
+    
+    # Cleanup multiagent orchestrator
+    try:
+        from .multiagent_orchestrator import multiagent_orchestrator
+        await multiagent_orchestrator.cleanup()
+    except Exception as e:
+        logger.warning(f"⚠️ Error cleaning up multiagent orchestrator: {e}")
+    
+    # Cleanup hot chat service
+    try:
+        from .lightweight_chat_hot import hot_chat_service
+        await hot_chat_service.cleanup()
+    except Exception as e:
+        logger.warning(f"⚠️ Error cleaning up hot chat service: {e}")
+    
     await nats_client.disconnect()
 
 # Create FastAPI app
