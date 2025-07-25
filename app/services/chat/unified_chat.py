@@ -51,7 +51,7 @@ class UnifiedChatHandler:
                 "type": "function",
                 "function": {
                     "name": "use_mcp_agent",
-                    "description": "Use this when the user's request requires external tools such as: reading/writing files, web search, API calls, calculations, system operations, or any interaction beyond conversation",
+                    "description": "Use this ONLY when the user explicitly asks to: read/write specific files, run system commands, search the web, make API calls, or perform system operations. Do NOT use for general questions that can be answered with existing knowledge.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -68,7 +68,7 @@ class UnifiedChatHandler:
                 "type": "function", 
                 "function": {
                     "name": "use_kb_service",
-                    "description": "Use this when the user wants to search, access, or manage their knowledge base, personal notes, documents, or any content in their KB",
+                    "description": "Use this ONLY when the user explicitly mentions searching their KB, knowledge base, personal notes, or asks 'what's in my notes/KB about X'. Do NOT use for general knowledge questions like 'What is the capital of France?'",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -89,7 +89,7 @@ class UnifiedChatHandler:
                 "type": "function",
                 "function": {
                     "name": "use_asset_service", 
-                    "description": "Use this when the user wants to generate images, 3D models, audio, or other digital assets",
+                    "description": "Use this ONLY when the user explicitly asks to generate/create an image, 3D model, audio file, or video. Keywords: 'generate', 'create', 'make' + asset type",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -872,21 +872,50 @@ Current context:
 - Conversation: {context.get('conversation_id', 'new')}
 - Message count: {context.get('message_count', 0)}
 
-Respond directly for:
-- Greetings, casual conversation
-- Simple questions with straightforward answers
-- Clarifications or follow-ups to previous messages
-- General knowledge queries
-- Opinions, explanations, or discussions
+CRITICAL RULE: You must ONLY use tools when the user EXPLICITLY mentions files, KB, web search, or asset generation.
 
-Use tools only when the request explicitly requires:
-- File operations or code analysis (use_mcp_agent)
-- Web searches or API calls (use_mcp_agent)
-- System operations or external integrations (use_mcp_agent)
-- Complex multi-domain analysis (use_multiagent_orchestration)
-- Coordinated expert reasoning (use_multiagent_orchestration)
+Examples of DIRECT responses (NO tools):
+- "What is 2+2?" → Answer: "4" (direct response)
+- "What's the capital of France?" → Answer: "Paris" (direct response)
+- "Explain quantum computing" → Provide explanation (direct response)
+- "Hello!" → Respond with greeting (direct response)
 
-When in doubt, prefer direct responses. Tools add latency and should only be used when truly beneficial."""
+Examples requiring TOOLS:
+- "What files are in /src?" → use_mcp_agent (file operation)
+- "Search my KB for Python" → use_kb_service (explicit KB mention)
+- "Generate an image of a cat" → use_asset_service (explicit generation)
+- "Search the web for news" → use_mcp_agent (explicit web search)
+
+Respond DIRECTLY (without tools) for:
+- Greetings and casual conversation ("Hello", "How are you?", "Thank you")
+- Simple arithmetic and math ("What is 2+2?", "Calculate 5*3")
+- General knowledge questions ("What's the capital of France?", "Who invented the telephone?")
+- Explanations and teaching ("Explain quantum computing", "How does photosynthesis work?")
+- Opinions, advice, and discussions ("What do you think about...", "Should I...")
+- Creative tasks ("Tell me a joke", "Write a poem", "Create a story")
+- Questions about yourself ("What's your name?", "What can you do?")
+- Hypotheticals and theoretical questions ("What if...", "Imagine...")
+
+Use tools ONLY when the user explicitly asks for:
+- File system operations: "read file X", "create file Y", "list files in directory Z", "what files are in..."
+  → use_mcp_agent
+- Knowledge base searches: "search my KB for...", "what's in my notes about...", "find in my knowledge base..."
+  → use_kb_service
+- Asset generation: "generate an image of...", "create a 3D model of...", "make audio of..."
+  → use_asset_service
+- Web searches: "search the web for...", "find online information about...", "what's the latest news on..."
+  → use_mcp_agent
+- System commands: "run command X", "execute script Y", "what's the current time/date"
+  → use_mcp_agent
+- Complex analysis requiring multiple perspectives: "analyze this from technical, business, and legal angles"
+  → use_multiagent_orchestration
+
+Key principles:
+1. If you can answer the question with your knowledge, respond directly
+2. Only use tools when the user explicitly asks for an external action
+3. "What is X?" or "Explain Y" are knowledge questions - answer directly
+4. "Find X in my files/KB" or "Search for X online" require tools
+5. When uncertain, prefer direct responses - tools add latency"""
     
     async def build_context(self, auth: dict, additional_context: Optional[dict] = None) -> dict:
         """
