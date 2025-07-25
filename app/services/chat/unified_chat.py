@@ -159,8 +159,8 @@ class UnifiedChatHandler:
         # Build context (user info, conversation history, etc.)
         full_context = await self.build_context(auth, context)
         
-        # Single LLM call for routing decision
-        routing_start = time.time()
+        # Single LLM call with routing capability - but no "routing overhead"
+        llm_start = time.time()
         
         try:
             # Prepare messages for routing decision
@@ -185,7 +185,7 @@ class UnifiedChatHandler:
                 request_id=f"{request_id}-routing"
             )
             
-            routing_time = (time.time() - routing_start) * 1000
+            llm_time = (time.time() - llm_start) * 1000
             
             # Check if LLM made tool calls
             if routing_response.get("tool_calls"):
@@ -219,9 +219,10 @@ class UnifiedChatHandler:
                     )
                     
                     # Add routing metadata
+                    routing_overhead = llm_time  # Time to decide routing
                     result["_metadata"] = {
                         "route_type": route_type,
-                        "routing_time_ms": int(routing_time),
+                        "routing_time_ms": int(routing_overhead),
                         "total_time_ms": int((time.time() - start_time) * 1000),
                         "reasoning": tool_args.get("reasoning"),
                         "request_id": request_id
@@ -255,7 +256,7 @@ class UnifiedChatHandler:
                     # Add routing metadata
                     result["_metadata"] = {
                         "route_type": "kb_service",
-                        "routing_time_ms": int(routing_time),
+                        "routing_time_ms": int(llm_time),  # Time to decide routing
                         "total_time_ms": int((time.time() - start_time) * 1000),
                         "query": query,
                         "reasoning": reasoning,
@@ -292,7 +293,7 @@ class UnifiedChatHandler:
                     # Add routing metadata
                     result["_metadata"] = {
                         "route_type": "asset_service",
-                        "routing_time_ms": int(routing_time),
+                        "routing_time_ms": int(llm_time),  # Time to decide routing
                         "total_time_ms": int((time.time() - start_time) * 1000),
                         "asset_type": asset_type,
                         "description": description,
@@ -330,7 +331,7 @@ class UnifiedChatHandler:
                     # Add routing metadata
                     result["_metadata"] = {
                         "route_type": route_type,
-                        "routing_time_ms": int(routing_time),
+                        "routing_time_ms": int(llm_time),  # Time to decide routing
                         "total_time_ms": int((time.time() - start_time) * 1000),
                         "domains": domains,
                         "reasoning": reasoning,
@@ -356,7 +357,7 @@ class UnifiedChatHandler:
                     
                     result["_metadata"] = {
                         "route_type": route_type,
-                        "routing_time_ms": int(routing_time),
+                        "routing_time_ms": int(llm_time),  # Time to decide routing
                         "total_time_ms": int((time.time() - start_time) * 1000),
                         "request_id": request_id,
                         "error": f"Unknown tool: {tool_name}, used fallback"
@@ -365,7 +366,7 @@ class UnifiedChatHandler:
                     return result
             
             else:
-                # Direct response - no specialized tools needed
+                # Direct response - no routing needed, just normal LLM response
                 route_type = RouteType.DIRECT
                 self._routing_metrics[route_type] += 1
                 
@@ -379,11 +380,11 @@ class UnifiedChatHandler:
                 })
                 
                 logger.info(
-                    f"[{request_id}] Direct response in {routing_time:.0f}ms"
+                    f"[{request_id}] Direct response in {llm_time:.0f}ms (no routing needed)"
                 )
                 
-                # Update routing metrics
-                self._update_timing_metrics(routing_time, (time.time() - start_time) * 1000)
+                # Update routing metrics - no routing overhead for direct responses
+                self._update_timing_metrics(0, (time.time() - start_time) * 1000)
                 
                 return {
                     "id": request_id,
@@ -401,7 +402,8 @@ class UnifiedChatHandler:
                     "usage": usage,
                     "_metadata": {
                         "route_type": route_type,
-                        "routing_time_ms": int(routing_time),
+                        "routing_time_ms": 0,  # No routing overhead for direct responses
+                        "llm_time_ms": int(llm_time),  # Actual LLM response time
                         "total_time_ms": int((time.time() - start_time) * 1000),
                         "request_id": request_id
                     }
