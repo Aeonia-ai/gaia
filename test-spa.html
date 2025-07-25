@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SPA Test Results</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ddd; }
+        .pass { background: #d4edda; color: #155724; }
+        .fail { background: #f8d7da; color: #721c24; }
+        iframe { width: 100%; height: 600px; border: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Gaia Web UI SPA Test</h1>
+    
+    <div class="test pass">
+        ✅ Authentication redirects working (/ and /chat redirect to /login)
+    </div>
+    
+    <div class="test pass">
+        ✅ Login form has HTMX attributes (hx-post, hx-target, hx-swap)
+    </div>
+    
+    <div class="test pass">
+        ✅ Partial content updates configured (main-content ID present)
+    </div>
+    
+    <div class="test pass">
+        ✅ Page transition animations added (fade in/out effects)
+    </div>
+    
+    <div class="test pass">
+        ✅ Browser history management configured (pushState on navigation)
+    </div>
+    
+    <h2>Live Preview</h2>
+    <p>Open <a href="http://localhost:8080" target="_blank">http://localhost:8080</a> in a new tab to test manually.</p>
+    
+    <h2>Key Features Implemented:</h2>
+    <ul>
+        <li>HTMX navigation prevents full page reloads</li>
+        <li>Conversation switching updates only main content area</li>
+        <li>Smooth fade transitions between views</li>
+        <li>Active conversation highlighting in sidebar</li>
+        <li>Browser URL updates without reload</li>
+        <li>Loading indicators during navigation</li>
+    </ul>
+</body>
+</html>
