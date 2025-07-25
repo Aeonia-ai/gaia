@@ -214,6 +214,26 @@ case "$1" in
         message="${2:-Hello, what is 2+2?}"
         test_endpoint "POST" "/api/v0.2/chat" "{\"message\": \"$message\", \"stream\": false}" "Chat - Non-streaming"
         ;;
+    "unified")
+        message="${2:-Hello, how are you today?}"
+        echo -e "${YELLOW}Testing Unified Intelligent Chat${NC}"
+        echo -e "${GRAY}The LLM will decide whether to respond directly or use tools${NC}"
+        test_endpoint "POST" "/api/v1/chat" "{\"message\": \"$message\"}" "Unified Chat - Direct Response"
+        
+        # Test tool-requiring message
+        message="What files are in the current directory?"
+        echo -e "\n${GRAY}Testing with tool-requiring message...${NC}"
+        test_endpoint "POST" "/api/v1/chat" "{\"message\": \"$message\"}" "Unified Chat - MCP Agent"
+        
+        # Test complex message
+        message="Analyze the technical architecture and business implications of migrating to microservices"
+        echo -e "\n${GRAY}Testing with complex multi-domain message...${NC}"
+        test_endpoint "POST" "/api/v1/chat" "{\"message\": \"$message\"}" "Unified Chat - Multi-Agent"
+        
+        # Get metrics
+        echo -e "\n${GRAY}Fetching routing metrics...${NC}"
+        test_endpoint "GET" "/api/v1/chat/metrics" "" "Unified Chat Metrics"
+        ;;
     "stream")
         message="${2:-Hello}"
         test_streaming "$message"
@@ -772,6 +792,7 @@ case "$1" in
         echo "Core Tests:"
         echo "  $0 health                    # Check service health"
         echo "  $0 chat \"What is 2+2?\"       # Non-streaming chat"
+        echo "  $0 unified \"Hello\"           # Unified intelligent chat (NEW - single endpoint)"
         echo "  $0 stream \"Tell me a joke\"   # Streaming chat"
         echo ""
         echo "MMOIRL Chat Endpoints:"
