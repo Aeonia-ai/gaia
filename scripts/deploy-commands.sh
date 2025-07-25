@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Print deployment commands for manual execution
+
+echo "🚀 Deployment Commands for Gaia Services"
+echo "========================================"
+echo ""
+echo "Run these commands in order:"
+echo ""
+echo "# 1. Export your Fly token (remove quotes):"
+echo 'export FLY_API_TOKEN=$(grep FLY_API_TOKEN .env | cut -d"=" -f2- | sed "s/^\"//;s/\"$//")'
+echo ""
+echo "# 2. Deploy Auth Service:"
+echo "fly deploy --config fly.auth.dev.toml --remote-only -a gaia-auth-dev"
+echo ""
+echo "# 3. Deploy Asset Service:"
+echo "fly deploy --config fly.asset.dev.toml --remote-only -a gaia-asset-dev"
+echo ""
+echo "# 4. Deploy KB Service:"
+echo "fly deploy --config fly.kb.dev.toml --remote-only -a gaia-kb-dev"
+echo ""
+echo "# 5. Deploy Chat Service (hot loading + routing):"
+echo "fly deploy --config fly.chat.dev.toml --remote-only -a gaia-chat-dev"
+echo ""
+echo "# 6. Deploy Gateway (service discovery):"
+echo "fly deploy --config fly.gateway.dev.toml --remote-only -a gaia-gateway-dev"
+echo ""
+echo "# 7. Test the deployment:"
+echo "./scripts/test-service-discovery.sh https://gaia-gateway-dev.fly.dev"
+echo "./scripts/test-new-chat-simple.sh https://gaia-gateway-dev.fly.dev"

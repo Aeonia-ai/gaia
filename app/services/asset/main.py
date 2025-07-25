@@ -12,6 +12,7 @@ from app.shared.config import settings
 from app.shared.logging import get_logger
 from app.shared.nats_client import NATSClient
 from app.shared.database import engine as database_engine, test_database_connection
+from app.shared.service_discovery import create_service_health_endpoint
 from .router_minimal import assets_router
 
 logger = get_logger(__name__)
@@ -96,31 +97,8 @@ def create_app() -> FastAPI:
     # Include routers
     app.include_router(assets_router)
     
-    @app.get("/health")
-    async def health_check():
-        """Service health check"""
-        try:
-            # Check database connectivity
-            db_healthy = test_database_connection()
-            
-            # Check NATS connectivity
-            nats_healthy = nats_client and nats_client.is_connected
-            
-            return {
-                "status": "healthy",
-                "service": "asset-service",
-                "database": "connected" if db_healthy else "disconnected",
-                "nats": "connected" if nats_healthy else "disconnected",
-                "capabilities": [
-                    "asset_generation",
-                    "asset_search", 
-                    "asset_upload",
-                    "cost_optimization"
-                ]
-            }
-        except Exception as e:
-            logger.error(f"Health check failed: {e}")
-            raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
+    # Create enhanced health endpoint with route discovery
+    create_service_health_endpoint(app, "asset", "0.2")
     
     @app.get("/")
     async def root():

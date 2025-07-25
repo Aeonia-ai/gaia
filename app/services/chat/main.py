@@ -12,6 +12,7 @@ from app.shared.config import settings
 from app.shared.logging import configure_logging_for_service, logger
 from app.shared.database import engine, Base
 from app.shared.nats_client import NATSClient
+from app.shared.service_discovery import create_service_health_endpoint
 
 # Setup logging
 configure_logging_for_service("chat")
@@ -98,16 +99,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "service": "chat",
-        "status": "healthy",
-        "version": "0.2",
-        "database": {"status": "connected"},
-        "nats": {"status": "connected" if nats_client.is_connected else "disconnected"}
-    }
+# Create enhanced health endpoint with route discovery
+create_service_health_endpoint(app, "chat", "0.2")
 
 # Import and include routers
 try:
