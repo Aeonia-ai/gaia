@@ -45,7 +45,6 @@ from app.shared import (
 )
 from app.shared.redis_client import redis_client, CacheManager
 from app.gateway.cache_middleware import CacheMiddleware
-from app.shared.service_discovery import service_registry, discover_services_from_config
 
 # Configure logging for gateway service
 logger = configure_logging_for_service("gateway")
@@ -1469,7 +1468,7 @@ async def chat(
     request: Request,
     auth: dict = Depends(get_current_auth_legacy)
 ):
-    """Main chat endpoint used by all clients."""
+    """Main chat endpoint used by all clients - now with unified intelligent routing."""
     body = await request.json()
     
     # Add authentication info to request
@@ -1482,7 +1481,7 @@ async def chat(
     
     return await forward_request_to_service(
         service_name="chat",
-        path="/chat/",  # Route to chat endpoint
+        path="/chat/unified",  # Route to unified intelligent chat endpoint
         method="POST",
         json_data=body,
         headers=headers
@@ -2178,138 +2177,6 @@ async def v1_resend_verification(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ========================================================================================
-# NEW INTELLIGENT ROUTING ENDPOINTS - Dynamic discovery
-# ========================================================================================
-
-@app.post("/chat/intelligent", tags=["Intelligent Chat"])
-async def intelligent_chat(
-    request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
-):
-    """Intelligent chat routing with automatic discovery"""
-    # Check if chat service has this route
-    chat_routes = service_registry.get_service_routes("chat")
-    
-    # Look for the intelligent routing endpoint
-    for route in chat_routes:
-        if route.path == "/chat/intelligent" and "POST" in route.methods:
-            # Route exists in chat service - forward the request
-            body = await request.json()
-            body["_auth"] = auth
-            
-            headers = dict(request.headers)
-            headers.pop("content-length", None)
-            headers.pop("Content-Length", None)
-            
-            return await forward_request_to_service(
-                service_name="chat",
-                path="/chat/intelligent",
-                method="POST",
-                json_data=body,
-                headers=headers
-            )
-    
-    # Route not found
-    raise HTTPException(
-        status_code=404,
-        detail="Intelligent chat endpoint not available in chat service"
-    )
-
-@app.post("/chat/fast", tags=["Fast Chat"])
-async def fast_chat(
-    request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
-):
-    """Fast chat endpoint with automatic discovery"""
-    # Check if chat service has this route
-    chat_routes = service_registry.get_service_routes("chat")
-    
-    # Look for the fast chat endpoint
-    for route in chat_routes:
-        if route.path == "/chat/fast" and "POST" in route.methods:
-            # Route exists in chat service - forward the request
-            body = await request.json()
-            body["_auth"] = auth
-            
-            headers = dict(request.headers)
-            headers.pop("content-length", None)
-            headers.pop("Content-Length", None)
-            
-            return await forward_request_to_service(
-                service_name="chat",
-                path="/chat/fast",
-                method="POST",
-                json_data=body,
-                headers=headers
-            )
-    
-    # Route not found
-    raise HTTPException(
-        status_code=404,
-        detail="Fast chat endpoint not available in chat service"
-    )
-
-@app.post("/chat/mcp-agent", tags=["MCP Agent Chat"])
-async def mcp_agent_chat_direct(
-    request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
-):
-    """MCP agent chat with automatic discovery"""
-    # Check if chat service has this route
-    chat_routes = service_registry.get_service_routes("chat")
-    
-    # Look for the mcp-agent endpoint
-    for route in chat_routes:
-        if route.path == "/chat/mcp-agent" and "POST" in route.methods:
-            # Route exists in chat service - forward the request
-            body = await request.json()
-            body["_auth"] = auth
-            
-            headers = dict(request.headers)
-            headers.pop("content-length", None)
-            headers.pop("Content-Length", None)
-            
-            return await forward_request_to_service(
-                service_name="chat",
-                path="/chat/mcp-agent",
-                method="POST",
-                json_data=body,
-                headers=headers
-            )
-    
-    # Route not found
-    raise HTTPException(
-        status_code=404,
-        detail="MCP agent endpoint not available in chat service"
-    )
-
-@app.get("/chat/intelligent/metrics", tags=["Intelligent Chat"])
-async def intelligent_chat_metrics(
-    request: Request,
-    auth: dict = Depends(get_current_auth_legacy)
-):
-    """Get intelligent routing metrics"""
-    # Check if chat service has this route
-    chat_routes = service_registry.get_service_routes("chat")
-    
-    # Look for the metrics endpoint
-    for route in chat_routes:
-        if route.path == "/chat/intelligent/metrics" and "GET" in route.methods:
-            # Route exists in chat service - forward the request
-            return await forward_request_to_service(
-                service_name="chat",
-                path="/chat/intelligent/metrics",
-                method="GET",
-                headers=dict(request.headers)
-            )
-    
-    # Route not found
-    raise HTTPException(
-        status_code=404,
-        detail="Intelligent routing metrics not available"
-    )
-
-# ========================================================================================
 # SERVICE COORDINATION AND LIFECYCLE
 # ========================================================================================
 
@@ -2317,13 +2184,6 @@ async def intelligent_chat_metrics(
 async def startup_event():
     """Initialize gateway service and connections."""
     log_service_startup("gateway", "0.2", settings.SERVICE_PORT)
-    
-    # Start service registry
-    await service_registry.start()
-    
-    # Discover services from configuration
-    logger.info("Discovering services and their available routes...")
-    await discover_services_from_config()
     
     # Initialize NATS connection
     try:
@@ -2343,14 +2203,17 @@ async def startup_event():
         logger.error(f"Failed to initialize NATS connection: {e}")
         # Don't fail startup - gateway can work without NATS
     
-    # Log discovered services and routes
-    healthy_services = service_registry.get_healthy_services()
-    for service_name, service_info in healthy_services.items():
-        logger.lifecycle(f"Connected to {service_name} service with {len(service_info.routes)} routes")
-        for route in service_info.routes[:3]:  # Show first 3 routes
-            logger.info(f"  - {route.path} [{', '.join(route.methods)}]")
-        if len(service_info.routes) > 3:
-            logger.info(f"  ... and {len(service_info.routes) - 3} more routes")
+    # Test connections to all services
+    for service_name, service_url in SERVICE_URLS.items():
+        try:
+            client = await get_http_client()
+            response = await client.get(f"{service_url}/health", timeout=5.0)
+            if response.status_code == 200:
+                logger.lifecycle(f"Connected to {service_name} service")
+            else:
+                logger.warning(f"{service_name} service health check failed")
+        except Exception as e:
+            logger.warning(f"Could not connect to {service_name} service: {e}")
     
     # Publish gateway ready event
     try:
@@ -2370,9 +2233,6 @@ async def startup_event():
 async def shutdown_event():
     """Clean up resources on shutdown."""
     log_service_shutdown("gateway")
-    
-    # Stop service registry
-    await service_registry.stop()
     
     # Close HTTP client
     global http_client

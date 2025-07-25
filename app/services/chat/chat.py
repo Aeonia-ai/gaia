@@ -38,6 +38,173 @@ chat_histories: dict[str, List[Message]] = {}
 
 # Legacy function removed - now using multi-provider chat service
 
+@router.post("/", response_model=ChatResponse)
+async def chat_completion(
+    request: ChatRequest,
+    auth_principal: Dict[str, Any] = Depends(get_current_auth)
+) -> ChatResponse:
+    """
+    Process a chat completion request using the specified provider.
+    Supports both built-in and MCP tools.
+    """
+    try:
+        # Use a unique key for chat history based on auth_principal
+        auth_key = auth_principal.get("sub") or auth_principal.get("key")
+        if not auth_key:
+            raise ValueError("Could not determine unique auth key for chat history.")
+
+        logger.debug("Processing chat completion request")
+        
+        # Get or initialize chat history with system prompt
+        if auth_key not in chat_histories:
+            logger.debug("Initializing new chat history with system prompt")
+            system_prompt = await PromptManager.get_system_prompt(user_id=auth_key)
+            chat_histories[auth_key] = [
+                Message(
+                    role="system",
+                    content=system_prompt
+                )
+            ]
+
+        # Add user message to history
+        chat_histories[auth_key].append(Message(
+            role="user",
+            content=request.message
+        ))
+        logger.debug(f"Added user message to history. Total messages: {len(chat_histories[auth_key])}")
+
+        # Prepare messages for API call (filter out empty messages)
+        valid_messages = []
+        for msg in chat_histories[auth_key]:
+            if msg.content and msg.content.strip():
+                valid_messages.append(msg.model_dump())
+            else:
+                logger.debug(f"Filtering out empty message with role: {msg.role}")
+        messages = valid_messages
+
+        # Get available tools for the chat
+        logger.debug("Getting tools for chat completion")
+        tools = await ToolProvider.get_tools_for_activity("generic")
+        logger.debug(f"Retrieved {len(tools)} tools for generic activity")
+
+        # Use the multi-provider chat service for consistent model selection
+        logger.debug("Using multi-provider chat service for legacy chat endpoint")
+        
+        # Convert tools to proper format
+        formatted_tools = []
+        for tool in tools:
+            tool_dict = tool.model_dump() if hasattr(tool, 'model_dump') else tool
+            formatted_tools.append(tool_dict)
+
+        # Use multi-provider chat service with force_provider=True for consistent behavior
+        response = await chat_service.chat_completion(
+            messages=messages,
+            force_provider=True,  # Use default model selection
+            tools=formatted_tools,
+            user_id=auth_key
+        )
+        
+        result_to_say = response["response"]
+        model_used = response["model"]
+        provider_used = response["provider"]
+        
+        logger.info(f"Successfully used multi-provider system: {model_used} from {provider_used}")
+
+        if result_to_say:
+            # Add response to history
+            chat_histories[auth_key].append(Message(
+                role="assistant",
+                content=result_to_say
+            ))
+            logger.debug("Added assistant response to history")
+
+            # Trim history if it gets too long
+            if len(chat_histories[auth_key]) > 50:  # Arbitrary limit
+                logger.debug("Trimming chat history to last 50 messages")
+                # Keep system prompt and last 49 messages
+                system_msg = chat_histories[auth_key][0]
+                chat_histories[auth_key] = [system_msg] + chat_histories[auth_key][-49:]
+
+            return ChatResponse(
+                response=result_to_say,
+                provider=provider_used,
+                model=model_used
+            )
+        else:
+            raise ValueError("No response received from provider")
+
+    except Exception as e:
+        logger.error(f"Chat completion error: {str(e)}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/unified")
+async def unified_chat_endpoint(
+    request: Request
+):
+    """
+    Unified intelligent chat endpoint.
+    
+    The LLM decides whether to respond directly or use specialized tools.
+    - Direct responses for simple queries (~1s)
+    - MCP agent for tool-requiring tasks (~2-3s)
+    - Multi-agent for complex analysis (~4-8s)
+    """
+    try:
+        # Parse request body (can handle both gateway format with _auth and direct format)
+        body = await request.json()
+        
+        # Handle both gateway format (_auth in body) and direct format
+        if "_auth" in body:
+            # Gateway format
+            message = body.get("message", "")
+            auth_principal = body.get("_auth", {})
+        else:
+            # Direct format - extract from ChatRequest
+            message = body.get("message", "")
+            # For direct calls, we'd need proper auth - for now use empty
+            auth_principal = {}
+        
+        from .unified_chat import unified_chat_handler
+        
+        # Extract context if available
+        context = {
+            "conversation_id": body.get("conversation_id"),
+            "message_count": len(chat_histories.get(
+                auth_principal.get("sub") or auth_principal.get("key", ""), []
+            ))
+        }
+        
+        # Process through unified handler
+        result = await unified_chat_handler.process(
+            message=message,
+            auth=auth_principal,
+            context=context
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Unified chat error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/metrics")
+async def get_unified_chat_metrics(
+    auth_principal: Dict[str, Any] = Depends(get_current_auth)
+) -> Dict[str, Any]:
+    """
+    Get metrics for the unified chat endpoint routing decisions.
+    
+    Returns routing distribution and performance metrics.
+    """
+    try:
+        from .unified_chat import unified_chat_handler
+        return unified_chat_handler.get_metrics()
+    except Exception as e:
+        logger.error(f"Error getting unified chat metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/status")
 async def get_chat_status(
     auth_principal: Dict[str, Any] = Depends(get_current_auth)
