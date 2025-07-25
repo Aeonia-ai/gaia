@@ -34,10 +34,16 @@ async def kb_search_endpoint(request: ChatRequest, auth_principal: Dict[str, Any
         }
         
         if getattr(settings, 'KB_MULTI_USER_ENABLED', False):
-            user_id = auth_principal.get("user_id")
-            if user_id:
-                kwargs["user_id"] = user_id
-                logger.info(f"Multi-user KB search for user: {user_id}")
+            # KB service should use email addresses directly, not UUIDs
+            user_email = auth_principal.get("email")  
+            if user_email:
+                kwargs["user_id"] = user_email  # Direct email-based user identification
+                logger.info(f"KB search for user: {user_email}")
+            else:
+                # No email means no access - KB requires email-based identification
+                logger.warning(f"KB search denied - no email in auth_principal: {auth_principal}")
+                logger.warning(f"Available keys in auth_principal: {list(auth_principal.keys())}")
+                raise HTTPException(status_code=403, detail="KB access requires email-based authentication")
         
         # Execute search using KB server
         search_result = await kb_server.search_kb(**kwargs)

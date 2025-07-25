@@ -66,7 +66,26 @@ class SupabaseAuthClient:
                 
                 # Check if key is valid
                 if result.get('is_valid', False):
-                    logger.debug(f"Valid API key for user: {result['user_id']}")
+                    user_id = result['user_id']
+                    logger.debug(f"Valid API key for user: {user_id}")
+                    
+                    # Get user email separately if not included in the API key validation result
+                    email = result.get('email')
+                    if not email:
+                        try:
+                            # Query the users table directly for the email
+                            user_response = self.client.table('users') \
+                                .select('email') \
+                                .eq('id', user_id) \
+                                .execute()
+                            
+                            if user_response.data and len(user_response.data) > 0:
+                                email = user_response.data[0].get('email')
+                                logger.debug(f"Retrieved email from users table: {email}")
+                            else:
+                                logger.warning(f"Could not find email for user {user_id} in users table")
+                        except Exception as e:
+                            logger.warning(f"Failed to fetch user email from users table: {e}")
                     
                     # Convert permissions dict to scopes list for compatibility
                     permissions = result.get('permissions', {})
@@ -81,9 +100,10 @@ class SupabaseAuthClient:
                     
                     return AuthenticationResult(
                         auth_type="user_api_key",
-                        user_id=result['user_id'],
+                        user_id=user_id,
                         api_key=api_key,
-                        scopes=scopes
+                        scopes=scopes,
+                        email=email
                     )
                 else:
                     logger.warning("API key is inactive or expired")

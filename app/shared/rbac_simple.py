@@ -40,20 +40,24 @@ class SimpleRBACManager:
     async def get_accessible_kb_paths(self, user_id: str) -> List[str]:
         """
         Get all KB paths accessible to a user.
+        Supports both UUID and email-based user identification.
         """
+        paths = []
+        
+        # Always include personal KB (using the user_id as-is for path)
+        # Database paths don't include the /kb/ prefix
+        paths.append(f"users/{user_id}")
+        
+        # Always include shared KB (read-only)
+        paths.append("shared")
+        
+        # For database operations (teams/workspaces), try to validate as UUID
+        # If it's an email, we'll skip team/workspace lookups for now
         try:
             validated_user_id = self.ensure_uuid(user_id)
         except (ValueError, TypeError) as e:
-            logger.error(f"Invalid user_id in get_accessible_kb_paths: {e}")
-            return []
-
-        paths = []
-        
-        # Always include personal KB
-        paths.append(f"/kb/users/{user_id}")
-        
-        # Always include shared KB (read-only)
-        paths.append("/kb/shared")
+            logger.info(f"Using email-based user pathing for {user_id}, skipping team/workspace lookups")
+            return paths
         
         try:
             # Get team memberships
@@ -63,7 +67,7 @@ class SimpleRBACManager:
                     validated_user_id
                 )
                 for row in teams_result:
-                    paths.append(f"/kb/teams/{row['team_id']}")
+                    paths.append(f"teams/{row['team_id']}")
             
                 # Get workspace memberships
                 workspaces_result = await connection.fetch(
@@ -71,7 +75,7 @@ class SimpleRBACManager:
                     validated_user_id
                 )
                 for row in workspaces_result:
-                    paths.append(f"/kb/workspaces/{row['workspace_id']}")
+                    paths.append(f"workspaces/{row['workspace_id']}")
         except Exception as e:
             logger.error(f"Error getting team/workspace memberships: {e}")
             # Continue with just personal and shared paths

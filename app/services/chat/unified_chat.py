@@ -1,9 +1,10 @@
 """
 Unified Intelligent Chat Handler
 
-A single endpoint that uses LLM tool-calling to intelligently route requests:
+A single endpoint that uses LLM tool-calling to intelligently handle requests:
 - Direct responses for simple queries (no tools)
-- MCP agent for tool-requiring tasks
+- KB tools for knowledge base operations
+- MCP agent for file/system operations
 - Multi-agent orchestration for complex analysis
 """
 import logging
@@ -19,6 +20,7 @@ from app.services.chat.lightweight_chat_hot import hot_chat_service
 from app.services.llm import LLMProvider
 import httpx
 from app.shared.config import settings
+from .kb_tools import KB_TOOLS, KBToolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +47,13 @@ class UnifiedChatHandler:
         self.mcp_hot_service = hot_chat_service  # Already initialized at startup
         self.multiagent_orchestrator = None  # TODO: Initialize when available
         
-        # Routing tools definition
+        # Routing tools definition (for services that need routing)
         self.routing_tools = [
             {
                 "type": "function",
                 "function": {
                     "name": "use_mcp_agent",
-                    "description": "Use this ONLY when the user explicitly asks to: read/write specific files, run system commands, search the web, make API calls, or perform system operations. Do NOT use for general questions that can be answered with existing knowledge.",
+                    "description": "Use this ONLY when the user explicitly asks to: read/write files outside KB, run system commands, search the web, make API calls, or perform system operations. Do NOT use for general questions or KB operations.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -61,27 +63,6 @@ class UnifiedChatHandler:
                             }
                         },
                         "required": ["reasoning"]
-                    }
-                }
-            },
-            {
-                "type": "function", 
-                "function": {
-                    "name": "use_kb_service",
-                    "description": "Use this ONLY when the user explicitly mentions searching their KB, knowledge base, personal notes, or asks 'what's in my notes/KB about X'. Do NOT use for general knowledge questions like 'What is the capital of France?'",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "What to search for or access in the KB"
-                            },
-                            "reasoning": {
-                                "type": "string",
-                                "description": "Why KB service is needed"
-                            }
-                        },
-                        "required": ["query", "reasoning"]
                     }
                 }
             },
@@ -176,10 +157,13 @@ class UnifiedChatHandler:
                 }
             ]
             
-            # Use chat service with routing tools
+            # Combine routing tools with KB tools
+            all_tools = self.routing_tools + KB_TOOLS
+            
+            # Use chat service with all available tools
             routing_response = await chat_service.chat_completion(
                 messages=messages,
-                tools=self.routing_tools,
+                tools=all_tools,
                 tool_choice={"type": "auto"},  # Let LLM decide: direct response or tool use
                 temperature=0.7,
                 max_tokens=4096,
@@ -190,8 +174,68 @@ class UnifiedChatHandler:
             
             # Check if LLM made tool calls
             if routing_response.get("tool_calls"):
-                # LLM decided to use specialized routing
-                tool_call = routing_response["tool_calls"][0]
+                tool_calls = routing_response["tool_calls"]
+                
+                # Check if any KB tools were called
+                kb_tool_names = {tool["function"]["name"] for tool in KB_TOOLS}
+                kb_calls = [tc for tc in tool_calls if tc["function"]["name"] in kb_tool_names]
+                
+                if kb_calls:
+                    # Handle KB tool calls directly
+                    kb_executor = KBToolExecutor(auth)
+                    tool_results = []
+                    
+                    for tool_call in kb_calls:
+                        tool_name = tool_call["function"]["name"]
+                        tool_args_raw = tool_call["function"].get("arguments", "{}")
+                        if isinstance(tool_args_raw, str):
+                            tool_args = json.loads(tool_args_raw)
+                        else:
+                            tool_args = tool_args_raw
+                        
+                        logger.info(f"[{request_id}] Executing KB tool: {tool_name} with args: {tool_args}")
+                        result = await kb_executor.execute_tool(tool_name, tool_args)
+                        tool_results.append({
+                            "tool": tool_name,
+                            "result": result
+                        })
+                    
+                    # Make another LLM call with the tool results to generate final response
+                    # For Anthropic, tool results are included as user messages
+                    tool_result_content = "\n\nTool Results:\n"
+                    for result in tool_results:
+                        tool_result_content += f"\n{result['tool']}:\n{json.dumps(result['result'], indent=2)}\n"
+                    
+                    messages.append({
+                        "role": "user",
+                        "content": tool_result_content
+                    })
+                    
+                    # Get final response from LLM with tool results
+                    final_response = await chat_service.chat_completion(
+                        messages=messages,
+                        temperature=0.7,
+                        max_tokens=4096,
+                        request_id=f"{request_id}-final"
+                    )
+                    
+                    return {
+                        "id": request_id,
+                        "object": "chat.completion",
+                        "created": int(time.time()),
+                        "model": final_response.get("model", "unknown"),
+                        "choices": final_response.get("choices", []),
+                        "usage": final_response.get("usage", {}),
+                        "_metadata": {
+                            "route_type": "kb_tools",
+                            "tools_used": [tr["tool"] for tr in tool_results],
+                            "total_time_ms": int((time.time() - start_time) * 1000),
+                            "request_id": request_id
+                        }
+                    }
+                
+                # Handle routing tools (non-KB)
+                tool_call = tool_calls[0]  # For routing, we only use the first
                 tool_name = tool_call["function"]["name"]
                 
                 # Parse tool arguments
@@ -227,42 +271,6 @@ class UnifiedChatHandler:
                         "total_time_ms": int((time.time() - start_time) * 1000),
                         "reasoning": tool_args.get("reasoning"),
                         "request_id": request_id
-                    }
-                    
-                    return result
-                
-                elif tool_name == "use_kb_service":
-                    # Route to KB service
-                    route_type = RouteType.MCP_AGENT  # For now, use MCP agent for KB
-                    self._routing_metrics[route_type] += 1
-                    
-                    query = tool_args.get("query", message)
-                    reasoning = tool_args.get("reasoning", "")
-                    
-                    logger.info(
-                        f"[{request_id}] Routing to KB service - query: {query}, reason: {reasoning}"
-                    )
-                    
-                    # For now, use MCP agent to handle KB queries
-                    # TODO: Implement direct KB service integration
-                    from app.models.chat import ChatRequest
-                    kb_message = f"Search my knowledge base for: {query}"
-                    chat_request = ChatRequest(message=kb_message)
-                    
-                    result = await self.mcp_hot_service.process_chat(
-                        request=chat_request,
-                        auth_principal=auth
-                    )
-                    
-                    # Add routing metadata
-                    result["_metadata"] = {
-                        "route_type": "kb_service",
-                        "routing_time_ms": int(llm_time),  # Time to decide routing
-                        "total_time_ms": int((time.time() - start_time) * 1000),
-                        "query": query,
-                        "reasoning": reasoning,
-                        "request_id": request_id,
-                        "note": "Using MCP agent for KB queries"
                     }
                     
                     return result
@@ -872,19 +880,19 @@ Current context:
 - Conversation: {context.get('conversation_id', 'new')}
 - Message count: {context.get('message_count', 0)}
 
-CRITICAL RULE: You must ONLY use tools when the user EXPLICITLY mentions files, KB, web search, or asset generation.
+Knowledge Base (KB) tools are available for when users reference their personal knowledge or work context.
 
-Examples of DIRECT responses (NO tools):
-- "What is 2+2?" → Answer: "4" (direct response)
-- "What's the capital of France?" → Answer: "Paris" (direct response)
-- "Explain quantum computing" → Provide explanation (direct response)
-- "Hello!" → Respond with greeting (direct response)
+Use KB tools naturally when users indicate they want:
+- Personal knowledge: "what do I know about X", "find my notes on Y" → search_knowledge_base
+- Work continuity: "continue where we left off", "what was I working on" → load_kos_context  
+- Thread management: "show active threads", "load project context" → load_kos_context
+- Cross-domain synthesis: "how does X relate to Y", "connect A with B" → synthesize_kb_information
 
-Examples requiring TOOLS:
-- "What files are in /src?" → use_mcp_agent (file operation)
-- "Search my KB for Python" → use_kb_service (explicit KB mention)
-- "Generate an image of a cat" → use_asset_service (explicit generation)
-- "Search the web for news" → use_mcp_agent (explicit web search)
+Direct responses (NO tools needed) for general queries:
+- General knowledge: "What's the capital of France?" → "Paris"
+- Math: "What is 2+2?" → "4"
+- Explanations: "How does photosynthesis work?" → Direct explanation
+- Opinions: "What do you think about AI?" → Direct discussion
 
 Respond DIRECTLY (without tools) for:
 - Greetings and casual conversation ("Hello", "How are you?", "Thank you")
@@ -899,8 +907,7 @@ Respond DIRECTLY (without tools) for:
 Use tools ONLY when the user explicitly asks for:
 - File system operations: "read file X", "create file Y", "list files in directory Z", "what files are in..."
   → use_mcp_agent
-- Knowledge base searches: "search my KB for...", "what's in my notes about...", "find in my knowledge base..."
-  → use_kb_service
+- Knowledge base operations are handled directly with KB tools (search_knowledge_base, read_kb_file, etc.)
 - Asset generation: "generate an image of...", "create a 3D model of...", "make audio of..."
   → use_asset_service
 - Web searches: "search the web for...", "find online information about...", "what's the latest news on..."
