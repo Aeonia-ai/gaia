@@ -112,3 +112,17 @@ def extract_routes(app: FastAPI):
 - `/app/shared/service_discovery.py` - Discovery implementation
 - `/app/gateway/main.py` - Gateway route registration
 - `/docs/service-initialization-pattern.md` - Pattern documentation
+- `/docs/chat-endpoint-variants-explained.md` - Why there are 37 chat routes
+
+### Additional Discoveries
+
+**Too Many Routes**: After fixing service discovery, we discovered the chat service has 37 routes, which is excessive. This is due to:
+
+1. **Performance experiments**: direct, fast, ultrafast, ultrafast-redis v1/v2/v3
+2. **Feature variants**: mcp-agent vs mcp-agent-hot, intelligent routing
+3. **Game-specific endpoints**: gamemaster, worldbuilding, storytelling
+4. **Legacy compatibility**: v0.2 API routes
+
+We also found that the chat service was incorrectly including the ENTIRE v0.2 API router (personas, assets, usage, etc.) instead of just chat routes. Fixed this to reduce from 74 to ~37 routes.
+
+**Lesson**: Service discovery reveals technical debt. The variety of endpoints shows rapid experimentation but needs future consolidation.
