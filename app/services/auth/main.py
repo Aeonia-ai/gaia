@@ -35,6 +35,7 @@ from app.shared import (
     database_health_check,
     supabase_health_check
 )
+from app.shared.service_discovery import create_service_health_endpoint
 
 # Configure logging for auth service
 logger = configure_logging_for_service("auth")
@@ -151,31 +152,8 @@ async def check_secrets_health():
             "last_checked": datetime.now().isoformat()
         }
 
-@app.get("/health", tags=["Health"])
-async def health_check():
-    """Health check endpoint for auth service."""
-    # Check database and Supabase connectivity
-    db_health = await database_health_check()
-    supabase_health = await supabase_health_check()
-    
-    # Check secret configuration status
-    secrets_health = await check_secrets_health()
-    
-    overall_status = "healthy"
-    if (db_health["status"] != "healthy" or 
-        supabase_health["status"] != "healthy" or 
-        secrets_health["status"] != "healthy"):
-        overall_status = "unhealthy"
-    
-    return {
-        "service": "auth",
-        "status": overall_status,
-        "timestamp": datetime.now().isoformat(),
-        "database": db_health,
-        "supabase": supabase_health,
-        "secrets": secrets_health,
-        "version": "0.2"
-    }
+# Create enhanced health endpoint with route discovery
+create_service_health_endpoint(app, "auth", "0.2")
 
 @app.get("/status", tags=["Status"])
 async def service_status():

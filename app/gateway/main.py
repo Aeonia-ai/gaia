@@ -284,39 +284,24 @@ async def v0_2_chat(
     request: Request,
     auth: dict = Depends(get_current_auth_legacy)
 ):
-    """v0.2 unified chat endpoint (streaming and non-streaming)"""
-    # Simple implementation using Anthropic directly
-    import anthropic
-    
+    """v0.2 unified chat endpoint (streaming and non-streaming) - routes to chat service"""
     body = await request.json()
-    message = body.get("message", "")
-    model = body.get("model", "claude-3-5-sonnet-20241022")
     
-    try:
-        # Use Anthropic directly for now
-        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-        
-        response = await client.messages.create(
-            model=model,
-            max_tokens=1024,
-            messages=[{"role": "user", "content": message}]
-        )
-        
-        return {
-            "response": response.content[0].text,
-            "model": model,
-            "usage": {
-                "prompt_tokens": response.usage.input_tokens,
-                "completion_tokens": response.usage.output_tokens,
-                "total_tokens": response.usage.input_tokens + response.usage.output_tokens
-            }
-        }
-    except Exception as e:
-        logger.error(f"Chat error: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Failed to process chat request", "detail": str(e)}
-        )
+    # Add authentication info to request body
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2",  # v0.2 chat endpoint is at /api/v0.2, not /api/v0.2/chat
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
 
 @app.get("/api/v0.2/chat/status", tags=["v0.2 Chat"])
 async def v0_2_chat_status(
@@ -364,44 +349,27 @@ async def v0_2_stream_chat(
     request: Request,
     auth: dict = Depends(get_current_auth_unified)
 ):
-    """v0.2 streaming chat endpoint with SSE support"""
-    from fastapi.responses import StreamingResponse
-    import anthropic
-    
+    """v0.2 streaming chat endpoint with SSE support - routes to chat service"""
     body = await request.json()
-    message = body.get("message", "")
-    model = body.get("model", "claude-3-5-sonnet-20241022")
     
-    async def stream_generator():
-        """Generate SSE stream from Anthropic response"""
-        try:
-            client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-            
-            stream = await client.messages.create(
-                model=model,
-                max_tokens=1024,
-                messages=[{"role": "user", "content": message}],
-                stream=True
-            )
-            
-            async for event in stream:
-                if event.type == "content_block_delta":
-                    if event.delta.text:
-                        yield f"data: {json.dumps({'choices': [{'delta': {'content': event.delta.text}}]})}\n\n"
-                
-            yield "data: [DONE]\n\n"
-        except Exception as e:
-            logger.error(f"Streaming error: {e}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+    # Add authentication info to request body
+    body["_auth"] = auth
     
-    return StreamingResponse(
-        stream_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive", 
-            "X-Accel-Buffering": "no"
-        }
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    # Note: v0.2 uses a single endpoint for both streaming and non-streaming
+    # The 'stream' parameter in the request body determines the behavior
+    body["stream"] = True  # Ensure streaming mode
+    
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/api/v0.2",  # Same endpoint as non-streaming
+        method="POST",
+        json_data=body,
+        headers=headers
     )
 
 @app.post("/api/v0.2/chat/stream/cache/invalidate", tags=["v0.2 Streaming"])
@@ -1468,7 +1436,7 @@ async def chat(
     request: Request,
     auth: dict = Depends(get_current_auth_legacy)
 ):
-    """Main chat endpoint used by all clients."""
+    """Main chat endpoint used by all clients - now with unified intelligent routing."""
     body = await request.json()
     
     # Add authentication info to request
@@ -1481,7 +1449,7 @@ async def chat(
     
     return await forward_request_to_service(
         service_name="chat",
-        path="/chat/",  # Route to chat endpoint
+        path="/chat/unified",  # Route to unified intelligent chat endpoint
         method="POST",
         json_data=body,
         headers=headers

@@ -12,6 +12,7 @@ from app.shared.config import settings
 from app.shared.logging import configure_logging_for_service, logger
 from app.shared.database import engine, Base
 from app.shared.nats_client import NATSClient
+from app.shared.service_discovery import create_service_health_endpoint
 
 # Setup logging
 configure_logging_for_service("chat")
@@ -31,6 +32,22 @@ async def lifespan(app: FastAPI):
     # Connect to NATS
     await nats_client.connect()
     
+    # Initialize multiagent orchestrator with hot loading
+    try:
+        from .multiagent_orchestrator import multiagent_orchestrator
+        await multiagent_orchestrator.initialize()
+        logger.info("✅ Multiagent orchestrator initialized with hot loading")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not initialize multiagent orchestrator: {e}")
+    
+    # Initialize hot chat service if available
+    try:
+        from .lightweight_chat_hot import hot_chat_service
+        await hot_chat_service.initialize()
+        logger.info("✅ Hot chat service initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not initialize hot chat service: {e}")
+    
     # Publish service ready event
     await nats_client.publish(
         "gaia.service.ready",
@@ -45,6 +62,21 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     logger.info("🛑 Shutting down Chat Service...")
+    
+    # Cleanup multiagent orchestrator
+    try:
+        from .multiagent_orchestrator import multiagent_orchestrator
+        await multiagent_orchestrator.cleanup()
+    except Exception as e:
+        logger.warning(f"⚠️ Error cleaning up multiagent orchestrator: {e}")
+    
+    # Cleanup hot chat service
+    try:
+        from .lightweight_chat_hot import hot_chat_service
+        await hot_chat_service.cleanup()
+    except Exception as e:
+        logger.warning(f"⚠️ Error cleaning up hot chat service: {e}")
+    
     await nats_client.disconnect()
 
 # Create FastAPI app
@@ -67,17 +99,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "service": "chat",
-        "status": "healthy",
-        "version": "0.2",
-        "database": {"status": "connected"},
-        "nats": {"status": "connected" if nats_client.is_connected else "disconnected"}
-    }
-
 # Import and include routers
 try:
     from .chat import router as chat_router
@@ -86,13 +107,13 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️ Could not import chat router: {e}")
 
-# Include v0.2 API router
+# Include v0.2 chat-specific routes only
 try:
-    from app.api.v0_2.api import api_router as v0_2_router
-    app.include_router(v0_2_router)
-    logger.info("✅ v0.2 API router included")
+    from app.api.v0_2.endpoints import chat as v0_2_chat
+    app.include_router(v0_2_chat.router, prefix="/api/v0.2")
+    logger.info("✅ v0.2 chat routes included")
 except ImportError as e:
-    logger.warning(f"⚠️ Could not import v0.2 API router: {e}")
+    logger.warning(f"⚠️ Could not import v0.2 chat routes: {e}")
 
 # Include personas router (disabled until persona models are implemented)
 # try:
@@ -101,6 +122,9 @@ except ImportError as e:
 #     logger.info("✅ Personas router included")
 # except ImportError as e:
 #     logger.warning(f"⚠️ Could not import personas router: {e}")
+
+# Create enhanced health endpoint with route discovery AFTER all routers are included
+create_service_health_endpoint(app, "chat", "0.2")
 
 if __name__ == "__main__":
     import uvicorn

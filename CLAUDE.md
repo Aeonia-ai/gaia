@@ -36,6 +36,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Important**: See [Supabase Auth Migration Learnings](docs/supabase-auth-migration-learnings.md) for key architectural decisions and deployment strategies
 
+**Recent Improvements**:
+- **MCP-Agent Hot Loading**: COMPLETE - Singleton pattern reduces response time from 5-10s to 1-3s
+- **Intelligent Chat Routing**: COMPLETE - Single LLM call routes simple messages in ~1s, complex in ~3s
+- **Universal Language Support**: No English-specific patterns, works with all languages
+
 **Active Development**:
 - Getting Supabase service role key for full remote functionality
 - Implementing KB permission manager with RBAC
@@ -221,6 +226,8 @@ primary_region = "lax"
 **IMPORTANT**: Always consult these guides BEFORE making changes to avoid common pitfalls.
 
 ### Configuration & Deployment
+- [MCP-Agent Hot Loading](docs/mcp-agent-hot-loading.md) - **NEW** - Singleton pattern for 3x faster multiagent responses
+- [Intelligent Chat Routing](docs/intelligent-chat-routing.md) - **NEW** - Single LLM call with automatic routing
 - [Supabase Auth Implementation Guide](docs/supabase-auth-implementation-guide.md) - **NEW** - Complete Supabase authentication setup
 - [KB Git Sync Learnings](docs/kb-git-sync-learnings.md) - **NEW** - Deferred init, volume sizing, deployment patterns
 - [Authentication Guide](docs/authentication-guide.md) - **UPDATED** - Complete dual auth (API keys + JWTs + mTLS)

@@ -22,6 +22,8 @@ from app.shared import (
     NATSSubjects,
     ServiceHealthEvent
 )
+from app.shared.service_discovery import create_service_health_endpoint
+from datetime import datetime
 from app.shared.config import settings as config_settings
 from app.shared.redis_client import redis_client
 from app.models.chat import ChatRequest
@@ -131,41 +133,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Service health check"""
-    from pathlib import Path
-    
-    kb_path = Path(getattr(config_settings, 'KB_PATH', '/kb'))
-    
-    # Check repository status
-    repo_status = "empty"
-    file_count = 0
-    
-    if kb_path.exists():
-        if (kb_path / '.git').exists():
-            file_count = sum(1 for _ in kb_path.rglob("*") if _.is_file())
-            repo_status = f"ready ({file_count} files)"
-        elif any(kb_path.iterdir()):
-            repo_status = "cloning"
-        else:
-            repo_status = "empty"
-    
-    return {
-        "service": "kb",
-        "status": "healthy",
-        "version": "1.0.0",
-        "kb_path": str(kb_path),
-        "kb_enabled": getattr(config_settings, 'KB_MCP_ENABLED', True),
-        "repository": {
-            "status": repo_status,
-            "file_count": file_count,
-            "has_git": (kb_path / '.git').exists() if kb_path.exists() else False,
-            "git_url_configured": bool(getattr(config_settings, 'KB_GIT_REPO_URL', None)),
-            "git_token_configured": bool(getattr(config_settings, 'KB_GIT_AUTH_TOKEN', None))
-        }
-    }
+# Create enhanced health endpoint with route discovery
+create_service_health_endpoint(app, "kb", "1.0.0")
 
 @app.post("/trigger-clone")
 async def trigger_clone():
