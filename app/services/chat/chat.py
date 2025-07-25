@@ -144,12 +144,14 @@ async def unified_chat_endpoint(
     request: Request
 ):
     """
-    Unified intelligent chat endpoint.
+    Unified intelligent chat endpoint with streaming support.
     
     The LLM decides whether to respond directly or use specialized tools.
     - Direct responses for simple queries (~1s)
     - MCP agent for tool-requiring tasks (~2-3s)
     - Multi-agent for complex analysis (~4-8s)
+    
+    Set stream=true for Server-Sent Events (SSE) streaming response.
     """
     try:
         # Parse request body (can handle both gateway format with _auth and direct format)
@@ -160,9 +162,11 @@ async def unified_chat_endpoint(
             # Gateway format
             message = body.get("message", "")
             auth_principal = body.get("_auth", {})
+            stream = body.get("stream", False)
         else:
             # Direct format - extract from ChatRequest
             message = body.get("message", "")
+            stream = body.get("stream", False)
             # For direct calls, we'd need proper auth - for now use empty
             auth_principal = {}
         
@@ -173,17 +177,59 @@ async def unified_chat_endpoint(
             "conversation_id": body.get("conversation_id"),
             "message_count": len(chat_histories.get(
                 auth_principal.get("sub") or auth_principal.get("key", ""), []
-            ))
+            )),
+            "stream": stream  # Pass streaming preference to handler
         }
         
-        # Process through unified handler
-        result = await unified_chat_handler.process(
-            message=message,
-            auth=auth_principal,
-            context=context
-        )
+        # Handle streaming response
+        if stream:
+            async def stream_generator():
+                """Generate SSE stream from unified chat handler"""
+                try:
+                    # Process through unified handler with streaming
+                    async for chunk in unified_chat_handler.process_stream(
+                        message=message,
+                        auth=auth_principal,
+                        context=context
+                    ):
+                        # Format as SSE
+                        yield f"data: {json.dumps(chunk)}\n\n"
+                    
+                    # Send final done signal
+                    yield "data: [DONE]\n\n"
+                    
+                except Exception as e:
+                    logger.error(f"Streaming error: {e}", exc_info=True)
+                    error_chunk = {
+                        "error": {
+                            "message": str(e),
+                            "type": "streaming_error"
+                        }
+                    }
+                    yield f"data: {json.dumps(error_chunk)}\n\n"
+                    yield "data: [DONE]\n\n"
+            
+            return StreamingResponse(
+                stream_generator(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                    "Access-Control-Allow-Origin": "*"
+                }
+            )
         
-        return result
+        # Non-streaming response (existing behavior)
+        else:
+            # Process through unified handler
+            result = await unified_chat_handler.process(
+                message=message,
+                auth=auth_principal,
+                context=context
+            )
+            
+            return result
         
     except Exception as e:
         logger.error(f"Unified chat error: {e}", exc_info=True)

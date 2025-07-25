@@ -23,7 +23,7 @@ from typing import Dict, Any, Optional
 from fastapi import FastAPI, Request, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -130,8 +130,9 @@ async def forward_request_to_service(
     headers: Optional[Dict[str, str]] = None,
     params: Optional[Dict[str, Any]] = None,
     json_data: Optional[Dict[str, Any]] = None,
-    files: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
+    files: Optional[Dict[str, Any]] = None,
+    stream: bool = False
+):
     """Forward a request to a specific service and return the response."""
     
     if service_name not in SERVICE_URLS:
@@ -148,34 +149,106 @@ async def forward_request_to_service(
     try:
         logger.service(f"Forwarding {method} request to {service_name}: {path}")
         
-        response = await client.request(
-            method=method,
-            url=full_url,
-            headers=headers,
-            params=params,
-            json=json_data,
-            files=files
+        # Check if this request expects a streaming response
+        is_streaming_request = (
+            stream or 
+            (json_data and json_data.get("stream") is True) or
+            path.endswith("/stream")
         )
         
-        response.raise_for_status()
-        
-        # Handle different response types
-        if response.headers.get("content-type", "").startswith("application/json"):
-            try:
-                return response.json()
-            except Exception as json_error:
-                # Log the raw response that's causing JSON parsing issues
-                logger.error(f"JSON parsing failed for {service_name} response")
-                logger.error(f"Response status: {response.status_code}")
-                logger.error(f"Response headers: {dict(response.headers)}")
-                logger.error(f"Raw response text: {repr(response.text)}")
-                logger.error(f"JSON error: {json_error}")
+        if is_streaming_request:
+            # For streaming requests, we need to handle the response carefully
+            # to avoid closing the stream prematurely
+            logger.service(f"Detected streaming request to {service_name}")
+            
+            # Make the streaming request
+            response = await client.request(
+                method=method,
+                url=full_url,
+                headers=headers,
+                params=params,
+                json=json_data,
+                files=files,
+                extensions={"stream": True}
+            )
+            
+            # Check status before proceeding
+            if response.status_code >= 400:
+                # Handle error responses
+                error_text = response.text
+                logger.error(f"Service {service_name} returned error {response.status_code}: {error_text}")
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"Invalid JSON response from {service_name} service"
+                    status_code=response.status_code,
+                    detail=f"Service error: {error_text}"
                 )
+            
+            # Check if it's actually a streaming response
+            content_type = response.headers.get("content-type", "")
+            if "text/event-stream" in content_type:
+                logger.service(f"Forwarding SSE stream from {service_name}")
+                
+                # Stream the response directly without consuming it here
+                async def stream_generator():
+                    try:
+                        # Use response.aiter_lines() for SSE which are line-based
+                        async for line in response.aiter_lines():
+                            if line:
+                                yield f"{line}\n".encode('utf-8')
+                            else:
+                                # Empty lines are significant in SSE
+                                yield b"\n"
+                    except httpx.StreamClosed:
+                        logger.warning(f"Stream from {service_name} closed unexpectedly")
+                    finally:
+                        await response.aclose()
+                
+                return StreamingResponse(
+                    stream_generator(),
+                    media_type=content_type,
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive",
+                        "X-Accel-Buffering": "no"
+                    }
+                )
+            else:
+                # Not actually streaming, read the full response
+                logger.service(f"Non-streaming response from {service_name} (content-type: {content_type})")
+                content = response.content
+                if content_type.startswith("application/json"):
+                    return response.json()
+                else:
+                    return Response(content=content, media_type=content_type)
         else:
-            return {"content": response.content, "content_type": response.headers.get("content-type")}
+            # Non-streaming request
+            response = await client.request(
+                method=method,
+                url=full_url,
+                headers=headers,
+                params=params,
+                json=json_data,
+                files=files
+            )
+            
+            response.raise_for_status()
+            
+            # Handle different response types
+            if response.headers.get("content-type", "").startswith("application/json"):
+                try:
+                    return response.json()
+                except Exception as json_error:
+                    # Log the raw response that's causing JSON parsing issues
+                    logger.error(f"JSON parsing failed for {service_name} response")
+                    logger.error(f"Response status: {response.status_code}")
+                    logger.error(f"Response headers: {dict(response.headers)}")
+                    logger.error(f"Raw response text: {repr(response.text)}")
+                    logger.error(f"JSON error: {json_error}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Invalid JSON response from {service_name} service"
+                    )
+            else:
+                return {"content": response.content, "content_type": response.headers.get("content-type")}
             
     except httpx.HTTPStatusError as e:
         logger.error(f"Service {service_name} returned error {e.response.status_code}: {e.response.text}")

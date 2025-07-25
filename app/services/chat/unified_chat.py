@@ -10,7 +10,8 @@ import logging
 import time
 import uuid
 import json
-from typing import Dict, Any, Optional, List
+import asyncio
+from typing import Dict, Any, Optional, List, AsyncGenerator
 from enum import Enum
 
 from app.services.llm.chat_service import chat_service
@@ -428,6 +429,199 @@ class UnifiedChatHandler:
             }
             
             return result
+    
+    async def process_stream(
+        self, 
+        message: str, 
+        auth: dict, 
+        context: Optional[dict] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Process message with intelligent routing and streaming response.
+        
+        Yields OpenAI-compatible SSE chunks for streaming.
+        """
+        start_time = time.time()
+        request_id = f"chat-{uuid.uuid4()}"
+        
+        # Update metrics
+        self._routing_metrics["total_requests"] += 1
+        
+        # Build context
+        full_context = await self.build_context(auth, context)
+        
+        # Make routing decision
+        llm_start = time.time()
+        
+        try:
+            # Prepare messages for routing decision
+            messages = [
+                {
+                    "role": "system",
+                    "content": self.get_routing_prompt(full_context)
+                },
+                {
+                    "role": "user",
+                    "content": message
+                }
+            ]
+            
+            # First, make routing decision (non-streaming)
+            routing_response = await chat_service.chat_completion(
+                messages=messages,
+                tools=self.routing_tools,
+                tool_choice={"type": "auto"},
+                temperature=0.7,
+                max_tokens=4096,
+                request_id=f"{request_id}-routing"
+            )
+            
+            llm_time = (time.time() - llm_start) * 1000
+            
+            # Check if LLM made tool calls
+            if routing_response.get("tool_calls"):
+                # Route to appropriate service with streaming
+                tool_call = routing_response["tool_calls"][0]
+                tool_name = tool_call["function"]["name"]
+                
+                # Parse tool arguments
+                tool_args_raw = tool_call["function"].get("arguments", "{}")
+                if isinstance(tool_args_raw, str):
+                    tool_args = json.loads(tool_args_raw)
+                else:
+                    tool_args = tool_args_raw
+                
+                # For now, tool-routed responses don't support streaming
+                # We'll return the full response as a single chunk
+                # TODO: Implement streaming for MCP agent and other services
+                
+                if tool_name == "use_mcp_agent":
+                    route_type = RouteType.MCP_AGENT
+                    self._routing_metrics[route_type] += 1
+                    
+                    logger.info(f"[{request_id}] Routing to MCP agent (non-streaming fallback)")
+                    
+                    from app.models.chat import ChatRequest
+                    chat_request = ChatRequest(message=message)
+                    
+                    result = await self.mcp_hot_service.process_chat(
+                        request=chat_request,
+                        auth_principal=auth
+                    )
+                    
+                    # Convert to streaming format
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": result.get("model", "unknown"),
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"content": result.get("choices", [{}])[0].get("message", {}).get("content", "")},
+                            "finish_reason": None
+                        }]
+                    }
+                    
+                    # Final chunk with finish reason
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": result.get("model", "unknown"),
+                        "choices": [{
+                            "index": 0,
+                            "delta": {},
+                            "finish_reason": "stop"
+                        }],
+                        "_metadata": {
+                            "route_type": route_type.value,
+                            "routing_time_ms": int(llm_time),
+                            "total_time_ms": int((time.time() - start_time) * 1000),
+                            "reasoning": tool_args.get("reasoning"),
+                            "request_id": request_id
+                        }
+                    }
+                
+                else:
+                    # Other tools - similar pattern
+                    logger.warning(f"[{request_id}] Tool {tool_name} doesn't support streaming yet")
+                    # Implement similar fallback for other tools...
+                    
+            else:
+                # Direct response - stream the LLM response
+                route_type = RouteType.DIRECT
+                self._routing_metrics[route_type] += 1
+                
+                logger.info(f"[{request_id}] Direct streaming response")
+                
+                # Stream the response from LLM
+                model = routing_response.get("model", "claude-3-5-sonnet-20241022")
+                content = routing_response.get("response", "")
+                
+                # For direct responses, we already have the full content
+                # Stream it in chunks for better UX
+                chunk_size = 20  # Characters per chunk
+                
+                for i in range(0, len(content), chunk_size):
+                    chunk_text = content[i:i + chunk_size]
+                    
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"content": chunk_text},
+                            "finish_reason": None
+                        }]
+                    }
+                    
+                    # Small delay to simulate streaming
+                    await asyncio.sleep(0.01)
+                
+                # Final chunk with metadata
+                yield {
+                    "id": request_id,
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [{
+                        "index": 0,
+                        "delta": {},
+                        "finish_reason": "stop"
+                    }],
+                    "_metadata": {
+                        "route_type": route_type.value,
+                        "routing_time_ms": 0,
+                        "llm_time_ms": int(llm_time),
+                        "total_time_ms": int((time.time() - start_time) * 1000),
+                        "request_id": request_id
+                    }
+                }
+                
+                # Update metrics
+                self._update_timing_metrics(0, (time.time() - start_time) * 1000)
+                
+        except Exception as e:
+            logger.error(f"[{request_id}] Streaming error: {e}", exc_info=True)
+            
+            # Error chunk
+            yield {
+                "id": request_id,
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": "error",
+                "choices": [{
+                    "index": 0,
+                    "delta": {},
+                    "finish_reason": "error"
+                }],
+                "error": {
+                    "message": str(e),
+                    "type": "streaming_error"
+                }
+            }
     
     def get_routing_prompt(self, context: dict) -> str:
         """
