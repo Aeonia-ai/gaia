@@ -427,7 +427,7 @@ def setup_routes(app):
             # Create HTML manually to avoid FastHTML's automatic escaping
             user_message_html = str(user_message)
             
-            # Clean response HTML for proper HTMX handling
+            # Clean response HTML for proper HTMX handling with SSE streaming
             response_html = f'''{user_message_html}
 <div id="loading-{message_id}" class="flex justify-start mb-4">
     <div class="bg-slate-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
@@ -463,13 +463,18 @@ def setup_routes(app):
         GaiaToast.success('Message sent successfully!', 2000);
     }}
     
-    // Fetch AI response with timeout handling
+    // Use Server-Sent Events for streaming response
     setTimeout(() => {{
         const loadingEl = document.getElementById('loading-{message_id}');
+        let responseContent = '';
+        let responseStarted = false;
+        
+        // Create EventSource for streaming
+        const eventSource = new EventSource('/api/chat/stream?message={encoded_message}&conversation_id={conversation_id}');
         
         // Set a timeout for the response
         const timeoutId = setTimeout(() => {{
-            if (loadingEl && loadingEl.parentNode) {{
+            if (!responseStarted && loadingEl && loadingEl.parentNode) {{
                 loadingEl.outerHTML = `<div class="flex justify-start mb-4 assistant-message-placeholder">
                     <div class="bg-yellow-900/50 border border-yellow-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
                         <div class="flex items-center">
@@ -479,15 +484,80 @@ def setup_routes(app):
                         <div class="text-xs opacity-70 mt-2">The AI is still thinking. Please wait or try again.</div>
                     </div>
                 </div>`;
+                eventSource.close();
             }}
         }}, 30000); // 30 second timeout warning
         
-        htmx.ajax('GET', '/api/chat/response?message={encoded_message}&id={message_id}&conversation_id={conversation_id}', {{
-            target: '#loading-{message_id}',
-            swap: 'outerHTML'
-        }}).then(() => {{
+        eventSource.onmessage = function(event) {{
+            if (event.data === '[DONE]') {{
+                eventSource.close();
+                clearTimeout(timeoutId);
+                if (window.GaiaToast) {{
+                    GaiaToast.success('Response received!', 2000);
+                }}
+                return;
+            }}
+            
+            try {{
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'content') {{
+                    // First content chunk - replace loading indicator
+                    if (!responseStarted) {{
+                        responseStarted = true;
+                        clearTimeout(timeoutId);
+                        const timestamp = new Date().toLocaleTimeString('en-US', {{ hour: 'numeric', minute: '2-digit' }});
+                        loadingEl.outerHTML = `<div id="response-{message_id}" class="flex justify-start mb-4 animate-slideInLeft">
+                            <div class="bg-slate-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg hover:shadow-xl transition-all duration-300">
+                                <div id="response-content-{message_id}" class="whitespace-pre-wrap break-words"></div>
+                                <div class="flex items-center justify-between mt-2 text-xs opacity-70">
+                                    <span>Gaia</span>
+                                    <span>${{timestamp}}</span>
+                                </div>
+                            </div>
+                        </div>`;
+                    }}
+                    
+                    // Append content to response
+                    responseContent += data.content;
+                    const contentEl = document.getElementById('response-content-{message_id}');
+                    if (contentEl) {{
+                        contentEl.textContent = responseContent;
+                    }}
+                }}
+                else if (data.type === 'error') {{
+                    eventSource.close();
+                    clearTimeout(timeoutId);
+                    loadingEl.outerHTML = `<div class="flex justify-start mb-4 animate-slideInLeft">
+                        <div class="bg-red-900/50 border border-red-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
+                            <div class="flex items-center">
+                                <span class="mr-2">❌</span>
+                                <span>Error: ${{data.error}}</span>
+                            </div>
+                        </div>
+                    </div>`;
+                }}
+            }} catch (e) {{
+                console.error('Failed to parse SSE data:', e);
+            }}
+        }};
+        
+        eventSource.onerror = function(error) {{
+            console.error('SSE error:', error);
+            eventSource.close();
             clearTimeout(timeoutId);
-        }});
+            
+            if (!responseStarted) {{
+                loadingEl.outerHTML = `<div class="flex justify-start mb-4 animate-slideInLeft">
+                    <div class="bg-red-900/50 border border-red-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
+                        <div class="flex items-center">
+                            <span class="mr-2">❌</span>
+                            <span>Connection error. Please try again.</span>
+                        </div>
+                    </div>
+                </div>`;
+            }}
+        }};
     }}, 500);
 }})();
 </script>'''
@@ -521,6 +591,98 @@ def setup_routes(app):
                 gaia_error_message(user_message),
                 error_script
             )
+    
+    @app.get("/api/chat/stream")
+    async def stream_response(request):
+        """Stream chat response using Server-Sent Events"""
+        from starlette.responses import StreamingResponse
+        import asyncio
+        
+        jwt_token = request.session.get("jwt_token")
+        user = request.session.get("user", {})
+        user_id = user.get("id", "dev-user-id")
+        
+        message = request.query_params.get("message")
+        conversation_id = request.query_params.get("conversation_id")
+        
+        logger.info(f"Stream response - message: {message}, conv: {conversation_id}")
+        
+        async def event_generator():
+            try:
+                # Get conversation history
+                if conversation_id:
+                    messages_history = database_conversation_store.get_messages(conversation_id)
+                    messages = [
+                        {"role": m["role"], "content": m["content"]} 
+                        for m in messages_history 
+                        if m.get("content", "").strip()
+                    ]
+                else:
+                    messages = [{"role": "user", "content": message}]
+                
+                # Start streaming from gateway
+                response_content = ""
+                async with GaiaAPIClient() as client:
+                    async for chunk in client.chat_completion_stream(messages, jwt_token):
+                        try:
+                            # Parse the chunk
+                            import json
+                            if chunk.strip() == "[DONE]":
+                                yield f"data: [DONE]\n\n"
+                                break
+                            
+                            chunk_data = json.loads(chunk)
+                            
+                            # Handle OpenAI-compatible format
+                            if chunk_data.get("object") == "chat.completion.chunk":
+                                # Extract content from OpenAI format
+                                choices = chunk_data.get("choices", [])
+                                if choices and choices[0].get("delta"):
+                                    content = choices[0]["delta"].get("content", "")
+                                    if content:
+                                        response_content += content
+                                        # Send the content chunk in our format
+                                        yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+                                    
+                                    # Check for finish reason
+                                    finish_reason = choices[0].get("finish_reason")
+                                    if finish_reason == "stop":
+                                        yield f"data: [DONE]\n\n"
+                                        break
+                            elif chunk_data.get("error"):
+                                # Handle error responses
+                                yield f"data: {json.dumps({'type': 'error', 'error': chunk_data['error'].get('message', 'Unknown error')})}\n\n"
+                            else:
+                                # Handle other formats (fallback for non-OpenAI format)
+                                if chunk_data.get("type") == "content":
+                                    content = chunk_data.get("content", "")
+                                    response_content += content
+                                    yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+                                elif chunk_data.get("type") == "error":
+                                    yield f"data: {json.dumps({'type': 'error', 'error': chunk_data.get('error')})}\n\n"
+                                
+                        except json.JSONDecodeError:
+                            logger.error(f"Failed to parse chunk: {chunk}")
+                            continue
+                
+                # Store the complete response
+                if conversation_id and response_content:
+                    database_conversation_store.add_message(conversation_id, "assistant", response_content)
+                    database_conversation_store.update_conversation(user_id, conversation_id, preview=response_content)
+                    
+            except Exception as e:
+                logger.error(f"Streaming error: {e}", exc_info=True)
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+        
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
     
     @app.get("/api/chat/response")
     async def get_response(request):

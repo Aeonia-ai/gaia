@@ -85,14 +85,15 @@ class GaiaAPIClient:
             logger.debug("Using API key for gateway request")
         
         try:
-            # Use v0.2 streaming endpoint with appropriate auth
+            # Use v0.2 unified endpoint with stream=true
             async with self.client.stream(
                 "POST",
-                "/api/v0.2/chat/stream",
+                "/api/v0.2/chat",
                 headers=headers,
                 json={
                     "message": messages[-1]["content"] if messages else "",
-                    "model": model
+                    "model": model,
+                    "stream": True  # Enable streaming mode
                 }
             ) as response:
                 response.raise_for_status()
