@@ -107,13 +107,13 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️ Could not import chat router: {e}")
 
-# Include v0.2 API router
+# Include v0.2 chat-specific routes only
 try:
-    from app.api.v0_2.api import api_router as v0_2_router
-    app.include_router(v0_2_router)
-    logger.info("✅ v0.2 API router included")
+    from app.api.v0_2.endpoints import chat as v0_2_chat
+    app.include_router(v0_2_chat.router, prefix="/api/v0.2")
+    logger.info("✅ v0.2 chat routes included")
 except ImportError as e:
-    logger.warning(f"⚠️ Could not import v0.2 API router: {e}")
+    logger.warning(f"⚠️ Could not import v0.2 chat routes: {e}")
 
 # Include personas router (disabled until persona models are implemented)
 # try:
