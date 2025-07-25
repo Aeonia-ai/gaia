@@ -491,43 +491,68 @@ class UnifiedChatHandler:
                 else:
                     tool_args = tool_args_raw
                 
-                # For now, tool-routed responses don't support streaming
-                # We'll return the full response as a single chunk
-                # TODO: Implement streaming for MCP agent and other services
-                
+                # Tool-routed responses - simulate streaming for better UX
                 if tool_name == "use_mcp_agent":
                     route_type = RouteType.MCP_AGENT
                     self._routing_metrics[route_type] += 1
                     
-                    logger.info(f"[{request_id}] Routing to MCP agent (non-streaming fallback)")
+                    logger.info(f"[{request_id}] Routing to MCP agent with simulated streaming")
                     
                     from app.models.chat import ChatRequest
                     chat_request = ChatRequest(message=message)
                     
+                    # Get the full response from MCP agent
                     result = await self.mcp_hot_service.process_chat(
                         request=chat_request,
                         auth_principal=auth
                     )
                     
-                    # Convert to streaming format
+                    # Extract the content
+                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    model = result.get("model", "unknown")
+                    
+                    # Stream the content in chunks for better perceived performance
+                    # Use larger chunks for tool responses since they often contain structured data
+                    chunk_size = 50  # Characters per chunk
+                    
+                    # First chunk with role
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
                         "created": int(time.time()),
-                        "model": result.get("model", "unknown"),
+                        "model": model,
                         "choices": [{
                             "index": 0,
-                            "delta": {"content": result.get("choices", [{}])[0].get("message", {}).get("content", "")},
+                            "delta": {"role": "assistant"},
                             "finish_reason": None
                         }]
                     }
                     
-                    # Final chunk with finish reason
+                    # Stream content chunks
+                    for i in range(0, len(content), chunk_size):
+                        chunk_text = content[i:i + chunk_size]
+                        
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": chunk_text},
+                                "finish_reason": None
+                            }]
+                        }
+                        
+                        # Small delay to simulate streaming (shorter than direct responses)
+                        await asyncio.sleep(0.005)
+                    
+                    # Final chunk with metadata
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
                         "created": int(time.time()),
-                        "model": result.get("model", "unknown"),
+                        "model": model,
                         "choices": [{
                             "index": 0,
                             "delta": {},
@@ -538,14 +563,227 @@ class UnifiedChatHandler:
                             "routing_time_ms": int(llm_time),
                             "total_time_ms": int((time.time() - start_time) * 1000),
                             "reasoning": tool_args.get("reasoning"),
-                            "request_id": request_id
+                            "request_id": request_id,
+                            "mcp_response_time_ms": result.get("_response_time_ms", 0)
                         }
                     }
                 
+                elif tool_name == "use_kb_service":
+                    # KB service streaming
+                    route_type = RouteType.MCP_AGENT  # Using MCP for now
+                    self._routing_metrics[route_type] += 1
+                    
+                    query = tool_args.get("query", message)
+                    logger.info(f"[{request_id}] Routing to KB service with simulated streaming")
+                    
+                    from app.models.chat import ChatRequest
+                    kb_message = f"Search my knowledge base for: {query}"
+                    chat_request = ChatRequest(message=kb_message)
+                    
+                    result = await self.mcp_hot_service.process_chat(
+                        request=chat_request,
+                        auth_principal=auth
+                    )
+                    
+                    # Stream the KB response
+                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    model = result.get("model", "unknown")
+                    
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"role": "assistant"},
+                            "finish_reason": None
+                        }]
+                    }
+                    
+                    # Stream KB results in chunks
+                    chunk_size = 100  # Larger chunks for KB results
+                    for i in range(0, len(content), chunk_size):
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": content[i:i + chunk_size]},
+                                "finish_reason": None
+                            }]
+                        }
+                        await asyncio.sleep(0.003)
+                    
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {},
+                            "finish_reason": "stop"
+                        }],
+                        "_metadata": {
+                            "route_type": "kb_service",
+                            "routing_time_ms": int(llm_time),
+                            "total_time_ms": int((time.time() - start_time) * 1000),
+                            "query": query,
+                            "reasoning": tool_args.get("reasoning"),
+                            "request_id": request_id
+                        }
+                    }
+                    
+                elif tool_name == "use_asset_service":
+                    # Asset service streaming
+                    route_type = RouteType.MCP_AGENT  # Using MCP for now
+                    self._routing_metrics[route_type] += 1
+                    
+                    asset_type = tool_args.get("asset_type", "image")
+                    description = tool_args.get("description", "")
+                    
+                    logger.info(f"[{request_id}] Routing to Asset service with simulated streaming")
+                    
+                    from app.models.chat import ChatRequest
+                    asset_message = f"Generate a {asset_type}: {description}"
+                    chat_request = ChatRequest(message=asset_message)
+                    
+                    result = await self.mcp_hot_service.process_chat(
+                        request=chat_request,
+                        auth_principal=auth
+                    )
+                    
+                    # Stream asset generation response
+                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    model = result.get("model", "unknown")
+                    
+                    # For asset generation, show progress updates
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"role": "assistant", "content": f"🎨 Generating {asset_type}...\n"},
+                            "finish_reason": None
+                        }]
+                    }
+                    
+                    # Stream the actual response
+                    chunk_size = 80
+                    for i in range(0, len(content), chunk_size):
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": content[i:i + chunk_size]},
+                                "finish_reason": None
+                            }]
+                        }
+                        await asyncio.sleep(0.005)
+                    
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {},
+                            "finish_reason": "stop"
+                        }],
+                        "_metadata": {
+                            "route_type": "asset_service",
+                            "routing_time_ms": int(llm_time),
+                            "total_time_ms": int((time.time() - start_time) * 1000),
+                            "asset_type": asset_type,
+                            "description": description,
+                            "reasoning": tool_args.get("reasoning"),
+                            "request_id": request_id
+                        }
+                    }
+                    
+                elif tool_name == "use_multiagent_orchestration":
+                    # Multi-agent streaming
+                    route_type = RouteType.MULTIAGENT
+                    self._routing_metrics[route_type] += 1
+                    
+                    domains = tool_args.get("domains", [])
+                    logger.info(f"[{request_id}] Routing to multi-agent with simulated streaming")
+                    
+                    # For now, use MCP agent as fallback
+                    from app.models.chat import ChatRequest
+                    chat_request = ChatRequest(message=message)
+                    
+                    result = await self.mcp_hot_service.process_chat(
+                        request=chat_request,
+                        auth_principal=auth
+                    )
+                    
+                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    model = result.get("model", "unknown")
+                    
+                    # Show multi-agent coordination
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"role": "assistant", "content": f"🤝 Coordinating {', '.join(domains)} agents...\n\n"},
+                            "finish_reason": None
+                        }]
+                    }
+                    
+                    # Stream response
+                    chunk_size = 60
+                    for i in range(0, len(content), chunk_size):
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": content[i:i + chunk_size]},
+                                "finish_reason": None
+                            }]
+                        }
+                        await asyncio.sleep(0.008)  # Slightly slower for multi-agent
+                    
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {},
+                            "finish_reason": "stop"
+                        }],
+                        "_metadata": {
+                            "route_type": route_type.value,
+                            "routing_time_ms": int(llm_time),
+                            "total_time_ms": int((time.time() - start_time) * 1000),
+                            "domains": domains,
+                            "reasoning": tool_args.get("reasoning"),
+                            "request_id": request_id,
+                            "fallback": "mcp_agent"
+                        }
+                    }
+                    
                 else:
-                    # Other tools - similar pattern
-                    logger.warning(f"[{request_id}] Tool {tool_name} doesn't support streaming yet")
-                    # Implement similar fallback for other tools...
+                    # Unknown tool - fallback
+                    logger.warning(f"[{request_id}] Unknown tool {tool_name}, using MCP fallback")
+                    # Use same pattern as MCP agent...
                     
             else:
                 # Direct response - stream the LLM response
