@@ -1561,7 +1561,8 @@ async def chat(
         path="/chat/unified",  # Route to unified intelligent chat endpoint
         method="POST",
         json_data=body,
-        headers=headers
+        headers=headers,
+        stream=body.get("stream", False)  # Support streaming
     )
 
 @app.post("/api/v1/chat/completions", tags=["Chat"])

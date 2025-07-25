@@ -85,10 +85,10 @@ class GaiaAPIClient:
             logger.debug("Using API key for gateway request")
         
         try:
-            # Use v0.2 unified endpoint with stream=true
+            # Use v1 chat endpoint with stream=true (routes to unified)
             async with self.client.stream(
                 "POST",
-                "/api/v0.2/chat",
+                "/api/v1/chat",
                 headers=headers,
                 json={
                     "message": messages[-1]["content"] if messages else "",
@@ -126,11 +126,12 @@ class GaiaAPIClient:
                 # Fall back to API key for dev/testing
                 headers["X-API-Key"] = settings.api_key
             
-            # Always use v0.2 endpoint format
-            endpoint = "/api/v0.2/chat"
+            # Use v1 chat endpoint (routes to unified)
+            endpoint = "/api/v1/chat"
             payload = {
                 "message": messages[-1]["content"] if messages else "",
-                "model": model
+                "model": model,
+                "stream": False  # Explicitly set non-streaming
             }
             
             response = await self.client.post(
