@@ -99,9 +99,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create enhanced health endpoint with route discovery
-create_service_health_endpoint(app, "chat", "0.2")
-
 # Import and include routers
 try:
     from .chat import router as chat_router
@@ -125,6 +122,9 @@ except ImportError as e:
 #     logger.info("✅ Personas router included")
 # except ImportError as e:
 #     logger.warning(f"⚠️ Could not import personas router: {e}")
+
+# Create enhanced health endpoint with route discovery AFTER all routers are included
+create_service_health_endpoint(app, "chat", "0.2")
 
 if __name__ == "__main__":
     import uvicorn

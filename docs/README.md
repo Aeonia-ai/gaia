@@ -5,6 +5,9 @@ Welcome to the Gaia Platform documentation! This directory contains comprehensiv
 ## 📚 Documentation Index
 
 ### 🏗️ **Architecture & Design**
+- **[Architecture Overview](architecture-overview.md)** - Comprehensive platform architecture with diagrams, service responsibilities, and data flow
+- **[Architecture Recent Updates](architecture-recent-updates.md)** - Latest architectural improvements and changes
+- **[Architecture Decision Records (ADRs)](adr/)** - Key architectural decisions and their rationale
 - **[Scaling Architecture](scaling-architecture.md)** - Comprehensive guide to microservices scaling advantages, cost optimization, and performance improvements over monolithic architecture
 - **[MMOIRL Cluster Architecture](mmoirl-cluster-architecture.md)** - Cluster-per-game deployment strategy for MMOIRL games (RECOMMENDED)
 - **[Multi-Tenancy Migration Guide](multitenancy-migration-guide.md)** - Future migration path when you have 50+ games
