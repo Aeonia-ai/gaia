@@ -37,7 +37,9 @@ done
 
 # Load environment variables from .env file
 if [ -f ".env" ]; then
-    export $(grep -v '^#' .env | xargs)
+    set -a
+    source .env
+    set +a
 fi
 
 # Use Jason's API key if available, otherwise fallback
@@ -210,7 +212,7 @@ case "$1" in
         ;;
     "chat")
         message="${2:-Hello, what is 2+2?}"
-        test_endpoint "POST" "/api/v0.2/chat" "{\"message\": \"$message\", \"stream\": false}" "Chat (Non-streaming)"
+        test_endpoint "POST" "/api/v0.2/chat" "{\"message\": \"$message\", \"stream\": false}" "Chat - Non-streaming"
         ;;
     "stream")
         message="${2:-Hello}"
@@ -218,7 +220,7 @@ case "$1" in
         ;;
     "ultrafast")
         message="${2:-What is 2+2?}"
-        test_endpoint "POST" "/api/v1/chat/ultrafast" "{\"message\": \"$message\"}" "Ultrafast Chat (No History)"
+        test_endpoint "POST" "/api/v1/chat/ultrafast" "{\"message\": \"$message\"}" "Ultrafast Chat - No History"
         ;;
     "ultrafast-redis")
         message="${2:-What is 2+2?}"
@@ -226,15 +228,15 @@ case "$1" in
         ;;
     "ultrafast-redis-v2")
         message="${2:-What is 2+2?}"
-        test_endpoint "POST" "/api/v1/chat/ultrafast-redis-v2" "{\"message\": \"$message\"}" "Ultrafast Redis V2 (Optimized)"
+        test_endpoint "POST" "/api/v1/chat/ultrafast-redis-v2" "{\"message\": \"$message\"}" "Ultrafast Redis V2 - Optimized"
         ;;
     "ultrafast-redis-v3")
         message="${2:-What is 2+2?}"
-        test_endpoint "POST" "/api/v1/chat/ultrafast-redis-v3" "{\"message\": \"$message\"}" "Ultrafast Redis V3 (Parallel)"
+        test_endpoint "POST" "/api/v1/chat/ultrafast-redis-v3" "{\"message\": \"$message\"}" "Ultrafast Redis V3 - Parallel"
         ;;
     "direct")
         message="${2:-What is 2+2?}"
-        test_endpoint "POST" "/api/v1/chat/direct" "{\"message\": \"$message\"}" "Direct Chat (Simple)"
+        test_endpoint "POST" "/api/v1/chat/direct" "{\"message\": \"$message\"}" "Direct Chat - Simple"
         ;;
     "direct-db")
         message="${2:-What is 2+2?}"
@@ -327,11 +329,11 @@ case "$1" in
         ;;
     "multi-provider")
         message="${2:-What is 2+2?}"
-        test_endpoint "POST" "/api/v0.2/chat" "{\"message\": \"$message\", \"stream\": false}" "Multi-Provider Chat (v0.2)"
+        test_endpoint "POST" "/api/v0.2/chat" "{\"message\": \"$message\", \"stream\": false}" "Multi-Provider Chat - v0.2"
         ;;
     "mcp-agent-hot")
         message="${2:-What is 2+2?}"
-        test_endpoint "POST" "/api/v1/chat/mcp-agent-hot" "{\"message\": \"$message\"}" "MCP-Agent Hot (Pre-initialized)"
+        test_endpoint "POST" "/api/v1/chat/mcp-agent-hot" "{\"message\": \"$message\"}" "MCP-Agent Hot - Pre-initialized"
         ;;
     "chat-status")
         test_endpoint "GET" "/api/v1/chat/status" "" "Chat Service Status"
@@ -340,7 +342,7 @@ case "$1" in
         test_endpoint "POST" "/api/v1/chat/reload-prompt" "{}" "Reload Prompt Templates"
         ;;
     "conversations")
-        test_endpoint "GET" "/api/v1/chat/personas" "" "List Personas (Conversations endpoint not exposed)"
+        test_endpoint "GET" "/api/v1/chat/personas" "" "List Personas - Conversations endpoint not exposed"
         ;;
     "conversations-search")
         query="${2:-test}"
@@ -350,6 +352,26 @@ case "$1" in
     "orchestrated-metrics")
         echo -e "${BLUE}=== Orchestration Metrics ===${NC}"
         echo "Note: This endpoint is not exposed through the gateway yet"
+        ;;
+    "chat-direct")
+        message="${2:-Hello from direct chat!}"
+        test_endpoint "POST" "/api/v1/chat/direct" "{\"message\": \"$message\"}" "Direct Chat - Fast Path"
+        ;;
+    "chat-direct-db")
+        message="${2:-Hello from direct DB chat!}"
+        test_endpoint "POST" "/api/v1/chat/direct-db" "{\"message\": \"$message\"}" "Direct Chat with DB"
+        ;;
+    "chat-intelligent")
+        message="${2:-Tell me about quantum computing}"
+        test_endpoint "POST" "/api/v1/chat/intelligent" "{\"message\": \"$message\"}" "Intelligent Chat Router"
+        ;;
+    "chat-ultrafast")
+        message="${2:-Quick math: 5+3}"
+        test_endpoint "POST" "/api/v1/chat/ultrafast" "{\"message\": \"$message\"}" "Ultrafast Chat"
+        ;;
+    "chat-mcp-agent")
+        message="${2:-What's the weather like?}"
+        test_endpoint "POST" "/api/v1/chat/mcp-agent" "{\"message\": \"$message\"}" "MCP Agent Chat"
         ;;
     "status")
         test_endpoint "GET" "/api/v0.2/chat/stream/status" "" "Stream Status"
@@ -362,7 +384,7 @@ case "$1" in
         ;;
     "provider-models")
         provider="${2:-claude}"
-        test_endpoint "GET" "/api/v0.2/providers/$provider/models" "" "Provider Models ($provider)"
+        test_endpoint "GET" "/api/v0.2/providers/$provider/models" "" "Provider Models - $provider"
         ;;
     "provider-health")
         test_endpoint "GET" "/api/v0.2/providers/health" "" "Provider Health"
@@ -372,11 +394,11 @@ case "$1" in
         ;;
     "model-info")
         model="${2:-claude-3-haiku-20240307}"
-        test_endpoint "GET" "/api/v0.2/models/$model" "" "Model Info ($model)"
+        test_endpoint "GET" "/api/v0.2/models/$model" "" "Model Info - $model"
         ;;
     "pricing-current")
         provider="${2:-dalle}"
-        test_endpoint "GET" "/api/v0.2/assets/pricing/current?provider=$provider" "" "Current Pricing ($provider)"
+        test_endpoint "GET" "/api/v0.2/assets/pricing/current?provider=$provider" "" "Current Pricing - $provider"
         ;;
     "pricing-analytics")
         test_endpoint "GET" "/api/v0.2/assets/pricing/analytics" "" "Pricing Analytics"
@@ -399,7 +421,7 @@ case "$1" in
     
     # Asset Generation Tests
     "assets-test")
-        test_endpoint "GET" "/api/v1/assets/test" "" "Asset Service Test (No Auth)"
+        test_endpoint "GET" "/api/v1/assets/test" "" "Asset Service Test - No Auth"
         ;;
     "assets-list")
         test_endpoint "GET" "/api/v1/assets" "" "List Assets"
@@ -456,7 +478,7 @@ case "$1" in
         test_endpoint "GET" "/api/v0.2/usage/current" "" "Current Usage"
         ;;
     "usage-history")
-        test_endpoint "GET" "/api/v0.2/usage/history?days=7" "" "Usage History (7 days)"
+        test_endpoint "GET" "/api/v0.2/usage/history?days=7" "" "Usage History - 7 days"
         ;;
     "usage-limits")
         test_endpoint "GET" "/api/v0.2/usage/limits" "" "Usage Limits"
@@ -481,7 +503,7 @@ case "$1" in
         ;;
     "personas-get")
         persona_id="${2:-f2c9199c-6612-4ff3-8625-9db643728854}"
-        test_endpoint "GET" "/api/v0.2/personas/$persona_id" "" "Get Persona ($persona_id)"
+        test_endpoint "GET" "/api/v0.2/personas/$persona_id" "" "Get Persona - $persona_id"
         ;;
     "personas-set")
         persona_id="${2:-f2c9199c-6612-4ff3-8625-9db643728854}"
@@ -575,7 +597,7 @@ case "$1" in
                 echo "   User session active"
             fi
         else
-            echo -e "${COLOR_ERROR}❌ Chat page not accessible (Status: $status_code)${COLOR_RESET}"
+            echo -e "${COLOR_ERROR}❌ Chat page not accessible - Status: $status_code${COLOR_RESET}"
             exit 1
         fi
         
@@ -617,7 +639,7 @@ case "$1" in
                         echo "$ai_response" | grep -o '<div[^>]*>[^<]*</div>' | head -n 3
                     fi
                 else
-                    echo -e "${COLOR_ERROR}❌ Failed to get AI response (Status: $status_code)${COLOR_RESET}"
+                    echo -e "${COLOR_ERROR}❌ Failed to get AI response - Status: $status_code${COLOR_RESET}"
                 fi
                 else
                     echo -e "${COLOR_ERROR}❌ No message ID found${COLOR_RESET}"
@@ -626,7 +648,7 @@ case "$1" in
                 echo -e "${COLOR_ERROR}❌ No HTMX triggers found in response${COLOR_RESET}"
             fi
         else
-            echo -e "${COLOR_ERROR}❌ Failed to send message (Status: $status_code)${COLOR_RESET}"
+            echo -e "${COLOR_ERROR}❌ Failed to send message - Status: $status_code${COLOR_RESET}"
         fi
         ;;
     "vr")
@@ -780,6 +802,14 @@ case "$1" in
         echo "  $0 conversations             # List all conversations"
         echo "  $0 conversations-search      # Search conversations"
         echo "  $0 orchestrated-metrics      # Orchestration performance metrics"
+        echo ""
+        echo "New Chat Endpoints:"
+        echo "  $0 chat-direct               # Direct chat (fast path)"
+        echo "  $0 chat-direct-db            # Direct chat with DB"
+        echo "  $0 chat-intelligent          # Intelligent chat router"
+        echo "  $0 chat-ultrafast            # Ultrafast chat"
+        echo "  $0 chat-mcp-agent            # MCP agent chat"
+        echo "  $0 mcp-agent-hot             # MCP agent hot-loaded"
         echo ""
         echo "Provider Tests:"
         echo "  $0 providers                 # List all providers"
