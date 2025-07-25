@@ -285,23 +285,59 @@ async def v0_2_chat(
     auth: dict = Depends(get_current_auth_legacy)
 ):
     """v0.2 unified chat endpoint (streaming and non-streaming) - routes to chat service"""
+    from fastapi.responses import StreamingResponse
+    
     body = await request.json()
     
     # Add authentication info to request body
     body["_auth"] = auth
     
-    # Remove content-length header since we modified the body
-    headers = dict(request.headers)
-    headers.pop("content-length", None)
-    headers.pop("Content-Length", None)
-    
-    return await forward_request_to_service(
-        service_name="chat",
-        path="/api/v0.2",  # v0.2 chat endpoint is at /api/v0.2, not /api/v0.2/chat
-        method="POST",
-        json_data=body,
-        headers=headers
-    )
+    # Check if streaming is requested
+    if body.get("stream", False):
+        # Handle streaming response
+        client = await get_http_client()
+        service_url = SERVICE_URLS["chat"]
+        full_url = f"{service_url}/api/v0.2"
+        
+        # Remove content-length header since we modified the body
+        headers = dict(request.headers)
+        headers.pop("content-length", None)
+        headers.pop("Content-Length", None)
+        
+        async def stream_generator():
+            """Forward streaming response from chat service"""
+            async with client.stream(
+                "POST",
+                full_url,
+                headers=headers,
+                json=body
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    yield chunk
+        
+        return StreamingResponse(
+            stream_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    else:
+        # Non-streaming - use normal forward
+        headers = dict(request.headers)
+        headers.pop("content-length", None)
+        headers.pop("Content-Length", None)
+        
+        return await forward_request_to_service(
+            service_name="chat",
+            path="/api/v0.2",
+            method="POST",
+            json_data=body,
+            headers=headers
+        )
 
 @app.get("/api/v0.2/chat/status", tags=["v0.2 Chat"])
 async def v0_2_chat_status(
