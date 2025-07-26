@@ -1,0 +1,17 @@
+# Test container with browser for automated testing
+FROM mcr.microsoft.com/playwright/python:v1.48.0-focal
+
+WORKDIR /tests
+
+# Install Python dependencies
+COPY requirements-test.txt .
+RUN pip install --no-cache-dir -r requirements-test.txt
+
+# Copy test files
+COPY test-browser-sse.py .
+
+# Add healthcheck
+HEALTHCHECK CMD python -c "import playwright; print('ready')" || exit 1
+
+# Default command runs the SSE test
+CMD ["python", "test-browser-sse.py"]

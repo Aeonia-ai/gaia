@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from fasthtml.components import Div, H2, Button, P, A, H1, Style
 from fasthtml.core import Script, NotStr
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, StreamingResponse
 from app.services.web.components.gaia_ui import (
     gaia_layout, gaia_conversation_item, gaia_message_bubble,
     gaia_chat_input, gaia_loading_spinner, gaia_error_message, gaia_toast_script, gaia_mobile_styles
@@ -368,7 +368,10 @@ def setup_routes(app):
             jwt_token = request.session.get("jwt_token")
             user = request.session.get("user")
             
+            logger.info(f"Auth check - User exists: {bool(user)}, JWT exists: {bool(jwt_token)}")
+            
             if not user or not jwt_token:
+                logger.warning("No user or JWT token in session")
                 return gaia_error_message("Please log in to send messages")
             
             user_id = user.get("id", "dev-user-id")
@@ -378,8 +381,10 @@ def setup_routes(app):
             conversation_id = form_data.get("conversation_id")
             
             logger.info(f"Received message: {message}, conversation: {conversation_id}")
+            logger.info(f"Form data keys: {list(form_data.keys())}")
             
             if not message:
+                logger.warning("Empty message received")
                 return gaia_error_message("Please enter a message")
             
             # Create new conversation if none exists
@@ -572,6 +577,21 @@ def setup_routes(app):
             logger.error(f"Message: {message}, Conversation ID: {conversation_id}")
             logger.error(f"User: {user}, JWT token exists: {jwt_token is not None}")
             
+            # Add more specific error info
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            
+            # Check if it's an import error
+            if isinstance(e, (ImportError, AttributeError)):
+                logger.error(f"Import/Attribute error details: {str(e)}")
+            
+            # Check gateway client status
+            try:
+                from app.services.web.utils.gateway_client import GaiaAPIClient
+                logger.error(f"GaiaAPIClient import successful")
+            except Exception as import_e:
+                logger.error(f"GaiaAPIClient import failed: {import_e}")
+            
             # Show toast error and return user-friendly error message
             error_msg = str(e).lower()
             if "connection" in error_msg or "network" in error_msg:
@@ -595,6 +615,345 @@ def setup_routes(app):
                 gaia_error_message(user_message),
                 error_script
             )
+    
+    @app.get("/api/chat/test")
+    async def test_chat():
+        """Simple test endpoint"""
+        return {"status": "ok", "message": "Chat endpoint working"}
+    
+    @app.post("/api/chat/test-send")
+    async def test_send_message(request):
+        """Test message sending without full auth flow"""
+        try:
+            form_data = await request.form()
+            message = form_data.get("message", "test message")
+            
+            # Create a fake user for testing
+            fake_user = {"id": "test-user", "email": "test@local", "name": "Test User"}
+            fake_jwt = "test-jwt-token"
+            
+            # Test the HTMX SSE response generation
+            import uuid
+            message_id = str(uuid.uuid4())[:8]
+            from urllib.parse import quote
+            encoded_message = quote(message, safe='')
+            
+            from app.services.web.components.gaia_ui import gaia_message_bubble
+            from datetime import datetime
+            
+            user_message = gaia_message_bubble(
+                message,
+                role="user",
+                timestamp=datetime.now().strftime("%I:%M %p")
+            )
+            
+            user_message_html = str(user_message)
+            
+            # Return the HTMX SSE response
+            response_html = f'''{user_message_html}
+<div id="assistant-response-{message_id}" 
+     hx-ext="sse" 
+     sse-connect="/api/chat/stream?message={encoded_message}&conversation_id=test-conv&message_id={message_id}"
+     class="flex justify-start mb-4">
+    <div class="bg-slate-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
+        <div class="typing-indicator" id="loading-{message_id}">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        </div>
+        <div class="text-xs opacity-70 mt-2" id="status-{message_id}">Gaia is thinking...</div>
+        <div id="response-content-{message_id}" class="whitespace-pre-wrap break-words" style="display: none;"></div>
+        <div id="response-footer-{message_id}" class="flex items-center justify-between mt-2 text-xs opacity-70" style="display: none;">
+            <span>Gaia</span>
+            <span id="timestamp-{message_id}"></span>
+        </div>
+    </div>
+</div>'''
+            
+            from starlette.responses import HTMLResponse
+            return HTMLResponse(content=response_html)
+            
+        except Exception as e:
+            logger.error(f"Test send error: {e}", exc_info=True)
+            return {"error": str(e)}
+    
+    @app.get("/api/test/simple-sse")
+    async def simple_sse_test_endpoint(request):
+        """Simple SSE test endpoint (no auth required)"""
+        async def test_generator():
+            yield "event: test-start\ndata: {\"msg\": \"Starting simple SSE test\"}\n\n"
+            import asyncio
+            await asyncio.sleep(0.5)
+            yield "event: test-data\ndata: Test message 1\n\n"
+            await asyncio.sleep(0.5)  
+            yield "event: test-data\ndata: Test message 2\n\n"
+            await asyncio.sleep(0.5)
+            yield "event: test-data\ndata: Test message 3\n\n"
+            await asyncio.sleep(0.5)
+            yield "event: test-done\ndata: {\"msg\": \"Simple SSE test complete\"}\n\n"
+        
+        return StreamingResponse(
+            test_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+
+    @app.get("/api/chat/test-sse")
+    async def test_sse_endpoint(request):
+        """Simple SSE test endpoint"""
+        async def test_generator():
+            yield "event: test-start\ndata: {\"msg\": \"Starting test\"}\n\n"
+            import asyncio
+            await asyncio.sleep(0.5)
+            yield "event: test-data\ndata: {\"msg\": \"Test data 1\"}\n\n"
+            await asyncio.sleep(0.5)
+            yield "event: test-data\ndata: {\"msg\": \"Test data 2\"}\n\n"
+            await asyncio.sleep(0.5)
+            yield "event: test-end\ndata: {\"msg\": \"Test complete\"}\n\n"
+        
+        return StreamingResponse(
+            test_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    
+    @app.get("/test/sse-debug")
+    async def sse_debug_page_public(request):
+        """Public debug page for testing SSE (no auth required)"""
+        return HTMLResponse('''<!DOCTYPE html>
+<html>
+<head>
+    <title>SSE Debug Test (Public)</title>
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.10/dist/htmx.min.js" onload="console.log('HTMX script loaded')" onerror="console.error('Failed to load HTMX')"></script>
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.10/dist/ext/sse.js" onload="console.log('SSE extension script loaded')" onerror="console.error('Failed to load SSE extension')"></script>
+</head>
+<body style="font-family: monospace; padding: 20px;">
+    <h1>SSE Debug Test (Public - No Auth)</h1>
+    
+    <h2>1. Simple SSE Test</h2>
+    <div id="simple-test" 
+         hx-ext="sse" 
+         sse-connect="/api/test/simple-sse"
+         style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+        <div id="simple-status">Connecting to simple SSE...</div>
+        <div id="simple-content" sse-swap="test-data" hx-swap="innerHTML"></div>
+    </div>
+    
+    <h2>JavaScript Debug Info</h2>
+    <div id="debug-info" style="border: 1px solid #999; padding: 10px; margin: 10px 0;">
+        <div id="htmx-version"></div>
+        <div id="sse-ext-status"></div>
+    </div>
+    
+    <h2>Debug Log</h2>
+    <div id="log" style="border: 1px solid #333; padding: 10px; margin: 10px 0; background: #f0f0f0; height: 200px; overflow-y: scroll;"></div>
+    
+    <script>
+        // Debug logging
+        function log(msg) {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += new Date().toISOString() + ': ' + msg + '\\n';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // Check HTMX and SSE extension
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                document.getElementById('htmx-version').innerHTML = 'HTMX Version: ' + (typeof htmx !== 'undefined' ? htmx.version : 'NOT LOADED');
+                document.getElementById('sse-ext-status').innerHTML = 'SSE Extension: ' + (typeof htmx !== 'undefined' && htmx.ext && htmx.ext.sse ? 'LOADED' : 'NOT LOADED');
+                
+                log('Page loaded, HTMX version: ' + (typeof htmx !== 'undefined' ? htmx.version : 'undefined'));
+                log('SSE extension: ' + (typeof htmx !== 'undefined' && htmx.ext && htmx.ext.sse ? 'loaded' : 'not loaded'));
+                log('HTMX extensions available: ' + (typeof htmx !== 'undefined' && htmx.ext ? Object.keys(htmx.ext).join(', ') : 'none'));
+                
+                // Try to manually register the extension if needed
+                if (typeof htmx !== 'undefined' && (!htmx.ext || !htmx.ext.sse)) {
+                    log('SSE extension not found, checking if we can load it manually...');
+                }
+            }, 100); // Small delay to ensure scripts are loaded
+        });
+        
+        // HTMX SSE event logging
+        document.body.addEventListener('htmx:sseConnecting', function(e) {
+            log('SSE Connecting to: ' + e.detail.url);
+        });
+        
+        document.body.addEventListener('htmx:sseOpen', function(e) {
+            log('SSE Connection opened to: ' + e.detail.url);
+        });
+        
+        document.body.addEventListener('htmx:sseError', function(e) {
+            log('SSE Error: ' + JSON.stringify(e.detail));
+        });
+        
+        document.body.addEventListener('htmx:sseClose', function(e) {
+            log('SSE Connection closed');
+        });
+        
+        // Generic HTMX events
+        document.body.addEventListener('htmx:beforeRequest', function(e) {
+            log('HTMX beforeRequest: ' + e.detail.requestConfig.verb + ' ' + e.detail.requestConfig.url);
+        });
+        
+        document.body.addEventListener('htmx:responseError', function(e) {
+            log('HTMX responseError: ' + e.detail.xhr.status + ' ' + e.detail.xhr.statusText);
+        });
+    </script>
+</body>
+</html>''')
+
+    @app.get("/chat/debug")
+    async def chat_debug_page(request):
+        """Debug page for testing SSE"""
+        from pathlib import Path
+        debug_html = Path("/app/test-chat-debug.html")
+        if debug_html.exists():
+            return HTMLResponse(debug_html.read_text())
+        else:
+            # Return inline debug page
+            return HTMLResponse('''<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat SSE Debug</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"></script>
+</head>
+<body style="font-family: monospace; padding: 20px;">
+    <h1>SSE Debug Test</h1>
+    
+    <h2>1. Simple SSE Test</h2>
+    <div id="simple-test" 
+         hx-ext="sse" 
+         sse-connect="/api/chat/test-sse"
+         style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+        <div id="simple-status">Connecting to test SSE...</div>
+        <div id="simple-content"></div>
+    </div>
+    
+    <h2>2. Chat SSE Test</h2>
+    <div id="chat-test" 
+         hx-ext="sse" 
+         sse-connect="/api/chat/stream?message=Debug%20test&conversation_id=debug&message_id=dbg123"
+         style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+        <div id="chat-status">Connecting to chat SSE...</div>
+        <div id="chat-content"></div>
+    </div>
+    
+    <h2>Debug Log</h2>
+    <div id="log" style="background: #000; color: #0f0; padding: 10px; height: 200px; overflow-y: auto;"></div>
+    
+    <script>
+        const log = (msg) => {
+            const logEl = document.getElementById('log');
+            logEl.innerHTML += new Date().toISOString() + ' - ' + msg + '<br>';
+            logEl.scrollTop = logEl.scrollHeight;
+        };
+        
+        log('Page loaded');
+        log('HTMX: ' + (typeof htmx !== 'undefined' ? htmx.version : 'not loaded'));
+        log('SSE ext: ' + (typeof htmx !== 'undefined' && htmx.ext && htmx.ext.sse ? 'loaded' : 'not loaded'));
+        
+        // Simple SSE test handlers
+        document.addEventListener('htmx:sseOpen', (evt) => {
+            if (evt.target.id === 'simple-test') {
+                log('Simple SSE connected');
+                document.getElementById('simple-status').textContent = 'Connected!';
+            } else if (evt.target.id === 'chat-test') {
+                log('Chat SSE connected');
+                document.getElementById('chat-status').textContent = 'Connected!';
+            }
+        });
+        
+        document.addEventListener('htmx:sseError', (evt) => {
+            log('SSE Error on ' + evt.target.id + ': ' + JSON.stringify(evt.detail));
+            if (evt.target.id === 'simple-test') {
+                document.getElementById('simple-status').textContent = 'Error!';
+            } else if (evt.target.id === 'chat-test') {
+                document.getElementById('chat-status').textContent = 'Error!';
+            }
+        });
+        
+        // Simple test events
+        document.addEventListener('htmx:sseMessage:test-start', (evt) => {
+            const data = JSON.parse(evt.detail.data);
+            log('Test start: ' + data.msg);
+            document.getElementById('simple-content').innerHTML += '<div>' + data.msg + '</div>';
+        });
+        
+        document.addEventListener('htmx:sseMessage:test-data', (evt) => {
+            const data = JSON.parse(evt.detail.data);
+            log('Test data: ' + data.msg);
+            document.getElementById('simple-content').innerHTML += '<div>' + data.msg + '</div>';
+        });
+        
+        document.addEventListener('htmx:sseMessage:test-end', (evt) => {
+            const data = JSON.parse(evt.detail.data);
+            log('Test end: ' + data.msg);
+            document.getElementById('simple-content').innerHTML += '<div>' + data.msg + '</div>';
+        });
+        
+        // Chat test events
+        document.addEventListener('htmx:sseMessage:chat-start', (evt) => {
+            log('Chat started');
+            document.getElementById('chat-content').textContent = 'Started...';
+        });
+        
+        document.addEventListener('htmx:sseMessage:chat-content', (evt) => {
+            const data = JSON.parse(evt.detail.data);
+            log('Chat content: ' + data.content.substring(0, 20) + '...');
+            document.getElementById('chat-content').textContent += data.content;
+        });
+        
+        document.addEventListener('htmx:sseMessage:chat-done', (evt) => {
+            log('Chat done');
+        });
+        
+        document.addEventListener('htmx:sseMessage:chat-error', (evt) => {
+            const data = JSON.parse(evt.detail.data);
+            log('Chat error: ' + data.error);
+            document.getElementById('chat-content').textContent = 'Error: ' + data.error;
+        });
+    </script>
+</body>
+</html>''')
+    
+    @app.get("/api/chat/debug")
+    async def debug_chat_config(request):
+        """Debug endpoint to check configuration"""
+        from app.services.web.config import settings
+        jwt_token = request.session.get("jwt_token")
+        user = request.session.get("user")
+        
+        debug_info = {
+            "gateway_url": settings.gateway_url,
+            "api_key_exists": bool(settings.api_key),
+            "api_key_prefix": settings.api_key[:10] + "..." if settings.api_key else None,
+            "user_logged_in": bool(user),
+            "jwt_token_exists": bool(jwt_token),
+            "session_data": {
+                "user_id": user.get("id") if user else None,
+                "user_email": user.get("email") if user else None
+            }
+        }
+        
+        # Test gateway connection
+        try:
+            from app.services.web.utils.gateway_client import GaiaAPIClient
+            async with GaiaAPIClient() as client:
+                debug_info["gateway_client_initialized"] = True
+                debug_info["gateway_client_base_url"] = client.base_url
+        except Exception as e:
+            debug_info["gateway_client_error"] = str(e)
+        
+        return debug_info
     
     @app.get("/api/chat/stream")
     async def stream_response(request):
@@ -620,6 +979,8 @@ def setup_routes(app):
         
         async def event_generator():
             try:
+                logger.info(f"Starting event generator for message: {message}")
+                
                 # Get conversation history
                 if conversation_id:
                     messages_history = database_conversation_store.get_messages(conversation_id)
@@ -634,13 +995,17 @@ def setup_routes(app):
                 else:
                     messages = [{"role": "user", "content": message}]
                 
+                logger.info(f"Sending {len(messages)} messages to gateway")
+                
                 # Start streaming from gateway
                 response_content = ""
                 first_content = True
                 
                 async with GaiaAPIClient() as client:
+                    logger.info("Starting chat_completion_stream")
                     async for chunk in client.chat_completion_stream(messages, jwt_token):
                         try:
+                            logger.info(f"Received chunk: {chunk[:100]}")  # Log first 100 chars
                             # Parse the chunk
                             import json
                             if chunk.strip() == "[DONE]":
@@ -664,7 +1029,9 @@ def setup_routes(app):
                                         
                                         response_content += content
                                         # Send content chunk with named event for HTMX SSE
-                                        yield f"event: chat-content\ndata: {json.dumps({'content': content})}\n\n"
+                                        event_data = f"event: chat-content\ndata: {json.dumps({'content': content})}\n\n"
+                                        logger.info(f"Yielding SSE event: {event_data[:50]}")
+                                        yield event_data
                                     
                                     # Check for finish reason
                                     finish_reason = choices[0].get("finish_reason")
@@ -700,7 +1067,10 @@ def setup_routes(app):
                     
             except Exception as e:
                 logger.error(f"Streaming error: {e}", exc_info=True)
-                yield f"event: chat-error\ndata: {json.dumps({'error': str(e)})}\n\n"
+                error_msg = str(e)
+                if "connection" in error_msg.lower():
+                    error_msg = "Connection to AI service failed. Please try again."
+                yield f"event: chat-error\ndata: {json.dumps({'error': error_msg})}\n\n"
         
         return StreamingResponse(
             event_generator(),
@@ -708,7 +1078,10 @@ def setup_routes(app):
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
-                "X-Accel-Buffering": "no"
+                "X-Accel-Buffering": "no",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
             }
         )
     

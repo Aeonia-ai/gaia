@@ -105,9 +105,12 @@ class GaiaAPIClient:
                 }
             ) as response:
                 response.raise_for_status()
+                logger.info(f"Started streaming from gateway, status: {response.status_code}")
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
-                        yield line[6:]  # Remove "data: " prefix
+                        data = line[6:]  # Remove "data: " prefix
+                        logger.debug(f"Gateway stream chunk: {data[:100]}")
+                        yield data
         except httpx.HTTPStatusError as e:
             logger.error(f"Chat completion failed: {e.response.status_code} - {e.response.text}")
             raise

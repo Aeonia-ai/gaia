@@ -26,7 +26,7 @@ app = FastHTML(
         Meta(name="viewport", content="width=device-width, initial-scale=1.0"),
         # FastHTML automatically includes HTMX, don't duplicate
         # HTMX SSE extension for streaming chat
-        Script(src="https://unpkg.com/htmx.org/dist/ext/sse.js"),
+        Script(src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"),
         Script(src="https://cdn.tailwindcss.com"),
         Link(rel="stylesheet", href="/static/animations.css"),
         Link(rel="icon", href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🦋%3C/text%3E%3C/svg%3E"),
@@ -42,6 +42,17 @@ app = FastHTML(
                 // Configure HTMX for better SPA experience
                 htmx.config.historyCacheSize = 10;
                 htmx.config.refreshOnHistoryMiss = false;
+                
+                // Debug SSE extension
+                console.log('HTMX version:', htmx.version);
+                console.log('SSE extension loaded:', htmx.ext && htmx.ext.sse ? 'yes' : 'no');
+                
+                // Enable HTMX logging for debugging
+                if (window.location.search.includes('debug')) {
+                    htmx.config.logger = function(elt, event, data) {
+                        console.log('[HTMX]', event, data);
+                    };
+                }
                 
                 // Add page transition effects
                 document.body.addEventListener('htmx:beforeSwap', function(evt) {

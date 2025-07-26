@@ -39,3 +39,6 @@ mcp-agent>=0.1.0
 # KB integration dependencies
 python-frontmatter>=1.1.0
 asyncpg>=0.29.0
+
+# Testing dependencies
+playwright>=1.40.0

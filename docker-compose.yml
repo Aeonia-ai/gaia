@@ -250,6 +250,29 @@ services:
       - gaia_net
     command: bash -c "PYTHONPATH=/app pytest -v"
 
+  # Browser test runner service
+  test-browser:
+    build:
+      context: .
+      dockerfile: Dockerfile.test-browser
+    depends_on:
+      - web-service
+      - gateway
+    networks:
+      - gaia_net
+    environment:
+      - BASE_URL=http://web-service:8000
+      - GATEWAY_URL=http://gateway:8000
+    volumes:
+      - ./test-browser-sse.py:/tests/test-browser-sse.py:ro
+      - ./test-chat-debug.html:/tests/test-chat-debug.html:ro
+      - ./screenshots:/screenshots
+      - ./tests:/tests/tests:ro
+    # Use python -u for unbuffered output to see logs in real-time
+    command: ["python", "-u", "test-browser-sse.py"]
+    # Alternative: run with auto-reload for development
+    # command: ["watchmedo", "auto-restart", "--patterns=*.py", "--recursive", "--", "python", "-u", "test-browser-sse.py"]
+
 volumes:
   postgres_data:
   redis_data:
