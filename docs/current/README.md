@@ -31,6 +31,11 @@ These features are fully implemented, tested, and deployed in production.
 - **[Environment Setup](development/dev-environment-setup.md)** - Local development workflow
 - **[Redis Integration](development/redis-integration.md)** - Caching layer implementation
 
+#### 🚀 **Testing Strategy (NEW)**
+- **[Testing Improvement Plan](development/automated-testing-improvement-plan.md)** - **PRIORITY** Comprehensive 3-phase testing strategy
+- **[Security Testing Strategy](development/security-testing-strategy.md)** - **CRITICAL** OWASP Top 10 compliance & SQL injection prevention  
+- **[Service Testing Strategy](development/comprehensive-service-testing-strategy.md)** - 100% service functionality coverage
+
 ### 🎨 [Web UI](web-ui/)
 - **[FastHTML Service](web-ui/fasthtml-web-service.md)** - Complete web frontend architecture
 - **[HTMX Debugging](web-ui/htmx-fasthtml-debugging-guide.md)** - **MANDATORY** read before web changes
