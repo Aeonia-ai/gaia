@@ -427,17 +427,42 @@ def setup_routes(app):
             # Create HTML manually to avoid FastHTML's automatic escaping
             user_message_html = str(user_message)
             
-            # Clean response HTML for proper HTMX handling with SSE streaming
+            # HTMX SSE extension approach - proper FastHTML pattern
             response_html = f'''{user_message_html}
-<div id="loading-{message_id}" class="flex justify-start mb-4">
+<div id="assistant-response-{message_id}" 
+     hx-ext="sse" 
+     sse-connect="/api/chat/stream?message={encoded_message}&conversation_id={conversation_id}&message_id={message_id}"
+     class="flex justify-start mb-4">
     <div class="bg-slate-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
-        <div class="typing-indicator">
+        <div class="typing-indicator" id="loading-{message_id}">
             <div class="typing-dot"></div>
             <div class="typing-dot"></div>
             <div class="typing-dot"></div>
         </div>
-        <div class="text-xs opacity-70 mt-2">Gaia is thinking...</div>
+        <div class="text-xs opacity-70 mt-2" id="status-{message_id}">Gaia is thinking...</div>
+        <div id="response-content-{message_id}" class="whitespace-pre-wrap break-words" style="display: none;"></div>
+        <div id="response-footer-{message_id}" class="flex items-center justify-between mt-2 text-xs opacity-70" style="display: none;">
+            <span>Gaia</span>
+            <span id="timestamp-{message_id}"></span>
+        </div>
     </div>
+    
+    <!-- HTMX SSE event listeners -->
+    <div hx-trigger="sse:chat-start" 
+         hx-swap="none"
+         data-message-id="{message_id}"></div>
+    
+    <div hx-trigger="sse:chat-content" 
+         hx-swap="none"
+         data-message-id="{message_id}"></div>
+         
+    <div hx-trigger="sse:chat-done" 
+         hx-swap="none"
+         data-message-id="{message_id}"></div>
+         
+    <div hx-trigger="sse:chat-error" 
+         hx-swap="none"
+         data-message-id="{message_id}"></div>
 </div>
 <script>
 (function() {{
@@ -463,102 +488,77 @@ def setup_routes(app):
         GaiaToast.success('Message sent successfully!', 2000);
     }}
     
-    // Use Server-Sent Events for streaming response
-    setTimeout(() => {{
+    // HTMX SSE event handlers for message {message_id}
+    let responseContent_{message_id} = '';
+    
+    // Handle SSE connection opened
+    document.addEventListener('htmx:sseOpen', function(evt) {{
+        console.log('SSE connection opened for chat stream');
+    }});
+    
+    // Handle first content (show response area)
+    document.addEventListener('htmx:sseMessage:chat-start', function(evt) {{
         const loadingEl = document.getElementById('loading-{message_id}');
-        let responseContent = '';
-        let responseStarted = false;
+        const statusEl = document.getElementById('status-{message_id}');
+        const contentEl = document.getElementById('response-content-{message_id}');
+        const footerEl = document.getElementById('response-footer-{message_id}');
+        const timestampEl = document.getElementById('timestamp-{message_id}');
         
-        // Create EventSource for streaming
-        const eventSource = new EventSource('/api/chat/stream?message={encoded_message}&conversation_id={conversation_id}');
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (statusEl) statusEl.style.display = 'none';
+        if (contentEl) contentEl.style.display = 'block';
+        if (footerEl) footerEl.style.display = 'flex';
+        if (timestampEl) {{
+            const timestamp = new Date().toLocaleTimeString('en-US', {{ hour: 'numeric', minute: '2-digit' }});
+            timestampEl.textContent = timestamp;
+        }}
+    }});
+    
+    // Handle content chunks
+    document.addEventListener('htmx:sseMessage:chat-content', function(evt) {{
+        const data = JSON.parse(evt.detail.data);
+        if (data.content) {{
+            responseContent_{message_id} += data.content;
+            const contentEl = document.getElementById('response-content-{message_id}');
+            if (contentEl) {{
+                contentEl.textContent = responseContent_{message_id};
+            }}
+        }}
+    }});
+    
+    // Handle completion
+    document.addEventListener('htmx:sseMessage:chat-done', function(evt) {{
+        console.log('Chat stream completed');
+        if (window.GaiaToast) {{
+            GaiaToast.success('Response received!', 2000);
+        }}
+    }});
+    
+    // Handle errors
+    document.addEventListener('htmx:sseMessage:chat-error', function(evt) {{
+        const data = JSON.parse(evt.detail.data);
+        const loadingEl = document.getElementById('loading-{message_id}');
+        const statusEl = document.getElementById('status-{message_id}');
         
-        // Set a timeout for the response
-        const timeoutId = setTimeout(() => {{
-            if (!responseStarted && loadingEl && loadingEl.parentNode) {{
-                loadingEl.outerHTML = `<div class="flex justify-start mb-4 assistant-message-placeholder">
-                    <div class="bg-yellow-900/50 border border-yellow-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
-                        <div class="flex items-center">
-                            <span class="mr-2">⚠️</span>
-                            <span>Response is taking longer than expected...</span>
-                        </div>
-                        <div class="text-xs opacity-70 mt-2">The AI is still thinking. Please wait or try again.</div>
-                    </div>
-                </div>`;
-                eventSource.close();
-            }}
-        }}, 30000); // 30 second timeout warning
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (statusEl) {{
+            statusEl.innerHTML = '<span class="text-red-400">❌ Error: ' + (data.error || 'Unknown error') + '</span>';
+            statusEl.style.display = 'block';
+        }}
+    }});
+    
+    // Handle SSE connection errors
+    document.addEventListener('htmx:sseError', function(evt) {{
+        console.error('SSE connection error:', evt.detail);
+        const statusEl = document.getElementById('status-{message_id}');
+        const loadingEl = document.getElementById('loading-{message_id}');
         
-        eventSource.onmessage = function(event) {{
-            if (event.data === '[DONE]') {{
-                eventSource.close();
-                clearTimeout(timeoutId);
-                if (window.GaiaToast) {{
-                    GaiaToast.success('Response received!', 2000);
-                }}
-                return;
-            }}
-            
-            try {{
-                const data = JSON.parse(event.data);
-                
-                if (data.type === 'content') {{
-                    // First content chunk - replace loading indicator
-                    if (!responseStarted) {{
-                        responseStarted = true;
-                        clearTimeout(timeoutId);
-                        const timestamp = new Date().toLocaleTimeString('en-US', {{ hour: 'numeric', minute: '2-digit' }});
-                        loadingEl.outerHTML = `<div id="response-{message_id}" class="flex justify-start mb-4 animate-slideInLeft">
-                            <div class="bg-slate-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg hover:shadow-xl transition-all duration-300">
-                                <div id="response-content-{message_id}" class="whitespace-pre-wrap break-words"></div>
-                                <div class="flex items-center justify-between mt-2 text-xs opacity-70">
-                                    <span>Gaia</span>
-                                    <span>${{timestamp}}</span>
-                                </div>
-                            </div>
-                        </div>`;
-                    }}
-                    
-                    // Append content to response
-                    responseContent += data.content;
-                    const contentEl = document.getElementById('response-content-{message_id}');
-                    if (contentEl) {{
-                        contentEl.textContent = responseContent;
-                    }}
-                }}
-                else if (data.type === 'error') {{
-                    eventSource.close();
-                    clearTimeout(timeoutId);
-                    loadingEl.outerHTML = `<div class="flex justify-start mb-4 animate-slideInLeft">
-                        <div class="bg-red-900/50 border border-red-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
-                            <div class="flex items-center">
-                                <span class="mr-2">❌</span>
-                                <span>Error: ${{data.error}}</span>
-                            </div>
-                        </div>
-                    </div>`;
-                }}
-            }} catch (e) {{
-                console.error('Failed to parse SSE data:', e);
-            }}
-        }};
-        
-        eventSource.onerror = function(error) {{
-            console.error('SSE error:', error);
-            eventSource.close();
-            clearTimeout(timeoutId);
-            
-            if (!responseStarted) {{
-                loadingEl.outerHTML = `<div class="flex justify-start mb-4 animate-slideInLeft">
-                    <div class="bg-red-900/50 border border-red-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg">
-                        <div class="flex items-center">
-                            <span class="mr-2">❌</span>
-                            <span>Connection error. Please try again.</span>
-                        </div>
-                    </div>
-                </div>`;
-            }}
-        }};
-    }}, 500);
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (statusEl) {{
+            statusEl.innerHTML = '<span class="text-red-400">❌ Connection error. Please try again.</span>';
+            statusEl.style.display = 'block';
+        }}
+    }});
 }})();
 </script>'''
             
@@ -567,6 +567,10 @@ def setup_routes(app):
             
         except Exception as e:
             logger.error(f"Error in send_message: {e}", exc_info=True)
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error args: {e.args}")
+            logger.error(f"Message: {message}, Conversation ID: {conversation_id}")
+            logger.error(f"User: {user}, JWT token exists: {jwt_token is not None}")
             
             # Show toast error and return user-friendly error message
             error_msg = str(e).lower()
@@ -602,10 +606,17 @@ def setup_routes(app):
         user = request.session.get("user", {})
         user_id = user.get("id", "dev-user-id")
         
-        message = request.query_params.get("message")
+        message = request.query_params.get("message", "").strip()
         conversation_id = request.query_params.get("conversation_id")
         
         logger.info(f"Stream response - message: {message}, conv: {conversation_id}")
+        
+        # Validate message content
+        if not message:
+            logger.error("Empty message received in stream endpoint")
+            async def error_generator():
+                yield "event: chat-error\ndata: {\"error\": \"Message cannot be empty\"}\n\n"
+            return StreamingResponse(error_generator(), media_type="text/event-stream")
         
         async def event_generator():
             try:
@@ -617,18 +628,24 @@ def setup_routes(app):
                         for m in messages_history 
                         if m.get("content", "").strip()
                     ]
+                    # Add the current message if it's not already in the history
+                    if not messages or messages[-1]["content"] != message:
+                        messages.append({"role": "user", "content": message})
                 else:
                     messages = [{"role": "user", "content": message}]
                 
                 # Start streaming from gateway
                 response_content = ""
+                first_content = True
+                
                 async with GaiaAPIClient() as client:
                     async for chunk in client.chat_completion_stream(messages, jwt_token):
                         try:
                             # Parse the chunk
                             import json
                             if chunk.strip() == "[DONE]":
-                                yield f"data: [DONE]\n\n"
+                                # Send completion event for HTMX SSE
+                                yield f"event: chat-done\ndata: {json.dumps({'status': 'completed'})}\n\n"
                                 break
                             
                             chunk_data = json.loads(chunk)
@@ -640,26 +657,37 @@ def setup_routes(app):
                                 if choices and choices[0].get("delta"):
                                     content = choices[0]["delta"].get("content", "")
                                     if content:
+                                        # Send start event for first content chunk
+                                        if first_content:
+                                            yield f"event: chat-start\ndata: {json.dumps({'status': 'started'})}\n\n"
+                                            first_content = False
+                                        
                                         response_content += content
-                                        # Send the content chunk in our format
-                                        yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+                                        # Send content chunk with named event for HTMX SSE
+                                        yield f"event: chat-content\ndata: {json.dumps({'content': content})}\n\n"
                                     
                                     # Check for finish reason
                                     finish_reason = choices[0].get("finish_reason")
                                     if finish_reason == "stop":
-                                        yield f"data: [DONE]\n\n"
+                                        yield f"event: chat-done\ndata: {json.dumps({'status': 'completed'})}\n\n"
                                         break
                             elif chunk_data.get("error"):
-                                # Handle error responses
-                                yield f"data: {json.dumps({'type': 'error', 'error': chunk_data['error'].get('message', 'Unknown error')})}\n\n"
+                                # Handle error responses with named event
+                                yield f"event: chat-error\ndata: {json.dumps({'error': chunk_data['error'].get('message', 'Unknown error')})}\n\n"
                             else:
                                 # Handle other formats (fallback for non-OpenAI format)
                                 if chunk_data.get("type") == "content":
                                     content = chunk_data.get("content", "")
-                                    response_content += content
-                                    yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+                                    if content:
+                                        # Send start event for first content chunk
+                                        if first_content:
+                                            yield f"event: chat-start\ndata: {json.dumps({'status': 'started'})}\n\n"
+                                            first_content = False
+                                        
+                                        response_content += content
+                                        yield f"event: chat-content\ndata: {json.dumps({'content': content})}\n\n"
                                 elif chunk_data.get("type") == "error":
-                                    yield f"data: {json.dumps({'type': 'error', 'error': chunk_data.get('error')})}\n\n"
+                                    yield f"event: chat-error\ndata: {json.dumps({'error': chunk_data.get('error')})}\n\n"
                                 
                         except json.JSONDecodeError:
                             logger.error(f"Failed to parse chunk: {chunk}")
@@ -672,7 +700,7 @@ def setup_routes(app):
                     
             except Exception as e:
                 logger.error(f"Streaming error: {e}", exc_info=True)
-                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+                yield f"event: chat-error\ndata: {json.dumps({'error': str(e)})}\n\n"
         
         return StreamingResponse(
             event_generator(),
@@ -908,17 +936,25 @@ def setup_routes(app):
         
         user_id = user.get("id", "dev-user-id")
         
-        conversations = database_conversation_store.get_conversations(user_id)
-        
-        # Return updated conversation list with smooth animations
-        conversation_items = [gaia_conversation_item(conv) for conv in conversations]
-        
-        return Div(
-            *conversation_items,
-            cls="space-y-2 stagger-children animate-fadeIn",
-            id="conversation-list",
-            style="--stagger-delay: 0;"
-        )
+        try:
+            conversations = database_conversation_store.get_conversations(user_id)
+            # Return updated conversation list with smooth animations
+            conversation_items = [gaia_conversation_item(conv) for conv in conversations]
+            
+            return Div(
+                *conversation_items,
+                cls="space-y-2 stagger-children animate-fadeIn",
+                id="conversation-list",
+                style="--stagger-delay: 0;"
+            )
+        except Exception as e:
+            logger.error(f"Database error in get_conversations: {e}")
+            # Return empty conversation list if database fails
+            return Div(
+                P("No conversations yet. Start a new chat!", cls="text-slate-400 text-center py-4"),
+                cls="space-y-2",
+                id="conversation-list"
+            )
     
     @app.delete("/api/conversations/{conversation_id}")
     async def delete_conversation(request, conversation_id: str):

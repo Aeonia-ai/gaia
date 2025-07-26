@@ -86,12 +86,20 @@ class GaiaAPIClient:
         
         try:
             # Use v1 chat endpoint with stream=true (routes to unified)
+            # Ensure we have a valid message
+            message_content = ""
+            if messages:
+                message_content = messages[-1].get("content", "").strip()
+            
+            if not message_content:
+                raise ValueError("Message content cannot be empty")
+            
             async with self.client.stream(
                 "POST",
                 "/api/v1/chat",
                 headers=headers,
                 json={
-                    "message": messages[-1]["content"] if messages else "",
+                    "message": message_content,
                     "model": model,
                     "stream": True  # Enable streaming mode
                 }
@@ -127,9 +135,17 @@ class GaiaAPIClient:
                 headers["X-API-Key"] = settings.api_key
             
             # Use v1 chat endpoint (routes to unified)
+            # Ensure we have a valid message
+            message_content = ""
+            if messages:
+                message_content = messages[-1].get("content", "").strip()
+            
+            if not message_content:
+                raise ValueError("Message content cannot be empty")
+            
             endpoint = "/api/v1/chat"
             payload = {
-                "message": messages[-1]["content"] if messages else "",
+                "message": message_content,
                 "model": model,
                 "stream": False  # Explicitly set non-streaming
             }
