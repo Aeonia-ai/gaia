@@ -33,7 +33,8 @@ Enhanced routing includes KOS-aware domain specialists:
 - **Performance**: Hot-loaded MCP contexts, ~1s direct responses, ~2-3s tool responses
 
 ### Current Issues
-- **16+ scattered chat implementations** creating maintenance overhead
+- **60+ scattered chat endpoints** creating maintenance overhead (only 4-5 needed for production)
+- **Redundant functionality** - KB, multiagent scenarios, performance variants duplicating unified endpoint capabilities
 - **Fragmented tool registration** across different systems
 - **HTTP latency** without optimization (connection pooling, caching)
 - **Classification accuracy** at ~85% with false positives/negatives
@@ -44,24 +45,97 @@ Enhanced routing includes KOS-aware domain specialists:
 
 ## Phase 1: Architectural Simplification (Week 1-2)
 
-### 1.1 Consolidate Chat Handlers
-**Objective**: Reduce complexity and eliminate duplicated logic
+### 1.1 Consolidate Chat Endpoints and Handlers  
+**Objective**: Reduce complexity from 60+ endpoints to 4-5 production endpoints
 
-**Current State**: 16+ chat service implementations with overlapping functionality
-- `UnifiedChatHandler` (most sophisticated)
-- `IntelligentRouter` 
-- Legacy handlers in `/chat/` directory
+**Current State**: 60+ chat endpoints with massive functional overlap
+- **Production Core**: `/api/v1/chat` (unified), `/api/v0.2/chat` (legacy)
+- **Redundant KB endpoints**: 7 variants (`kb-enhanced`, `kb-research`, etc.)
+- **Redundant multiagent endpoints**: 4 scenarios (`gamemaster`, `worldbuilding`, etc.)
+- **Performance testing endpoints**: 8+ variants (`ultrafast`, `direct`, etc.)
+- **Web interface endpoints**: Separate streaming/form handlers
 
-**Implementation**:
-- **Delete legacy chat implementations** - Remove unused handlers
-- **Route v0.2 → v1** - Simple proxy to maintain backward compatibility
-- **Standardize on UnifiedChatHandler** - Single source of truth
-- **Audit usage** - Check logs/metrics before deletion
+**Migration Plan**:
+
+**Phase 1A: Verify Unified Endpoint Capabilities**
+```bash
+# Test KB functionality through unified endpoint
+./scripts/test-endpoint-consolidation.sh kb-operations
+
+# Test multiagent scenarios through prompt-based routing
+./scripts/test-endpoint-consolidation.sh multiagent-scenarios
+
+# Test web UI with /api/v1/chat streaming
+./scripts/test-endpoint-consolidation.sh web-streaming
+```
+
+**Phase 1B: Deprecate Redundant Endpoints**
+- **KB endpoints → Tool integration**: Remove `/api/v1/chat/kb-*` (7 endpoints)
+- **Multiagent → MCP scenarios**: Remove `/api/v1/chat/{gamemaster,worldbuilding,storytelling,problemsolving}` (4 endpoints)  
+- **Performance testing → Internal use**: Move `/api/v1/chat/{ultrafast,direct,mcp-agent-hot}` variants to internal testing
+- **Web endpoints → Unified streaming**: Remove `/api/chat/{stream,send}` in favor of `/api/v1/chat` with `stream: true`
+
+**Phase 1C: Production Endpoint Set (4 total)**
+```
+/api/v1/chat/completions  # NEW: Official OpenAI specification compliance (message arrays)
+/api/v1/chat              # Current unified intelligent routing (single message)
+/api/v0.2/chat            # Legacy Gaia format compatibility
+/api/v1/auth/*            # Authentication endpoints  
+/health                   # Health checks
+```
+
+**Implementation Details**:
+- **NEW OpenAI endpoint**: `/api/v1/chat/completions` with full OpenAI specification compliance
+- **Keep current unified**: Don't modify existing `/chat/unified` handler that's working
+- **Message array support**: OpenAI endpoint accepts `messages: [...]` format
+- **Legacy compatibility**: Keep v1 (current) and v0.2 (original) for existing clients
+- **Multiagent scenarios**: Configure via unified endpoint prompting instead of separate endpoints
+- **KB operations**: Use existing KB tools in unified handler instead of separate endpoints
+- **Performance variants**: Keep code for internal benchmarking, remove public endpoints
+
+**OpenAI Specification Endpoint**:
+```json
+// Request format
+{
+  "messages": [
+    {"role": "user", "content": "Hello, how are you?"},
+    {"role": "assistant", "content": "I'm doing well, thanks!"},
+    {"role": "user", "content": "What's the weather like?"}
+  ],
+  "model": "claude-3-5-sonnet-20241022",
+  "stream": false
+}
+
+// Response format (OpenAI compliant)
+{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "claude-3-5-sonnet-20241022",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": "I don't have access to real-time weather data..."
+    },
+    "finish_reason": "stop"
+  }],
+  "usage": {
+    "prompt_tokens": 56,
+    "completion_tokens": 31,
+    "total_tokens": 87
+  }
+}
+```
 
 **Success Criteria**:
-- Single chat handler serving all requests
-- 100% backward compatibility maintained
-- Reduced codebase complexity
+- **90% endpoint reduction**: From 60+ endpoints to 4 production endpoints  
+- **OpenAI specification compliance**: `/api/v1/chat/completions` fully compatible with OpenAI clients
+- **Preserved intelligent routing**: Keep working `/chat/unified` handler unchanged
+- **100% backward compatibility**: Existing v1/v0.2 clients continue working
+- **Enhanced functionality**: KB, multiagent, streaming all work through unified endpoint
+- **Reduced maintenance overhead**: Single handler serving all chat requests with intelligent routing
+- **Future v0.3 ready**: Architecture prepared for eventual native Gaia format with KOS intelligence
 
 ### 1.2 KOS-Aware Unified Tool Registry
 **Objective**: Centralized tool management with KOS context-aware smart presentation
@@ -369,14 +443,17 @@ User Request → KOS Context Load → Domain Classification → Tool Selection �
 
 ## Implementation Priorities
 
-1. **Consolidate chat handlers** (immediate complexity reduction)
-2. **KOS-aware unified tool registry** (foundation for all improvements with domain classification)
-3. **KOS context loading integration** (session state, daily plans, cross-references)
-4. **HTTP optimization** (biggest performance gain with minimal risk)
-5. **Domain-aware MCP-agent orchestration** (enable powerful cross-domain workflows)
-6. **Enhanced streaming with KOS updates** (improved user experience with session persistence)
-7. **Cross-reference and wiki link management** (knowledge integration)
-8. **Error recovery with domain fallbacks** (system reliability)
+**Immediate Phase (Preserve Working System):**
+1. **Add OpenAI-compliant endpoint** (`/api/v1/chat/completions`) for message array support
+2. **Remove redundant endpoints** (~55 variants of kb-*, ultrafast-*, multiagent scenarios)
+3. **Keep unified handler unchanged** (it's working well with intelligent routing)
+4. **HTTP optimization** (connection pooling, caching for performance)
+
+**Future Phases:**
+5. **v0.3 endpoint** with native Gaia format and KOS intelligence (when ready)
+6. **KOS-aware unified tool registry** (domain classification and context awareness)
+7. **Domain-aware MCP-agent orchestration** (cross-domain workflows)
+8. **Enhanced streaming with KOS updates** (session persistence and state management)
 
 ## Risk Mitigation
 
