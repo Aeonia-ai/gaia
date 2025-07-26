@@ -13,6 +13,9 @@ Deploy to production with Fly.io, database setup, and smart scripts.
 ### 🏗️ **For Architects** → [`current/architecture/`](current/architecture/)
 Understand the microservices architecture, scaling patterns, and database design.
 
+### 🗄️ **For Knowledge Base** → [`current/kb/`](current/kb/)
+Access and manage the Knowledge Base service with Git sync and RBAC.
+
 ### 🔮 **For Roadmap** → [`future/roadmap/`](future/roadmap/)
 See what's coming next and current development status.
 
@@ -25,6 +28,7 @@ docs/
 │   ├── authentication/ ← API keys, JWTs, mTLS setup
 │   ├── deployment/      ← Production deployment guides
 │   ├── development/     ← Local dev, testing, commands
+│   ├── kb/              ← Knowledge Base service (OPERATIONAL)
 │   ├── web-ui/          ← FastHTML frontend guides
 │   └── troubleshooting/ ← Fix common issues
 ├── 🟡 future/           ← PLANNED & IN-DEVELOPMENT  
@@ -90,6 +94,7 @@ Gaia Platform Microservices
 ├─ Auth Service - JWT validation via Supabase  
 ├─ Chat Service - LLM interactions & streaming
 ├─ Asset Service - Image/3D generation
+├─ KB Service - Knowledge Base with Git sync & RBAC ✅ OPERATIONAL
 ├─ Web Service (8080) - FastHTML frontend
 └─ Shared Infrastructure (PostgreSQL, NATS, Redis)
 ```

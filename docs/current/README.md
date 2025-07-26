@@ -43,6 +43,20 @@ These features are fully implemented, tested, and deployed in production.
 - **[Mobile Testing](troubleshooting/mobile-testing-guide.md)** - Testing on mobile devices
 - **[Optimization Guide](troubleshooting/optimization-guide.md)** - Performance improvements
 
+### 🗄️ [Knowledge Base (KB)](kb/)
+**🟢 Status: FULLY OPERATIONAL** - Complete implementation with Git sync and RBAC
+
+- **[KB Service Overview](kb/README.md)** - Complete KB service capabilities and setup
+- **[KB Integration Guide](kb/kb-integration-implementation.md)** - Setup and integration patterns
+- **[KB Git Sync Guide](kb/kb-git-sync-guide.md)** - Repository synchronization with GitHub/GitLab
+- **[Multi-User KB Setup](kb/multi-user-kb-guide.md)** - Teams, workspaces, and sharing
+- **[RBAC System](kb/rbac-system-guide.md)** - Role-based access control implementation
+- **[KB Remote Deployment](kb/kb-remote-deployment-auth.md)** - Production deployment guide
+- **[Storage Architecture](kb/kb-storage-architecture-analysis.md)** - Database vs Git vs Hybrid modes
+
+### 📊 [Current Status](roadmap/)
+- **[Implementation Status](roadmap/implementation-status.md)** - Complete feature status and metrics
+
 ## 🎯 Production Status
 
 ### ✅ Live Services

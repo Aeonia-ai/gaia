@@ -46,6 +46,15 @@ Complete reference for all Gaia Platform API endpoints, contracts, and integrati
 - **Web Client Examples** - JavaScript/TypeScript integration
 - **Authentication Setup** - Client-side auth implementation
 
+### 🗄️ [KB Endpoints](kb-endpoints.md)
+**🟢 Status: FULLY OPERATIONAL** - Knowledge Base service API endpoints
+
+- **Core Operations** - Search, read, write, delete, move documents
+- **Git Integration** - Repository sync and status endpoints
+- **Cache Management** - Performance optimization endpoints
+- **AI-Enhanced Chat** - KB-powered chat endpoints with MCP integration
+- **25+ REST Endpoints** - Complete CRUD operations via gateway
+
 ## 🔄 API Versioning Strategy
 
 ### Current Version: Mixed (v0.2 + v1)
@@ -76,6 +85,11 @@ curl -H "X-API-Key: your-key" \
 curl -H "X-API-Key: your-key" \
   https://gaia-gateway-staging.fly.dev/api/v0.2/chat/stream \
   -d '{"messages": [{"role": "user", "content": "Hello"}]}'
+
+# Test KB search endpoint
+curl -H "X-API-Key: your-key" \
+  https://gaia-gateway-staging.fly.dev/api/v0.2/kb/search \
+  -d '{"query": "search terms", "max_results": 10}'
 ```
 
 ### Automated Testing
@@ -92,7 +106,9 @@ curl -H "X-API-Key: your-key" \
 ## 📊 API Metrics
 
 ### Endpoint Coverage
-- **78+ Total Endpoints** - Complete LLM Platform compatibility
+- **100+ Total Endpoints** - Complete LLM Platform compatibility + KB service
+- **KB Endpoints** - 25+ fully operational (search, CRUD, Git sync, cache)
+- **Chat Endpoints** - Complete with KB-enhanced variants
 - **Provider Endpoints** - 9 implemented (vs 20 documented)
 - **Streaming Endpoints** - 7 implemented (vs 10 documented)
 - **Authentication Endpoints** - Full coverage
