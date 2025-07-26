@@ -191,9 +191,12 @@ class KBToolExecutor:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    # Extract the actual content from the response
-                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    return {"success": True, "content": content}
+                    # KB service returns {status, response, metadata} format
+                    if result.get("status") == "success":
+                        content = result.get("response", "No results found")
+                        return {"success": True, "content": content}
+                    else:
+                        return {"success": False, "error": result.get("response", "Unknown error")}
                 else:
                     return {"success": False, "error": f"HTTP {response.status_code}"}
                     
@@ -214,8 +217,11 @@ class KBToolExecutor:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    return {"success": True, "content": content}
+                    if result.get("status") == "success":
+                        content = result.get("response", "File not found")
+                        return {"success": True, "content": content}
+                    else:
+                        return {"success": False, "error": result.get("response", "Unknown error")}
                 else:
                     return {"success": False, "error": f"HTTP {response.status_code}"}
                     
@@ -236,8 +242,11 @@ class KBToolExecutor:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    return {"success": True, "content": content}
+                    if result.get("status") == "success":
+                        content = result.get("response", "Directory not found")
+                        return {"success": True, "content": content}
+                    else:
+                        return {"success": False, "error": result.get("response", "Unknown error")}
                 else:
                     return {"success": False, "error": f"HTTP {response.status_code}"}
                     
@@ -258,8 +267,11 @@ class KBToolExecutor:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    return {"success": True, "content": content}
+                    if result.get("status") == "success":
+                        content = result.get("response", "Context not found")
+                        return {"success": True, "content": content}
+                    else:
+                        return {"success": False, "error": result.get("response", "Unknown error")}
                 else:
                     return {"success": False, "error": f"HTTP {response.status_code}"}
                     
@@ -284,8 +296,11 @@ class KBToolExecutor:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    return {"success": True, "content": content}
+                    if result.get("status") == "success":
+                        content = result.get("response", "Synthesis failed")
+                        return {"success": True, "content": content}
+                    else:
+                        return {"success": False, "error": result.get("response", "Unknown error")}
                 else:
                     return {"success": False, "error": f"HTTP {response.status_code}"}
                     
@@ -317,8 +332,11 @@ class KBToolExecutor:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    return {"success": True, "content": content, "context_type": context_type}
+                    if result.get("status") == "success":
+                        content = result.get("response", "Context not found")
+                        return {"success": True, "content": content, "context_type": context_type}
+                    else:
+                        return {"success": False, "error": result.get("response", "Unknown error")}
                 else:
                     return {"success": False, "error": f"HTTP {response.status_code}"}
                     

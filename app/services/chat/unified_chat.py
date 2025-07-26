@@ -135,6 +135,8 @@ class UnifiedChatHandler:
         start_time = time.time()
         request_id = f"chat-{uuid.uuid4()}"
         
+        print(f"DEBUG: Starting unified chat process for message: {message[:50]}...")
+        
         # Update metrics
         self._routing_metrics["total_requests"] += 1
         
@@ -175,12 +177,17 @@ class UnifiedChatHandler:
             # Check if LLM made tool calls
             if routing_response.get("tool_calls"):
                 tool_calls = routing_response["tool_calls"]
+                print(f"DEBUG: Found {len(tool_calls)} total tool calls")
+                print(f"DEBUG: Tool call names: {[tc['function']['name'] for tc in tool_calls]}")
                 
                 # Check if any KB tools were called
                 kb_tool_names = {tool["function"]["name"] for tool in KB_TOOLS}
                 kb_calls = [tc for tc in tool_calls if tc["function"]["name"] in kb_tool_names]
+                print(f"DEBUG: KB tool names available: {list(kb_tool_names)}")
+                print(f"DEBUG: KB calls found: {len(kb_calls)}")
                 
                 if kb_calls:
+                    print(f"DEBUG: Found {len(kb_calls)} KB tool calls")
                     # Handle KB tool calls directly
                     kb_executor = KBToolExecutor(auth)
                     tool_results = []
@@ -204,20 +211,47 @@ class UnifiedChatHandler:
                     # For Anthropic, tool results are included as user messages
                     tool_result_content = "\n\nTool Results:\n"
                     for result in tool_results:
-                        tool_result_content += f"\n{result['tool']}:\n{json.dumps(result['result'], indent=2)}\n"
+                        try:
+                            json_result = json.dumps(result['result'], indent=2)
+                        except Exception as e:
+                            print(f"DEBUG: JSON serialization failed: {e}")
+                            json_result = repr(result['result'])
+                        
+                        formatted_result = f"\n{result['tool']}:\n{json_result}\n"
+                        print(f"DEBUG: Adding formatted result: {formatted_result[:200]}...")
+                        tool_result_content += formatted_result
+                    
+                    print(f"DEBUG: Tool results for final LLM call: {len(tool_results)} results")
+                    print(f"DEBUG: Individual tool results: {tool_results}")
+                    print(f"DEBUG: Tool result content: {tool_result_content[:500]}...")
                     
                     messages.append({
                         "role": "user",
                         "content": tool_result_content
                     })
                     
+                    print(f"DEBUG: Final messages for LLM: {len(messages)} messages")
+                    
                     # Get final response from LLM with tool results
-                    final_response = await chat_service.chat_completion(
-                        messages=messages,
-                        temperature=0.7,
-                        max_tokens=4096,
-                        request_id=f"{request_id}-final"
-                    )
+                    try:
+                        final_response = await chat_service.chat_completion(
+                            messages=messages,
+                            temperature=0.7,
+                            max_tokens=4096,
+                            request_id=f"{request_id}-final"
+                        )
+                        
+                        logger.info(f"Final response from LLM: {final_response}")
+                        logger.info(f"Final response choices: {final_response.get('choices', [])}")
+                    except Exception as e:
+                        logger.error(f"Error in final LLM call: {e}")
+                        # Return tool results directly if LLM call fails
+                        content = tool_result_content
+                        final_response = {
+                            "choices": [{"message": {"content": content}}],
+                            "model": "fallback",
+                            "usage": {"input_tokens": 0, "output_tokens": len(content) // 4}
+                        }
                     
                     return {
                         "id": request_id,
