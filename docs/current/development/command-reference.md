@@ -246,50 +246,6 @@ When you encounter a new command version issue:
 3. Include detection method if applicable
 4. Add any platform-specific notes
 
-## 📚 KB Git Sync Commands
-
-### Setup Commands
-```bash
-# ✅ CORRECT: Setup Aeonia Obsidian vault sync
-./scripts/setup-aeonia-kb.sh
-
-# ✅ CORRECT: Setup any Git repository sync
-./scripts/setup-kb-git-repo.sh
-
-# ✅ CORRECT: Test KB Git sync functionality
-./scripts/test-kb-git-sync.sh
-```
-
-### Manual Sync Commands
-```bash
-# ✅ CORRECT: Sync from Git repository (fetch latest)
-curl -X POST -H "X-API-Key: $API_KEY" http://kb-service:8000/sync/from-git
-
-# ✅ CORRECT: Check sync status
-curl -H "X-API-Key: $API_KEY" http://kb-service:8000/sync/status
-
-# ✅ CORRECT: Sync to Git repository (push changes)
-curl -X POST -H "X-API-Key: $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"commit_message": "Update from KB service"}' \
-  http://kb-service:8000/sync/to-git
-
-# ❌ WRONG: Direct curl without proper headers
-curl http://kb-service:8000/sync/status  # Missing API key
-```
-
-### KB Storage Mode Commands
-```bash
-# ✅ CORRECT: Apply KB database migration
-docker compose exec db psql -U postgres -d llm_platform < migrations/003_create_kb_tables.sql
-
-# ✅ CORRECT: Restart KB service
-docker compose restart kb-service
-
-# ❌ WRONG: Using deprecated docker-compose
-docker-compose restart kb-service  # Use 'docker compose' (space)
-```
-
 ## 🎯 Quick Reference Card
 
 ```bash

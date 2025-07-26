@@ -1,31 +1,47 @@
-# Gaia Platform Documentation
+# 🏠 Gaia Platform Documentation
 
 Welcome to the Gaia Platform documentation! This directory contains comprehensive guides for understanding, deploying, and scaling the Gaia microservices architecture.
 
-## 📚 Documentation Index
+## 🚦 Quick Start by Role
 
-### 🏗️ **Architecture & Design**
-- **[Architecture Overview](architecture-overview.md)** - Comprehensive platform architecture with diagrams, service responsibilities, and data flow
-- **[Architecture Recent Updates](architecture-recent-updates.md)** - Latest architectural improvements and changes
-- **[Architecture Decision Records (ADRs)](adr/)** - Key architectural decisions and their rationale
-- **[Scaling Architecture](scaling-architecture.md)** - Comprehensive guide to microservices scaling advantages, cost optimization, and performance improvements over monolithic architecture
-- **[MMOIRL Cluster Architecture](mmoirl-cluster-architecture.md)** - Cluster-per-game deployment strategy for MMOIRL games (RECOMMENDED)
-- **[Multi-Tenancy Migration Guide](multitenancy-migration-guide.md)** - Future migration path when you have 50+ games
+### 👩‍💻 **For Developers** → [`current/development/`](current/development/)
+Get started with local development, testing, and command reference.
 
-### 🚀 **Getting Started** 
-- **[CLAUDE.md](../CLAUDE.md)** - Main development guide with setup instructions, service overview, and development commands
-- **[Implementation Status](implementation-status.md)** - Current feature status and MMOIRL capabilities
-- **[IMPLEMENTATION_STATUS.md](../IMPLEMENTATION_STATUS.md)** - Main project status with performance metrics
+### 🚀 **For DevOps** → [`current/deployment/`](current/deployment/)  
+Deploy to production with Fly.io, database setup, and smart scripts.
 
-### 🔧 **Operations & Deployment**
-- **[Deployment Pipeline](deployment-pipeline.md)** - Complete dev→staging→production workflow
-- **[Smart Testing](../scripts/test.sh)** - Environment-aware testing with 80+ endpoint tests
-- **[Smart Deployment](../scripts/deploy.sh)** - Intelligent deployment with cloud best practices
-- **[Platform Management](../scripts/manage.sh)** - Comprehensive platform operations and monitoring
-- **[Production Guide](production-deployment.md)** - Step-by-step production deployment
-- **[Docker Compose](../docker-compose.yml)** - Service orchestration and local development setup
+### 🏗️ **For Architects** → [`current/architecture/`](current/architecture/)
+Understand the microservices architecture, scaling patterns, and database design.
 
-## 🎯 Quick Navigation
+### 🔮 **For Roadmap** → [`future/roadmap/`](future/roadmap/)
+See what's coming next and current development status.
+
+## 📋 Complete Documentation Map
+
+```
+docs/
+├── 🟢 current/          ← IMPLEMENTED & WORKING (main branch)
+│   ├── architecture/    ← Microservices design & scaling
+│   ├── authentication/ ← API keys, JWTs, mTLS setup
+│   ├── deployment/      ← Production deployment guides
+│   ├── development/     ← Local dev, testing, commands
+│   ├── web-ui/          ← FastHTML frontend guides
+│   └── troubleshooting/ ← Fix common issues
+├── 🟡 future/           ← PLANNED & IN-DEVELOPMENT  
+│   ├── roadmap/         ← Feature timeline & status
+│   └── research/        ← Experimental features
+├── 📚 api/              ← API REFERENCE & CONTRACTS
+└── 🗄️ archive/          ← HISTORICAL & DEPRECATED
+    ├── phase-reports/   ← Implementation phases
+    └── deprecated/      ← Outdated documentation
+```
+
+## 🎯 **Implementation Status Legend**
+- 🟢 **CURRENT** - Fully implemented and tested (main branch)
+- 🟡 **FUTURE** - Planned, in-development, or branch-specific
+- 🔴 **ARCHIVE** - Historical, deprecated, or lessons learned
+
+## 🚀 Quick Commands
 
 ### For Developers
 ```bash
@@ -38,44 +54,33 @@ docker compose up
 ./scripts/test.sh --staging health     # Test staging deployment
 ./scripts/test.sh --prod all           # Full production tests
 
-# Platform management
-./scripts/manage.sh status             # Environment overview
-./scripts/manage.sh deploy-and-test staging
-
 # See main development guide
-cat CLAUDE.md
+cat ../CLAUDE.md
 ```
 
 ### For DevOps/SRE
 ```bash
 # Complete deployment pipeline
-cat docs/deployment-pipeline.md
+cat current/deployment/deployment-best-practices.md
 
-# Environment-specific deployments (all use full microservices)
+# Environment-specific deployments
 ./scripts/deploy.sh --env dev --services all         # Dev: Full microservices
 ./scripts/deploy.sh --env staging --services all     # Staging: Full microservices
 ./scripts/deploy.sh --env production --services all  # Production: Full microservices
 
-# Pipeline monitoring
-./scripts/manage.sh status                # All environments overview
-./scripts/manage.sh monitor production    # Real-time monitoring
-./scripts/manage.sh rollback staging      # Emergency rollback
-
-# Scaling documentation
-cat docs/scaling-architecture.md
-
-# Kubernetes examples included with:
-# - Horizontal Pod Autoscaling (HPA)
-# - Vertical Pod Autoscaling (VPA)  
-# - Service mesh configuration
-# - Monitoring & alerting
+# Platform management
+./scripts/manage.sh status             # Environment overview
+./scripts/manage.sh monitor production # Real-time monitoring
 ```
 
-### For Product Teams
-- **Performance**: 10x traffic handling, 400ms response times
-- **Cost**: 50% reduction through intelligent scaling
-- **Reliability**: 99.9% uptime with fault isolation
-- **Scale**: Independent service scaling per workload
+## 🎉 Key Achievements
+
+- **78+ Endpoints** implemented with full LLM Platform compatibility
+- **100% Backward Compatibility** - all existing clients work unchanged
+- **Microservices Architecture** with independent scaling and fault isolation
+- **Smart Operations** - Environment-aware testing, deployment, and management
+- **Production Deployed** - Live staging environment on Fly.io
+- **Comprehensive Testing** - 80+ endpoint tests with intelligent failure handling
 
 ## 📊 Architecture Overview
 
@@ -85,39 +90,18 @@ Gaia Platform Microservices
 ├─ Auth Service - JWT validation via Supabase  
 ├─ Chat Service - LLM interactions & streaming
 ├─ Asset Service - Image/3D generation
-├─ Performance Service - Monitoring & health
+├─ Web Service (8080) - FastHTML frontend
 └─ Shared Infrastructure (PostgreSQL, NATS, Redis)
 ```
 
-## 🎮 MMOIRL Support
-
-- **Cluster-Per-Game Architecture** - Each game gets its own Gaia deployment
-- **MCP-Agent Integration** - Full tool support for real-world interactions
-- **Sub-500ms AI Responses** - Fast enough for real-time gameplay
-- **Flexible Deployment** - Docker Compose → Fly.io → Kubernetes path
-- **No Multi-Tenancy Complexity** - Ship games in weeks, not months
-
-### Quick Start for MMOIRL
-```bash
-# Deploy your first game
-docker compose -f docker-compose.yml up
-# Customize personas and tools in mcp_agent_remote.config.yaml
-# Deploy to Fly.io: fly apps create gaia-zombies-gateway
-```
-
-## 🎉 Key Achievements
-
-- **78+ Endpoints** implemented with full LLM Platform compatibility
-- **100% Backward Compatibility** - all existing clients work unchanged
-- **Microservices Architecture** with independent scaling and fault isolation
-- **Smart Operations** - Environment-aware testing, deployment, and management
-- **Production Deployed** - Live staging environment on Fly.io with co-located database
-- **Comprehensive Testing** - 80+ endpoint tests with intelligent failure handling
-- **MMOIRL Ready** - MCP tools, orchestration, and cluster-per-game architecture
+## 🏗️ **Additional Architecture Resources**
+- **[Architecture Overview](architecture-overview.md)** - Comprehensive platform architecture with diagrams, service responsibilities, and data flow
+- **[Architecture Recent Updates](architecture-recent-updates.md)** - Latest architectural improvements and changes
+- **[Architecture Decision Records (ADRs)](adr/)** - Key architectural decisions and their rationale
 
 ## 🔗 External Resources
 
-- [LLM Platform (Original)](../../llm-platform/) - Reference implementation
+- [Main Development Guide](../CLAUDE.md) - Primary development documentation
 - [Docker Documentation](https://docs.docker.com/)
-- [Kubernetes Documentation](https://kubernetes.io/docs/)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [Fly.io Documentation](https://fly.io/docs/)

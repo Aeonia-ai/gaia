@@ -41,35 +41,7 @@
 - **Testing**: Comprehensive unit tests and automated test scripts
 - **Session Management**: Secure JWT token storage
 
-### KB (Knowledge Base) Service - OPERATIONAL 📚
-- **Git Repository Integration**: Automatic sync with GitHub/GitLab/Bitbucket repositories
-- **Aeonia Obsidian Vault**: Successfully integrated 1000+ file knowledge base
-- **Container-Only Storage**: Local Docker matches production behavior exactly
-- **Storage Modes**: Git, Database, and Hybrid storage backends implemented
-- **MCP Tools**: AI agent access via Model Context Protocol
-- **Authentication**: GitHub Personal Access Token support for private repositories
-- **Performance**: PostgreSQL 79x faster search (14ms vs 1,116ms)
-- **Git Sync Endpoints**: `/sync/from-git`, `/sync/to-git`, `/sync/status` (ready for hybrid mode)
-- **Docker Integration**: Git installed in container, repository auto-cloned on startup
-
-### RBAC (Role-Based Access Control) System - IN PROGRESS 🔐
-- **Database Schema**: Complete RBAC tables designed and migration created
-- **Core Implementation**: Python RBAC manager with permission checking
-- **Flexible Roles**: Support for system, custom, team, and workspace roles
-- **Permission Caching**: Redis integration for performance
-- **KB Integration**: Multi-user KB with namespace isolation designed
-- **FastAPI Integration**: Decorators for automatic permission checking (pending)
-- **Default Roles**: Admin, developer, user, viewer + KB-specific roles
-
 ## 🔧 Next Priority Systems
-
-### 1. Complete RBAC Implementation (Started)
-- [ ] Apply RBAC database migration to all environments
-- [ ] Implement FastAPI permission decorators
-- [ ] Add user namespace isolation to KB
-- [ ] Create team/workspace management endpoints
-- [ ] Add sharing functionality to KB
-- [ ] Create permission management UI
 
 ### 1. Asset Pricing System (18 endpoints) - HIGH PRIORITY
 - Revenue and cost management functionality

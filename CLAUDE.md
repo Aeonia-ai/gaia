@@ -223,49 +223,71 @@ primary_region = "lax"
 
 ## 📚 Essential Documentation Index
 
+**🏠 [Complete Documentation](docs/README.md)** - Organized by role (Developer, DevOps, Architect)
+
 **IMPORTANT**: Always consult these guides BEFORE making changes to avoid common pitfalls.
 
-### Configuration & Deployment
+### 🟢 Current Implementation (What Works Now)
+
+#### Authentication & Security
+- [Authentication Guide](docs/current/authentication/authentication-guide.md) - **UPDATED** - Complete dual auth (API keys + JWTs + mTLS)
+- [API Key Configuration](docs/current/authentication/api-key-configuration-guide.md) - **UPDATED** - Unified authentication patterns  
+- [mTLS Certificates](docs/current/authentication/mtls-certificate-management.md) - Certificate infrastructure guide
+- [Auth Troubleshooting](docs/current/authentication/troubleshooting-api-key-auth.md) - Common auth issues
+
+#### Deployment & Operations  
+- [Deployment Best Practices](docs/current/deployment/deployment-best-practices.md) - Local-remote parity strategies
+- [Fly.io Configuration](docs/current/deployment/flyio-deployment-config.md) - Platform-specific setup
+- [Smart Scripts](docs/current/deployment/smart-scripts-deployment.md) - Automated deployment tools
+- [Supabase Configuration](docs/current/deployment/supabase-configuration.md) - Email confirmation URLs and auth setup
+
+#### Development & Testing
+- [Command Reference](docs/current/development/command-reference.md) - Correct command syntax
+- [Testing Guide](docs/current/development/testing-and-quality-assurance.md) - Pre-commit hooks and test patterns
+- [Environment Setup](docs/current/development/dev-environment-setup.md) - Local development workflow
+- [Testing Philosophy](docs/testing-philosophy.md) - **IMPORTANT** - Why we use test scripts, not curl
+
+#### Web UI Development
+- [FastHTML Service](docs/current/web-ui/fasthtml-web-service.md) - Web UI architecture
+- [HTMX Debugging](docs/current/web-ui/htmx-fasthtml-debugging-guide.md) - **MANDATORY** read before web changes
+- [Auth Layout Rules](docs/current/web-ui/auth-layout-isolation.md) - **CRITICAL** prevent layout bugs
+
+#### Architecture & Scaling
+- [Microservices Scaling](docs/current/architecture/microservices-scaling.md) - Scaling patterns and strategies
+- [Database Architecture](docs/current/architecture/database-architecture.md) - **IMPORTANT** - Hybrid database + Redis caching
+- [Adding New Microservice](docs/adding-new-microservice.md) - **NEW** - Simplified service creation process
+- [Service Creation Automation](docs/service-creation-automation.md) - **NEW** - Detailed automation guide
+- [PostgreSQL Simplicity Lessons](docs/postgresql-simplicity-lessons.md) - **IMPORTANT** - Avoiding overengineering
+- [Deferred Initialization Pattern](docs/deferred-initialization-pattern.md) - **NEW** - Fast startup with background tasks
+
+#### Troubleshooting & Performance  
+- [Fly.io DNS Issues](docs/current/troubleshooting/troubleshooting-flyio-dns.md) - Internal DNS issues
+- [Mobile Testing](docs/current/troubleshooting/mobile-testing-guide.md) - Testing on mobile devices
+- [Optimization Guide](docs/current/troubleshooting/optimization-guide.md) - Performance improvements
+
+#### KB & Advanced Features
 - [MCP-Agent Hot Loading](docs/mcp-agent-hot-loading.md) - **NEW** - Singleton pattern for 3x faster multiagent responses
 - [Intelligent Chat Routing](docs/intelligent-chat-routing.md) - **NEW** - Single LLM call with automatic routing
-- [Supabase Auth Implementation Guide](docs/supabase-auth-implementation-guide.md) - **NEW** - Complete Supabase authentication setup
 - [KB Git Sync Learnings](docs/kb-git-sync-learnings.md) - **NEW** - Deferred init, volume sizing, deployment patterns
-- [Authentication Guide](docs/authentication-guide.md) - **UPDATED** - Complete dual auth (API keys + JWTs + mTLS)
-- [mTLS Certificate Management](docs/mtls-certificate-management.md) - Certificate infrastructure guide
-- [API Key Configuration Guide](docs/api-key-configuration-guide.md) - **UPDATED** - Unified authentication patterns
-- [RBAC System Guide](docs/rbac-system-guide.md) - Role-based access control implementation
-- [Multi-User KB Guide](docs/multi-user-kb-guide.md) - Teams, workspaces, and sharing
 - [KB Git Sync Guide](docs/kb-git-sync-guide.md) - Complete Git synchronization setup
 - [KB Remote Deployment Authentication](docs/kb-remote-deployment-auth.md) - Git auth for production
 - [KB Deployment Checklist](docs/kb-deployment-checklist.md) - Step-by-step KB deployment to staging/prod
-- [Database Architecture](docs/database-architecture.md) - **IMPORTANT** - Hybrid database + Redis caching
-- [Supabase Configuration Guide](docs/supabase-configuration.md) - Email confirmation URLs and auth setup
-- [Deployment Best Practices](docs/deployment-best-practices.md) - Local-remote parity strategies
-- [Fly.io Deployment Configuration](docs/flyio-deployment-config.md) - Platform-specific setup
-- [Smart Scripts & Deployment](docs/smart-scripts-deployment.md) - Automated deployment tools
+- [RBAC System Guide](docs/rbac-system-guide.md) - Role-based access control implementation
+- [Multi-User KB Guide](docs/multi-user-kb-guide.md) - Teams, workspaces, and sharing
 
-### Troubleshooting Guides
-- [API Key Authentication Troubleshooting](docs/troubleshooting-api-key-auth.md) - Common auth issues
-- [Fly.io DNS Troubleshooting](docs/troubleshooting-flyio-dns.md) - Internal DNS issues
-- [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md) - UI debugging
-- [KB Git Clone Learnings](docs/kb-git-clone-learnings.md) - **NEW** - Volume sizing and clone issues
+#### Authentication Implementation
+- [Supabase Auth Implementation Guide](docs/supabase-auth-implementation-guide.md) - **NEW** - Complete Supabase authentication setup
+- [Authentication Strategy](docs/authentication-strategy.md) - Long-term authentication approach
 
-### Architecture & Development
-- [Adding New Microservice](docs/adding-new-microservice.md) - **NEW** - Simplified service creation process
-- [Service Creation Automation](docs/service-creation-automation.md) - **NEW** - Detailed automation guide
-- [Service Registry Pattern](docs/service-registry-pattern.md) - **NEW** - Centralized service configuration
-- [PostgreSQL Simplicity Lessons](docs/postgresql-simplicity-lessons.md) - **IMPORTANT** - Avoiding overengineering
-- [Deferred Initialization Pattern](docs/deferred-initialization-pattern.md) - **NEW** - Fast startup with background tasks
-- [Microservices Scaling Guide](docs/microservices-scaling.md) - Scaling patterns and strategies
-- [FastHTML Web Service Guide](docs/fasthtml-web-service.md) - Web UI architecture
-- [Command Reference](docs/command-reference.md) - Correct command syntax
-- [Implementation Status](docs/implementation-status.md) - Current progress tracking
-- [Web UI Development Status](docs/web-ui-development-status.md) - Frontend development state
+### 🟡 Future Plans & Roadmap
+- [Implementation Status](docs/future/roadmap/implementation-status.md) - Current progress tracking
+- [Web UI Development Status](docs/future/roadmap/web-ui-development-status.md) - Frontend development state
+- [Feature Roadmap](docs/future/roadmap/feature-roadmap.md) - Complete feature pipeline
 
-### Testing & Performance
-- [Testing Philosophy](docs/testing-philosophy.md) - **IMPORTANT** - Why we use test scripts, not curl
-- [Mobile Testing Guide](docs/mobile-testing-guide.md) - Testing on mobile devices
-- [Optimization Guide](docs/optimization-guide.md) - Performance improvements
+### 📚 API Reference
+- [API Contracts](docs/api/api-contracts.md) - Which endpoints require authentication
+- [Chat Endpoints](docs/api/chat-endpoints.md) - LLM interaction patterns
+- [API Authentication Guide](docs/api/api-authentication-guide.md) - API authentication patterns
 - [Redis Integration](docs/redis-integration.md) - Caching implementation
 
 ## 🏗️ Architecture Guidelines
