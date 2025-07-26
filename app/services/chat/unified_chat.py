@@ -211,18 +211,21 @@ class UnifiedChatHandler:
                     # For Anthropic, tool results are included as user messages
                     tool_result_content = "\n\nTool Results:\n"
                     for result in tool_results:
-                        try:
-                            json_result = json.dumps(result['result'], indent=2)
-                        except Exception as e:
-                            print(f"DEBUG: JSON serialization failed: {e}")
-                            json_result = repr(result['result'])
+                        # Extract just the text content, not the full JSON to avoid formatting issues
+                        if result['result'].get('success') and result['result'].get('content'):
+                            # Clean the content of potential problematic characters
+                            content = result['result']['content'].replace('🔍', '[SEARCH]').replace('**', '')
+                            formatted_result = f"\n{result['tool']}:\n{content}\n"
+                        else:
+                            formatted_result = f"\n{result['tool']}:\nNo results found\n"
                         
-                        formatted_result = f"\n{result['tool']}:\n{json_result}\n"
-                        print(f"DEBUG: Adding formatted result: {formatted_result[:200]}...")
+                        print(f"DEBUG: Formatted result length: {len(formatted_result)}")
                         tool_result_content += formatted_result
+                        print(f"DEBUG: After append, tool_result_content length: {len(tool_result_content)}")
                     
                     print(f"DEBUG: Tool results for final LLM call: {len(tool_results)} results")
                     print(f"DEBUG: Individual tool results: {tool_results}")
+                    print(f"DEBUG: Final tool_result_content length: {len(tool_result_content)}")
                     print(f"DEBUG: Tool result content: {tool_result_content[:500]}...")
                     
                     messages.append({
@@ -233,18 +236,42 @@ class UnifiedChatHandler:
                     print(f"DEBUG: Final messages for LLM: {len(messages)} messages")
                     
                     # Get final response from LLM with tool results
+                    print(f"DEBUG: About to call LLM with {len(messages)} messages")
+                    print(f"DEBUG: Last message content length: {len(messages[-1]['content'])}")
+                    
                     try:
+                        # Don't include tools in final call since we're providing results, not requesting tools
                         final_response = await chat_service.chat_completion(
                             messages=messages,
                             temperature=0.7,
                             max_tokens=4096,
-                            request_id=f"{request_id}-final"
+                            request_id=f"{request_id}-final",
+                            system_prompt="You are a helpful assistant. Please provide a comprehensive response based on the tool results provided."
                         )
                         
-                        logger.info(f"Final response from LLM: {final_response}")
-                        logger.info(f"Final response choices: {final_response.get('choices', [])}")
+                        print(f"DEBUG: LLM response received: {type(final_response)}")
+                        
+                        # Convert LLM service format to OpenAI format if needed
+                        if 'response' in final_response and 'choices' not in final_response:
+                            # LLM service returns direct response, convert to OpenAI format
+                            final_response = {
+                                "choices": [{
+                                    "message": {
+                                        "content": final_response['response']
+                                    }
+                                }],
+                                "model": final_response.get('model', 'unknown'),
+                                "usage": final_response.get('usage', {})
+                            }
+                            print(f"DEBUG: Converted LLM response to OpenAI format")
+                        
+                        print(f"DEBUG: LLM choices length: {len(final_response.get('choices', []))}")
+                        if final_response.get('choices'):
+                            choice_content = final_response['choices'][0].get('message', {}).get('content', '')
+                            print(f"DEBUG: LLM choice content length: {len(choice_content)}")
+                            print(f"DEBUG: LLM choice content preview: {choice_content[:100]}")
                     except Exception as e:
-                        logger.error(f"Error in final LLM call: {e}")
+                        print(f"DEBUG: LLM call failed with error: {e}")
                         # Return tool results directly if LLM call fails
                         content = tool_result_content
                         final_response = {
