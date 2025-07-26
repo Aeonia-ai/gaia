@@ -212,7 +212,7 @@ case "$1" in
         ;;
     "chat")
         message="${2:-Hello, what is 2+2?}"
-        test_endpoint "POST" "/api/v0.2/chat" "{\"message\": \"$message\", \"stream\": false}" "Chat - Non-streaming"
+        test_endpoint "POST" "/api/v1/chat" "{\"message\": \"$message\", \"stream\": false}" "Chat v1 - Unified with KB Tools"
         ;;
     "unified")
         message="${2:-Hello, how are you today?}"

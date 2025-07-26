@@ -1,9 +1,10 @@
 """
 Unified Intelligent Chat Handler
 
-A single endpoint that uses LLM tool-calling to intelligently route requests:
+A single endpoint that uses LLM tool-calling to intelligently handle requests:
 - Direct responses for simple queries (no tools)
-- MCP agent for tool-requiring tasks
+- KB tools for knowledge base operations
+- MCP agent for file/system operations
 - Multi-agent orchestration for complex analysis
 """
 import logging
@@ -19,6 +20,7 @@ from app.services.chat.lightweight_chat_hot import hot_chat_service
 from app.services.llm import LLMProvider
 import httpx
 from app.shared.config import settings
+from .kb_tools import KB_TOOLS, KBToolExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +47,13 @@ class UnifiedChatHandler:
         self.mcp_hot_service = hot_chat_service  # Already initialized at startup
         self.multiagent_orchestrator = None  # TODO: Initialize when available
         
-        # Routing tools definition
+        # Routing tools definition (for services that need routing)
         self.routing_tools = [
             {
                 "type": "function",
                 "function": {
                     "name": "use_mcp_agent",
-                    "description": "Use this ONLY when the user explicitly asks to: read/write specific files, run system commands, search the web, make API calls, or perform system operations. Do NOT use for general questions that can be answered with existing knowledge.",
+                    "description": "Use this ONLY when the user explicitly asks to: read/write files outside KB, run system commands, search the web, make API calls, or perform system operations. Do NOT use for general questions or KB operations.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -61,27 +63,6 @@ class UnifiedChatHandler:
                             }
                         },
                         "required": ["reasoning"]
-                    }
-                }
-            },
-            {
-                "type": "function", 
-                "function": {
-                    "name": "use_kb_service",
-                    "description": "Use this ONLY when the user explicitly mentions searching their KB, knowledge base, personal notes, or asks 'what's in my notes/KB about X'. Do NOT use for general knowledge questions like 'What is the capital of France?'",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "query": {
-                                "type": "string",
-                                "description": "What to search for or access in the KB"
-                            },
-                            "reasoning": {
-                                "type": "string",
-                                "description": "Why KB service is needed"
-                            }
-                        },
-                        "required": ["query", "reasoning"]
                     }
                 }
             },
@@ -154,6 +135,8 @@ class UnifiedChatHandler:
         start_time = time.time()
         request_id = f"chat-{uuid.uuid4()}"
         
+        print(f"DEBUG: Starting unified chat process for message: {message[:50]}...")
+        
         # Update metrics
         self._routing_metrics["total_requests"] += 1
         
@@ -176,10 +159,13 @@ class UnifiedChatHandler:
                 }
             ]
             
-            # Use chat service with routing tools
+            # Combine routing tools with KB tools
+            all_tools = self.routing_tools + KB_TOOLS
+            
+            # Use chat service with all available tools
             routing_response = await chat_service.chat_completion(
                 messages=messages,
-                tools=self.routing_tools,
+                tools=all_tools,
                 tool_choice={"type": "auto"},  # Let LLM decide: direct response or tool use
                 temperature=0.7,
                 max_tokens=4096,
@@ -190,8 +176,127 @@ class UnifiedChatHandler:
             
             # Check if LLM made tool calls
             if routing_response.get("tool_calls"):
-                # LLM decided to use specialized routing
-                tool_call = routing_response["tool_calls"][0]
+                tool_calls = routing_response["tool_calls"]
+                print(f"DEBUG: Found {len(tool_calls)} total tool calls")
+                print(f"DEBUG: Tool call names: {[tc['function']['name'] for tc in tool_calls]}")
+                
+                # Check if any KB tools were called
+                kb_tool_names = {tool["function"]["name"] for tool in KB_TOOLS}
+                kb_calls = [tc for tc in tool_calls if tc["function"]["name"] in kb_tool_names]
+                print(f"DEBUG: KB tool names available: {list(kb_tool_names)}")
+                print(f"DEBUG: KB calls found: {len(kb_calls)}")
+                
+                if kb_calls:
+                    print(f"DEBUG: Found {len(kb_calls)} KB tool calls")
+                    # Handle KB tool calls directly
+                    kb_executor = KBToolExecutor(auth)
+                    tool_results = []
+                    
+                    for tool_call in kb_calls:
+                        tool_name = tool_call["function"]["name"]
+                        tool_args_raw = tool_call["function"].get("arguments", "{}")
+                        if isinstance(tool_args_raw, str):
+                            tool_args = json.loads(tool_args_raw)
+                        else:
+                            tool_args = tool_args_raw
+                        
+                        logger.info(f"[{request_id}] Executing KB tool: {tool_name} with args: {tool_args}")
+                        result = await kb_executor.execute_tool(tool_name, tool_args)
+                        tool_results.append({
+                            "tool": tool_name,
+                            "result": result
+                        })
+                    
+                    # Make another LLM call with the tool results to generate final response
+                    # For Anthropic, tool results are included as user messages
+                    tool_result_content = "\n\nTool Results:\n"
+                    for result in tool_results:
+                        # Extract just the text content, not the full JSON to avoid formatting issues
+                        if result['result'].get('success') and result['result'].get('content'):
+                            # Clean the content of potential problematic characters
+                            content = result['result']['content'].replace('🔍', '[SEARCH]').replace('**', '')
+                            formatted_result = f"\n{result['tool']}:\n{content}\n"
+                        else:
+                            formatted_result = f"\n{result['tool']}:\nNo results found\n"
+                        
+                        print(f"DEBUG: Formatted result length: {len(formatted_result)}")
+                        tool_result_content += formatted_result
+                        print(f"DEBUG: After append, tool_result_content length: {len(tool_result_content)}")
+                    
+                    print(f"DEBUG: Tool results for final LLM call: {len(tool_results)} results")
+                    print(f"DEBUG: Individual tool results: {tool_results}")
+                    print(f"DEBUG: Final tool_result_content length: {len(tool_result_content)}")
+                    print(f"DEBUG: Tool result content: {tool_result_content[:500]}...")
+                    
+                    messages.append({
+                        "role": "user",
+                        "content": tool_result_content
+                    })
+                    
+                    print(f"DEBUG: Final messages for LLM: {len(messages)} messages")
+                    
+                    # Get final response from LLM with tool results
+                    print(f"DEBUG: About to call LLM with {len(messages)} messages")
+                    print(f"DEBUG: Last message content length: {len(messages[-1]['content'])}")
+                    
+                    try:
+                        # Don't include tools in final call since we're providing results, not requesting tools
+                        final_response = await chat_service.chat_completion(
+                            messages=messages,
+                            temperature=0.7,
+                            max_tokens=4096,
+                            request_id=f"{request_id}-final",
+                            system_prompt="You are a helpful assistant. Please provide a comprehensive response based on the tool results provided."
+                        )
+                        
+                        print(f"DEBUG: LLM response received: {type(final_response)}")
+                        
+                        # Convert LLM service format to OpenAI format if needed
+                        if 'response' in final_response and 'choices' not in final_response:
+                            # LLM service returns direct response, convert to OpenAI format
+                            final_response = {
+                                "choices": [{
+                                    "message": {
+                                        "content": final_response['response']
+                                    }
+                                }],
+                                "model": final_response.get('model', 'unknown'),
+                                "usage": final_response.get('usage', {})
+                            }
+                            print(f"DEBUG: Converted LLM response to OpenAI format")
+                        
+                        print(f"DEBUG: LLM choices length: {len(final_response.get('choices', []))}")
+                        if final_response.get('choices'):
+                            choice_content = final_response['choices'][0].get('message', {}).get('content', '')
+                            print(f"DEBUG: LLM choice content length: {len(choice_content)}")
+                            print(f"DEBUG: LLM choice content preview: {choice_content[:100]}")
+                    except Exception as e:
+                        print(f"DEBUG: LLM call failed with error: {e}")
+                        # Return tool results directly if LLM call fails
+                        content = tool_result_content
+                        final_response = {
+                            "choices": [{"message": {"content": content}}],
+                            "model": "fallback",
+                            "usage": {"input_tokens": 0, "output_tokens": len(content) // 4}
+                        }
+                    
+                    return {
+                        "id": request_id,
+                        "object": "chat.completion",
+                        "created": int(time.time()),
+                        "model": final_response.get("model", "unknown"),
+                        "choices": final_response.get("choices", []),
+                        "usage": final_response.get("usage", {}),
+                        "_metadata": {
+                            "route_type": "kb_tools",
+                            "tools_used": [tr["tool"] for tr in tool_results],
+                            "total_time_ms": int((time.time() - start_time) * 1000),
+                            "request_id": request_id
+                        }
+                    }
+                
+                # Handle routing tools (non-KB)
+                tool_call = tool_calls[0]  # For routing, we only use the first
                 tool_name = tool_call["function"]["name"]
                 
                 # Parse tool arguments
@@ -227,42 +332,6 @@ class UnifiedChatHandler:
                         "total_time_ms": int((time.time() - start_time) * 1000),
                         "reasoning": tool_args.get("reasoning"),
                         "request_id": request_id
-                    }
-                    
-                    return result
-                
-                elif tool_name == "use_kb_service":
-                    # Route to KB service
-                    route_type = RouteType.MCP_AGENT  # For now, use MCP agent for KB
-                    self._routing_metrics[route_type] += 1
-                    
-                    query = tool_args.get("query", message)
-                    reasoning = tool_args.get("reasoning", "")
-                    
-                    logger.info(
-                        f"[{request_id}] Routing to KB service - query: {query}, reason: {reasoning}"
-                    )
-                    
-                    # For now, use MCP agent to handle KB queries
-                    # TODO: Implement direct KB service integration
-                    from app.models.chat import ChatRequest
-                    kb_message = f"Search my knowledge base for: {query}"
-                    chat_request = ChatRequest(message=kb_message)
-                    
-                    result = await self.mcp_hot_service.process_chat(
-                        request=chat_request,
-                        auth_principal=auth
-                    )
-                    
-                    # Add routing metadata
-                    result["_metadata"] = {
-                        "route_type": "kb_service",
-                        "routing_time_ms": int(llm_time),  # Time to decide routing
-                        "total_time_ms": int((time.time() - start_time) * 1000),
-                        "query": query,
-                        "reasoning": reasoning,
-                        "request_id": request_id,
-                        "note": "Using MCP agent for KB queries"
                     }
                     
                     return result
@@ -872,19 +941,19 @@ Current context:
 - Conversation: {context.get('conversation_id', 'new')}
 - Message count: {context.get('message_count', 0)}
 
-CRITICAL RULE: You must ONLY use tools when the user EXPLICITLY mentions files, KB, web search, or asset generation.
+Knowledge Base (KB) tools are available for when users reference their personal knowledge or work context.
 
-Examples of DIRECT responses (NO tools):
-- "What is 2+2?" → Answer: "4" (direct response)
-- "What's the capital of France?" → Answer: "Paris" (direct response)
-- "Explain quantum computing" → Provide explanation (direct response)
-- "Hello!" → Respond with greeting (direct response)
+Use KB tools naturally when users indicate they want:
+- Personal knowledge: "what do I know about X", "find my notes on Y" → search_knowledge_base
+- Work continuity: "continue where we left off", "what was I working on" → load_kos_context  
+- Thread management: "show active threads", "load project context" → load_kos_context
+- Cross-domain synthesis: "how does X relate to Y", "connect A with B" → synthesize_kb_information
 
-Examples requiring TOOLS:
-- "What files are in /src?" → use_mcp_agent (file operation)
-- "Search my KB for Python" → use_kb_service (explicit KB mention)
-- "Generate an image of a cat" → use_asset_service (explicit generation)
-- "Search the web for news" → use_mcp_agent (explicit web search)
+Direct responses (NO tools needed) for general queries:
+- General knowledge: "What's the capital of France?" → "Paris"
+- Math: "What is 2+2?" → "4"
+- Explanations: "How does photosynthesis work?" → Direct explanation
+- Opinions: "What do you think about AI?" → Direct discussion
 
 Respond DIRECTLY (without tools) for:
 - Greetings and casual conversation ("Hello", "How are you?", "Thank you")
@@ -899,8 +968,7 @@ Respond DIRECTLY (without tools) for:
 Use tools ONLY when the user explicitly asks for:
 - File system operations: "read file X", "create file Y", "list files in directory Z", "what files are in..."
   → use_mcp_agent
-- Knowledge base searches: "search my KB for...", "what's in my notes about...", "find in my knowledge base..."
-  → use_kb_service
+- Knowledge base operations are handled directly with KB tools (search_knowledge_base, read_kb_file, etc.)
 - Asset generation: "generate an image of...", "create a 3D model of...", "make audio of..."
   → use_asset_service
 - Web searches: "search the web for...", "find online information about...", "what's the latest news on..."
