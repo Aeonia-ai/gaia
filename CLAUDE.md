@@ -2,6 +2,31 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🔥 Local Development with Hot Reloading
+
+**All Docker services are configured with `--reload` for fast local development!**
+
+✅ **Code changes take effect immediately** - No rebuilding or restarting containers required  
+✅ **Volume mounts**: `./app:/app/app` enables live code reloading  
+✅ **Services with hot reload**: auth, chat, gateway, asset, kb, web  
+
+**Development Workflow:**
+1. Make code changes in your editor
+2. Changes are automatically detected and services reload
+3. Test immediately - no Docker restart needed
+
+**Only restart containers when:**
+- Adding new dependencies to requirements.txt
+- Changing Dockerfile configuration  
+- Modifying docker-compose.yml settings
+- Environment variable changes requiring container restart
+
+**Quick Test After Changes:**
+```bash
+./scripts/test.sh --local health  # Verify all services healthy
+./scripts/test.sh --local chat "test message"  # Test functionality
+```
+
 ## 🚨 BEFORE YOU START: Required Reading
 1. **[Testing and Quality Assurance Guide](docs/testing-and-quality-assurance.md)** - Set up pre-commit hooks and run tests before making changes
 2. **[API Contracts Documentation](docs/api-contracts.md)** - Understand which endpoints must remain public
@@ -261,6 +286,11 @@ primary_region = "lax"
 - [Command Reference](docs/command-reference.md) - Correct command syntax
 - [Implementation Status](docs/implementation-status.md) - Current progress tracking
 - [Web UI Development Status](docs/web-ui-development-status.md) - Frontend development state
+
+### Knowledge Base & KOS Architecture
+- [KOS Integration with Unified Chat](/Users/jasbahr/Development/Aeonia/Vaults/KB/users/jason@aeonia.ai/gaia/specs/kos-integration-unified-chat.md) - **FOUNDATIONAL** - Complete KOS vision and implementation patterns
+- [KB as Universal Data Store](/Users/jasbahr/Development/Aeonia/Vaults/KB/users/jason@aeonia.ai/gaia/specs/kb-universal-data-store.md) - **ARCHITECTURAL** - KB as unified ecosystem for all content domains
+- [Jason's KOS Workflows](/Users/jasbahr/Development/Aeonia/Vaults/KB/users/jason@aeonia.ai/kos/use-cases/jason-specific-workflows.md) - **PRACTICAL** - Real-world usage patterns and natural command structures
 
 ### Testing & Performance
 - [Testing Philosophy](docs/testing-philosophy.md) - **IMPORTANT** - Why we use test scripts, not curl

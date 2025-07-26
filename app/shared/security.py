@@ -25,12 +25,13 @@ class AuthenticationResult:
     """Standard authentication result across all services."""
     
     def __init__(self, auth_type: str, user_id: Optional[str] = None, api_key: Optional[str] = None, 
-                 api_key_id: Optional[str] = None, scopes: Optional[list] = None):
+                 api_key_id: Optional[str] = None, scopes: Optional[list] = None, email: Optional[str] = None):
         self.auth_type = auth_type  # "jwt", "api_key", or "user_api_key"
         self.user_id = user_id
         self.api_key = api_key
         self.api_key_id = api_key_id  # For user-associated API keys
         self.scopes = scopes or []
+        self.email = email  # User email address for KB path mapping
         self.authenticated_at = datetime.now()
     
     def to_dict(self) -> Dict[str, Any]:
@@ -40,6 +41,7 @@ class AuthenticationResult:
             "api_key": self.api_key,
             "api_key_id": self.api_key_id,
             "scopes": self.scopes,
+            "email": self.email,
             "authenticated_at": self.authenticated_at.isoformat()
         }
     
@@ -80,7 +82,8 @@ async def validate_user_api_key(api_key: str, db: Session) -> Optional[Authentic
                         user_id=cached_result["user_id"],
                         api_key=api_key,
                         api_key_id=cached_result["api_key_id"],
-                        scopes=cached_result.get("scopes", [])
+                        scopes=cached_result.get("scopes", []),
+                        email=cached_result.get("email")
                     )
             except Exception as e:
                 logger.warning(f"API key cache lookup failed: {e}")
@@ -88,9 +91,10 @@ async def validate_user_api_key(api_key: str, db: Session) -> Optional[Authentic
         # Look up the API key in the database using raw SQL for compatibility
         result = db.execute(
             text("""
-                SELECT id, user_id, permissions, is_active, expires_at, last_used_at
-                FROM api_keys
-                WHERE key_hash = :key_hash AND is_active = true
+                SELECT ak.id, ak.user_id, ak.permissions, ak.is_active, ak.expires_at, ak.last_used_at, u.email
+                FROM api_keys ak
+                JOIN users u ON ak.user_id = u.id
+                WHERE ak.key_hash = :key_hash AND ak.is_active = true
             """),
             {"key_hash": key_hash}
         ).fetchone()
@@ -115,7 +119,8 @@ async def validate_user_api_key(api_key: str, db: Session) -> Optional[Authentic
             user_id=str(result.user_id),
             api_key=api_key,
             api_key_id=str(result.id),
-            scopes=result.permissions or []
+            scopes=result.permissions or [],
+            email=result.email
         )
         
         # Cache successful validation for 10 minutes
@@ -124,7 +129,8 @@ async def validate_user_api_key(api_key: str, db: Session) -> Optional[Authentic
                 cache_data = {
                     "user_id": str(result.user_id),
                     "api_key_id": str(result.id),
-                    "scopes": result.permissions or []
+                    "scopes": result.permissions or [],
+                    "email": result.email
                 }
                 redis_client.set_json(cache_key, cache_data, ex=600)  # 10 minutes
                 logger.debug("User API key validation cached")
@@ -234,14 +240,14 @@ async def get_current_auth(
             auth_backend = os.getenv("AUTH_BACKEND", "postgres")
             
             if auth_backend == "supabase" or os.getenv("SUPABASE_AUTH_ENABLED", "false").lower() == "true":
-                # Use Supabase exclusively when configured
-                logger.debug("Validating API key in Supabase")
+                # Use Supabase exclusively when configured - no PostgreSQL fallback
+                logger.debug("Validating API key in Supabase (exclusive mode)")
                 try:
                     from app.shared.supabase_auth import validate_api_key_supabase
                     supabase_result = await validate_api_key_supabase(api_key_header)
                     
                     if supabase_result:
-                        logger.debug(f"Authenticated via Supabase API key for user: {supabase_result.user_id}")
+                        logger.debug(f"Authenticated via Supabase API key for user: {supabase_result.user_id}, email: {supabase_result.email}")
                         return supabase_result
                     else:
                         logger.warning("Invalid API Key provided - not found in Supabase")
@@ -258,7 +264,7 @@ async def get_current_auth(
                         detail="Authentication service error"
                     )
             else:
-                # Use PostgreSQL when Supabase is not configured
+                # Use PostgreSQL only when Supabase is explicitly disabled
                 from app.shared.database import get_database_session
                 db_gen = get_database_session()
                 db = next(db_gen)
@@ -438,9 +444,14 @@ async def get_current_auth_legacy(
         auth_result = await get_current_auth(request, credentials, api_key_header)
         
         if auth_result.auth_type == "jwt":
-            return {"auth_type": "jwt", "user_id": auth_result.user_id}
+            return {"auth_type": "jwt", "user_id": auth_result.user_id, "email": auth_result.email}
         elif auth_result.auth_type == "user_api_key":
-            return {"auth_type": "user_api_key", "user_id": auth_result.user_id, "key": auth_result.api_key}
+            return {
+                "auth_type": "user_api_key", 
+                "user_id": auth_result.user_id, 
+                "key": auth_result.api_key,
+                "email": auth_result.email
+            }
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
