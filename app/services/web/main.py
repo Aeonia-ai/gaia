@@ -25,8 +25,8 @@ app = FastHTML(
         Meta(charset="UTF-8"),
         Meta(name="viewport", content="width=device-width, initial-scale=1.0"),
         # FastHTML automatically includes HTMX, don't duplicate
-        # HTMX SSE extension for streaming chat
-        Script(src="https://unpkg.com/htmx.org@1.9.10/dist/ext/sse.js"),
+        # Add HTMX 2.x compatible SSE extension (Perplexity research confirmed this is correct)
+        Script(src="https://extensions.htmx.org/ext/sse.js"),
         Script(src="https://cdn.tailwindcss.com"),
         Link(rel="stylesheet", href="/static/animations.css"),
         Link(rel="icon", href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🦋%3C/text%3E%3C/svg%3E"),

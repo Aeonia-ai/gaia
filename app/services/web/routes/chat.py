@@ -18,6 +18,28 @@ logger = setup_service_logger("chat_routes")
 def setup_routes(app):
     """Setup chat routes"""
     
+    @app.get("/api/chat/sse-test")
+    async def sse_test_endpoint(request):
+        """Simple SSE test endpoint for debugging HTMX SSE extension"""
+        from starlette.responses import StreamingResponse
+        import asyncio
+        
+        async def generate_test_events():
+            for i in range(5):
+                yield f"data: Test message {i+1} from SSE extension\n\n"
+                await asyncio.sleep(1)
+            yield f"data: [DONE]\n\n"
+        
+        return StreamingResponse(
+            generate_test_events(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+    
     @app.get("/chat")
     async def chat_index(request):
         """Main chat interface"""
@@ -80,6 +102,15 @@ def setup_routes(app):
             
             // Check if HTMX is loaded
             console.log('[HTMX] Loaded:', typeof htmx);
+            
+            // Check if SSE extension is loaded
+            setTimeout(() => {
+                if (htmx.ext && htmx.ext.sse) {
+                    console.log('[SSE] Extension loaded successfully');
+                } else {
+                    console.warn('[SSE] Extension not loaded - available extensions:', Object.keys(htmx.ext || {}));
+                }
+            }, 1000);
             
             // Search functionality
             const searchInput = document.getElementById('search-input');
