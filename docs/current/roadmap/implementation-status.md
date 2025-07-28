@@ -41,6 +41,27 @@
 - **Testing**: Comprehensive unit tests and automated test scripts
 - **Session Management**: Secure JWT token storage
 
+### KB (Knowledge Base) Service - FULLY OPERATIONAL 📚
+- **HTTP-Based Architecture**: Standalone KB service with REST API endpoints
+- **6 KB Tools for LLM**: Direct HTTP integration via kb_tools.py
+- **Unified Chat Integration**: KB tools available in single chat endpoint
+- **Git Repository Integration**: Automatic sync with GitHub/GitLab/Bitbucket repositories
+- **Aeonia Obsidian Vault**: Successfully integrated 1000+ file knowledge base
+- **Container-Only Storage**: Local Docker matches production behavior exactly
+- **Storage Modes**: Git, Database, and Hybrid storage backends implemented
+- **Authentication**: Standard HTTP API key authentication via X-API-Key headers
+- **Performance**: HTTP-based with ~100-300ms response times for search operations
+- **Standardized Responses**: Consistent {status, response, metadata} format across all endpoints
+- **Production Ready**: Separate service architecture, horizontally scalable
+
+### RBAC (Role-Based Access Control) System - IN PROGRESS 🔐
+- **Database Schema**: Complete RBAC tables designed and migration created
+- **Core Implementation**: Python RBAC manager with permission checking
+- **Flexible Roles**: Support for system, custom, team, and workspace roles
+- **Permission Caching**: Redis integration for performance
+- **KB Integration**: Multi-user KB with namespace isolation designed
+- **FastAPI Integration**: Decorators for automatic permission checking (pending)
+- **Default Roles**: Admin, developer, user, viewer + KB-specific roles
 ## 🔧 Next Priority Systems
 
 ### 1. Asset Pricing System (18 endpoints) - HIGH PRIORITY
