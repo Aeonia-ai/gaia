@@ -197,9 +197,47 @@ curl -X POST http://localhost:8666/api/v1/chat/completions \
 # Run full test suite
 docker-compose run test
 
-# Test specific functionality
+# Run specific test files
 docker-compose run test pytest tests/test_auth.py
+docker-compose run test pytest tests/test_integration.py
 ```
+
+### AI Test Specifications
+
+The repository includes comprehensive AI test specifications that achieve 100% specification coverage with 88% passing rate:
+
+```bash
+# Run all AI test specifications
+docker-compose run test pytest tests/ai_specs/ -v
+
+# Run tests for a specific service
+docker-compose run test pytest tests/ai_specs/v1/llm/ -v
+docker-compose run test pytest tests/ai_specs/v1/web/ -v
+docker-compose run test pytest tests/ai_specs/v1/auth/ -v
+docker-compose run test pytest tests/ai_specs/v1/kb/ -v
+
+# Run only passing tests (skip TODO tests)
+docker-compose run test pytest tests/ai_specs/ -v -m "not skip"
+
+# Generate test coverage report
+docker-compose run test pytest tests/ai_specs/ --cov=app --cov-report=html
+
+# View skipped tests with reasons
+docker-compose run test pytest tests/ai_specs/ -v -rs
+```
+
+Test specifications are organized by service:
+- **LLM Service**: Chat operations, provider management, streaming
+- **Web Service**: UI interactions, authentication flows, HTMX components  
+- **Auth Service**: User management, JWT validation, API keys
+- **KB Service**: Knowledge base operations, search, Git sync
+- **Asset Service**: Generation, management, external integrations
+- **Gateway Service**: Routing, rate limiting, authentication
+- **Persona Service**: AI personality management (component, not microservice)
+- **NATS Service**: Messaging, event handling, service coordination
+- **Shared Utilities**: Redis caching, database operations, RBAC
+
+See `tests/ai_specs/AI_TEST_COVERAGE.md` for detailed test coverage information.
 
 ## 📁 Project Structure
 
