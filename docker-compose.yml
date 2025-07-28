@@ -102,8 +102,6 @@ services:
     volumes:
       - ./app:/app/app
       - mcp_data:/app/data/kb
-      # Mount Knowledge Base for KB-enhanced multiagent capabilities
-      - ${KB_PATH:-/Users/jasonasbahr/Development/Aeonia/Vaults/KB}:/kb:ro
       - ./certs:/app/certs:ro
     env_file:
       - .env
@@ -112,10 +110,6 @@ services:
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       - MCP_FILESYSTEM_ROOT=/app/data
-      # KB configuration
-      - KB_PATH=/kb
-      - KB_MCP_ENABLED=true
-      - KB_MODE=local
       - TLS_CERT_PATH=/app/certs/chat-service/cert.pem
       - TLS_KEY_PATH=/app/certs/chat-service/key.pem
       - TLS_CA_PATH=/app/certs/ca.pem

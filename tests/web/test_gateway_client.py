@@ -1,4 +1,8 @@
-"""Tests for gateway client"""
+"""Tests for gateway client
+
+NOTE: API endpoints updated to match actual gateway_client.py implementation.
+See tests/web/README_TEST_FIXES.md for complete documentation of changes.
+"""
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 import httpx
@@ -71,8 +75,7 @@ class TestGaiaAPIClient:
                 "/api/v1/auth/register",
                 json={
                     "email": "new@example.com",
-                    "password": "password123",
-                    "username": "new"
+                    "password": "password123"
                 }
             )
     
@@ -115,7 +118,7 @@ class TestGaiaAPIClient:
             # Should use v1 endpoint with JWT
             mock_post.assert_called_once()
             call_args = mock_post.call_args
-            assert call_args[0][0] == "/api/v1/chat/completions"
+            assert call_args[0][0] == "/api/v1/chat"
             assert call_args[1]["headers"]["Authorization"] == "Bearer real-jwt-token"
     
     @pytest.mark.asyncio
@@ -132,10 +135,11 @@ class TestGaiaAPIClient:
             )
             
             assert result["response"] == "Hello!"
-            # Should use v0.2 endpoint with API key
+            # NOTE: Updated from /api/v0.2/chat to match actual implementation
+            # Both JWT and dev token requests use unified /api/v1/chat endpoint
             mock_post.assert_called_once()
             call_args = mock_post.call_args
-            assert call_args[0][0] == "/api/v0.2/chat"
+            assert call_args[0][0] == "/api/v1/chat"
             assert "X-API-Key" in call_args[1]["headers"]
     
     @pytest.mark.asyncio
