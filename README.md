@@ -207,23 +207,27 @@ docker-compose run test pytest tests/test_integration.py
 The repository includes comprehensive AI test specifications that achieve 100% specification coverage with 88% passing rate:
 
 ```bash
+# Build test container (first time or after dependency changes)
+# Note: Initial build may take 2-5 minutes due to Playwright/Chromium installation
+docker compose build test  # See docs/current/development/docker-test-optimization.md for optimization tips
+
 # Run all AI test specifications
-docker-compose run test pytest tests/ai_specs/ -v
+docker compose run test pytest tests/ai_specs/ -v
 
 # Run tests for a specific service
-docker-compose run test pytest tests/ai_specs/v1/llm/ -v
-docker-compose run test pytest tests/ai_specs/v1/web/ -v
-docker-compose run test pytest tests/ai_specs/v1/auth/ -v
-docker-compose run test pytest tests/ai_specs/v1/kb/ -v
+docker compose run test pytest tests/ai_specs/v1/llm/ -v
+docker compose run test pytest tests/ai_specs/v1/web/ -v
+docker compose run test pytest tests/ai_specs/v1/auth/ -v
+docker compose run test pytest tests/ai_specs/v1/kb/ -v
 
 # Run only passing tests (skip TODO tests)
-docker-compose run test pytest tests/ai_specs/ -v -m "not skip"
+docker compose run test pytest tests/ai_specs/ -v -m "not skip"
 
 # Generate test coverage report
-docker-compose run test pytest tests/ai_specs/ --cov=app --cov-report=html
+docker compose run test pytest tests/ai_specs/ --cov=app --cov-report=html
 
 # View skipped tests with reasons
-docker-compose run test pytest tests/ai_specs/ -v -rs
+docker compose run test pytest tests/ai_specs/ -v -rs
 ```
 
 Test specifications are organized by service:

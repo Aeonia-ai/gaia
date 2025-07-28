@@ -185,6 +185,7 @@ AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
 - [Testing Guide](docs/current/development/testing-and-quality-assurance.md) - Pre-commit hooks and test patterns
 - [Environment Setup](docs/current/development/dev-environment-setup.md) - Local development workflow
 - [Testing Philosophy](docs/testing-philosophy.md) - **IMPORTANT** - Why we use test scripts, not curl
+- [Docker Test Optimization](docs/current/development/docker-test-optimization.md) - **NEW** - Build caching and timeout handling
 
 #### Web UI Development
 - [FastHTML Service](docs/current/web-ui/fasthtml-web-service.md) - Web UI architecture
