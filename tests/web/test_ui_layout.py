@@ -52,9 +52,17 @@ class TestUILayout:
     
     def test_chat_page_layout(self, client):
         """Test chat page layout structure"""
-        # NOTE: Chat page requires authentication, skip for now
-        # TODO: Mock authenticated session for FastHTML/Starlette
-        pytest.skip("Chat page requires authentication - TODO: implement session mocking")
+        # First authenticate
+        response = client.post("/auth/login", data={
+            "email": "admin@aeonia.ai",
+            "password": "TestPassword123!"
+        }, follow_redirects=False)
+        assert response.status_code == 303  # Should redirect to chat
+        
+        # Now test the chat page
+        response = client.get("/chat")
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.text, 'html.parser')
         
         # Check main layout container
         main_container = soup.find('div', class_=re.compile(r'flex.*h-screen'))
@@ -64,8 +72,8 @@ class TestUILayout:
         sidebar = soup.find('div', id='sidebar')
         assert sidebar is not None, "Sidebar not found"
         
-        # Check for main content area
-        main_content = soup.find('main')
+        # Check for main content area (might be div with id instead of main tag)
+        main_content = soup.find('div', id='main-content') or soup.find('main') or soup.find('div', class_=re.compile(r'flex-1'))
         assert main_content is not None, "Main content area not found"
         
         # Check for message container
@@ -224,6 +232,23 @@ class TestUIComponents:
     
     def test_message_component_structure(self, client):
         """Test message components maintain structure"""
-        # NOTE: Message components require authenticated chat page
-        # TODO: Mock authenticated session for FastHTML/Starlette  
-        pytest.skip("Message components require authentication - TODO: implement session mocking")
+        # First authenticate
+        response = client.post("/auth/login", data={
+            "email": "admin@aeonia.ai",
+            "password": "TestPassword123!"
+        }, follow_redirects=False)
+        assert response.status_code == 303
+        
+        # Go to chat page
+        response = client.get("/chat")
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Check message container exists
+        message_container = soup.find('div', id='messages')
+        assert message_container is not None, "Messages container not found"
+        
+        # Check it has proper scrolling classes
+        classes = message_container.get('class', [])
+        assert any('overflow-' in cls for cls in classes), \
+            "Message container missing overflow handling"

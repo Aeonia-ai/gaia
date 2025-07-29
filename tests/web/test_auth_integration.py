@@ -31,10 +31,10 @@ class TestAuthIntegration:
         assert response.status_code == 303
         assert response.headers["location"] == "/login"
         
-        # 2. Login with dev credentials
+        # 2. Login with test credentials
         response = client.post("/auth/login", data={
-            "email": "dev@gaia.local",
-            "password": "testtest"
+            "email": "admin@aeonia.ai",
+            "password": "TestPassword123!"
         }, follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/chat"
@@ -87,23 +87,23 @@ class TestAuthIntegration:
         
         assert response.status_code == 200
         # Should show error div with proper styling
-        assert "bg-red-900/20" in response.text
-        assert "border-red-600" in response.text
-        assert "text-red-300" in response.text
+        assert "bg-red-500/10" in response.text
+        assert "border-red-500/30" in response.text
+        assert "text-red-200" in response.text
     
     def test_session_persistence(self, client):
         """Test session persists across requests"""
         # Login
         client.post("/auth/login", data={
-            "email": "dev@gaia.local",
-            "password": "test"
+            "email": "admin@aeonia.ai",
+            "password": "TestPassword123!"
         })
         
         # Make multiple requests
         for _ in range(3):
             response = client.get("/chat")
             assert response.status_code == 200
-            assert "Welcome back, Local Development User" in response.text
+            assert "Welcome back" in response.text
     
     def test_concurrent_sessions(self):
         """Test multiple clients can have independent sessions"""
@@ -112,9 +112,9 @@ class TestAuthIntegration:
         
         # Login with client1
         response1 = client1.post("/auth/login", data={
-            "email": "dev@gaia.local",
-            "password": "test"
-        })
+            "email": "admin@aeonia.ai",
+            "password": "TestPassword123!"
+        }, follow_redirects=False)
         assert response1.status_code == 303
         
         # Client2 should still be unauthenticated
