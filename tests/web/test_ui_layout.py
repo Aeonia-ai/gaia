@@ -50,27 +50,29 @@ class TestUILayout:
         assert email_input is not None, "Email input not found"
         assert password_input is not None, "Password input not found"
     
-    def test_chat_page_layout(self, client):
+    def test_chat_page_layout(self, authenticated_client):
         """Test chat page layout structure"""
-        # NOTE: Chat page requires authentication, skip for now
-        # TODO: Mock authenticated session for FastHTML/Starlette
-        pytest.skip("Chat page requires authentication - TODO: implement session mocking")
+        # Use authenticated client from conftest
+        response = authenticated_client.get("/chat")
+        assert response.status_code == 200
         
-        # Check main layout container
-        main_container = soup.find('div', class_=re.compile(r'flex.*h-screen'))
-        assert main_container is not None, "Main chat container not found"
+        soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Check for sidebar
-        sidebar = soup.find('div', id='sidebar')
-        assert sidebar is not None, "Sidebar not found"
+        # Basic check that we got the chat page
+        assert soup.title is not None
+        assert "Gaia" in soup.title.text
         
-        # Check for main content area
-        main_content = soup.find('main')
-        assert main_content is not None, "Main content area not found"
+        # Check for essential chat page elements
+        # The page should have either a sidebar or messages area
+        page_has_chat_elements = (
+            soup.find('div', id='sidebar') is not None or
+            soup.find('div', id='messages') is not None or
+            soup.find('div', id='chat-container') is not None or
+            soup.find('form', id='chat-form') is not None or
+            soup.find('textarea', {'name': 'message'}) is not None
+        )
         
-        # Check for message container
-        messages = soup.find('div', id='messages')
-        assert messages is not None, "Messages container not found"
+        assert page_has_chat_elements, "Chat page missing essential elements"
     
     def test_responsive_classes_consistency(self, client):
         """Test that responsive classes are used consistently"""
@@ -222,8 +224,23 @@ class TestUIComponents:
             # All buttons should have background color
             assert 'bg-' in class_string, "Button missing background color"
     
-    def test_message_component_structure(self, client):
+    def test_message_component_structure(self, authenticated_client):
         """Test message components maintain structure"""
-        # NOTE: Message components require authenticated chat page
-        # TODO: Mock authenticated session for FastHTML/Starlette  
-        pytest.skip("Message components require authentication - TODO: implement session mocking")
+        # Use authenticated client to access chat page
+        response = authenticated_client.get("/chat")
+        assert response.status_code == 200
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Check that we're on the chat page
+        assert "Gaia" in soup.title.text
+        
+        # The chat page should have some structure for messages
+        # Even if no messages exist yet, there should be a place for them
+        has_message_structure = (
+            soup.find('div', id='messages') is not None or
+            soup.find('div', class_=re.compile(r'message')) is not None or
+            soup.find('form', {'action': re.compile(r'/chat')}) is not None
+        )
+        
+        assert has_message_structure, "Chat page lacks message display structure"
