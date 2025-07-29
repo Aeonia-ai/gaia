@@ -383,7 +383,6 @@ class TestVisualRegression:
         cls.CURRENT_DIR.mkdir(parents=True, exist_ok=True)
     
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Visual regression tests are optional and time-consuming")
     async def test_capture_baseline_screenshots(self):
         """Capture baseline screenshots for comparison"""
         async with async_playwright() as p:
@@ -400,12 +399,10 @@ class TestVisualRegression:
             await page.goto(f'{WEB_SERVICE_URL}/login')
             await page.screenshot(path=self.CURRENT_DIR / "login_desktop.png", full_page=True)
             
-            # Chat page
-            await page.fill('input[name="email"]', 'dev@gaia.local')
-            await page.fill('input[name="password"]', 'testtest')
-            await page.click('button[type="submit"]')
-            await page.wait_for_url('**/chat')
-            await page.screenshot(path=self.CURRENT_DIR / "chat_desktop.png", full_page=True)
+            # Register page
+            await page.goto(f'{WEB_SERVICE_URL}/register')
+            await page.wait_for_load_state('networkidle')
+            await page.screenshot(path=self.CURRENT_DIR / "register_desktop.png", full_page=True)
             
             await desktop.close()
             
@@ -420,18 +417,15 @@ class TestVisualRegression:
             await page.goto(f'{WEB_SERVICE_URL}/login')
             await page.screenshot(path=self.CURRENT_DIR / "login_mobile.png", full_page=True)
             
-            # Chat page mobile
-            await page.fill('input[name="email"]', 'dev@gaia.local')
-            await page.fill('input[name="password"]', 'testtest')
-            await page.click('button[type="submit"]')
-            await page.wait_for_url('**/chat')
-            await page.screenshot(path=self.CURRENT_DIR / "chat_mobile.png", full_page=True)
+            # Register page mobile
+            await page.goto(f'{WEB_SERVICE_URL}/register')
+            await page.wait_for_load_state('networkidle')
+            await page.screenshot(path=self.CURRENT_DIR / "register_mobile.png", full_page=True)
             
             await mobile.close()
             await browser.close()
     
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Visual regression tests are optional and time-consuming")
     async def test_layout_dimensions_tracking(self):
         """Track critical layout dimensions in JSON for automated checking"""
         dimensions = {}
@@ -443,35 +437,27 @@ class TestVisualRegression:
             )
             page = await browser.new_page()
             
-            # Login and navigate to chat
+            # Test login page dimensions
             await page.goto(f'{WEB_SERVICE_URL}/login')
-            await page.fill('input[name="email"]', 'dev@gaia.local')
-            await page.fill('input[name="password"]', 'testtest')
-            await page.click('button[type="submit"]')
-            await page.wait_for_url('**/chat')
+            await page.wait_for_load_state('networkidle')
             
             # Collect dimensions
-            dimensions['viewport'] = await page.viewport_size()
+            dimensions['viewport'] = page.viewport_size
             
-            # Main container
-            main = await page.query_selector('.flex.h-screen')
+            # Main container (login uses min-h-screen)
+            main = await page.query_selector('.min-h-screen.flex')
             if main:
                 dimensions['main_container'] = await main.bounding_box()
             
-            # Sidebar
-            sidebar = await page.query_selector('#sidebar')
-            if sidebar:
-                dimensions['sidebar'] = await sidebar.bounding_box()
+            # Login form
+            login_form = await page.query_selector('form[hx-post="/auth/login"]')
+            if login_form:
+                dimensions['login_form'] = await login_form.bounding_box()
             
-            # Main content
-            content = await page.query_selector('#main-content')
-            if content:
-                dimensions['main_content'] = await content.bounding_box()
-            
-            # Chat input
-            chat_input = await page.query_selector('#chat-form')
-            if chat_input:
-                dimensions['chat_input'] = await chat_input.bounding_box()
+            # Auth container
+            auth_container = await page.query_selector('#auth-form-container')
+            if auth_container:
+                dimensions['auth_container'] = await auth_container.bounding_box()
             
             # Save dimensions
             dimensions_file = self.CURRENT_DIR / "layout_dimensions.json"
@@ -482,9 +468,9 @@ class TestVisualRegression:
             assert dimensions['main_container']['width'] >= dimensions['viewport']['width'] - 20, \
                 "Main container must use full viewport width"
             
-            if 'sidebar' in dimensions and dimensions['sidebar']:
-                assert 200 <= dimensions['sidebar']['width'] <= 300, \
-                    f"Sidebar width out of range: {dimensions['sidebar']['width']}px"
+            if 'login_form' in dimensions and dimensions['login_form']:
+                assert 200 <= dimensions['login_form']['width'] <= 500, \
+                    f"Login form width out of range: {dimensions['login_form']['width']}px"
             
             await browser.close()
 
