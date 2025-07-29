@@ -2,15 +2,17 @@
 
 This guide ensures we maintain high code quality and prevent breaking changes, especially for critical authentication flows.
 
-## 🚀 **NEW: Comprehensive Testing Strategy**
+## 🚀 **NEW: Automated Testing Suite**
 
-**🔥 PRIORITY**: We now have complete testing improvement documentation:
+**🔥 PRIORITY**: We now have a complete automated testing implementation:
 
+- **[Automated Testing Guide](automated-testing-guide.md)** - **IMPLEMENTED** - Complete pytest-based test suite with 50+ tests
+- **[Testing Philosophy](testing-philosophy.md)** - **UPDATED** - Automated tests over manual scripts
 - **[Testing Improvement Plan](automated-testing-improvement-plan.md)** - 3-phase comprehensive testing strategy  
 - **[Security Testing Strategy](security-testing-strategy.md)** - OWASP Top 10 compliance, SQL injection prevention
 - **[Service Testing Strategy](comprehensive-service-testing-strategy.md)** - 100% service functionality coverage
 
-These new strategies build upon the foundations described below and provide production-ready testing approaches.
+**Quick Start**: `./scripts/test-automated.py all` - Runs complete automated test suite
 
 ## 🚀 Quick Start
 
@@ -18,9 +20,13 @@ These new strategies build upon the foundations described below and provide prod
 # Set up development environment with all quality checks
 ./scripts/setup-dev-environment.sh
 
-# Run before committing any changes
-pytest tests/web/test_auth_flow.py -v  # Auth contract tests
-pre-commit run --all-files              # All quality checks
+# Run automated tests before committing changes
+./scripts/test-automated.py health      # Quick system health check
+./scripts/test-automated.py auth        # Authentication contract tests
+./scripts/test-automated.py all         # Complete test suite
+
+# Quality checks
+pre-commit run --all-files              # Code formatting and linting
 ```
 
 ## 🛡️ Preventing Breakages

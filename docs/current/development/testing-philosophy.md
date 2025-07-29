@@ -1,95 +1,161 @@
 # Testing Philosophy
 
-## 🎯 Core Principle: Scripts Over Curl
+## 🎯 Core Principle: Automated Tests Over Manual Scripts
 
-**Always use test scripts instead of manual curl commands.** This isn't just about convenience - it's about building institutional knowledge and preventing regression.
+**Always use automated tests instead of manual curl commands or ad-hoc scripts.** This isn't just about convenience - it's about building reliable, repeatable validation that catches regressions and integrates with CI/CD.
 
-## Why Test Scripts?
+## Why Automated Tests?
 
-### 1. **Reproducibility**
+### 1. **Reproducibility & Consistency**
 ```bash
 # ❌ Bad: Manual curl that gets lost in terminal history
 curl -H "X-API-Key: $API_KEY" http://localhost:8666/api/v1/providers
 
-# ✅ Good: Test script that anyone can run
+# ✅ Better: Test script (legacy approach)
 ./scripts/test.sh --local providers
+
+# 🚀 Best: Automated tests with validation
+./scripts/test-automated.py providers
 ```
 
-### 2. **Environment Handling**
-Test scripts automatically:
-- Load environment variables from `.env`
-- Handle different environments (local, staging, prod)
-- Use the correct API keys and URLs
-- Provide consistent authentication
+Automated tests provide:
+- **Identical results** every time (no human interpretation)
+- **Clear pass/fail status** with specific error messages
+- **CI/CD integration** for continuous validation
+- **Regression prevention** through consistent checking
 
-### 3. **Knowledge Capture**
-Each test script captures:
-- The correct endpoint URL
-- Required headers and authentication
-- Expected request format
-- How to interpret responses
-- Common error conditions
+### 2. **Environment Handling**
+Automated tests automatically:
+- Run in **Docker environment** for consistency
+- Use **proper service URLs** (Docker internal networking)
+- Handle **authentication** through standardized fixtures
+- Provide **environment-specific testing** (local, dev, staging, prod)
+
+### 3. **Knowledge Capture & Validation**
+Each automated test captures and validates:
+- **Correct endpoint URLs** and request formats
+- **Required authentication** and headers
+- **Expected response structure** (v0.2 vs v1 formats)
+- **Success and failure scenarios**
+- **Business logic validation** (not just connectivity)
 
 ### 4. **Evolution and Improvement**
 When you discover a new test case:
-1. **Don't just run curl** - Add it to a test script
-2. **Found a bug?** - Add a test that would have caught it
-3. **Fixed an issue?** - Update the test to verify the fix
+1. **Don't just run curl** - Add it to the automated test suite
+2. **Found a bug?** - Write an automated test that would have caught it
+3. **Fixed an issue?** - Update tests to verify the fix permanently
+4. **New feature?** - Add comprehensive test coverage from the start
 
-## Test Script Hierarchy
+## Automated Test Architecture
 
+### Test Runner (New Approach)
+```bash
+./scripts/test-automated.py    # Modern pytest-based test runner
+./scripts/test-automated.py help    # See all available test categories
+```
+
+### Test Files (pytest-based)
+```
+tests/
+├── test_working_endpoints.py           # Core functionality (11 tests)
+├── test_api_endpoints_comprehensive.py # Full coverage (9 tests)
+├── test_v02_chat_api.py                # v0.2 API detailed (14 tests)
+├── test_provider_model_endpoints.py    # Provider/model (11 tests)
+├── test_kb_endpoints.py                # Knowledge Base (12 tests)
+└── test_comprehensive_suite.py         # Integration (8 tests)
+```
+
+### Legacy Scripts (Deprecated)
 ```
 scripts/
-├── test.sh                    # Main test runner (legacy compatible)
-├── test-comprehensive.sh      # Full test suite with all features
-├── test-kb-operations.sh      # KB-specific tests
-├── manage-users.sh           # User and permission management
-├── layout-check.sh           # UI layout validation
-└── [feature]-test.sh         # Feature-specific test scripts
+├── test.sh                    # Legacy manual test runner → Use test-automated.py
+├── test-comprehensive.sh      # Legacy comprehensive → Use test-automated.py comprehensive
+├── test-kb-operations.sh      # Legacy KB tests → Use test-automated.py kb
+├── manage-users.sh           # User management (still active)
+└── layout-check.sh           # UI validation (still active)
 ```
+
+## Migration to Automated Testing
+
+### Quick Migration Guide
+```bash
+# Old manual approach
+./scripts/test.sh --local health
+./scripts/test.sh --local chat "test message"
+./scripts/test.sh --local providers
+
+# New automated approach  
+./scripts/test-automated.py health
+./scripts/test-automated.py chat-basic
+./scripts/test-automated.py providers
+```
+
+### Benefits of Migration
+- **50+ automated tests** vs manual script interpretation
+- **Consistent results** with clear pass/fail status
+- **CI/CD integration** for continuous validation
+- **Response format validation** (v0.2 vs v1 compatibility)
+- **Regression prevention** through automated checking
+- **Faster feedback** with targeted test execution
+
+### Complete Test Coverage
+| Category | Tests | Purpose |
+|----------|-------|---------|
+| Health & Status | 5 tests | System health, service status |
+| Chat & Communication | 25 tests | v0.2/v1 endpoints, conversation flow |
+| Knowledge Base | 12 tests | KB health, search, integration |
+| Providers & Models | 11 tests | Provider endpoints, model info |
+| Authentication | 8 tests | Security, API key validation |
+| Integration | 8 tests | End-to-end, performance monitoring |
 
 ## Best Practices
 
-### 1. **Extend, Don't Replace**
+### 1. **Use Automated Tests First**
 When adding new functionality:
 ```bash
-# Add to existing test script
+# ❌ Old approach: Manual test scripts
 echo "Testing new feature..." >> test-kb-operations.sh
 
-# Or create a focused test script
-./scripts/test-new-feature.sh
+# ✅ New approach: Add to automated test suite
+# Add test methods to appropriate test file in tests/
+# Run: ./scripts/test-automated.py [category]
 ```
 
-### 2. **Use Helper Functions**
-```bash
-# Define reusable test functions
-test_endpoint() {
-    local method=$1
-    local endpoint=$2
-    local data=$3
-    local description=$4
-    # ... test logic ...
-}
-
-# Use them consistently
-test_endpoint "POST" "/api/v1/chat" "$payload" "Chat completion test"
+### 2. **Follow Test Patterns**
+```python
+# Use consistent pytest patterns
+async def test_new_feature(self, gateway_url, headers):
+    """Test description of what this validates."""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{gateway_url}/api/endpoint",
+            headers=headers,
+            json={"test": "data"}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "expected_field" in data
+        
+        logger.info(f"Test result: {data}")
 ```
 
-### 3. **Capture Context**
-Always include:
-- What you're testing
-- Why it matters
-- Expected vs actual results
-- Environment information
+### 3. **Comprehensive Test Coverage**
+Each test should validate:
+- **Functional correctness** (does it work?)
+- **Response format** (correct structure?)
+- **Error handling** (fails gracefully?)
+- **Authentication** (properly secured?)
+- **Business logic** (meets requirements?)
 
 ### 4. **Make Tests Discoverable**
 ```bash
-# Bad: Hidden knowledge
+# ❌ Bad: Hidden manual testing
 curl -X POST $SECRET_ENDPOINT -d @complex_payload.json
 
-# Good: Documented in script
-# Test the new webhook endpoint (added for issue #123)
-test_endpoint "POST" "/api/v1/webhooks" '{"event": "test"}' "Webhook delivery"
+# ✅ Good: Automated test with clear purpose
+./scripts/test-automated.py --help    # Shows all available test categories
+./scripts/test-automated.py webhooks  # Clear, discoverable test category
 ```
 
 ## Common Patterns
