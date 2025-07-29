@@ -219,6 +219,16 @@ await page.wait_for_load_state('networkidle')
 5. **Network Condition Testing**: Slow 3G, offline scenarios
 6. **Security Testing**: XSS, CSRF protection verification
 
+## HTMX Considerations
+
+When testing HTMX-powered applications:
+1. **HTMX uses AJAX** - Page navigations happen via JavaScript, not browser navigation
+2. **Mock HX-Redirect headers** - HTMX follows these headers to navigate
+3. **Track session state** - Maintain authentication state between mocked requests
+4. **Mock the full flow** - Don't mix real pages with mocked authentication
+
+See [HTMX Browser Testing Solution](htmx-browser-testing-solution.md) for detailed guidance on handling HTMX authentication forms.
+
 ## Conclusion
 
 Browser tests are essential for catching issues that URL-based tests miss. They should be run:
