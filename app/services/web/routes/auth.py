@@ -14,12 +14,19 @@ from app.services.web.utils.layout_isolation import auth_page_replacement
 from app.services.web.utils.gateway_client import gateway_client, GaiaAPIClient
 from app.services.web.config import settings
 from app.shared.logging import setup_service_logger
+import os
 
 logger = setup_service_logger("auth_routes")
 
 
 def setup_routes(app):
-    """Setup authentication routes"""
+    """Setup authentication routes
+    
+    Test Mode:
+    When TEST_MODE=true environment variable is set, the /auth/test-login endpoint
+    is available for browser testing. Any email ending with @test.local will be
+    accepted with any password.
+    """
     
     @app.post("/auth/dev-login")
     async def dev_login(request):
@@ -42,6 +49,39 @@ def setup_routes(app):
             
         return gaia_error_message("Development login not available")
     
+    @app.post("/auth/test-login")
+    async def test_login(request):
+        """Test login endpoint for browser tests - only works in TEST_MODE"""
+        if os.getenv("TEST_MODE") != "true":
+            logger.warning("Test login attempted without TEST_MODE enabled")
+            return gaia_error_message("Test mode not enabled")
+        
+        form_data = await request.form()
+        email = form_data.get("email")
+        password = form_data.get("password")  # Accept any password in test mode
+        
+        # Any email ending with @test.local is allowed in test mode
+        if email and email.endswith("@test.local"):
+            request.session["jwt_token"] = f"test-token-{email}"
+            request.session["user"] = {
+                "id": f"test-{email}",
+                "email": email,
+                "name": f"Test User ({email})"
+            }
+            
+            logger.info(f"Test login successful for {email}")
+            
+            # Check if this is an HTMX request
+            is_htmx = request.headers.get("hx-request") == "true"
+            if is_htmx:
+                response = HTMLResponse(content="")
+                response.headers["HX-Redirect"] = "/chat"
+                return response
+            else:
+                return RedirectResponse(url="/chat", status_code=303)
+        
+        return gaia_error_message("Invalid test credentials - use email ending with @test.local")
+    
     @app.post("/auth/login")
     async def login(request):
         """Handle login form submission"""
@@ -60,7 +100,16 @@ def setup_routes(app):
             }
             
             logger.info("Using mock dev login for dev@gaia.local")
-            return RedirectResponse(url="/chat", status_code=303)
+            
+            # Check if this is an HTMX request
+            is_htmx = request.headers.get("hx-request") == "true"
+            if is_htmx:
+                # For HTMX, use HX-Redirect header
+                response = HTMLResponse(content="")
+                response.headers["HX-Redirect"] = "/chat"
+                return response
+            else:
+                return RedirectResponse(url="/chat", status_code=303)
         
         try:
             # Call gateway login endpoint for all other users
@@ -102,7 +151,7 @@ def setup_routes(app):
             }
             
             # Check if this is an HTMX request
-            is_htmx = request.headers.get("HX-Request") == "true"
+            is_htmx = request.headers.get("hx-request") == "true"
             if is_htmx:
                 # For HTMX, use HX-Redirect header
                 response = HTMLResponse(content=str(gaia_success_message("Login successful! Redirecting...")))
@@ -334,7 +383,7 @@ def setup_routes(app):
         # Check for JWT in session
         if not request.session.get("jwt_token"):
             # Check if this is an HTMX request
-            if request.headers.get("HX-Request") == "true":
+            if request.headers.get("hx-request") == "true":
                 # For HTMX requests, return a response that triggers a full page redirect
                 response = HTMLResponse(content="", status_code=200)
                 response.headers["HX-Redirect"] = "/login"
