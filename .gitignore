@@ -214,7 +214,7 @@ llm_platform_venv/
 
 # Gaia specific
 gaia-mcp-env/
-test_*.py
+# test_*.py  # Commented out - we want to track browser tests
 *_example.py
 manual_*.py
 endpoint_test_results.json
