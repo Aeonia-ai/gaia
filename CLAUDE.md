@@ -37,8 +37,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Quick Test After Changes:**
 ```bash
-./scripts/test.sh --local health  # Verify all services healthy
-./scripts/test.sh --local chat "test message"  # Test functionality
+./scripts/test-automated.py health      # Verify all services healthy
+./scripts/test-automated.py chat-basic  # Test core chat functionality
 ```
 
 ## 🚨 BEFORE YOU START: Required Reading
@@ -154,10 +154,10 @@ AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
 - Timeouts during deployment = often infrastructure issues, not code issues
 - Services work individually but not together = networking/discovery problem
 
-**🧪 USE TEST SCRIPTS, NOT CURL**
-- ALWAYS use test scripts (`./scripts/test.sh`) instead of manual curl commands
-- If you need to test something new, ADD it to a test script, don't just run curl
-- Test scripts capture knowledge, curl commands vanish with your terminal
+**🧪 USE AUTOMATED TESTS, NOT MANUAL SCRIPTS**
+- ALWAYS use automated tests (`./scripts/test-automated.py`) instead of manual curl commands
+- If you need to test something new, ADD it to automated test suites
+- Automated tests provide consistent results and capture knowledge permanently
 - See [Testing Philosophy](docs/testing-philosophy.md) for why this matters
 
 ## 📚 Essential Documentation Index
@@ -273,9 +273,11 @@ See [Command Reference](docs/command-reference.md) for complete list.
 3. **DON'T** forget to set Fly.io secrets for new environment variables
 
 ### Testing Mistakes
-1. **DON'T** use direct `curl` - use test scripts that capture the knowledge
-2. **DON'T** test in production first - always test locally
-3. **DON'T** skip the verification scripts after configuration changes
+1. **DON'T** use direct `curl` - use automated tests that provide consistent results
+2. **DON'T** test in production first - always test locally with automated suite
+3. **DON'T** skip automated testing after configuration changes
+4. **DON'T** create one-off manual tests - add them to automated test suites
+5. **DON'T** rely on manual verification - automated tests catch regressions
 
 ## 📋 Quick Reference: Essential Commands
 
@@ -284,9 +286,11 @@ See [Command Reference](docs/command-reference.md) for complete list.
 # Start services
 docker compose up
 
-# Run tests
-./scripts/test-comprehensive.sh            # Full test suite (RECOMMENDED)
-./scripts/test.sh --local all              # Legacy test suite
+# Run automated tests
+./scripts/test-automated.py all            # Complete automated test suite (RECOMMENDED)
+./scripts/test-automated.py health         # Quick health check
+./scripts/test-automated.py chat-basic     # Core chat functionality
+./scripts/test-automated.py comprehensive  # Full system integration tests
 
 # User management
 ./scripts/manage-users.sh list
