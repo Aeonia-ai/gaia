@@ -91,7 +91,8 @@ class GaiaAPIClient:
                 "/api/v1/chat",
                 headers=headers,
                 json={
-                    "message": messages[-1]["content"] if messages else "",
+                    "messages": messages,  # Send full message history for context
+                    "message": messages[-1]["content"] if messages else "",  # Also send last message for compatibility
                     "model": model,
                     "stream": True  # Enable streaming mode
                 }

@@ -218,9 +218,19 @@ class TestKBIntegration:
     """Test KB integration with other services"""
     
     @pytest.fixture
-    def headers(self):
+    def auth_manager(self):
+        """Provide test authentication manager."""
+        return TestAuthManager(test_type="unit")
+    
+    @pytest.fixture
+    def headers(self, auth_manager):
+        """Authentication headers for API requests"""
+        auth_headers = auth_manager.get_auth_headers(
+            email="test@test.local",
+            role="authenticated"
+        )
         return {
-            "X-API-Key": API_KEY,
+            **auth_headers,
             "Content-Type": "application/json"
         }
     

@@ -43,7 +43,7 @@ class TestGatewayIntegration:
             
             data = response.json()
             assert "message" in data
-            assert "Gaia Platform Gateway" in data["message"]
+            assert "LLM Platform API is running" in data["message"]
     
     async def test_auth_validation_endpoint(self, gateway_url, api_key):
         """Test auth validation endpoint works."""

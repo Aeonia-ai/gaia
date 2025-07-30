@@ -1545,7 +1545,14 @@ async def chat(
     request: Request,
     auth: dict = Depends(get_current_auth_legacy)
 ):
-    """Main chat endpoint used by all clients - now with unified intelligent routing."""
+    """
+    Main chat endpoint used by all clients - now with unified intelligent routing.
+    
+    Accepts:
+    - message: The chat message
+    - conversation_id: Optional conversation ID for context continuity
+    - stream: Whether to stream the response
+    """
     body = await request.json()
     
     # Add authentication info to request
