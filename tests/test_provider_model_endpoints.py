@@ -8,6 +8,7 @@ import httpx
 import os
 from typing import Dict, Any
 from app.shared.logging import setup_service_logger
+from tests.fixtures.test_auth import TestAuthManager
 
 logger = setup_service_logger("test_provider_model")
 
@@ -21,15 +22,19 @@ class TestProviderEndpoints:
         return "http://gateway:8000"  # Docker internal URL
     
     @pytest.fixture
-    def api_key(self):
-        """Test API key for authentication."""
-        return os.getenv("API_KEY", "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE")
+    def auth_manager(self):
+        """Provide test authentication manager."""
+        return TestAuthManager(test_type="unit")
     
     @pytest.fixture
-    def headers(self, api_key):
-        """Standard headers for API requests."""
+    def headers(self, auth_manager):
+        """Standard headers with JWT authentication."""
+        auth_headers = auth_manager.get_auth_headers(
+            email="test@test.local",
+            role="authenticated"
+        )
         return {
-            "X-API-Key": api_key,
+            **auth_headers,
             "Content-Type": "application/json"
         }
     
@@ -143,15 +148,19 @@ class TestModelEndpoints:
         return "http://gateway:8000"  # Docker internal URL
     
     @pytest.fixture
-    def api_key(self):
-        """Test API key for authentication."""
-        return os.getenv("API_KEY", "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE")
+    def auth_manager(self):
+        """Provide test authentication manager."""
+        return TestAuthManager(test_type="unit")
     
     @pytest.fixture
-    def headers(self, api_key):
-        """Standard headers for API requests."""
+    def headers(self, auth_manager):
+        """Standard headers with JWT authentication."""
+        auth_headers = auth_manager.get_auth_headers(
+            email="test@test.local",
+            role="authenticated"
+        )
         return {
-            "X-API-Key": api_key,
+            **auth_headers,
             "Content-Type": "application/json"
         }
     
@@ -256,7 +265,7 @@ class TestProviderModelIntegration:
     @pytest.fixture
     def headers(self):
         return {
-            "X-API-Key": os.getenv("API_KEY", "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"),
+            "X-API-Key": os.getenv("API_KEY"),
             "Content-Type": "application/json"
         }
     

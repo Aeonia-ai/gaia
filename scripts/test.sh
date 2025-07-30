@@ -43,7 +43,7 @@ if [ -f ".env" ]; then
 fi
 
 # Use Jason's API key if available, otherwise fallback
-API_KEY="${JASON_API_KEY:-${API_KEY:-FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE}}"
+API_KEY="${API_KEY}"
 
 # Environment-specific API keys
 case $ENVIRONMENT in

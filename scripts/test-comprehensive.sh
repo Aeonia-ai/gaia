@@ -37,7 +37,7 @@ case $ENVIRONMENT in
 esac
 
 # Use Jason's API key if available, otherwise default
-API_KEY="${JASON_API_KEY:-${API_KEY:-FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE}}"
+API_KEY="${API_KEY}"
 
 # Function to print section headers
 print_section() {

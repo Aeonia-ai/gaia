@@ -10,6 +10,7 @@ import os
 import asyncio
 from typing import Dict, Any, List, Tuple
 from app.shared.logging import setup_service_logger
+from tests.fixtures.test_auth import TestAuthManager
 
 logger = setup_service_logger("test_api_comprehensive")
 
@@ -23,15 +24,19 @@ class TestComprehensiveAPIEndpoints:
         return "http://gateway:8000"  # Docker internal URL
     
     @pytest.fixture
-    def api_key(self):
-        """Test API key for authentication."""
-        return os.getenv("API_KEY", "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE")
+    def auth_manager(self):
+        """Provide test authentication manager."""
+        return TestAuthManager(test_type="unit")
     
     @pytest.fixture
-    def headers(self, api_key):
-        """Standard headers for API requests."""
+    def headers(self, auth_manager):
+        """Standard headers with JWT authentication."""
+        auth_headers = auth_manager.get_auth_headers(
+            email="test@test.local",
+            role="authenticated"
+        )
         return {
-            "X-API-Key": api_key,
+            **auth_headers,
             "Content-Type": "application/json"
         }
     
@@ -201,6 +206,11 @@ class TestAPIAuthentication:
         """Gateway service URL for testing."""
         return "http://gateway:8000"  # Docker internal URL
     
+    @pytest.fixture
+    def auth_manager(self):
+        """Provide test authentication manager."""
+        return TestAuthManager(test_type="unit")
+    
     async def test_no_auth_fails(self, gateway_url):
         """Test that protected endpoints fail without authentication."""
         protected_endpoints = [
@@ -216,10 +226,11 @@ class TestAPIAuthentication:
                 )
                 assert response.status_code in [401, 403], f"Endpoint {endpoint} should require auth"
     
-    async def test_invalid_api_key_fails(self, gateway_url):
-        """Test that invalid API key fails."""
+    async def test_invalid_jwt_fails(self, gateway_url, auth_manager):
+        """Test that invalid JWT token fails."""
+        # Create headers with invalid JWT
         headers = {
-            "X-API-Key": "invalid-key-12345",
+            "Authorization": "Bearer invalid-jwt-token",
             "Content-Type": "application/json"
         }
         
@@ -229,12 +240,17 @@ class TestAPIAuthentication:
                 headers=headers,
                 json={"message": "This should fail"}
             )
-            assert response.status_code in [401, 403], "Invalid API key should fail"
+            assert response.status_code in [401, 403], "Invalid JWT should fail"
     
-    async def test_valid_api_key_works(self, gateway_url):
-        """Test that valid API key works."""
+    async def test_valid_jwt_works(self, gateway_url, auth_manager):
+        """Test that valid JWT token works."""
+        # Get valid JWT auth headers
+        auth_headers = auth_manager.get_auth_headers(
+            email="test@test.local",
+            role="authenticated"
+        )
         headers = {
-            "X-API-Key": os.getenv("API_KEY", "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"),
+            **auth_headers,
             "Content-Type": "application/json"
         }
         
@@ -245,7 +261,7 @@ class TestAPIAuthentication:
                 json={"message": "Hello! This should work."}
             )
             # Should work or at least not be an auth error
-            assert response.status_code not in [401, 403], f"Valid API key should work: {response.status_code}"
+            assert response.status_code not in [401, 403], f"Valid JWT should work: {response.status_code}"
 
 
 class TestAPICompatibility:
@@ -257,10 +273,19 @@ class TestAPICompatibility:
         return "http://gateway:8000"  # Docker internal URL
     
     @pytest.fixture
-    def headers(self):
-        """Standard headers for API requests."""
+    def auth_manager(self):
+        """Provide test authentication manager."""
+        return TestAuthManager(test_type="unit")
+    
+    @pytest.fixture
+    def headers(self, auth_manager):
+        """Standard headers with JWT authentication."""
+        auth_headers = auth_manager.get_auth_headers(
+            email="test@test.local",
+            role="authenticated"
+        )
         return {
-            "X-API-Key": os.getenv("API_KEY", "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"),
+            **auth_headers,
             "Content-Type": "application/json"
         }
     

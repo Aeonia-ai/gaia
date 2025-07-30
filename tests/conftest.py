@@ -20,7 +20,8 @@ def setup_test_environment():
     """Set up test environment variables."""
     os.environ.setdefault("ENVIRONMENT", "test")
     os.environ.setdefault("LOG_LEVEL", "INFO")
-    os.environ.setdefault("API_KEY", "test_FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE")
+    # API_KEY is optional when using JWT authentication
+    # Tests should use TestAuthManager for authentication
     os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@db:5432/llm_platform")
     os.environ.setdefault("NATS_URL", "nats://nats:4222")
 

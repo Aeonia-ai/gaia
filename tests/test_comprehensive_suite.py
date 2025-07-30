@@ -10,6 +10,7 @@ import os
 import sys
 from typing import Dict, Any, List
 from app.shared.logging import setup_service_logger
+from tests.fixtures.test_auth import TestAuthManager
 
 logger = setup_service_logger("test_comprehensive")
 
@@ -26,9 +27,21 @@ class TestComprehensiveSuite:
         return "http://kb-service:8000"
     
     @pytest.fixture
-    def headers(self):
+    def auth_manager(self):
+        """Provide test authentication manager."""
+        # Use integration test type to get real JWT tokens
+        return TestAuthManager(test_type="unit")
+    
+    @pytest.fixture
+    def headers(self, auth_manager):
+        """Standard headers with JWT authentication."""
+        # Get JWT auth headers instead of API key
+        auth_headers = auth_manager.get_auth_headers(
+            email="test@test.local",
+            role="authenticated"
+        )
         return {
-            "X-API-Key": os.getenv("API_KEY", "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"),
+            **auth_headers,
             "Content-Type": "application/json"
         }
     
@@ -53,6 +66,8 @@ class TestComprehensiveSuite:
         """Test core system health - equivalent to 'health' command."""
         # Test gateway health
         status_code, data = await self.make_request("GET", f"{gateway_url}/health", headers)
+        if status_code == 0:
+            logger.error(f"Failed to connect to gateway: {data}")
         assert status_code == 200
         assert data.get("status") in ["healthy", "degraded"]
         
@@ -296,9 +311,21 @@ class TestSystemIntegration:
         return "http://gateway:8000"
     
     @pytest.fixture
-    def headers(self):
+    def auth_manager(self):
+        """Provide test authentication manager."""
+        # Use integration test type to get real JWT tokens
+        return TestAuthManager(test_type="unit")
+    
+    @pytest.fixture
+    def headers(self, auth_manager):
+        """Standard headers with JWT authentication."""
+        # Get JWT auth headers instead of API key
+        auth_headers = auth_manager.get_auth_headers(
+            email="test@test.local",
+            role="authenticated"
+        )
         return {
-            "X-API-Key": os.getenv("API_KEY", "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"),
+            **auth_headers,
             "Content-Type": "application/json"
         }
     

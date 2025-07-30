@@ -6,9 +6,9 @@ import pytest
 import requests
 import json
 import os
+from tests.fixtures.test_auth import TestAuthManager
 
 # Test configuration
-API_KEY = os.getenv("API_KEY", "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE")
 GATEWAY_URL = os.getenv("GATEWAY_URL", "http://gateway:8000")
 
 
@@ -16,10 +16,19 @@ class TestKBService:
     """Test Knowledge Base service functionality"""
     
     @pytest.fixture
-    def headers(self):
+    def auth_manager(self):
+        """Provide test authentication manager."""
+        return TestAuthManager(test_type="unit")
+    
+    @pytest.fixture
+    def headers(self, auth_manager):
         """Authentication headers for API requests"""
+        auth_headers = auth_manager.get_auth_headers(
+            email="test@test.local",
+            role="authenticated"
+        )
         return {
-            "X-API-Key": API_KEY,
+            **auth_headers,
             "Content-Type": "application/json"
         }
     
