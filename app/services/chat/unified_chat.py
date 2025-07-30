@@ -1032,6 +1032,19 @@ Key principles:
         if conversation_id:
             try:
                 from .conversation_store import chat_conversation_store
+                
+                # First check if the conversation exists
+                user_id = auth.get("user_id", "dev-user-id")
+                conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
+                
+                if conversation is None:
+                    from fastapi import HTTPException
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Conversation {conversation_id} not found"
+                    )
+                
+                # Load messages for the existing conversation
                 messages = chat_conversation_store.get_messages(conversation_id)
                 
                 # Convert to conversation history format
@@ -1050,7 +1063,15 @@ Key principles:
                 
             except Exception as e:
                 logger.error(f"Error loading conversation history: {e}")
-                # Continue with empty history if loading fails
+                # Re-raise HTTP exceptions (like 404) without modification
+                from fastapi import HTTPException
+                if isinstance(e, HTTPException):
+                    raise e
+                # For other errors, raise 500
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error loading conversation: {str(e)}"
+                )
         
         # Add any additional context
         if additional_context:

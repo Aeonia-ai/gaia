@@ -230,7 +230,20 @@ async def forward_request_to_service(
                 files=files
             )
             
+            # Handle error status codes before raise_for_status()
+            if response.status_code == 404:
+                # Pass through 404 errors as-is (e.g., conversation not found)
+                try:
+                    error_data = response.json()
+                    raise HTTPException(status_code=404, detail=error_data.get("detail", "Not found"))
+                except Exception:
+                    raise HTTPException(status_code=404, detail="Not found")
+            
             response.raise_for_status()
+            
+            # Handle 204 No Content responses (no body expected)
+            if response.status_code == 204:
+                return Response(status_code=204)
             
             # Handle different response types
             if response.headers.get("content-type", "").startswith("application/json"):
@@ -252,6 +265,16 @@ async def forward_request_to_service(
             
     except httpx.HTTPStatusError as e:
         logger.error(f"Service {service_name} returned error {e.response.status_code}: {e.response.text}")
+        
+        # Pass through 404 errors without wrapping them
+        if e.response.status_code == 404:
+            try:
+                error_data = e.response.json()
+                raise HTTPException(status_code=404, detail=error_data.get("detail", "Not found"))
+            except Exception:
+                raise HTTPException(status_code=404, detail="Not found")
+        
+        # For other errors, wrap them as service errors
         raise HTTPException(
             status_code=e.response.status_code,
             detail=f"Service error: {e.response.text}"
@@ -1634,6 +1657,28 @@ async def reload_prompt(
         path="/chat/reload-prompt",
         method="POST",
         headers=dict(request.headers)
+    )
+
+@app.delete("/api/v1/conversations/{conversation_id}", tags=["Chat"])
+async def delete_conversation(
+    conversation_id: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """
+    Delete a specific conversation.
+    
+    Useful for testing personas and starting fresh conversations during development.
+    """
+    # For DELETE requests, we need to ensure auth is passed through headers
+    headers = dict(request.headers)
+    
+    # The chat service will extract auth from the headers
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/conversations/{conversation_id}",
+        method="DELETE",
+        headers=headers
     )
 
 @app.get("/api/v1/chat/personas", tags=["Chat"])
