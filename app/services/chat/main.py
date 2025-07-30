@@ -115,6 +115,14 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️ Could not import v0.2 chat routes: {e}")
 
+# Include conversation management router
+try:
+    from .conversations import router as conversations_router
+    app.include_router(conversations_router, prefix="")  # No prefix for direct /conversations endpoints
+    logger.info("✅ Conversations router included")
+except ImportError as e:
+    logger.warning(f"⚠️ Could not import conversations router: {e}")
+
 # Include personas router (disabled until persona models are implemented)
 # try:
 #     from .personas import router as personas_router

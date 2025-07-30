@@ -22,6 +22,9 @@ def run_pytest(test_pattern: str, verbose: bool = True, environment: str = "loca
     if verbose:
         cmd.append("-v")
     
+    # Always exclude host_only tests when running in container
+    cmd.extend(["-m", "not host_only"])
+    
     # Handle test pattern - split if it contains multiple arguments
     if test_pattern:
         if test_pattern.startswith("-k "):

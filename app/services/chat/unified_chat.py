@@ -152,12 +152,22 @@ class UnifiedChatHandler:
                 {
                     "role": "system",
                     "content": self.get_routing_prompt(full_context)
-                },
-                {
-                    "role": "user",
-                    "content": message
                 }
             ]
+            
+            # Add conversation history if available
+            if full_context.get("conversation_history"):
+                for hist_msg in full_context["conversation_history"]:
+                    messages.append({
+                        "role": hist_msg["role"],
+                        "content": hist_msg["content"]
+                    })
+            
+            # Add current message
+            messages.append({
+                "role": "user",
+                "content": message
+            })
             
             # Combine routing tools with KB tools
             all_tools = self.routing_tools + KB_TOOLS
@@ -333,6 +343,14 @@ class UnifiedChatHandler:
                         "reasoning": tool_args.get("reasoning"),
                         "request_id": request_id
                     }
+                    
+                    # Save conversation
+                    await self._save_conversation(
+                        message=message,
+                        response=result.get("response", ""),
+                        context=context,
+                        auth=auth
+                    )
                     
                     return result
                 
@@ -528,12 +546,22 @@ class UnifiedChatHandler:
                 {
                     "role": "system",
                     "content": self.get_routing_prompt(full_context)
-                },
-                {
-                    "role": "user",
-                    "content": message
                 }
             ]
+            
+            # Add conversation history if available
+            if full_context.get("conversation_history"):
+                for hist_msg in full_context["conversation_history"]:
+                    messages.append({
+                        "role": hist_msg["role"],
+                        "content": hist_msg["content"]
+                    })
+            
+            # Add current message
+            messages.append({
+                "role": "user",
+                "content": message
+            })
             
             # First, make routing decision (non-streaming)
             routing_response = await chat_service.chat_completion(
@@ -987,20 +1015,86 @@ Key principles:
     
     async def build_context(self, auth: dict, additional_context: Optional[dict] = None) -> dict:
         """
-        Build context for routing decision.
+        Build context for routing decision, including conversation history.
         """
+        user_id = auth.get("sub") or auth.get("key", "unknown")
+        conversation_id = additional_context.get("conversation_id") if additional_context else None
+        
         context = {
-            "user_id": auth.get("sub") or auth.get("key", "unknown"),
-            "conversation_id": additional_context.get("conversation_id", "new") if additional_context else "new",
-            "message_count": additional_context.get("message_count", 0) if additional_context else 0,
-            "timestamp": int(time.time())
+            "user_id": user_id,
+            "conversation_id": conversation_id or "new",
+            "message_count": 0,
+            "timestamp": int(time.time()),
+            "conversation_history": []
         }
+        
+        # Load actual conversation history if conversation_id exists
+        if conversation_id:
+            try:
+                from .conversation_store import chat_conversation_store
+                messages = chat_conversation_store.get_messages(conversation_id)
+                
+                # Convert to conversation history format
+                conversation_history = []
+                for msg in messages:
+                    conversation_history.append({
+                        "role": msg["role"],
+                        "content": msg["content"],
+                        "timestamp": msg.get("created_at", "")
+                    })
+                
+                context["conversation_history"] = conversation_history
+                context["message_count"] = len(conversation_history)
+                
+                logger.info(f"Loaded {len(conversation_history)} messages for conversation {conversation_id}")
+                
+            except Exception as e:
+                logger.error(f"Error loading conversation history: {e}")
+                # Continue with empty history if loading fails
         
         # Add any additional context
         if additional_context:
             context.update(additional_context)
         
         return context
+    
+    async def _save_conversation(self, message: str, response: str, context: Optional[dict], auth: dict):
+        """Save user message and AI response to conversation history"""
+        if not context or not context.get("conversation_id") or context.get("conversation_id") == "new":
+            # No conversation to save to
+            return
+            
+        conversation_id = context["conversation_id"]
+        user_id = auth.get("sub") or auth.get("key", "unknown")
+        
+        try:
+            from .conversation_store import chat_conversation_store
+            
+            # Save user message first
+            await asyncio.create_task(asyncio.to_thread(
+                chat_conversation_store.add_message,
+                conversation_id, "user", message
+            ))
+            
+            # Save AI response
+            await asyncio.create_task(asyncio.to_thread(
+                chat_conversation_store.add_message,
+                conversation_id, "assistant", response
+            ))
+            
+            # Update conversation preview
+            await asyncio.create_task(asyncio.to_thread(
+                chat_conversation_store.update_conversation,
+                user_id, conversation_id,
+                title=message[:50] + "..." if len(message) > 50 else message,
+                preview=response[:100] + "..." if len(response) > 100 else response
+            ))
+            
+            logger.info(f"Saved conversation for {conversation_id}")
+            
+        except Exception as e:
+            logger.error(f"Error saving conversation: {e}")
+            # Don't fail the whole request if conversation saving fails
     
     def _update_timing_metrics(self, routing_time_ms: float, total_time_ms: float):
         """Update rolling average timing metrics"""

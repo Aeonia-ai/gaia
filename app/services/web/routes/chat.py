@@ -9,7 +9,7 @@ from app.services.web.components.gaia_ui import (
     gaia_chat_input, gaia_loading_spinner, gaia_error_message, gaia_toast_script, gaia_mobile_styles
 )
 from app.services.web.utils.gateway_client import GaiaAPIClient
-from app.services.web.utils.database_conversation_store import database_conversation_store
+from app.services.web.utils.chat_service_client import chat_service_client
 from app.shared.logging import setup_service_logger
 
 logger = setup_service_logger("chat_routes")
@@ -34,9 +34,9 @@ def setup_routes(app):
         
         user_id = user.get("id", "dev-user-id")
         
-        # Get user's conversations - simplified for debugging
+        # Get user's conversations from chat service
         try:
-            conversations = database_conversation_store.get_conversations(user_id)
+            conversations = await chat_service_client.get_conversations(user_id, jwt_token)
             logger.info(f"Retrieved {len(conversations)} conversations for user {user_id}")
         except Exception as e:
             logger.error(f"Error getting conversations: {e}")
@@ -229,17 +229,14 @@ def setup_routes(app):
         logger.info(f"Loading conversation {conversation_id} for user {user_id}")
         
         try:
-            # Get conversation from store
-            all_convs = database_conversation_store.get_conversations(user_id)
-            logger.info(f"User {user_id} has {len(all_convs)} conversations")
-            
-            conversation = database_conversation_store.get_conversation(user_id, conversation_id)
+            # Get conversation from chat service
+            conversation = await chat_service_client.get_conversation(user_id, conversation_id, jwt_token)
             if not conversation:
                 logger.warning(f"Conversation {conversation_id} not found for user {user_id}")
                 return gaia_error_message("Conversation not found")
             
-            # Get messages
-            messages_list = database_conversation_store.get_messages(conversation_id)
+            # Get messages from chat service
+            messages_list = await chat_service_client.get_messages(conversation_id, jwt_token)
             
             # Build message content - show welcome if no messages, otherwise show messages
             if not messages_list:
@@ -312,8 +309,8 @@ def setup_routes(app):
         
         logger.info(f"New chat requested for user {user_id}")
         
-        # Create a new conversation
-        conversation = database_conversation_store.create_conversation(user_id)
+        # Create a new conversation using chat service
+        conversation = await chat_service_client.create_conversation(user_id, jwt_token=jwt_token)
         logger.info(f"Created new conversation: {conversation['id']}")
         
         # Return fresh chat interface with conversation ID
@@ -384,18 +381,18 @@ def setup_routes(app):
             
             # Create new conversation if none exists
             if not conversation_id:
-                conversation = database_conversation_store.create_conversation(user_id)
+                conversation = await chat_service_client.create_conversation(user_id, jwt_token=jwt_token)
                 conversation_id = conversation['id']
                 logger.info(f"Created new conversation: {conversation_id}")
             
             # Store the user message BEFORE sending response
-            user_msg = database_conversation_store.add_message(conversation_id, "user", message)
+            user_msg = await chat_service_client.add_message(conversation_id, "user", message, jwt_token=jwt_token)
             logger.info(f"Stored user message: {user_msg}")
             
             # Update conversation preview with first message
-            database_conversation_store.update_conversation(user_id, conversation_id, 
+            await chat_service_client.update_conversation(user_id, conversation_id, 
                                                  title=message[:50] + "..." if len(message) > 50 else message,
-                                                 preview=message)
+                                                 preview=message, jwt_token=jwt_token)
             
             # For now, use a simple ID
             import uuid
@@ -609,9 +606,9 @@ def setup_routes(app):
         
         async def event_generator():
             try:
-                # Get conversation history
+                # Get conversation history from chat service
                 if conversation_id:
-                    messages_history = database_conversation_store.get_messages(conversation_id)
+                    messages_history = await chat_service_client.get_messages(conversation_id, jwt_token)
                     messages = [
                         {"role": m["role"], "content": m["content"]} 
                         for m in messages_history 
@@ -665,10 +662,10 @@ def setup_routes(app):
                             logger.error(f"Failed to parse chunk: {chunk}")
                             continue
                 
-                # Store the complete response
+                # Store the complete response using chat service
                 if conversation_id and response_content:
-                    database_conversation_store.add_message(conversation_id, "assistant", response_content)
-                    database_conversation_store.update_conversation(user_id, conversation_id, preview=response_content)
+                    await chat_service_client.add_message(conversation_id, "assistant", response_content, jwt_token=jwt_token)
+                    await chat_service_client.update_conversation(user_id, conversation_id, preview=response_content, jwt_token=jwt_token)
                     
             except Exception as e:
                 logger.error(f"Streaming error: {e}", exc_info=True)
@@ -698,9 +695,9 @@ def setup_routes(app):
         logger.info(f"Get response - message: {message}, id: {message_id}, conv: {conversation_id}")
         
         try:
-            # Get conversation history
+            # Get conversation history from chat service
             if conversation_id:
-                messages_history = database_conversation_store.get_messages(conversation_id)
+                messages_history = await chat_service_client.get_messages(conversation_id, jwt_token)
                 # Convert to API format (only content and role)
                 # Filter out empty messages
                 messages = [
@@ -720,12 +717,12 @@ def setup_routes(app):
             # v0.2 format returns response directly
             response_content = response.get("response", "Sorry, I couldn't process that.")
             
-            # Store assistant message
+            # Store assistant message using chat service
             if conversation_id:
-                database_conversation_store.add_message(conversation_id, "assistant", response_content)
+                await chat_service_client.add_message(conversation_id, "assistant", response_content, jwt_token=jwt_token)
                 # Update conversation preview with assistant response
-                database_conversation_store.update_conversation(user_id, conversation_id, 
-                                                     preview=response_content)
+                await chat_service_client.update_conversation(user_id, conversation_id, 
+                                                     preview=response_content, jwt_token=jwt_token)
             
             # Return enhanced assistant message with entrance animation
             assistant_bubble = gaia_message_bubble(
@@ -835,7 +832,8 @@ def setup_routes(app):
         """Test page for debugging conversation switching"""
         user = request.session.get("user", {})
         user_id = user.get("id", "dev-user-id")
-        conversations = database_conversation_store.get_conversations(user_id)[:3]  # Get first 3
+        conversations = await chat_service_client.get_conversations(user_id)
+        conversations = conversations[:3]  # Get first 3
         
         from fasthtml.core import Script, NotStr
         
@@ -908,7 +906,7 @@ def setup_routes(app):
         
         user_id = user.get("id", "dev-user-id")
         
-        conversations = database_conversation_store.get_conversations(user_id)
+        conversations = await chat_service_client.get_conversations(user_id)
         
         # Return updated conversation list with smooth animations
         conversation_items = [gaia_conversation_item(conv) for conv in conversations]
@@ -933,15 +931,15 @@ def setup_routes(app):
         logger.info(f"Deleting conversation {conversation_id} for user {user_id}")
         
         try:
-            # Delete the conversation
-            success = database_conversation_store.delete_conversation(user_id, conversation_id)
+            # Delete the conversation using chat service
+            success = await chat_service_client.delete_conversation(user_id, conversation_id)
             
             if not success:
                 logger.warning(f"Failed to delete conversation {conversation_id}")
                 return gaia_error_message("Conversation not found or could not be deleted")
             
-            # Get updated conversation list
-            conversations = database_conversation_store.get_conversations(user_id)
+            # Get updated conversation list from chat service
+            conversations = await chat_service_client.get_conversations(user_id)
             conversation_items = [gaia_conversation_item(conv) for conv in conversations]
             
             # Return updated conversation list
@@ -971,11 +969,11 @@ def setup_routes(app):
         
         try:
             if not query:
-                # If no query, return all conversations
-                conversations = database_conversation_store.get_conversations(user_id)
+                # If no query, return all conversations from chat service
+                conversations = await chat_service_client.get_conversations(user_id)
             else:
-                # Search conversations
-                conversations = database_conversation_store.search_conversations(user_id, query)
+                # Search conversations using chat service
+                conversations = await chat_service_client.search_conversations(user_id, query)
             
             # Return updated conversation list with search results
             if not conversations:

@@ -42,6 +42,12 @@ class TestKBService:
         # Test through docker exec since KB service doesn't expose Git info via API
         import subprocess
         
+        # Skip this test if we're running inside a container (no docker access)
+        try:
+            subprocess.run(["docker", "version"], capture_output=True, timeout=1)
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
+            pytest.skip("Test requires Docker access from host machine")
+        
         try:
             # Check current branch
             result = subprocess.run([
@@ -72,6 +78,12 @@ class TestKBService:
     def test_kb_content_availability(self):
         """Test that KB contains expected content"""
         import subprocess
+        
+        # Skip this test if we're running inside a container (no docker access)
+        try:
+            subprocess.run(["docker", "version"], capture_output=True, timeout=1)
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
+            pytest.skip("Test requires Docker access from host machine")
         
         try:
             # Count markdown files
@@ -107,6 +119,12 @@ class TestKBService:
         """Test that KB has recent commits (fresh pull)"""
         import subprocess
         from datetime import datetime, timedelta
+        
+        # Skip this test if we're running inside a container (no docker access)
+        try:
+            subprocess.run(["docker", "version"], capture_output=True, timeout=1)
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
+            pytest.skip("Test requires Docker access from host machine")
         
         try:
             # Get latest commit date
@@ -156,9 +174,16 @@ class TestKBService:
         # For a local KB with 1000+ files, should be very fast
         assert response_time < 0.1, f"KB response time should be <100ms for local setup: {response_time}s"
 
+    @pytest.mark.host_only
     def test_multiuser_kb_structure(self):
         """Test that KB has proper multi-user structure"""
         import subprocess
+        
+        # Skip this test if we're running inside a container (no docker access)
+        try:
+            subprocess.run(["docker", "version"], capture_output=True, timeout=1)
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.CalledProcessError):
+            pytest.skip("Test requires Docker access from host machine")
         
         try:
             # Check for multi-user structure

@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field, validator
 from enum import Enum
 
+from app.shared import settings  # Import shared settings for consistency
 from .base import LLMProvider, ModelCapability
 
 class ProviderStatus(str, Enum):
@@ -35,7 +36,7 @@ class ClaudeConfig(ProviderConfig):
     
     @validator('api_key', pre=True, always=True)
     def get_api_key(cls, v):
-        return v or os.getenv('ANTHROPIC_API_KEY')
+        return v or settings.ANTHROPIC_API_KEY or os.getenv('ANTHROPIC_API_KEY')
     
     class Config:
         env_prefix = "CLAUDE_"
@@ -49,7 +50,7 @@ class OpenAIConfig(ProviderConfig):
     
     @validator('api_key', pre=True, always=True)
     def get_api_key(cls, v):
-        return v or os.getenv('OPENAI_API_KEY')
+        return v or settings.OPENAI_API_KEY or os.getenv('OPENAI_API_KEY')
     
     @validator('organization', pre=True, always=True)
     def get_organization(cls, v):

@@ -431,36 +431,64 @@ async def get_current_auth_legacy(
     """
     Legacy authentication format for backward compatibility.
     Returns dict format identical to LLM Platform.
-    All API keys (including .env) are validated through database for consistency.
+    Checks .env API key first for local development, then falls back to database validation.
+    
+    Note: Redis caching is handled gracefully in the underlying validation functions
+    (validate_user_api_key and validate_supabase_jwt) with try/except blocks.
     """
-    # Use the standard authentication flow for all API keys
-    # This ensures local development mirrors production exactly
-    from app.shared.database import get_database_session
+    from app.shared.config import settings
     
-    # Get database session
-    db = get_database_session()
+    # First check if the API key matches the one in .env (for local development)
+    if api_key_header and settings.API_KEY and api_key_header == settings.API_KEY:
+        logger.debug("Authenticated with .env API key")
+        return {
+            "auth_type": "api_key",
+            "key": api_key_header,
+            "user_id": "dev@gaia.local",  # Default local dev user
+            "email": "dev@gaia.local"
+        }
     
+    # Otherwise use the standard authentication flow
+    # This ensures production uses database validation
     try:
-        auth_result = await get_current_auth(request, credentials, api_key_header)
+        from app.shared.database import get_database_session
         
-        if auth_result.auth_type == "jwt":
-            return {"auth_type": "jwt", "user_id": auth_result.user_id, "email": auth_result.email}
-        elif auth_result.auth_type == "user_api_key":
+        # Get database session
+        db_gen = get_database_session()
+        db = next(db_gen)
+        
+        try:
+            auth_result = await get_current_auth(request, credentials, api_key_header)
+            
+            if auth_result.auth_type == "jwt":
+                return {"auth_type": "jwt", "user_id": auth_result.user_id, "email": auth_result.email}
+            elif auth_result.auth_type == "user_api_key":
+                return {
+                    "auth_type": "user_api_key", 
+                    "user_id": auth_result.user_id, 
+                    "key": auth_result.api_key,
+                    "email": auth_result.email
+                }
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Unsupported auth type: {auth_result.auth_type}"
+                )
+        finally:
+            # Clean up the database session
+            if db:
+                db.close()
+    except Exception as e:
+        # If database is not available and we have .env API key, allow it
+        if api_key_header and settings.API_KEY and api_key_header == settings.API_KEY:
+            logger.warning(f"Database unavailable, falling back to .env API key: {e}")
             return {
-                "auth_type": "user_api_key", 
-                "user_id": auth_result.user_id, 
-                "key": auth_result.api_key,
-                "email": auth_result.email
+                "auth_type": "api_key",
+                "key": api_key_header,
+                "user_id": "dev@gaia.local",
+                "email": "dev@gaia.local"
             }
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Unsupported auth type: {auth_result.auth_type}"
-            )
-    finally:
-        # Clean up the database session
-        if db:
-            db.close()
+        raise
 
 # API Key management functions
 def generate_api_key(prefix: str = "gaia") -> str:

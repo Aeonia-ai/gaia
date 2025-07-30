@@ -1960,6 +1960,265 @@ async def create_persona(
         headers=dict(request.headers)
     )
 
+# ========================================================================================
+# v0.3 API - Clean Gaia Interface (No Provider Details Exposed)
+# 
+# Design principles:
+# - Simple request/response format
+# - No provider/model selection exposed to clients  
+# - Server-side intelligence is completely hidden
+# - Consistent streaming and non-streaming formats
+# ========================================================================================
+
+@app.post("/api/v0.3/chat", tags=["v0.3 Clean API"])
+async def v03_chat(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """
+    Clean v0.3 chat endpoint with no exposed provider details.
+    
+    Request format:
+    {
+        "message": "Your question here",
+        "conversation_id": "optional-conversation-id",
+        "stream": false  // optional, defaults to false
+    }
+    
+    Response format (non-streaming):
+    {
+        "response": "AI response here"
+    }
+    
+    Response format (streaming):
+    Server-Sent Events with:
+    {"type": "content", "content": "chunk"}
+    {"type": "done"}
+    """
+    body = await request.json()
+    
+    # Validate required fields
+    if "message" not in body:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Missing required field: message"}
+        )
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    # Forward to chat service and get response
+    chat_response = await forward_request_to_service(
+        service_name="chat",
+        path="/chat/unified",  # Use intelligent routing
+        method="POST", 
+        json_data=body,
+        headers=headers,
+        stream=body.get("stream", False)
+    )
+    
+    # If streaming, return as-is but with clean format conversion
+    if body.get("stream", False):
+        return await _convert_to_clean_streaming_format(chat_response)
+    
+    # For non-streaming, convert to clean format
+    if hasattr(chat_response, 'json'):
+        response_data = await chat_response.json()
+    else:
+        response_data = chat_response
+    
+    # Convert to clean v0.3 format (remove provider details)
+    clean_response = _convert_to_clean_format(response_data)
+    
+    return JSONResponse(content=clean_response)
+
+
+@app.get("/api/v0.3/conversations", tags=["v0.3 Clean API"])
+async def v03_list_conversations(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """
+    List conversations with clean format.
+    
+    Response format:
+    {
+        "conversations": [
+            {
+                "conversation_id": "uuid",
+                "title": "Conversation title",
+                "created_at": "ISO timestamp"
+            }
+        ]
+    }
+    """
+    # Forward to chat service conversations endpoint
+    chat_response = await forward_request_to_service(
+        service_name="chat",
+        path="/conversations",
+        method="GET",
+        headers=dict(request.headers)
+    )
+    
+    # Get response data
+    if hasattr(chat_response, 'json'):
+        response_data = await chat_response.json()
+    else:
+        response_data = chat_response
+    
+    # Convert to clean v0.3 format
+    conversations = response_data.get("conversations", [])
+    clean_conversations = []
+    
+    for conv in conversations:
+        clean_conversations.append({
+            "conversation_id": conv.get("id"),
+            "title": conv.get("title", "New Conversation"),
+            "created_at": conv.get("created_at")
+        })
+    
+    clean_data = {
+        "conversations": clean_conversations
+    }
+    
+    return JSONResponse(content=clean_data)
+
+
+@app.post("/api/v0.3/conversations", tags=["v0.3 Clean API"])
+async def v03_create_conversation(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """
+    Create a new conversation with clean format.
+    
+    Request format:
+    {
+        "title": "Optional conversation title"
+    }
+    
+    Response format:
+    {
+        "conversation_id": "generated-uuid",
+        "title": "Conversation title"
+    }
+    """
+    body = await request.json()
+    
+    # Forward to chat service conversation creation endpoint
+    chat_response = await forward_request_to_service(
+        service_name="chat",
+        path="/conversations",
+        method="POST",
+        json_data=body,
+        headers=dict(request.headers)
+    )
+    
+    # Get response data
+    if hasattr(chat_response, 'json'):
+        response_data = await chat_response.json()
+    else:
+        response_data = chat_response
+    
+    # Convert to clean v0.3 format
+    clean_data = {
+        "conversation_id": response_data.get("id"),
+        "title": response_data.get("title", "New Conversation")
+    }
+    
+    return JSONResponse(status_code=201, content=clean_data)
+
+
+def _convert_to_clean_format(response_data):
+    """
+    Convert any chat response to clean v0.3 format.
+    Removes provider, model, reasoning, timing, and other internal details.
+    """
+    if isinstance(response_data, dict):
+        # Handle different response formats
+        if "response" in response_data:
+            # Already in simple format
+            return {"response": response_data["response"]}
+        elif "choices" in response_data:
+            # OpenAI format - extract content
+            choices = response_data.get("choices", [])
+            if choices and len(choices) > 0:
+                message = choices[0].get("message", {})
+                content = message.get("content", "")
+                return {"response": content}
+        elif "message" in response_data:
+            # Direct message format
+            return {"response": response_data["message"]}
+    
+    # Fallback - return as string
+    return {"response": str(response_data)}
+
+
+async def _convert_to_clean_streaming_format(streaming_response):
+    """
+    Convert streaming response to clean v0.3 format.
+    """
+    from fastapi.responses import StreamingResponse
+    import json
+    
+    async def clean_stream_generator():
+        """Generate clean v0.3 streaming format."""
+        if hasattr(streaming_response, 'body_iterator'):
+            # Handle StreamingResponse
+            async for chunk in streaming_response.body_iterator:
+                if isinstance(chunk, bytes):
+                    chunk = chunk.decode('utf-8')
+                
+                # Parse streaming chunk
+                if chunk.startswith("data: "):
+                    data_str = chunk[6:].strip()
+                    
+                    if data_str == "[DONE]":
+                        # Send clean done message
+                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                        break
+                    
+                    try:
+                        # Parse the chunk
+                        chunk_data = json.loads(data_str)
+                        
+                        # Convert to clean format
+                        if chunk_data.get("object") == "chat.completion.chunk":
+                            # OpenAI format - extract content
+                            choices = chunk_data.get("choices", [])
+                            if choices and len(choices) > 0:
+                                delta = choices[0].get("delta", {})
+                                content = delta.get("content", "")
+                                if content:
+                                    clean_chunk = {"type": "content", "content": content}
+                                    yield f"data: {json.dumps(clean_chunk)}\n\n"
+                        elif "content" in chunk_data:
+                            # Already in simple format, just add type
+                            clean_chunk = {"type": "content", "content": chunk_data["content"]}
+                            yield f"data: {json.dumps(clean_chunk)}\n\n"
+                    except json.JSONDecodeError:
+                        # Skip malformed chunks
+                        continue
+                else:
+                    # Pass through non-data chunks (like heartbeats)
+                    yield chunk
+        else:
+            # Fallback - return error message
+            error_chunk = {"type": "content", "content": "Streaming not available"}
+            yield f"data: {json.dumps(error_chunk)}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    
+    return StreamingResponse(
+        clean_stream_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+    )
+
 # Asset endpoints - forward to asset service
 @app.get("/api/v1/assets", tags=["Assets"])
 async def get_assets(
