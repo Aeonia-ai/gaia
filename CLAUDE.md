@@ -297,6 +297,125 @@ docker compose up
 # → Full KB config details in docs/kb-git-sync-guide.md
 ```
 
+### Docker Container Building
+
+**⚠️ CRITICAL: Docker builds WILL timeout in Claude Code!**
+The Bash tool has a 2-minute timeout. Full builds take 5-10 minutes. Here's the correct approach:
+
+```bash
+# Step 1: Create the async build script (one time setup)
+cat > docker-build-async.sh << 'EOF'
+#!/bin/bash
+# Docker Async Build Script for Claude Code
+
+LOG_FILE="docker-build-$(date +%Y%m%d-%H%M%S).log"
+PID_FILE=".docker-build.pid"
+
+# Check if a build is already running
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE")
+    if ps -p "$OLD_PID" > /dev/null 2>&1; then
+        echo "❌ Build already in progress (PID: $OLD_PID)"
+        echo "Check status with: ./docker-build-status.sh"
+        exit 1
+    else
+        rm "$PID_FILE"
+    fi
+fi
+
+# Start the build
+echo "🚀 Starting Docker build in background..."
+docker compose build --no-cache > "$LOG_FILE" 2>&1 &
+BUILD_PID=$!
+echo $BUILD_PID > "$PID_FILE"
+
+echo "✅ Build started successfully!"
+echo "📄 Log file: $LOG_FILE"
+echo "🔍 PID: $BUILD_PID"
+echo ""
+echo "Next steps:"
+echo "1. Check status: ./docker-build-status.sh"
+echo "2. Watch logs: tail -f $LOG_FILE"
+echo "3. When complete: docker compose up -d"
+EOF
+
+# Step 2: Create the status checker script
+cat > docker-build-status.sh << 'EOF'
+#!/bin/bash
+# Docker Build Status Checker
+
+PID_FILE=".docker-build.pid"
+
+if [ ! -f "$PID_FILE" ]; then
+    echo "✅ No build in progress"
+    exit 0
+fi
+
+PID=$(cat "$PID_FILE")
+if ps -p "$PID" > /dev/null 2>&1; then
+    echo "🔄 Build still running (PID: $PID)"
+    
+    # Find the latest log file
+    LOG_FILE=$(ls -t docker-build-*.log 2>/dev/null | head -1)
+    if [ -n "$LOG_FILE" ]; then
+        echo "📊 Progress:"
+        tail -5 "$LOG_FILE"
+    fi
+else
+    echo "✅ Build completed!"
+    rm "$PID_FILE"
+    
+    # Check if build was successful
+    LOG_FILE=$(ls -t docker-build-*.log 2>/dev/null | head -1)
+    if [ -n "$LOG_FILE" ] && grep -q "Successfully built" "$LOG_FILE"; then
+        echo "🎉 All services built successfully!"
+        echo "Run: docker compose up -d"
+    else
+        echo "❌ Build may have failed. Check the log:"
+        echo "tail -100 $LOG_FILE"
+    fi
+fi
+EOF
+
+# Make scripts executable
+chmod +x docker-build-async.sh docker-build-status.sh
+
+# Step 3: Run the build
+./docker-build-async.sh
+
+# Step 4: Check status periodically
+./docker-build-status.sh
+```
+
+**Quick Commands After Setup:**
+```bash
+# Start a new build
+./docker-build-async.sh
+
+# Check if build is done
+./docker-build-status.sh
+
+# Watch build progress live
+tail -f docker-build-*.log
+
+# Once complete, start services
+docker compose up -d
+```
+
+**This approach:**
+- ✅ Returns control immediately (no timeout)
+- ✅ Prevents multiple concurrent builds
+- ✅ Tracks build status with PID
+- ✅ Shows progress updates
+- ✅ Detects successful completion
+- ✅ Provides clear next steps
+
+**⏱️ Actual Build Times:**
+- First build (no cache): 10-15 minutes
+- Subsequent builds (with cache): 3-5 minutes
+- Check periodically with `./docker-build-status.sh`
+- Build continues even if you close Claude Code
+
 ### Remote Operations
 ```bash
 # Deploy with validation
