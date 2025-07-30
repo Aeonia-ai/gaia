@@ -101,6 +101,7 @@ class TestWorkingEndpoints:
             assert content != "Hello v1! Please respond briefly."
             logger.info(f"v1 chat response length: {len(content)} chars")
     
+    @pytest.mark.skip(reason="Chat status endpoint deprecated - system uses conversation-based storage")
     async def test_v1_chat_status(self, gateway_url, headers):
         """Test v1 chat status endpoint."""
         async with httpx.AsyncClient() as client:
@@ -111,6 +112,7 @@ class TestWorkingEndpoints:
             assert "has_history" in data
             logger.info(f"v1 chat status: {data['message_count']} messages, history: {data['has_history']}")
     
+    @pytest.mark.skip(reason="Clear history endpoint deprecated - was scaffolding for persona development")
     async def test_clear_v1_chat_history(self, gateway_url, headers):
         """Test clearing v1 chat history (known to work)."""
         async with httpx.AsyncClient() as client:

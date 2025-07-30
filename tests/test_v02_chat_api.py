@@ -56,6 +56,7 @@ class TestV02ChatAPI:
             data = response.json()
             assert data.get("status") in ["healthy", "degraded"]
     
+    @pytest.mark.skip(reason="Chat status endpoint deprecated - system uses conversation-based storage")
     async def test_v02_chat_status(self, gateway_url, headers):
         """Test v0.2 chat status endpoint."""
         async with httpx.AsyncClient() as client:
@@ -131,6 +132,7 @@ class TestV02ChatAPI:
                 # Should have provider information
                 assert len(data) > 0
     
+    @pytest.mark.skip(reason="Clear history endpoint deprecated - was scaffolding for persona development")
     async def test_v02_clear_chat_history(self, gateway_url, headers):
         """Test v0.2 clear chat history endpoint."""
         async with httpx.AsyncClient() as client:
