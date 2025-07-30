@@ -331,20 +331,25 @@ class TestSystemIntegration:
     
     async def test_end_to_end_conversation(self, gateway_url, headers):
         """Test complete end-to-end conversation flow."""
-        # Use a unique conversation ID for this test
-        import uuid
-        conversation_id = f"test-conv-{uuid.uuid4().hex[:8]}"
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # First create a conversation for this test
+            create_response = await client.post(
+                f"{gateway_url}/api/v0.3/conversations",
+                headers=headers,
+                json={"title": "End-to-end test conversation"}
+            )
+            assert create_response.status_code == 201
+            conversation_id = create_response.json()["conversation_id"]
+            
+            # Multi-turn conversation
+            conversation = [
+                ("My name is Alex and I love science fiction.", "greeting"),
+                ("What is my name?", "context_recall"),
+                ("What genre of books do I like?", "preference_recall"),
+                ("Recommend a sci-fi book.", "recommendation")
+            ]
         
-        # Multi-turn conversation
-        conversation = [
-            ("My name is Alex and I love science fiction.", "greeting"),
-            ("What is my name?", "context_recall"),
-            ("What genre of books do I like?", "preference_recall"),
-            ("Recommend a sci-fi book.", "recommendation")
-        ]
-        
-        for message, test_type in conversation:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            for message, test_type in conversation:
                 # Use v0.3 API which supports conversation context
                 response = await client.post(
                     f"{gateway_url}/api/v0.3/chat",

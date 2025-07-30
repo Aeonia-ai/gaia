@@ -70,9 +70,16 @@ class TestV03ChatAPI:
 
     async def test_conversation_context(self, gateway_url, headers):
         """Test that conversations maintain context without exposing internals."""
-        conversation_id = "test-conv-v03"
-        
         async with httpx.AsyncClient(timeout=30.0) as client:
+            # First create a conversation
+            create_response = await client.post(
+                f"{gateway_url}/api/v0.3/conversations",
+                headers=headers,
+                json={"title": "Context test conversation"}
+            )
+            assert create_response.status_code == 201
+            conversation_id = create_response.json()["conversation_id"]
+            
             # First message
             response1 = await client.post(
                 f"{gateway_url}/api/v0.3/chat",
