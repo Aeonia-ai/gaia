@@ -66,22 +66,25 @@ def main():
     # Map test types to pytest patterns (use -k for multiple patterns)
     test_patterns = {
         "all": "tests/",
-        "health": "tests/test_working_endpoints.py tests/test_comprehensive_suite.py -k test_gateway_health or test_core_system_health",
+        "health": "-k test_gateway_health or test_core_system_health",
         "chat": "tests/test_working_endpoints.py tests/test_api_endpoints_comprehensive.py::TestComprehensiveAPIEndpoints::test_chat_endpoints_functional",
-        "chat-basic": "-k 'test_v02_chat_completion or test_v1_chat_completion'",
+        "chat-basic": "-k test_v02_chat_completion or test_v1_chat_completion",
         "chat-all": "tests/test_v02_chat_api.py tests/test_working_endpoints.py::TestWorkingEndpoints",
         "kb": "tests/test_kb_endpoints.py",
         "kb-health": "tests/test_kb_endpoints.py::TestKBHealthAndStatus",
         "providers": "tests/test_provider_model_endpoints.py",
         "models": "tests/test_provider_model_endpoints.py::TestModelEndpoints",
         "comprehensive": "tests/test_comprehensive_suite.py",
-        "auth": "-k 'TestAuthenticationMethods or TestAPIAuthentication'",
-        "compatibility": "-k 'TestAPICompatibility'",
+        "auth": "-k TestAuthenticationMethods or TestAPIAuthentication",
+        "compatibility": "-k TestAPICompatibility",
         "integration": "tests/test_comprehensive_suite.py::TestSystemIntegration",
         "performance": "tests/test_comprehensive_suite.py::TestComprehensiveSuite::test_system_performance_basics",
         "core": "tests/test_working_endpoints.py tests/test_api_endpoints_comprehensive.py",
         "endpoints": "tests/test_working_endpoints.py tests/test_api_endpoints_comprehensive.py tests/test_v02_chat_api.py",
-        "status": "-k 'test_v1_chat_status or test_core_system_health'"
+        "status": "-k test_v1_chat_status or test_core_system_health",
+        "v03": "tests/test_v03_api.py",
+        "v03-chat": "tests/test_v03_api.py::TestV03ChatAPI",
+        "v03-auth": "tests/test_v03_api.py::TestV03Authentication"
     }
     
     # Print environment info
@@ -132,6 +135,11 @@ def main():
         print("  all          - Run all automated tests")
         print("  core         - Core working endpoints tests")
         print("  endpoints    - All endpoint tests")
+        
+        print("\n🆕 API Versions:")
+        print("  v03          - New v0.3 clean API tests")
+        print("  v03-chat     - v0.3 chat functionality tests")
+        print("  v03-auth     - v0.3 authentication tests")
         
         print(f"\n💡 Examples:")
         print(f"  {sys.argv[0]} health")

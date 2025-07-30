@@ -135,25 +135,27 @@ class TestRaceConditions:
             # Set up multiple endpoints with different delays
             request_order = []
             
-            await page.route("**/auth/login", async lambda route: (
-                request_order.append("login"),
-                await asyncio.sleep(0.5),
+            async def login_handler(route):
+                request_order.append("login")
+                await asyncio.sleep(0.5)
                 await route.fulfill(
                     status=400,
                     headers={"Content-Type": "text/html"},
                     body='<div id="login-error" role="alert">Login error</div>'
                 )
-            )[2])
             
-            await page.route("**/auth/check", async lambda route: (
-                request_order.append("check"),
-                await asyncio.sleep(0.1),
+            await page.route("**/auth/login", login_handler)
+            
+            async def check_handler(route):
+                request_order.append("check")
+                await asyncio.sleep(0.1)
                 await route.fulfill(
                     status=200,
                     headers={"Content-Type": "text/html"},
                     body='<div id="check-result">Check complete</div>'
                 )
-            )[2])
+            
+            await page.route("**/auth/check", check_handler)
             
             # Trigger multiple requests simultaneously
             await page.evaluate('''
@@ -424,13 +426,14 @@ class TestDynamicContent:
             await page.goto(f'{WEB_SERVICE_URL}/login')
             
             # Slow response to see loading state
-            await page.route("**/auth/login", async lambda route: (
-                await asyncio.sleep(1),
+            async def slow_login_handler(route):
+                await asyncio.sleep(1)
                 await route.fulfill(
                     status=400,
                     json={"error": "Test"}
                 )
-            )[1])
+            
+            await page.route("**/auth/login", slow_login_handler)
             
             # Check initial state
             submit_button = await page.query_selector('button[type="submit"]')

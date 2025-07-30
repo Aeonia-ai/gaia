@@ -234,13 +234,12 @@ class TestKBIntegratedChat:
                 if response.status_code == 200:
                     data = response.json()
                     
-                    # Should have OpenAI-compatible format
-                    assert "choices" in data
-                    assert len(data["choices"]) > 0
-                    assert "message" in data["choices"][0]
-                    assert "content" in data["choices"][0]["message"]
+                    # KB endpoints return v0.2 format (even under v1 path)
+                    assert "response" in data
+                    assert "status" in data
+                    assert data["status"] == "success"
                     
-                    content = data["choices"][0]["message"]["content"]
+                    content = data["response"]
                     assert len(content) > 0
                     
                     # Check for KB usage indicators
@@ -277,9 +276,12 @@ class TestKBIntegratedChat:
                 if response.status_code == 200:
                     data = response.json()
                     
-                    # Should have OpenAI-compatible format
-                    assert "choices" in data
-                    content = data["choices"][0]["message"]["content"]
+                    # KB endpoints return v0.2 format (even under v1 path)
+                    assert "response" in data
+                    assert "status" in data
+                    assert data["status"] == "success"
+                    
+                    content = data["response"]
                     assert len(content) > 0
                     
                     logger.info(f"KB research response length: {len(content)} chars")

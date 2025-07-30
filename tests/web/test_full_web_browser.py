@@ -80,14 +80,15 @@ class TestHTMXBehavior:
             await page.goto(f'{WEB_SERVICE_URL}/login')
             
             # Set up a slow response to see the indicator
-            await page.route("**/auth/login", async lambda route: (
-                await asyncio.sleep(1),  # Delay response
+            async def login_handler(route):
+                await asyncio.sleep(1)  # Delay response
                 await route.fulfill(
                     status=400,
                     headers={"Content-Type": "text/html"},
                     body='<div role="alert">Test</div>'
                 )
-            )[1])
+            
+            await page.route("**/auth/login", login_handler)
             
             # Fill form
             await page.fill('input[name="email"]', 'test@test.local')
