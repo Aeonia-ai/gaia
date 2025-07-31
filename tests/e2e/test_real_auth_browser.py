@@ -10,9 +10,7 @@ from playwright.async_api import async_playwright
 import asyncio
 
 # Import the test user factory
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from fixtures.test_auth import TestUserFactory
+from tests.fixtures.test_auth import TestUserFactory
 
 WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
 

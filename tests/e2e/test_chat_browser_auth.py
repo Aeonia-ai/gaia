@@ -5,10 +5,7 @@ import pytest
 from playwright.async_api import expect
 import os
 
-# Import our auth fixtures from the same directory
-import sys
-import os
-sys.path.insert(0, os.path.dirname(__file__))
+# Import auth fixtures from web directory
 from tests.web.browser_auth_fixtures import (
     mock_authenticated_page,
     real_authenticated_page,

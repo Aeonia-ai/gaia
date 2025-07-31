@@ -5,12 +5,10 @@ No mocking - tests the complete authentication flow.
 import pytest
 from playwright.async_api import async_playwright
 import os
-import sys
 import uuid
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from fixtures.test_auth import TestUserFactory
+# Import the test user factory
+from tests.fixtures.test_auth import TestUserFactory
 
 WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
 
