@@ -100,7 +100,7 @@ start_services() {
         echo ""
         echo -e "${GREEN}🚀 Gaia Platform is running!${NC}"
         echo -e "${BLUE}Gateway URL:${NC} http://localhost:8666"
-        echo -e "${BLUE}API Key:${NC} FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"
+        echo -e "${BLUE}API Key:${NC} Check .env file or use: docker compose exec gateway cat /app/.env | grep API_KEY"
         echo -e "${BLUE}User:${NC} dev@gaia.local"
         echo ""
         echo -e "${YELLOW}Test with:${NC} ./scripts/test.sh --local providers"
@@ -161,7 +161,11 @@ run_tests() {
     
     # Provider test with auth
     echo -n "Provider API (authenticated): "
-    if curl -s -H "X-API-Key: FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE" \
+    # Get API key from environment or .env file
+    API_KEY="${API_KEY:-$(grep API_KEY .env 2>/dev/null | cut -d'=' -f2 | tr -d '"' || echo "")}"
+    if [ -z "$API_KEY" ]; then
+        echo -e "${YELLOW}⚠️  SKIP${NC} (API_KEY not found)"
+    elif curl -s -H "X-API-Key: $API_KEY" \
          http://localhost:8666/api/v0.2/providers | grep -q "claude"; then
         echo -e "${GREEN}✅ PASS${NC}"
     else

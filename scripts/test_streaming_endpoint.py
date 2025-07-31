@@ -17,7 +17,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Environment configuration
 API_BASE_URL = "http://localhost:8666"  # Docker mode  
-API_KEY = os.getenv("API_KEY", "FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE")
+API_KEY = os.getenv("API_KEY")
+if not API_KEY:
+    print("❌ ERROR: API_KEY environment variable not set")
+    print("   Please set: export API_KEY=your-test-api-key")
+    sys.exit(1)
 
 class StreamingTestClient:
     def __init__(self, base_url: str, api_key: str):

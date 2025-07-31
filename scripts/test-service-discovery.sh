@@ -7,7 +7,14 @@ echo "==================================="
 echo ""
 
 BASE_URL="${1:-http://localhost:8666}"
-API_KEY="${2:-FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE}"
+API_KEY="${2:-$API_KEY}"
+
+if [ -z "$API_KEY" ]; then
+    echo "❌ ERROR: API_KEY not set"
+    echo "   Usage: $0 [BASE_URL] [API_KEY]"
+    echo "   Or set: export API_KEY=your-test-api-key"
+    exit 1
+fi
 
 # Test enhanced health endpoints
 echo "1. Testing enhanced health endpoints with route discovery:"
