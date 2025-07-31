@@ -183,21 +183,16 @@ class TestAuthenticationEdgeCases:
         """Test that invalid credentials show error message"""
         await page.goto(f"{WEB_SERVICE_URL}/login")
         
-        # Mock failed login
-        await page.route("**/auth/login", lambda route: route.fulfill(
-            status=400,
-            json={"error": "Invalid credentials"}
-        ))
-        
-        # Try to login
+        # Try to login with invalid credentials (will trigger real auth failure)
         await page.fill('input[name="email"]', 'wrong@test.local')
         await page.fill('input[name="password"]', 'wrongpass')
         await page.click('button[type="submit"]')
         
-        # Should show error
-        await page.wait_for_selector('[role="alert"]')
-        error_text = await page.inner_text('[role="alert"]')
-        assert "Invalid credentials" in error_text
+        # Should show error message using gaia_error_message component
+        # Look for the actual error message returned by auth endpoint
+        await page.wait_for_selector('text="Login failed. Please try again."', timeout=10000)
+        error_element = await page.query_selector('text="Login failed. Please try again."')
+        assert error_element is not None, "Error message should be displayed"
     
     async def test_session_persistence_across_navigation(self, session_authenticated_context):
         """Test that session persists across page navigation"""
