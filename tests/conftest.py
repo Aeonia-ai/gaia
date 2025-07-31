@@ -1,3 +1,11 @@
+
+"""
+Test organization:
+- tests/unit/: Fast, isolated unit tests
+- tests/integration/: Service interaction tests
+- tests/e2e/: End-to-end browser and API tests
+"""
+
 """
 Pytest configuration for Gaia Platform tests.
 """

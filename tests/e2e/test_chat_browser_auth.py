@@ -9,7 +9,7 @@ import os
 import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
-from browser_auth_fixtures import (
+from tests.web.browser_auth_fixtures import (
     mock_authenticated_page,
     real_authenticated_page,
     session_authenticated_context,
