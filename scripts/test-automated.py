@@ -87,7 +87,16 @@ def main():
         "status": "-k test_v1_chat_status or test_core_system_health",
         "v03": "tests/integration/test_v03_api.py",
         "v03-chat": "tests/integration/test_v03_api.py::TestV03ChatAPI",
-        "v03-auth": "tests/integration/test_v03_api.py::TestV03Authentication"
+        "v03-auth": "tests/integration/test_v03_api.py::TestV03Authentication",
+        # Browser/E2E tests
+        "e2e": "tests/e2e/",
+        "e2e-auth": "tests/e2e/test_auth_working_pattern.py tests/e2e/test_simple_auth_fixed.py",
+        "e2e-chat": "tests/e2e/test_chat_browser_auth.py tests/e2e/test_chat_browser_auth_fixed.py",
+        "browser": "tests/e2e/",
+        # Unit tests
+        "unit": "tests/unit/",
+        # Performance tests
+        "perf": "-k performance or benchmark or load"
     }
     
     # Print environment info
@@ -143,6 +152,16 @@ def main():
         print("  v03          - New v0.3 clean API tests")
         print("  v03-chat     - v0.3 chat functionality tests")
         print("  v03-auth     - v0.3 authentication tests")
+        
+        print("\n🌐 Browser & UI Tests:")
+        print("  e2e          - All end-to-end browser tests")
+        print("  e2e-auth     - Browser authentication tests")
+        print("  e2e-chat     - Browser chat interaction tests")
+        print("  browser      - All browser tests (alias for e2e)")
+        
+        print("\n🧪 Other Test Categories:")
+        print("  unit         - Unit tests with mocked dependencies")
+        print("  perf         - Performance and benchmark tests")
         
         print(f"\n💡 Examples:")
         print(f"  {sys.argv[0]} health")
