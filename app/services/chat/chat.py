@@ -231,6 +231,10 @@ async def unified_chat_endpoint(
             
             return result
         
+    except HTTPException as e:
+        # Re-raise HTTP exceptions (like 404) without modification
+        logger.error(f"Unified chat HTTP error: {e.status_code} - {e.detail}")
+        raise e
     except Exception as e:
         logger.error(f"Unified chat error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -1067,10 +1067,10 @@ Key principles:
                 from fastapi import HTTPException
                 if isinstance(e, HTTPException):
                     raise e
-                # For other errors, raise 500
+                # For other errors, raise 500 with original error message
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Error loading conversation: {str(e)}"
+                    detail=f"Error loading conversation: {e}"
                 )
         
         # Add any additional context
