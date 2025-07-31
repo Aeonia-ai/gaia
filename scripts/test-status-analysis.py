@@ -43,6 +43,8 @@ WORKING_TESTS = {
     "tests/e2e/test_authenticated_browser.py",  # Already using working pattern
     "tests/e2e/test_chat_htmx.py",  # Already using working pattern
     "tests/e2e/test_chat_browser_auth.py",  # Just migrated to working pattern
+    "tests/e2e/test_simple_auth_fixed.py",  # Just migrated to working pattern
+    "tests/e2e/test_layout_integrity.py",  # Already using working pattern
     
     # Web tests
     "tests/web/test_auth_routes.py",
@@ -54,11 +56,9 @@ UNTESTED_TESTS = {
  
     "tests/e2e/test_e2e_real_auth.py",
     "tests/e2e/test_full_web_browser.py",
-    "tests/e2e/test_layout_integrity.py",
     "tests/e2e/test_manual_auth_browser.py",
     "tests/e2e/test_real_auth_browser.py",
     "tests/e2e/test_real_e2e_with_supabase.py",
-    "tests/e2e/test_simple_auth_fixed.py",
 }
 
 # Non-test files (fixtures, config, etc.)
