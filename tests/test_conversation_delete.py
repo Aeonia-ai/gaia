@@ -13,12 +13,7 @@ class TestConversationDeletion:
     
     @pytest.fixture
     def gateway_url(self):
-        import os
-        # Use localhost when running outside Docker
-        if os.getenv("RUNNING_IN_DOCKER") == "true":
-            return "http://gateway:8000"
-        else:
-            return "http://localhost:8666"
+        return "http://gateway:8000"
     
     @pytest.fixture
     def auth_manager(self):
