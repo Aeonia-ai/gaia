@@ -83,6 +83,51 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **The ONLY correct approach:**
 - ✅ "I'll add ONLY the delete endpoint. I won't touch anything else."
 
+## ⏱️ NEVER Launch Long Commands Without Monitoring
+
+**Before running ANY command that might take >30 seconds:**
+
+1. **STOP and estimate time**
+   - Tests: ~30s per test file, ~5-10 min for full suite
+   - Builds: ~2-3 min for Docker builds
+   - Deployments: ~5-10 min
+
+2. **ALWAYS use monitoring/control options:**
+   ```bash
+   # ❌ BAD: Blind long-running command
+   ./scripts/test-automated.py all
+   
+   # ✅ GOOD: With progress and control
+   ./scripts/test-automated.py all --parallel    # Run in parallel
+   timeout 300s ./scripts/test-automated.py all  # 5-minute timeout
+   ./scripts/test-automated.py all &             # Background with monitoring
+   tail -f test.log
+   ```
+
+3. **For pytest specifically:**
+   ```bash
+   # Run tests in parallel (uses all CPU cores)
+   pytest -n auto tests/
+   
+   # Show slowest tests
+   pytest --durations=10 tests/
+   
+   # Stop on first failure
+   pytest -x tests/
+   
+   # Run specific test subset first
+   pytest tests/test_health.py  # Quick smoke test
+   ```
+
+4. **Quick checks before full runs:**
+   - Run health check first: `./scripts/test-automated.py health` (10s)
+   - Run single test file to verify setup
+   - Check one service before all services
+
+**The rule: No blind "fire and forget" commands. Always have visibility and control.**
+
+**⚠️ IMPORTANT: When a command times out, it usually means it's just slow, NOT broken. Don't start "fixing" things!**
+
 ## 🚨 BEFORE YOU START: Required Reading
 
 1. **Web UI Changes** → MUST read [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md) and [Auth Layout Isolation](docs/auth-layout-isolation.md)
