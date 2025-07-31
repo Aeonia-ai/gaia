@@ -26,9 +26,9 @@ async def test_invalid_login_shows_error():
             await page.fill('input[name="password"]', 'wrongpass')
             await page.click('button[type="submit"]')
             
-            # Wait for error message
-            await page.wait_for_selector('text="Login failed. Please try again."', timeout=5000)
-            error_element = await page.query_selector('text="Login failed. Please try again."')
+            # Wait for error message (includes warning emoji)
+            await page.wait_for_selector('text="⚠️ Login failed. Please try again."', timeout=5000)
+            error_element = await page.query_selector('text="⚠️ Login failed. Please try again."')
             assert error_element is not None, "Error message should be displayed"
             
         finally:
