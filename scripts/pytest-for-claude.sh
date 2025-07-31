@@ -5,10 +5,14 @@
 # This is THE ONLY WAY to run all tests without hitting Claude Code's 2-minute timeout!
 # 
 # ✅ DO: 
-#   ./scripts/pytest-for-claude.sh                    # All tests
-#   ./scripts/pytest-for-claude.sh tests/integration # Integration tests
-#   ./scripts/pytest-for-claude.sh tests/e2e          # Browser tests
-#   ./scripts/pytest-for-claude.sh tests/unit         # Unit tests
+#   ./scripts/pytest-for-claude.sh                                        # All tests
+#   ./scripts/pytest-for-claude.sh tests/integration                      # Integration tests
+#   ./scripts/pytest-for-claude.sh tests/e2e                              # Browser tests
+#   ./scripts/pytest-for-claude.sh tests/unit                             # Unit tests
+#   ./scripts/pytest-for-claude.sh tests/integration/test_v03_api.py      # Single file
+#   ./scripts/pytest-for-claude.sh "tests/integration -k test_health"     # Pattern matching
+#   ./scripts/pytest-for-claude.sh "--lf"                                 # Last failed only
+#   ./scripts/pytest-for-claude.sh "--ff"                                 # Failed first
 # 
 # ❌ DON'T use these (they will timeout):
 #   - pytest
@@ -38,21 +42,25 @@ if [ -f "$PID_FILE" ]; then
     fi
 fi
 
-# Get test pattern from command line
-TEST_PATTERN="${1:-tests/}"
+# Get all command line arguments (default to all tests)
+if [ $# -eq 0 ]; then
+    TEST_ARGS="tests/"
+else
+    TEST_ARGS="$@"
+fi
 
 echo -e "${BLUE}🚀 Starting async test run...${NC}"
 echo "📝 Logging to: $LOG_FILE"
-echo "📂 Test pattern: $TEST_PATTERN"
+echo "📂 Test args: $TEST_ARGS"
 
 # Start the test in background
 {
     echo "=== Test run started at $(date) ===" 
     echo "Running pytest with parallel execution (-n auto)..."
-    echo "Test pattern: $TEST_PATTERN"
+    echo "Test arguments: $TEST_ARGS"
     
     # Run tests in Docker with parallel execution
-    docker compose run --rm test bash -c "PYTHONPATH=/app pytest -v -n auto $TEST_PATTERN" 2>&1
+    docker compose run --rm test bash -c "PYTHONPATH=/app pytest -v -n auto $TEST_ARGS" 2>&1
     
     TEST_EXIT_CODE=$?
     
