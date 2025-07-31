@@ -70,24 +70,24 @@ def main():
     test_patterns = {
         "all": "tests/",
         "health": "-k test_gateway_health or test_core_system_health",
-        "chat": "tests/test_working_endpoints.py tests/test_api_endpoints_comprehensive.py::TestComprehensiveAPIEndpoints::test_chat_endpoints_functional",
+        "chat": "tests/integration/test_working_endpoints.py tests/integration/test_api_endpoints_comprehensive.py::TestComprehensiveAPIEndpoints::test_chat_endpoints_functional",
         "chat-basic": "-k test_v02_chat_completion or test_v1_chat_completion",
-        "chat-all": "tests/test_v02_chat_api.py tests/test_working_endpoints.py::TestWorkingEndpoints",
-        "kb": "tests/test_kb_endpoints.py",
-        "kb-health": "tests/test_kb_endpoints.py::TestKBHealthAndStatus",
-        "providers": "tests/test_provider_model_endpoints.py",
-        "models": "tests/test_provider_model_endpoints.py::TestModelEndpoints",
-        "comprehensive": "tests/test_comprehensive_suite.py",
+        "chat-all": "tests/integration/test_v02_chat_api.py tests/integration/test_working_endpoints.py::TestWorkingEndpoints",
+        "kb": "tests/integration/test_kb_endpoints.py",
+        "kb-health": "tests/integration/test_kb_endpoints.py::TestKBHealthAndStatus",
+        "providers": "tests/integration/test_provider_model_endpoints.py",
+        "models": "tests/integration/test_provider_model_endpoints.py::TestModelEndpoints",
+        "comprehensive": "tests/integration/test_comprehensive_suite.py",
         "auth": "-k TestAuthenticationMethods or TestAPIAuthentication",
         "compatibility": "-k TestAPICompatibility",
         "integration": "tests/integration/",
-        "performance": "tests/test_comprehensive_suite.py::TestComprehensiveSuite::test_system_performance_basics",
-        "core": "tests/test_working_endpoints.py tests/test_api_endpoints_comprehensive.py",
+        "performance": "tests/integration/test_comprehensive_suite.py::TestComprehensiveSuite::test_system_performance_basics",
+        "core": "tests/integration/test_working_endpoints.py tests/integration/test_api_endpoints_comprehensive.py",
         "endpoints": "tests/integration/test_working_endpoints.py tests/integration/test_api_endpoints_comprehensive.py tests/integration/test_v02_chat_api.py",
         "status": "-k test_v1_chat_status or test_core_system_health",
-        "v03": "tests/test_v03_api.py",
-        "v03-chat": "tests/test_v03_api.py::TestV03ChatAPI",
-        "v03-auth": "tests/test_v03_api.py::TestV03Authentication"
+        "v03": "tests/integration/test_v03_api.py",
+        "v03-chat": "tests/integration/test_v03_api.py::TestV03ChatAPI",
+        "v03-auth": "tests/integration/test_v03_api.py::TestV03Authentication"
     }
     
     # Print environment info
