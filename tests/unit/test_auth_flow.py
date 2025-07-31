@@ -10,6 +10,9 @@ import httpx
 from datetime import datetime
 from unittest.mock import AsyncMock, patch, MagicMock
 
+# Import test fixtures from web conftest
+from tests.web.conftest import client, mock_gateway_client, mock_session, mock_auth_response
+
 # Removed asyncio marker - TestClient is synchronous
 
 

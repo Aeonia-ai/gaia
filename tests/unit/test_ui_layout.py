@@ -9,6 +9,9 @@ import pytest
 from bs4 import BeautifulSoup
 import re
 
+# Import test fixtures from web conftest
+from tests.web.conftest import client
+
 # Removed asyncio marker - TestClient is synchronous
 
 
