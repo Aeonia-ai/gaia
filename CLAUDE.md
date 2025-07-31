@@ -37,96 +37,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Quick Test After Changes:**
 ```bash
-./scripts/test-automated.py health      # Verify all services healthy
-./scripts/test-automated.py chat-basic  # Test core chat functionality
+./scripts/test.sh --local health  # Verify all services healthy
+./scripts/test.sh --local chat "test message"  # Test functionality
 ```
-
-## 🛑 CRITICAL: STOP BREAKING WORKING CODE
-
-### The #1 Rule: **If tests are passing, DON'T TOUCH THAT CODE**
-
-**I MUST follow these rules to stop wasting everyone's time:**
-
-1. **When asked to "Add X":**
-   - Add ONLY X
-   - Touch NOTHING else  
-   - Make NO "improvements"
-   - Change NO existing behavior
-   - If it's not required for X, DON'T TOUCH IT
-
-2. **Before changing ANY existing code:**
-   ```
-   Is this change REQUIRED for the user's specific request?
-   If NO → STOP. DON'T TOUCH IT.
-   ```
-
-3. **When I see "issues" or "improvements":**
-   - DON'T mention them
-   - DON'T fix them
-   - DON'T refactor
-   - The code is working. LEAVE IT ALONE.
-
-4. **Test failures = MY fault:**
-   - If my changes break existing tests → REVERT my changes
-   - NEVER modify tests to match my breaks
-   - Working code is sacred
-
-5. **The 2-hour rule:**
-   - If a "simple" task takes >2 hours → I'm doing too much
-   - STOP and reassess scope
-
-**Examples of what NOT to do:**
-- ❌ "I'll add the delete endpoint and also improve conversation handling"  
-- ❌ "This isn't REST-compliant, let me fix it"
-- ❌ "While I'm here, let me clean up this error handling"
-
-**The ONLY correct approach:**
-- ✅ "I'll add ONLY the delete endpoint. I won't touch anything else."
-
-## ⏱️ NEVER Launch Long Commands Without Monitoring
-
-**Before running ANY command that might take >30 seconds:**
-
-1. **STOP and estimate time**
-   - Tests: ~30s per test file, ~5-10 min for full suite
-   - Builds: ~2-3 min for Docker builds
-   - Deployments: ~5-10 min
-
-2. **ALWAYS use monitoring/control options:**
-   ```bash
-   # ❌ BAD: Blind long-running command
-   ./scripts/test-automated.py all
-   
-   # ✅ GOOD: With progress and control
-   ./scripts/test-automated.py all --parallel    # Run in parallel
-   timeout 300s ./scripts/test-automated.py all  # 5-minute timeout
-   ./scripts/test-automated.py all &             # Background with monitoring
-   tail -f test.log
-   ```
-
-3. **For pytest specifically:**
-   ```bash
-   # Run tests in parallel (uses all CPU cores)
-   pytest -n auto tests/
-   
-   # Show slowest tests
-   pytest --durations=10 tests/
-   
-   # Stop on first failure
-   pytest -x tests/
-   
-   # Run specific test subset first
-   pytest tests/test_health.py  # Quick smoke test
-   ```
-
-4. **Quick checks before full runs:**
-   - Run health check first: `./scripts/test-automated.py health` (10s)
-   - Run single test file to verify setup
-   - Check one service before all services
-
-**The rule: No blind "fire and forget" commands. Always have visibility and control.**
-
-**⚠️ IMPORTANT: When a command times out, it usually means it's just slow, NOT broken. Don't start "fixing" things!**
 
 ## 🚨 BEFORE YOU START: Required Reading
 
@@ -241,10 +154,10 @@ AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
 - Timeouts during deployment = often infrastructure issues, not code issues
 - Services work individually but not together = networking/discovery problem
 
-**🧪 USE AUTOMATED TESTS, NOT MANUAL SCRIPTS**
-- ALWAYS use automated tests (`./scripts/test-automated.py`) instead of manual curl commands
-- If you need to test something new, ADD it to automated test suites
-- Automated tests provide consistent results and capture knowledge permanently
+**🧪 USE TEST SCRIPTS, NOT CURL**
+- ALWAYS use test scripts (`./scripts/test.sh`) instead of manual curl commands
+- If you need to test something new, ADD it to a test script, don't just run curl
+- Test scripts capture knowledge, curl commands vanish with your terminal
 - See [Testing Philosophy](docs/testing-philosophy.md) for why this matters
 
 ## 📚 Essential Documentation Index
@@ -360,11 +273,10 @@ See [Command Reference](docs/command-reference.md) for complete list.
 3. **DON'T** forget to set Fly.io secrets for new environment variables
 
 ### Testing Mistakes
-1. **DON'T** use direct `curl` - use automated tests that provide consistent results
-2. **DON'T** test in production first - always test locally with automated suite
-3. **DON'T** skip automated testing after configuration changes
-4. **DON'T** create one-off manual tests - add them to automated test suites
-5. **DON'T** rely on manual verification - automated tests catch regressions
+1. **DON'T** use direct `curl` - use test scripts that capture the knowledge
+2. **DON'T** test in production first - always test locally
+3. **DON'T** skip the verification scripts after configuration changes
+4. **DON'T** run pytest directly - use `./scripts/pytest-fullsuite-no-timeout.sh` instead
 
 ## 📋 Quick Reference: Essential Commands
 
@@ -373,11 +285,11 @@ See [Command Reference](docs/command-reference.md) for complete list.
 # Start services
 docker compose up
 
-# Run automated tests
-./scripts/test-automated.py all            # Complete automated test suite (RECOMMENDED)
-./scripts/test-automated.py health         # Quick health check
-./scripts/test-automated.py chat-basic     # Core chat functionality
-./scripts/test-automated.py comprehensive  # Full system integration tests
+# Run tests - ALWAYS use this instead of 'pytest' command!
+./scripts/pytest-fullsuite-no-timeout.sh   # Replaces 'pytest' - runs detached to avoid timeout
+./scripts/check-test-progress.sh           # Check test progress (since they run detached)
+./scripts/test-comprehensive.sh            # API endpoint tests only
+./scripts/test.sh --local all              # Legacy API test suite
 
 # User management
 ./scripts/manage-users.sh list
@@ -387,6 +299,125 @@ docker compose up
 ./scripts/setup-aeonia-kb.sh               # Auto-configures Obsidian vault
 # → Full KB config details in docs/kb-git-sync-guide.md
 ```
+
+### Docker Container Building
+
+**⚠️ CRITICAL: Docker builds WILL timeout in Claude Code!**
+The Bash tool has a 2-minute timeout. Full builds take 5-10 minutes. Here's the correct approach:
+
+```bash
+# Step 1: Create the async build script (one time setup)
+cat > docker-build-async.sh << 'EOF'
+#!/bin/bash
+# Docker Async Build Script for Claude Code
+
+LOG_FILE="docker-build-$(date +%Y%m%d-%H%M%S).log"
+PID_FILE=".docker-build.pid"
+
+# Check if a build is already running
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE")
+    if ps -p "$OLD_PID" > /dev/null 2>&1; then
+        echo "❌ Build already in progress (PID: $OLD_PID)"
+        echo "Check status with: ./docker-build-status.sh"
+        exit 1
+    else
+        rm "$PID_FILE"
+    fi
+fi
+
+# Start the build
+echo "🚀 Starting Docker build in background..."
+docker compose build --no-cache > "$LOG_FILE" 2>&1 &
+BUILD_PID=$!
+echo $BUILD_PID > "$PID_FILE"
+
+echo "✅ Build started successfully!"
+echo "📄 Log file: $LOG_FILE"
+echo "🔍 PID: $BUILD_PID"
+echo ""
+echo "Next steps:"
+echo "1. Check status: ./docker-build-status.sh"
+echo "2. Watch logs: tail -f $LOG_FILE"
+echo "3. When complete: docker compose up -d"
+EOF
+
+# Step 2: Create the status checker script
+cat > docker-build-status.sh << 'EOF'
+#!/bin/bash
+# Docker Build Status Checker
+
+PID_FILE=".docker-build.pid"
+
+if [ ! -f "$PID_FILE" ]; then
+    echo "✅ No build in progress"
+    exit 0
+fi
+
+PID=$(cat "$PID_FILE")
+if ps -p "$PID" > /dev/null 2>&1; then
+    echo "🔄 Build still running (PID: $PID)"
+    
+    # Find the latest log file
+    LOG_FILE=$(ls -t docker-build-*.log 2>/dev/null | head -1)
+    if [ -n "$LOG_FILE" ]; then
+        echo "📊 Progress:"
+        tail -5 "$LOG_FILE"
+    fi
+else
+    echo "✅ Build completed!"
+    rm "$PID_FILE"
+    
+    # Check if build was successful
+    LOG_FILE=$(ls -t docker-build-*.log 2>/dev/null | head -1)
+    if [ -n "$LOG_FILE" ] && grep -q "Successfully built" "$LOG_FILE"; then
+        echo "🎉 All services built successfully!"
+        echo "Run: docker compose up -d"
+    else
+        echo "❌ Build may have failed. Check the log:"
+        echo "tail -100 $LOG_FILE"
+    fi
+fi
+EOF
+
+# Make scripts executable
+chmod +x docker-build-async.sh docker-build-status.sh
+
+# Step 3: Run the build
+./docker-build-async.sh
+
+# Step 4: Check status periodically
+./docker-build-status.sh
+```
+
+**Quick Commands After Setup:**
+```bash
+# Start a new build
+./docker-build-async.sh
+
+# Check if build is done
+./docker-build-status.sh
+
+# Watch build progress live
+tail -f docker-build-*.log
+
+# Once complete, start services
+docker compose up -d
+```
+
+**This approach:**
+- ✅ Returns control immediately (no timeout)
+- ✅ Prevents multiple concurrent builds
+- ✅ Tracks build status with PID
+- ✅ Shows progress updates
+- ✅ Detects successful completion
+- ✅ Provides clear next steps
+
+**⏱️ Actual Build Times:**
+- First build (no cache): 10-15 minutes
+- Subsequent builds (with cache): 3-5 minutes
+- Check periodically with `./docker-build-status.sh`
+- Build continues even if you close Claude Code
 
 ### Remote Operations
 ```bash

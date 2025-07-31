@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # FastAPI Gateway - Main entry point for all client requests
   gateway:
@@ -6,11 +8,6 @@ services:
       dockerfile: Dockerfile.gateway
     ports:
       - "8666:8000"  # Same port as LLM Platform for client compatibility
-    volumes:
-      - ./app:/app/app
-      - mcp_data:/app/data/kb
-      - ../Dendron:/app/data/wiki
-      - ./certs:/app/certs:ro
     env_file:
       - .env
     environment:
@@ -36,19 +33,23 @@ services:
       - kb-service
     networks:
       - gaia_net
-    command: uvicorn app.gateway.main:app --host 0.0.0.0 --port 8000 --reload
-    # Local development resource limits - generous for comfort
-    mem_limit: 512m
-    cpus: 1.0
+    command: uvicorn app.gateway.main:app --host 0.0.0.0 --port 8000
+    # Production resource limits
+    mem_limit: 256m
+    mem_reservation: 128m
+    cpus: 0.8
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Authentication Service
   auth-service:
     build:
       context: .
       dockerfile: Dockerfile.auth
-    volumes:
-      - ./app:/app/app
-      - ./certs:/app/certs:ro
     env_file:
       - .env
     environment:
@@ -66,19 +67,23 @@ services:
       - redis
     networks:
       - gaia_net
-    command: uvicorn app.services.auth.main:app --host 0.0.0.0 --port 8000 --reload
-    # Local development resource limits
+    command: uvicorn app.services.auth.main:app --host 0.0.0.0 --port 8000
+    # Production resource limits
     mem_limit: 256m
+    mem_reservation: 128m
     cpus: 0.8
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Asset Service (Universal Asset Server)
   asset-service:
     build:
       context: .
       dockerfile: Dockerfile.asset
-    volumes:
-      - ./app:/app/app
-      - ./certs:/app/certs:ro
     env_file:
       - .env
     environment:
@@ -96,20 +101,23 @@ services:
       - redis
     networks:
       - gaia_net
-    command: uvicorn app.services.asset.main:app --host 0.0.0.0 --port 8000 --reload
-    # Local development resource limits
+    command: uvicorn app.services.asset.main:app --host 0.0.0.0 --port 8000
+    # Production resource limits
     mem_limit: 256m
+    mem_reservation: 128m
     cpus: 0.8
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Chat Service (MCP-Agent powered with KB integration)
   chat-service:
     build:
       context: .
       dockerfile: Dockerfile.chat
-    volumes:
-      - ./app:/app/app
-      - mcp_data:/app/data/kb
-      - ./certs:/app/certs:ro
     env_file:
       - .env
     environment:
@@ -128,20 +136,23 @@ services:
       - redis
     networks:
       - gaia_net
-    command: uvicorn app.services.chat.main:app --host 0.0.0.0 --port 8000 --reload
-    # Local development resource limits - highest for MCP + AI
+    command: uvicorn app.services.chat.main:app --host 0.0.0.0 --port 8000
+    # Production resource limits - highest for MCP + AI processing
     mem_limit: 512m
+    mem_reservation: 256m
     cpus: 1.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # KB Service (Knowledge Base integration)
   kb-service:
     build:
       context: .
       dockerfile: Dockerfile.kb
-    volumes:
-      - ./app:/app/app
-      # NO local KB mount - container-only storage for local-remote parity
-      # KB will clone from Git on every start, just like production
     env_file:
       - .env
     environment:
@@ -151,17 +162,24 @@ services:
       # KB configuration
       - KB_PATH=/kb
       - KB_MCP_ENABLED=true
-      - KB_MODE=local
+      - KB_MODE=production
     depends_on:
       - db
       - nats
       - redis
     networks:
       - gaia_net
-    command: uvicorn app.services.kb.main:app --host 0.0.0.0 --port 8000 --reload
-    # Local development resource limits
+    command: uvicorn app.services.kb.main:app --host 0.0.0.0 --port 8000
+    # Production resource limits
     mem_limit: 512m
+    mem_reservation: 256m
     cpus: 1.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Web Service (FastHTML UI)
   web-service:
@@ -170,9 +188,6 @@ services:
       dockerfile: Dockerfile.web
     ports:
       - "8080:8000"  # Web UI on port 8080
-    volumes:
-      - ./app:/app/app
-      - ./certs:/app/certs:ro
     env_file:
       - .env
     environment:
@@ -180,9 +195,9 @@ services:
       - NATS_URL=nats://nats:4222
       - WEB_SESSION_SECRET=${SESSION_SECRET:-change-this-in-production}
       - WEB_LOG_LEVEL=INFO
-      - WEB_DEBUG=true
-      - ENVIRONMENT=local
-      - WEB_SERVICE_BASE_URL=http://localhost:8080
+      - WEB_DEBUG=false
+      - ENVIRONMENT=production
+      - WEB_SERVICE_BASE_URL=${WEB_SERVICE_BASE_URL:-http://localhost:8080}
       - TLS_CERT_PATH=/app/certs/web-service/cert.pem
       - TLS_KEY_PATH=/app/certs/web-service/key.pem
       - TLS_CA_PATH=/app/certs/ca.pem
@@ -193,10 +208,17 @@ services:
       - nats
     networks:
       - gaia_net
-    command: uvicorn app.services.web.main:app --host 0.0.0.0 --port 8000 --reload
-    # Local development resource limits - lightweight UI
+    command: uvicorn app.services.web.main:app --host 0.0.0.0 --port 8000
+    # Production resource limits - lightweight UI
     mem_limit: 128m
+    mem_reservation: 64m
     cpus: 0.5
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # PostgreSQL Database (with Gaia Platform schema)
   db:
@@ -212,9 +234,16 @@ services:
       - "5432:5432"
     networks:
       - gaia_net
-    # Local development resource limits - database needs headroom
+    # Production resource limits - database needs more resources
     mem_limit: 1g
+    mem_reservation: 512m
     cpus: 1.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # NATS Message Broker
   nats:
@@ -225,9 +254,16 @@ services:
     networks:
       - gaia_net
     command: ["--jetstream", "--http_port", "8222"]
-    # Local development resource limits
+    # Production resource limits
     mem_limit: 256m
+    mem_reservation: 128m
     cpus: 0.5
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Redis Cache
   redis:
@@ -239,40 +275,20 @@ services:
     networks:
       - gaia_net
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
-    # Local development resource limits
+    # Production resource limits
     mem_limit: 256m
+    mem_reservation: 128m
     cpus: 0.5
-
-  # Test service (equivalent to LLM Platform test)
-  test:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-    volumes:
-      - ./tests:/app/tests
-      - mcp_data:/app/data/kb
-    env_file:
-      - .env
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
-      - NATS_URL=nats://nats:4222
-      - REDIS_URL=redis://redis:6379
-      - MCP_FILESYSTEM_ROOT=/app/data
-      - GATEWAY_URL=http://gateway:8000
-    depends_on:
-      - db
-      - nats
-      - redis
-      - gateway
-    networks:
-      - gaia_net
-    command: bash -c "PYTHONPATH=/app pytest -v"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:
   redis_data:
-  mcp_data:
-    driver: local
 
 networks:
   gaia_net:
