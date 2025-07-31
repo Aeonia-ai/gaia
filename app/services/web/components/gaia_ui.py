@@ -240,7 +240,7 @@ def gaia_auth_form(is_login=True):
                     Form(
                         Div(
                             gaia_input("email", "Email address", type="email", required=True,
-                                     pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$",
+                                     pattern="[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$",
                                      title="Please enter a valid email address"),
                             cls="mb-4"
                         ),
