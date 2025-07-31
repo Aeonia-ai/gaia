@@ -41,6 +41,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./scripts/test-automated.py chat-basic  # Test core chat functionality
 ```
 
+## 🛑 CRITICAL: STOP BREAKING WORKING CODE
+
+### The #1 Rule: **If tests are passing, DON'T TOUCH THAT CODE**
+
+**I MUST follow these rules to stop wasting everyone's time:**
+
+1. **When asked to "Add X":**
+   - Add ONLY X
+   - Touch NOTHING else  
+   - Make NO "improvements"
+   - Change NO existing behavior
+   - If it's not required for X, DON'T TOUCH IT
+
+2. **Before changing ANY existing code:**
+   ```
+   Is this change REQUIRED for the user's specific request?
+   If NO → STOP. DON'T TOUCH IT.
+   ```
+
+3. **When I see "issues" or "improvements":**
+   - DON'T mention them
+   - DON'T fix them
+   - DON'T refactor
+   - The code is working. LEAVE IT ALONE.
+
+4. **Test failures = MY fault:**
+   - If my changes break existing tests → REVERT my changes
+   - NEVER modify tests to match my breaks
+   - Working code is sacred
+
+5. **The 2-hour rule:**
+   - If a "simple" task takes >2 hours → I'm doing too much
+   - STOP and reassess scope
+
+**Examples of what NOT to do:**
+- ❌ "I'll add the delete endpoint and also improve conversation handling"  
+- ❌ "This isn't REST-compliant, let me fix it"
+- ❌ "While I'm here, let me clean up this error handling"
+
+**The ONLY correct approach:**
+- ✅ "I'll add ONLY the delete endpoint. I won't touch anything else."
+
 ## 🚨 BEFORE YOU START: Required Reading
 
 1. **Web UI Changes** → MUST read [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md) and [Auth Layout Isolation](docs/auth-layout-isolation.md)
