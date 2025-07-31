@@ -1,13 +1,22 @@
 #!/bin/bash
-# IMPORTANT: This is THE ONLY WAY to run all tests without hitting Claude Code's 2-minute timeout!
-# This script runs the FULL TEST SUITE asynchronously in the background with parallel execution.
+# 🤖 CLAUDE CODE TEST RUNNER - Use this instead of pytest!
 # 
-# DO NOT use:
+# IMPORTANT FOR FUTURE CLAUDES: When you want to run tests, use THIS script!
+# This is THE ONLY WAY to run all tests without hitting Claude Code's 2-minute timeout!
+# 
+# ✅ DO: 
+#   ./scripts/pytest-for-claude.sh                    # All tests
+#   ./scripts/pytest-for-claude.sh tests/integration # Integration tests
+#   ./scripts/pytest-for-claude.sh tests/e2e          # Browser tests
+#   ./scripts/pytest-for-claude.sh tests/unit         # Unit tests
+# 
+# ❌ DON'T use these (they will timeout):
 #   - pytest
 #   - docker compose run test
+#   - docker compose exec test pytest
 #   - python -m pytest
 # 
-# Those will ALL timeout and fail in Claude Code!
+# This script runs tests asynchronously in Docker to avoid timeouts.
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -29,16 +38,21 @@ if [ -f "$PID_FILE" ]; then
     fi
 fi
 
+# Get test pattern from command line
+TEST_PATTERN="${1:-tests/}"
+
 echo -e "${BLUE}🚀 Starting async test run...${NC}"
 echo "📝 Logging to: $LOG_FILE"
+echo "📂 Test pattern: $TEST_PATTERN"
 
 # Start the test in background
 {
     echo "=== Test run started at $(date) ===" 
     echo "Running pytest with parallel execution (-n auto)..."
+    echo "Test pattern: $TEST_PATTERN"
     
     # Run tests in Docker with parallel execution
-    docker compose run --rm test bash -c "PYTHONPATH=/app pytest -v -n auto" 2>&1
+    docker compose run --rm test bash -c "PYTHONPATH=/app pytest -v -n auto $TEST_PATTERN" 2>&1
     
     TEST_EXIT_CODE=$?
     

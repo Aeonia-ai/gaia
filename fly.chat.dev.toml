@@ -28,6 +28,9 @@ primary_region = 'lax'
   min_machines_running = 1
   processes = ['app']
 
+  [http_service.timeout]
+    idle = "30m"
+
 [[vm]]
   memory = '1gb'  # Chat service needs memory for LLM processing
   cpu_kind = 'shared'

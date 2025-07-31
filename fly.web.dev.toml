@@ -17,6 +17,9 @@ primary_region = "lax"
   auto_start_machines = true
   min_machines_running = 1
 
+  [http_service.timeout]
+    idle = "30m"
+
   [http_service.concurrency]
     type = "connections"
     hard_limit = 500

@@ -36,6 +36,9 @@ primary_region = 'lax'
   min_machines_running = 1  # Dev: single instance is fine
   processes = ['app']
 
+  [http_service.timeout]
+    idle = "30m"
+
 [[vm]]
   memory = '1gb'  # Dev: moderate resources
   cpu_kind = 'shared'
