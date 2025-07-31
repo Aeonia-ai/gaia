@@ -276,6 +276,7 @@ See [Command Reference](docs/command-reference.md) for complete list.
 1. **DON'T** use direct `curl` - use test scripts that capture the knowledge
 2. **DON'T** test in production first - always test locally
 3. **DON'T** skip the verification scripts after configuration changes
+4. **DON'T** run pytest directly - use `./scripts/pytest-fullsuite-no-timeout.sh` instead
 
 ## 📋 Quick Reference: Essential Commands
 
@@ -284,9 +285,11 @@ See [Command Reference](docs/command-reference.md) for complete list.
 # Start services
 docker compose up
 
-# Run tests
-./scripts/test-comprehensive.sh            # Full test suite (RECOMMENDED)
-./scripts/test.sh --local all              # Legacy test suite
+# Run tests - ALWAYS use this instead of 'pytest' command!
+./scripts/pytest-fullsuite-no-timeout.sh   # Replaces 'pytest' - runs detached to avoid timeout
+./scripts/check-test-progress.sh           # Check test progress (since they run detached)
+./scripts/test-comprehensive.sh            # API endpoint tests only
+./scripts/test.sh --local all              # Legacy API test suite
 
 # User management
 ./scripts/manage-users.sh list
