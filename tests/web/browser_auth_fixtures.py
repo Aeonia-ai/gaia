@@ -9,9 +9,7 @@ import os
 from typing import Dict, Any
 from playwright.async_api import Page, BrowserContext
 
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from fixtures.test_auth import TestUserFactory, JWTTestAuth
+from tests.fixtures.test_auth import TestUserFactory, JWTTestAuth
 
 
 @pytest.fixture
@@ -20,10 +18,13 @@ async def mock_authenticated_page(page: Page) -> Page:
     Provide a page with mocked authentication.
     Fastest option for unit tests.
     """
-    # Setup auth mock
+    # Get service URL for consistent mocking
+    WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
+    
+    # Setup auth mock with full URL and correct redirect 
     await page.route("**/auth/login", lambda route: route.fulfill(
         status=303,
-        headers={"Location": "/chat"},
+        headers={"Location": f"{WEB_SERVICE_URL}/chat"},
         body=""
     ))
     
@@ -42,12 +43,12 @@ async def mock_authenticated_page(page: Page) -> Page:
         }
     ))
     
-    # Perform mock login
-    await page.goto("/login")
+    # Perform mock login with full URLs and timeout
+    await page.goto(f"{WEB_SERVICE_URL}/login")
     await page.fill('input[name="email"]', 'test@test.local')
     await page.fill('input[name="password"]', 'test123')
     await page.click('button[type="submit"]')
-    await page.wait_for_url("**/chat")
+    await page.wait_for_url("**/chat", timeout=10000)
     
     return page
 
@@ -72,8 +73,9 @@ async def real_authenticated_page(page: Page) -> Page:
     )
     
     try:
-        # Perform real login
-        await page.goto("/login")
+        # Perform real login with full URL
+        WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
+        await page.goto(f"{WEB_SERVICE_URL}/login")
         await page.fill('input[name="email"]', test_email)
         await page.fill('input[name="password"]', test_password)
         await page.click('button[type="submit"]')
@@ -168,10 +170,11 @@ def auth_page_objects():
             self.email_input = 'input[name="email"]'
             self.password_input = 'input[name="password"]'
             self.submit_button = 'button[type="submit"]'
-            self.error_message = '[role="alert"]'
+            self.error_message = 'text="Login failed. Please try again."'
         
         async def goto(self):
-            await self.page.goto("/login")
+            WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
+            await self.page.goto(f"{WEB_SERVICE_URL}/login")
         
         async def login(self, email: str, password: str):
             await self.fill_email(email)
@@ -201,7 +204,8 @@ def auth_page_objects():
             self.submit_button = 'button[type="submit"]'
         
         async def goto(self):
-            await self.page.goto("/register")
+            WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
+            await self.page.goto(f"{WEB_SERVICE_URL}/register")
         
         async def register(self, email: str, password: str):
             await self.page.fill(self.email_input, email)
@@ -250,16 +254,19 @@ async def authenticated_page_with_mocks(page: Page) -> Page:
     """
     Provide a fully mocked authenticated page with all common API responses.
     """
+    # Get service URL for consistent mocking
+    WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
+    
     # Auth mocks
     await page.route("**/auth/login", lambda route: route.fulfill(
         status=303,
-        headers={"Location": "/chat"},
+        headers={"Location": f"{WEB_SERVICE_URL}/chat"},
         body=""
     ))
     
     await page.route("**/auth/logout", lambda route: route.fulfill(
         status=303,
-        headers={"Location": "/login"},
+        headers={"Location": f"{WEB_SERVICE_URL}/login"},
         body=""
     ))
     
@@ -308,11 +315,11 @@ async def authenticated_page_with_mocks(page: Page) -> Page:
         }
     ))
     
-    # Perform login
-    await page.goto("/login")
+    # Perform login with full URL and timeout
+    await page.goto(f"{WEB_SERVICE_URL}/login")
     await page.fill('input[name="email"]', 'test@test.local')
     await page.fill('input[name="password"]', 'test123')
     await page.click('button[type="submit"]')
-    await page.wait_for_url("**/chat")
+    await page.wait_for_url("**/chat", timeout=10000)
     
     return page
