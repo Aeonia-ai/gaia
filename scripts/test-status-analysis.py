@@ -35,6 +35,14 @@ WORKING_TESTS = {
     "tests/e2e/test_standalone.py",
     "tests/e2e/test_chat_browser_auth_fixed.py",
     "tests/e2e/test_debug_login.py",
+    "tests/e2e/test_browser_edge_cases.py",  # Just fixed
+    "tests/e2e/test_chat_simple.py",  # Already using working pattern
+    "tests/e2e/test_chat_working.py",  # Already using working pattern
+    "tests/e2e/test_chat_browser.py",  # Already using working pattern
+    "tests/e2e/test_auth_htmx_fix.py",  # Already using working pattern
+    "tests/e2e/test_authenticated_browser.py",  # Already using working pattern
+    "tests/e2e/test_chat_htmx.py",  # Already using working pattern
+    "tests/e2e/test_chat_browser_auth.py",  # Just migrated to working pattern
     
     # Web tests
     "tests/web/test_auth_routes.py",
@@ -43,15 +51,7 @@ WORKING_TESTS = {
 # Tests we haven't properly run yet (broken fixture pattern or untested)
 UNTESTED_TESTS = {
     # E2E tests still using broken fixtures
-    "tests/e2e/test_auth_htmx_fix.py",
-    "tests/e2e/test_authenticated_browser.py",
-    "tests/e2e/test_browser_config.py", 
-    "tests/e2e/test_browser_edge_cases.py",
-    "tests/e2e/test_chat_browser_auth.py",  # Original broken version
-    "tests/e2e/test_chat_browser.py",
-    "tests/e2e/test_chat_htmx.py",
-    "tests/e2e/test_chat_simple.py",
-    "tests/e2e/test_chat_working.py",
+ 
     "tests/e2e/test_e2e_real_auth.py",
     "tests/e2e/test_full_web_browser.py",
     "tests/e2e/test_layout_integrity.py",
@@ -71,6 +71,7 @@ NON_TESTS = {
     "tests/web/conftest.py",
     "tests/web/playwright_conftest.py",
     "tests/web/simple_browser_auth.py",
+    "tests/e2e/test_browser_config.py",  # Utility file, not actual tests
 }
 
 def main():
