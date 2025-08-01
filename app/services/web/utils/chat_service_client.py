@@ -19,11 +19,18 @@ class ChatServiceClient:
     
     def _get_headers(self, jwt_token: Optional[str] = None, api_key: Optional[str] = None) -> Dict[str, str]:
         """Get headers for chat service requests"""
-        # Use Jason's API key for testing
-        return {
-            "Content-Type": "application/json",
-            "X-API-Key": "hMzhtJFi26IN2rQlMNFaVx2YzdgNTL3H8m-ouwV2UhY"
-        }
+        headers = {"Content-Type": "application/json"}
+        
+        # If JWT token is provided, use it for authentication
+        if jwt_token:
+            headers["Authorization"] = f"Bearer {jwt_token}"
+        # If API key is provided, use it
+        elif api_key:
+            headers["X-API-Key"] = api_key
+        # For internal service-to-service communication, no auth needed
+        # Services communicate over trusted Docker network
+        
+        return headers
     
     async def create_conversation(self, user_id: str, title: str = "New Conversation", 
                                  jwt_token: Optional[str] = None) -> Dict[str, Any]:
