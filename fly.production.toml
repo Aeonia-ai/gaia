@@ -21,8 +21,10 @@ primary_region = 'lax'
   KB_SERVICE_URL = "https://gaia-kb-production.fly.dev"
   
   # Database - Fly.io Managed Postgres (co-located in LAX)
-  # Using staging database for now - create separate production DB for real production use
-  DATABASE_URL = "postgresql://postgres:Tr2p9Z2kfS8Qe88IxQFrKZVG@direct.9jknq0352lnr68w3.flympg.net:5432/postgres"
+  # DATABASE_URL must be set via secrets:
+  # ./scripts/set-fly-secrets.sh production
+  # Or manually: fly secrets set DATABASE_URL="..." -a gaia-gateway-production
+  # TODO: Create separate production database (currently using staging DB)
   
   # Supabase for JWT auth only - set via secrets
   # fly secrets set SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_JWT_SECRET=...

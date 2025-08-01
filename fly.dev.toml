@@ -17,8 +17,11 @@ primary_region = 'sjc'
   ASSET_SERVICE_URL = "https://gaia-asset-dev.fly.dev"
   CHAT_SERVICE_URL = "https://gaia-chat-dev.fly.dev"
   
-  # Dev database
-  DATABASE_URL = "postgresql://postgres:password@gaia-db-dev.fly.dev:5432/llm_platform"
+  # Database - must be set via secrets:
+  # ./scripts/set-fly-secrets.sh dev
+  # Or manually: fly secrets set DATABASE_URL="..." -a gaia-gateway-dev
+  
+  # NATS
   NATS_URL = "nats://gaia-nats-dev.fly.dev:4222"
   
   # Redis (Upstash Redis on Fly.io)

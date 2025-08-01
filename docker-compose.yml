@@ -14,7 +14,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/llm_platform}
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       - AUTH_SERVICE_URL=http://auth-service:8000
@@ -52,7 +52,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/llm_platform}
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       - TLS_CERT_PATH=/app/certs/auth-service/cert.pem
@@ -82,7 +82,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/llm_platform}
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       - TLS_CERT_PATH=/app/certs/asset-service/cert.pem
@@ -113,7 +113,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/llm_platform}
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       - MCP_FILESYSTEM_ROOT=/app/data
@@ -145,7 +145,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/llm_platform}
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       # KB configuration
@@ -206,7 +206,7 @@ services:
       - ./scripts/init-local-database.sql:/docker-entrypoint-initdb.d/init-gaia.sql
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=llm_platform
     ports:
       - "5432:5432"
@@ -254,7 +254,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/llm_platform
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/llm_platform}
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       - MCP_FILESYSTEM_ROOT=/app/data
