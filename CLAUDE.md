@@ -137,6 +137,34 @@ AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
 
 → See [Service Registry Pattern](docs/service-registry-pattern.md) for complete implementation
 
+## 🧪 Testing: Critical Requirements
+
+**🚨 ALWAYS USE ASYNC TEST RUNNER**
+```bash
+# ❌ WRONG: Direct pytest (will timeout after 2 minutes)
+pytest tests/ -v
+
+# ✅ RIGHT: Async execution for Claude Code
+./scripts/pytest-for-claude.sh tests/ -v
+./scripts/check-test-progress.sh  # Monitor progress
+```
+
+**🔐 E2E TESTS: REAL AUTHENTICATION ONLY**
+- **NO MOCKS IN E2E TESTS** - Use real Supabase authentication
+- Requires valid `SUPABASE_SERVICE_KEY` in `.env`
+- Use `TestUserFactory` for consistent test user creation
+- Always clean up test users after tests
+
+```bash
+# Run E2E tests with real auth
+./scripts/pytest-for-claude.sh tests/e2e/test_real_auth_e2e.py -v
+```
+
+See:
+- [Testing Philosophy](docs/testing-philosophy.md) - Why we use test scripts
+- [E2E Real Auth Testing](docs/current/development/e2e-real-auth-testing.md) - Real auth patterns
+- [Async Test Execution](docs/current/development/async-test-execution.md) - Avoiding timeouts
+
 ## 🧠 Development Philosophy & Problem-Solving Approach
 
 **🛑 STOP GUESSING - START RESEARCHING**
@@ -155,9 +183,9 @@ AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
 - Services work individually but not together = networking/discovery problem
 
 **🧪 USE TEST SCRIPTS, NOT CURL**
-- ALWAYS use test scripts (`./scripts/test.sh`) instead of manual curl commands
-- If you need to test something new, ADD it to a test script, don't just run curl
-- Test scripts capture knowledge, curl commands vanish with your terminal
+- ALWAYS use automated tests instead of manual curl commands
+- If you need to test something new, ADD it to the test suite
+- Automated tests capture knowledge, curl commands vanish with your terminal
 - See [Testing Philosophy](docs/testing-philosophy.md) for why this matters
 
 ## 📚 Essential Documentation Index
@@ -276,7 +304,8 @@ See [Command Reference](docs/command-reference.md) for complete list.
 1. **DON'T** use direct `curl` - use test scripts that capture the knowledge
 2. **DON'T** test in production first - always test locally
 3. **DON'T** skip the verification scripts after configuration changes
-4. **DON'T** run pytest directly - use `./scripts/pytest-fullsuite-no-timeout.sh` instead
+4. **DON'T** run pytest directly - use `./scripts/pytest-for-claude.sh` instead
+5. **DON'T** use mock authentication in E2E tests - real auth only!
 
 ## 📋 Quick Reference: Essential Commands
 
@@ -286,9 +315,9 @@ See [Command Reference](docs/command-reference.md) for complete list.
 docker compose up
 
 # Run tests - ALWAYS use this instead of 'pytest' command!
-./scripts/pytest-fullsuite-no-timeout.sh   # Replaces 'pytest' - runs detached to avoid timeout
-./scripts/check-test-progress.sh           # Check test progress (since they run detached)
-./scripts/test-comprehensive.sh            # API endpoint tests only
+./scripts/pytest-for-claude.sh             # Async pytest runner (avoids timeouts)
+./scripts/check-test-progress.sh           # Check test progress
+./scripts/pytest-for-claude.sh tests/e2e -v   # E2E tests (requires SUPABASE_SERVICE_KEY)
 ./scripts/test.sh --local all              # Legacy API test suite
 
 # User management

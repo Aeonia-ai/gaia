@@ -182,3 +182,36 @@ The web service automatically handles JWT tokens:
 - **mTLS Client**: Secure service-to-service HTTP client
 - **Redis Caching**: 97% performance improvement for API key validation
 - **Unified Authentication**: Single function handling both auth methods
+
+## Important: Web Service Authentication
+
+### JWT-Only for ChatServiceClient
+The web service's `ChatServiceClient` now requires explicit authentication - **no API key fallbacks**:
+
+```python
+# ❌ OLD: Hardcoded API key fallback
+def _get_headers(self):
+    headers = {"Content-Type": "application/json"}
+    if jwt_token:
+        headers["Authorization"] = f"Bearer {jwt_token}"
+    else:
+        headers["X-API-Key"] = self.api_key  # NO LONGER EXISTS
+    return headers
+
+# ✅ NEW: Explicit authentication required
+def _get_headers(self, jwt_token: Optional[str] = None, api_key: Optional[str] = None):
+    headers = {"Content-Type": "application/json"}
+    if jwt_token:
+        headers["Authorization"] = f"Bearer {jwt_token}"
+    elif api_key:
+        headers["X-API-Key"] = api_key
+    # No fallback - caller must provide auth
+    return headers
+```
+
+### E2E Testing Requirements
+E2E tests must use real authentication:
+- Valid `SUPABASE_SERVICE_KEY` in `.env` for creating test users
+- `TestUserFactory` for consistent test user management
+- Real login flows through the UI
+- No mock authentication routes

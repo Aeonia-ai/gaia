@@ -13,29 +13,31 @@ The Gaia Platform uses a **pytest-based automated test suite** that provides:
 
 ## Quick Start
 
-### Run All Tests
+### Run All Tests (Async to Avoid Timeouts)
 ```bash
-./scripts/test-automated.py all
+./scripts/pytest-for-claude.sh                    # All tests (async)
+./scripts/check-test-progress.sh                  # Monitor progress
 ```
 
 ### Common Test Categories
 ```bash
-./scripts/test-automated.py health         # System health checks
-./scripts/test-automated.py chat-basic     # Core chat functionality  
-./scripts/test-automated.py kb            # Knowledge Base tests
-./scripts/test-automated.py providers     # Provider/model tests
-./scripts/test-automated.py comprehensive # Full integration tests
+./scripts/pytest-for-claude.sh tests/test_working_endpoints.py -v     # Core endpoints
+./scripts/pytest-for-claude.sh tests/test_v02_chat_api.py -v        # Chat functionality  
+./scripts/pytest-for-claude.sh tests/test_kb_endpoints.py -v        # Knowledge Base
+./scripts/pytest-for-claude.sh tests/test_provider_model_endpoints.py -v  # Providers
+./scripts/pytest-for-claude.sh tests/integration -v                 # Integration tests
+./scripts/pytest-for-claude.sh tests/e2e -v                        # E2E tests (real auth)
 ```
 
 ### Development Workflow
 ```bash
 # After making changes
-./scripts/test-automated.py health         # Quick system check
-./scripts/test-automated.py chat-basic     # Verify core functionality
+./scripts/pytest-for-claude.sh tests/test_working_endpoints.py::test_health -v
 
 # Before committing
-./scripts/test-automated.py core          # Run core test suite
-./scripts/test-automated.py all           # Full validation (recommended)
+./scripts/pytest-for-claude.sh tests/unit -v      # Unit tests
+./scripts/pytest-for-claude.sh tests/integration -v  # Integration
+./scripts/pytest-for-claude.sh                    # Full suite
 ```
 
 ## Test Categories
@@ -44,9 +46,9 @@ The Gaia Platform uses a **pytest-based automated test suite** that provides:
 **Purpose**: Verify system health and service status
 
 ```bash
-./scripts/test-automated.py health        # Core system health
-./scripts/test-automated.py status        # Service status checks
-./scripts/test-automated.py kb-health     # KB repository status
+./scripts/pytest-for-claude.sh tests/test_working_endpoints.py::test_health -v
+./scripts/pytest-for-claude.sh tests/test_working_endpoints.py::test_service_status -v
+./scripts/pytest-for-claude.sh tests/test_kb_endpoints.py::test_kb_health -v
 ```
 
 **What's Tested**:
@@ -195,6 +197,53 @@ The test suite properly validates different API response formats:
 ./scripts/test-automated.py help
 ```
 
+## E2E Testing with Real Authentication
+
+### Critical Requirements
+**E2E tests MUST use real Supabase authentication - NO MOCKS!**
+
+```bash
+# Required: Valid SUPABASE_SERVICE_KEY in .env
+export SUPABASE_SERVICE_KEY="your-service-key"
+
+# Run E2E tests
+./scripts/pytest-for-claude.sh tests/e2e/test_real_auth_e2e.py -v
+```
+
+### TestUserFactory Pattern
+```python
+from tests.utils.auth import TestUserFactory
+
+# Create real test user
+factory = TestUserFactory()
+user = factory.create_verified_test_user(
+    email=f"e2e-{uuid.uuid4().hex[:8]}@test.local",
+    password="TestPassword123!"
+)
+
+# Use real login flow
+try:
+    # Perform actual login through UI
+    await page.goto(f"{base_url}/login")
+    await page.fill('input[name="email"]', user['email'])
+    await page.fill('input[name="password"]', "TestPassword123!")
+    await page.click('button[type="submit"]')
+    await page.wait_for_url("**/chat")
+    
+    # Test authenticated functionality
+    # ...
+finally:
+    # Always clean up
+    factory.cleanup()
+```
+
+### E2E Test Best Practices
+1. **No mock routes** - Real authentication only
+2. **Create unique users** - Use UUID in email to avoid conflicts
+3. **Clean up test data** - Always call factory.cleanup()
+4. **Test complete flows** - Login → Action → Verify → Logout
+5. **Handle errors gracefully** - Real services can have delays
+
 ## Test Development Guidelines
 
 ### Adding New Tests
@@ -251,20 +300,20 @@ Tests are designed to handle various service states:
 - name: Run Automated Tests
   run: |
     docker compose up -d
-    ./scripts/test-automated.py all
+    ./scripts/pytest-for-claude.sh
 ```
 
 ### Pre-commit Testing
 ```bash
 # Add to your pre-commit workflow
-./scripts/test-automated.py core
+./scripts/pytest-for-claude.sh tests/unit tests/integration -v
 ```
 
 ### Deployment Validation
 ```bash
 # After deployment
-./scripts/test-automated.py health
-./scripts/test-automated.py comprehensive
+./scripts/pytest-for-claude.sh tests/test_working_endpoints.py::test_health -v
+./scripts/pytest-for-claude.sh tests/integration -v
 ```
 
 ## Troubleshooting
@@ -272,14 +321,14 @@ Tests are designed to handle various service states:
 ### Common Issues
 
 **Tests Timing Out**:
+- Use async test runner: `./scripts/pytest-for-claude.sh`
+- Check progress: `./scripts/check-test-progress.sh`
 - Ensure Docker services are running: `docker compose ps`
-- Check service health: `./scripts/test-automated.py health`
-- Increase timeout in test files if needed
 
 **Authentication Failures**:
-- Verify API key in `.env` file
-- Check service authentication setup
-- Run auth-specific tests: `./scripts/test-automated.py auth`
+- E2E tests need valid SUPABASE_SERVICE_KEY in `.env`
+- Verify service key with: `python test_supabase_keys.py`
+- Check Supabase dashboard for user creation permissions
 
 **Service Connectivity Issues**:
 - Ensure services are accessible via Docker network
@@ -294,7 +343,10 @@ Tests are designed to handle various service states:
 ### Debugging Failed Tests
 ```bash
 # Run specific test with verbose output
-./scripts/test-automated.py -v specific-test-name
+./scripts/pytest-for-claude.sh tests/test_file.py::test_name -v -s
+
+# Check test logs
+tail -f pytest-*.log
 
 # Run single test file
 docker compose run --rm test python -m pytest tests/test_file.py -v

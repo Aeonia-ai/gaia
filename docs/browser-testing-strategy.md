@@ -17,9 +17,9 @@ URL-based tests (using TestClient) miss many real-world issues:
 ## Test Categories
 
 ### 1. Authentication Tests (`test_authenticated_browser.py`)
-- Mock authentication for fast unit tests
-- Real Supabase authentication for integration tests
-- Session injection for testing authenticated states
+- Real Supabase authentication for E2E tests (NO MOCKS)
+- TestUserFactory for consistent test user creation
+- Session state validation
 - Multi-user scenarios
 
 ### 2. Full Web Functionality (`test_full_web_browser.py`)
@@ -77,27 +77,26 @@ RUN_BROWSER_TESTS=true docker compose run --rm test pytest tests/web/test_authen
 
 ## Authentication Strategies
 
-### 1. Mock Authentication (Fastest)
+### E2E Tests: Real Authentication Only
 ```python
-await page.route("**/auth/login", lambda route: route.fulfill(
-    status=303,
-    headers={"Location": "/chat"},
-    body=""
-))
-```
-
-### 2. Real Authentication (Integration)
-```python
+# E2E tests MUST use real authentication - NO MOCKS!
 factory = TestUserFactory()
 user = factory.create_verified_test_user(
-    email="test@test.local",
-    password="Test123!@#"
+    email=f"e2e-{uuid.uuid4().hex[:8]}@test.local",
+    password="TestPassword123!"
 )
-# ... perform real login
+
+# Login through actual UI
+await page.goto(f"{base_url}/login")
+await page.fill('input[name="email"]', user['email'])
+await page.fill('input[name="password"]', "TestPassword123!")
+await page.click('button[type="submit"]')
+await page.wait_for_url("**/chat")
 ```
 
-### 3. Session Injection (Hybrid)
+### Unit Tests: Session Injection (Fast)
 ```python
+# For unit tests only - not for E2E
 await context.add_cookies([{
     'name': 'session',
     'value': jwt_token,
@@ -155,10 +154,12 @@ finally:
 
 ## Performance Considerations
 
-- **Mock tests**: ~50-100ms per test
-- **Real auth tests**: ~500-1000ms per test
-- **Full E2E tests**: ~2000-3000ms per test
-- **Visual tests**: ~1000-2000ms per test
+- **Unit tests (session injection)**: ~50-100ms per test
+- **E2E tests (real auth)**: ~1000-2000ms per test
+- **Full E2E workflow tests**: ~2000-5000ms per test
+- **Visual regression tests**: ~1000-2000ms per test
+
+Note: E2E tests are slower but provide real confidence. The extra time is worth it for critical user flows.
 
 ## Debugging Failed Tests
 
@@ -223,11 +224,17 @@ await page.wait_for_load_state('networkidle')
 
 When testing HTMX-powered applications:
 1. **HTMX uses AJAX** - Page navigations happen via JavaScript, not browser navigation
-2. **Mock HX-Redirect headers** - HTMX follows these headers to navigate
-3. **Track session state** - Maintain authentication state between mocked requests
-4. **Mock the full flow** - Don't mix real pages with mocked authentication
+2. **Real authentication required** - E2E tests must use real login flows
+3. **Track session state** - Validate real JWT tokens and session cookies
+4. **Complete user flows** - Test the full journey as a real user would
 
-See [HTMX Browser Testing Solution](htmx-browser-testing-solution.md) for detailed guidance on handling HTMX authentication forms.
+For E2E tests:
+- Use TestUserFactory to create real users
+- Perform actual login through the UI
+- Validate server-side session state
+- Clean up test users after tests
+
+See [E2E Real Auth Testing Guide](e2e-real-auth-testing.md) for detailed patterns.
 
 ## Conclusion
 

@@ -6,13 +6,13 @@ This guide ensures we maintain high code quality and prevent breaking changes, e
 
 **🔥 PRIORITY**: We now have a complete automated testing implementation:
 
-- **[Automated Testing Guide](automated-testing-guide.md)** - **IMPLEMENTED** - Complete pytest-based test suite with 50+ tests
+- **[Automated Testing Guide](automated-testing-guide.md)** - **IMPLEMENTED** - Complete pytest-based test suite with 200+ tests
 - **[Testing Philosophy](testing-philosophy.md)** - **UPDATED** - Automated tests over manual scripts
-- **[Testing Improvement Plan](automated-testing-improvement-plan.md)** - 3-phase comprehensive testing strategy  
+- **[E2E Real Auth Testing](../e2e/test_real_auth_e2e.py)** - **NEW** - E2E tests with real Supabase authentication
 - **[Security Testing Strategy](security-testing-strategy.md)** - OWASP Top 10 compliance, SQL injection prevention
 - **[Service Testing Strategy](comprehensive-service-testing-strategy.md)** - 100% service functionality coverage
 
-**Quick Start**: `./scripts/test-automated.py all` - Runs complete automated test suite
+**Quick Start**: `./scripts/pytest-for-claude.sh` - Runs complete test suite asynchronously (avoids timeouts)
 
 ## 🚀 Quick Start
 
@@ -20,10 +20,12 @@ This guide ensures we maintain high code quality and prevent breaking changes, e
 # Set up development environment with all quality checks
 ./scripts/setup-dev-environment.sh
 
-# Run automated tests before committing changes
-./scripts/test-automated.py health      # Quick system health check
-./scripts/test-automated.py auth        # Authentication contract tests
-./scripts/test-automated.py all         # Complete test suite
+# Run automated tests before committing changes (async to avoid timeouts)
+./scripts/pytest-for-claude.sh                           # Complete test suite
+./scripts/pytest-for-claude.sh tests/integration         # Integration tests only
+./scripts/pytest-for-claude.sh tests/e2e                 # E2E tests (real auth)
+./scripts/pytest-for-claude.sh tests/unit                # Unit tests only
+./scripts/check-test-progress.sh                         # Monitor test progress
 
 # Quality checks
 pre-commit run --all-files              # Code formatting and linting
@@ -53,17 +55,35 @@ To run manually:
 pre-commit run --all-files
 ```
 
-### 2. Authentication Contract Tests
+### 2. E2E Testing Requirements
+
+**CRITICAL**: E2E tests must use real Supabase authentication - NO MOCKS!
+
+```bash
+# E2E tests require valid SUPABASE_SERVICE_KEY in .env
+export SUPABASE_SERVICE_KEY="your-service-key"
+
+# Run E2E tests with real authentication
+./scripts/pytest-for-claude.sh tests/e2e/test_real_auth_e2e.py -v
+```
+
+E2E test requirements:
+- ✅ Valid SUPABASE_SERVICE_KEY for creating test users
+- ✅ Real Supabase authentication (TestUserFactory)
+- ✅ Real JWT tokens from actual login
+- ✅ No mock routes or fake authentication
+- ✅ Complete end-to-end flow validation
+
+### 3. Authentication Contract Tests
 
 Critical tests that ensure public endpoints remain public:
 
 ```bash
 # Run auth contract tests
-pytest tests/web/test_auth_flow.py -v
+./scripts/pytest-for-claude.sh tests/web/test_auth_flow.py -v
 
 # Specific contract tests
-pytest tests/web/test_auth_flow.py::TestAuthenticationFlow::test_login_endpoint_is_public
-pytest tests/web/test_auth_flow.py::TestAuthenticationFlow::test_register_endpoint_is_public
+./scripts/pytest-for-claude.sh tests/web/test_auth_flow.py::TestAuthenticationFlow::test_login_endpoint_is_public -v
 ```
 
 Key test scenarios:
@@ -73,7 +93,7 @@ Key test scenarios:
 - ✅ Error messages are user-friendly
 - ✅ Gateway client doesn't add auth to public calls
 
-### 3. CI/CD Pipeline
+### 4. CI/CD Pipeline
 
 GitHub Actions runs on every push and PR:
 
@@ -88,7 +108,7 @@ GitHub Actions runs on every push and PR:
 
 View test results: Actions tab in GitHub
 
-### 4. Common Mistakes to Avoid
+### 5. Common Mistakes to Avoid
 
 #### ❌ DON'T: Add auth to public endpoints
 ```python

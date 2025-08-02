@@ -15,7 +15,7 @@ curl -H "X-API-Key: $API_KEY" http://localhost:8666/api/v1/providers
 ./scripts/test.sh --local providers
 
 # 🚀 Best: Automated tests with validation
-./scripts/test-automated.py providers
+./scripts/pytest-for-claude.sh tests/test_provider_model_endpoints.py -v
 ```
 
 Automated tests provide:
@@ -50,8 +50,9 @@ When you discover a new test case:
 
 ### Test Runner (New Approach)
 ```bash
-./scripts/test-automated.py    # Modern pytest-based test runner
-./scripts/test-automated.py help    # See all available test categories
+./scripts/pytest-for-claude.sh    # Async pytest runner (avoids timeouts)
+./scripts/pytest-for-claude.sh tests/integration  # Run specific category
+./scripts/check-test-progress.sh  # Check test progress
 ```
 
 ### Test Files (pytest-based)
@@ -68,9 +69,9 @@ tests/
 ### Legacy Scripts (Deprecated)
 ```
 scripts/
-├── test.sh                    # Legacy manual test runner → Use test-automated.py
-├── test-comprehensive.sh      # Legacy comprehensive → Use test-automated.py comprehensive
-├── test-kb-operations.sh      # Legacy KB tests → Use test-automated.py kb
+├── test.sh                    # Legacy manual test runner → Use pytest-for-claude.sh
+├── test-comprehensive.sh      # Legacy comprehensive → Use pytest-for-claude.sh
+├── test-kb-operations.sh      # Legacy KB tests → Use pytest-for-claude.sh
 ├── manage-users.sh           # User management (still active)
 └── layout-check.sh           # UI validation (still active)
 ```
@@ -85,9 +86,9 @@ scripts/
 ./scripts/test.sh --local providers
 
 # New automated approach  
-./scripts/test-automated.py health
-./scripts/test-automated.py chat-basic
-./scripts/test-automated.py providers
+./scripts/pytest-for-claude.sh tests/test_working_endpoints.py::test_health -v
+./scripts/pytest-for-claude.sh tests/test_v02_chat_api.py -v
+./scripts/pytest-for-claude.sh tests/test_provider_model_endpoints.py -v
 ```
 
 ### Benefits of Migration
@@ -118,7 +119,7 @@ echo "Testing new feature..." >> test-kb-operations.sh
 
 # ✅ New approach: Add to automated test suite
 # Add test methods to appropriate test file in tests/
-# Run: ./scripts/test-automated.py [category]
+# Run: ./scripts/pytest-for-claude.sh tests/[test_file.py] -v
 ```
 
 ### 2. **Follow Test Patterns**
@@ -154,8 +155,8 @@ Each test should validate:
 curl -X POST $SECRET_ENDPOINT -d @complex_payload.json
 
 # ✅ Good: Automated test with clear purpose
-./scripts/test-automated.py --help    # Shows all available test categories
-./scripts/test-automated.py webhooks  # Clear, discoverable test category
+./scripts/pytest-for-claude.sh --help    # Shows pytest help
+./scripts/pytest-for-claude.sh tests/test_webhooks.py -v  # Clear test file
 ```
 
 ## Common Patterns
@@ -247,6 +248,57 @@ When you need to test something new:
    test_endpoint "GET" "/api/v1/rate-limit-test" "" "Rate limit verification"
    ```
 
+## E2E Testing: No Mocks Policy
+
+### Real Authentication Only
+E2E tests must use real Supabase authentication - **NO MOCKS ALLOWED!**
+
+```python
+# ❌ WRONG: Mock authentication in E2E tests
+await page.route("**/auth/login", mock_response)
+
+# ✅ RIGHT: Real authentication with TestUserFactory
+factory = TestUserFactory()
+user = factory.create_verified_test_user(
+    email=f"e2e-{uuid.uuid4().hex[:8]}@test.local",
+    password="TestPassword123!"
+)
+# Perform real login through UI
+```
+
+### E2E Test Requirements
+1. **Valid SUPABASE_SERVICE_KEY** in .env for creating test users
+2. **Real JWT tokens** from actual Supabase login
+3. **TestUserFactory** for consistent test user creation
+4. **Complete flow validation** - no shortcuts or mocks
+5. **Cleanup** - Always clean up test users after tests
+
+### Why No Mocks in E2E?
+- **E2E means End-to-End** - The entire flow must be real
+- **Authentication is critical** - Mocking it defeats the purpose
+- **Real bugs need real tests** - Mocks hide integration issues
+- **User experience validation** - Users don't use mocks
+
+## Async Test Execution
+
+### Avoiding Claude Code Timeouts
+Claude Code's Bash tool has a 2-minute timeout. Our test suite takes longer, so we use async execution:
+
+```bash
+# ❌ WRONG: Direct pytest (will timeout)
+pytest tests/ -v
+
+# ✅ RIGHT: Async execution
+./scripts/pytest-for-claude.sh tests/ -v
+./scripts/check-test-progress.sh  # Monitor progress
+```
+
+### How It Works
+1. **pytest-for-claude.sh** starts tests in background
+2. Output redirected to timestamped log file
+3. **check-test-progress.sh** monitors test progress
+4. Tests complete even if Claude Code times out
+
 ## The Payoff
 
 Following this philosophy means:
@@ -255,5 +307,6 @@ Following this philosophy means:
 - **Better onboarding** - New developers can understand the system
 - **Regression prevention** - Old bugs don't come back
 - **Living documentation** - Tests show how the system actually works
+- **Real confidence** - E2E tests prove the system actually works
 
 Remember: **If you're typing curl, you should be updating a test script instead!**
