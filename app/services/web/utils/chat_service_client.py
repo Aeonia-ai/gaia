@@ -24,11 +24,10 @@ class ChatServiceClient:
         # If JWT token is provided, use it for authentication
         if jwt_token:
             headers["Authorization"] = f"Bearer {jwt_token}"
-        # If API key is provided, use it
+        # If API key is provided, use it (for backwards compatibility)
         elif api_key:
             headers["X-API-Key"] = api_key
-        # For internal service-to-service communication, no auth needed
-        # Services communicate over trusted Docker network
+        # No fallback - authentication must be explicitly provided
         
         return headers
     
