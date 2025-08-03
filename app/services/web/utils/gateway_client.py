@@ -72,7 +72,9 @@ class GaiaAPIClient:
         self, 
         messages: list,
         jwt_token: str,
-        model: str = "claude-3-5-sonnet-20241022"
+        model: str = "claude-3-5-sonnet-20241022",
+        conversation_id: Optional[str] = None,
+        response_format: str = "v0.3"
     ):
         """Stream chat completion response from gateway"""
         # Use JWT token if available, otherwise fall back to API key
@@ -84,18 +86,27 @@ class GaiaAPIClient:
             headers["X-API-Key"] = settings.api_key
             logger.debug("Using API key for gateway request")
         
+        # Add response format header
+        headers["X-Response-Format"] = response_format
+        
         try:
+            payload = {
+                "messages": messages,  # Send full message history for context
+                "message": messages[-1]["content"] if messages else "",  # Also send last message for compatibility
+                "model": model,
+                "stream": True  # Enable streaming mode
+            }
+            
+            # Add conversation_id if provided
+            if conversation_id:
+                payload["conversation_id"] = conversation_id
+            
             # Use v1 chat endpoint with stream=true (routes to unified)
             async with self.client.stream(
                 "POST",
                 "/api/v1/chat",
                 headers=headers,
-                json={
-                    "messages": messages,  # Send full message history for context
-                    "message": messages[-1]["content"] if messages else "",  # Also send last message for compatibility
-                    "model": model,
-                    "stream": True  # Enable streaming mode
-                }
+                json=payload
             ) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
@@ -112,7 +123,9 @@ class GaiaAPIClient:
         self, 
         messages: list,
         jwt_token: str,
-        model: str = "claude-3-5-sonnet-20241022"
+        model: str = "claude-3-5-sonnet-20241022",
+        conversation_id: Optional[str] = None,
+        response_format: str = "v0.3"
     ):
         """Send non-streaming chat completion request to gateway"""
         
@@ -127,6 +140,9 @@ class GaiaAPIClient:
                 # Fall back to API key for dev/testing
                 headers["X-API-Key"] = settings.api_key
             
+            # Add response format header
+            headers["X-Response-Format"] = response_format
+            
             # Use v1 chat endpoint (routes to unified)
             endpoint = "/api/v1/chat"
             payload = {
@@ -134,6 +150,10 @@ class GaiaAPIClient:
                 "model": model,
                 "stream": False  # Explicitly set non-streaming
             }
+            
+            # Add conversation_id if provided
+            if conversation_id:
+                payload["conversation_id"] = conversation_id
             
             response = await self.client.post(
                 endpoint,
