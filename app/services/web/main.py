@@ -93,9 +93,7 @@ chat.setup_routes(app)
 api.setup_routes(app)
 profile.setup_routes(app)
 
-# Mount v2 chat routes for migration
-from app.services.web.routes.chat_v2 import setup_chat_v2_routes
-setup_chat_v2_routes(app)
+# v0.3 endpoints provide conversation persistence - no need for v2
 
 # WebSocket support is not available in FastHTML yet
 # if settings.enable_websocket:

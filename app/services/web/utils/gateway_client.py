@@ -101,10 +101,13 @@ class GaiaAPIClient:
             if conversation_id:
                 payload["conversation_id"] = conversation_id
             
-            # Use v1 chat endpoint with stream=true (routes to unified)
+            # Use v0.3 endpoint when requesting v0.3 format
+            endpoint = "/api/v0.3/chat" if response_format == "v0.3" else "/api/v1/chat"
+            
+            # Use appropriate endpoint with stream=true
             async with self.client.stream(
                 "POST",
-                "/api/v1/chat",
+                endpoint,
                 headers=headers,
                 json=payload
             ) as response:
@@ -143,13 +146,21 @@ class GaiaAPIClient:
             # Add response format header
             headers["X-Response-Format"] = response_format
             
-            # Use v1 chat endpoint (routes to unified)
-            endpoint = "/api/v1/chat"
-            payload = {
-                "message": messages[-1]["content"] if messages else "",
-                "model": model,
-                "stream": False  # Explicitly set non-streaming
-            }
+            # Use v0.3 endpoint when requesting v0.3 format
+            if response_format == "v0.3":
+                endpoint = "/api/v0.3/chat"
+                payload = {
+                    "message": messages[-1]["content"] if messages else "",
+                    "stream": False  # Explicitly set non-streaming
+                }
+            else:
+                # Use v1 endpoint for OpenAI format
+                endpoint = "/api/v1/chat"
+                payload = {
+                    "message": messages[-1]["content"] if messages else "",
+                    "model": model,
+                    "stream": False  # Explicitly set non-streaming
+                }
             
             # Add conversation_id if provided
             if conversation_id:
