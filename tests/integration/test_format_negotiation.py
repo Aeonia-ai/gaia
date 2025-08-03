@@ -11,6 +11,9 @@ from typing import Dict, Any
 class TestFormatNegotiation:
     """Test response format negotiation via X-Response-Format header."""
     
+    # Run all tests in this class in the same worker to avoid parallel LLM calls
+    pytestmark = pytest.mark.xdist_group("format_negotiation")
+    
     @pytest.fixture
     def gateway_url(self):
         """Gateway URL for accessing chat endpoints."""

@@ -10,6 +10,9 @@ from typing import Dict, Any
 class TestV03ConversationPersistence:
     """Test the v0.3 chat endpoint with conversation persistence."""
     
+    # Run all tests in this class in the same worker to avoid parallel LLM calls
+    pytestmark = pytest.mark.xdist_group("v03_persistence")
+    
     @pytest.fixture
     def gateway_url(self):
         """Gateway URL for accessing chat endpoints."""

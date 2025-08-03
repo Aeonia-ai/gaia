@@ -74,7 +74,7 @@ class GaiaAPIClient:
         jwt_token: str,
         model: str = "claude-3-5-sonnet-20241022",
         conversation_id: Optional[str] = None,
-        response_format: str = "v0.3"
+        response_format: str = "openai"
     ):
         """Stream chat completion response from gateway"""
         # Use JWT token if available, otherwise fall back to API key
@@ -128,7 +128,7 @@ class GaiaAPIClient:
         jwt_token: str,
         model: str = "claude-3-5-sonnet-20241022",
         conversation_id: Optional[str] = None,
-        response_format: str = "v0.3"
+        response_format: str = "openai"
     ):
         """Send non-streaming chat completion request to gateway"""
         

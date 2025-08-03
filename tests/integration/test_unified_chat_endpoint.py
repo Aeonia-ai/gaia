@@ -13,7 +13,13 @@ logger = setup_service_logger("test_unified_chat")
 
 
 class TestUnifiedChatEndpoint:
-    """Test the core /chat/unified endpoint behavior."""
+    """Test the core /chat/unified endpoint behavior.
+    
+    Note: These tests make intensive LLM API calls through the unified endpoint.
+    """
+    
+    # Run all tests in this class in the same worker to avoid parallel LLM calls
+    pytestmark = pytest.mark.xdist_group("unified_chat")
     
     @pytest.fixture
     def gateway_url(self):
