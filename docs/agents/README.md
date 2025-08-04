@@ -5,7 +5,9 @@ This directory contains specialized agent descriptions for Claude Code when work
 ## Available Agents
 
 ### 🧪 [Tester](tester.md)
-Specializes in debugging, test execution, and distributed systems troubleshooting.
+Specializes in writing tests, test execution, debugging, and distributed systems troubleshooting.
+- Writes tests following established patterns
+- Creates appropriate unit/integration/E2E tests
 - Runs tests in correct environments
 - Diagnoses persistence issues
 - Analyzes logs and traces execution

@@ -55,9 +55,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🤖 Claude Code Agents
 Specialized agents are available for specific tasks. Use them when working in their domains:
 
-- **[Tester Agent](docs/agents/tester.md)** - Testing, debugging, and distributed systems troubleshooting
-  - Use when: Running tests, debugging failures, investigating issues
-  - Knows: All test patterns, async runners, E2E requirements, common issues
+- **[Tester Agent](docs/agents/tester.md)** - Writing tests, running tests, debugging, and distributed systems troubleshooting
+  - Use when: Writing new tests, running tests, debugging failures, investigating issues, creating test patterns
+  - Knows: All test patterns, async runners, E2E requirements, common issues, how to write proper tests
 
 More agents coming soon: Builder, Deployer, Documenter
 
@@ -148,7 +148,7 @@ AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
 
 ## 🧪 Testing: Critical Requirements
 
-**🤖 USE THE TESTER AGENT**: When working with tests, debugging test failures, or investigating issues, engage the [Tester Agent](docs/agents/tester.md). This specialized agent has comprehensive knowledge of our testing infrastructure, patterns, and common issues.
+**🤖 USE THE TESTER AGENT**: When writing tests, working with tests, debugging test failures, or investigating issues, engage the [Tester Agent](docs/agents/tester.md). This specialized agent has comprehensive knowledge of our testing infrastructure, patterns, common issues, and knows how to write proper tests following our patterns.
 
 **🚨 ALWAYS USE ASYNC TEST RUNNER**
 ```bash
