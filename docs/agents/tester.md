@@ -120,6 +120,13 @@ tests/
 └── fixtures/      # Test utilities and factories
 ```
 
+### Test Architecture
+- **Three-tier architecture**: Unit → Integration → E2E
+- **TestAuthManager**: Unified authentication across test types
+- **Docker network URLs**: Use service names (e.g., `http://gateway:8000`)
+- **Test markers**: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.e2e`
+- **Parallel execution**: Enabled by default with pytest-xdist
+
 ### E2E Testing Requirements
 - **MUST have `SUPABASE_SERVICE_KEY` in .env** for real auth tests
 - Use `TestUserFactory` for consistent user creation/cleanup
@@ -128,12 +135,14 @@ tests/
 
 ### Docker Build Optimization
 - First build: 10-15 minutes (includes Playwright, Chromium)
-- Subsequent builds: 30-50 seconds (code changes only)
-- Use async Docker builds to avoid timeouts:
+- Subsequent builds: <1 minute with proper caching
+- **CRITICAL**: Use async Docker builds to avoid Claude's 2-minute timeout:
   ```bash
-  ./docker-build-async.sh
-  ./docker-build-status.sh
+  nohup docker compose build > build.log 2>&1 &  # Run in background
+  tail -f build.log                              # Monitor progress
   ```
+- Layer caching strategies in `docs/current/development/docker-test-optimization.md`
+- Always include `.dockerignore` to exclude large directories
 
 ## Best Practices
 
@@ -175,6 +184,31 @@ After fixing:
 - [ ] Do automated tests pass?
 - [ ] Have I documented the fix?
 - [ ] Have I updated relevant tests?
+
+## Test Environment Setup
+
+### Required Environment Variables
+```bash
+# For E2E tests with real auth
+SUPABASE_SERVICE_KEY=your-service-key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+
+# For integration tests
+API_KEY=sk-test-key-12345
+GATEWAY_URL=http://gateway:8000  # Docker network
+AUTH_URL=http://auth-service:8000
+CHAT_URL=http://chat-service:8000
+
+# For browser tests
+BROWSER_TEST_MODE=headless  # or 'visible' for debugging
+WEB_SERVICE_URL=http://web-service:8080
+```
+
+### Docker Network Configuration
+- Services communicate via Docker network names
+- External access via localhost ports
+- Example: Gateway is `gateway:8000` internally, `localhost:8666` externally
 
 ## Key Test Patterns
 
@@ -220,6 +254,27 @@ async def test_user_workflow():
         factory.cleanup_test_user(user["user_id"])
 ```
 
+### Streaming Response Tests
+```python
+async def test_sse_streaming():
+    async with httpx.AsyncClient() as client:
+        async with client.stream("GET", url) as response:
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data = json.loads(line[6:])
+                    # Assert on streaming chunks
+```
+
+### WebSocket Tests
+```python
+async def test_websocket():
+    async with websockets.connect(ws_url) as websocket:
+        await websocket.send(json.dumps({"type": "subscribe"}))
+        response = await websocket.recv()
+        data = json.loads(response)
+        assert data["status"] == "connected"
+```
+
 ## Example Investigation
 
 **Issue**: "AI responses not persisting after refresh"
@@ -258,10 +313,17 @@ async def test_user_workflow():
 
 ## Tools & Scripts
 
-- `./scripts/pytest-for-claude.sh` - Async test runner
+### Core Testing Scripts
+- `./scripts/pytest-for-claude.sh` - Async test runner (ALWAYS use this)
 - `./scripts/check-test-progress.sh` - Monitor test execution
+- `./scripts/run-browser-tests.sh` - Browser test runner with modes
+- `./scripts/manage-users.sh` - User management for testing
+- `./scripts/layout-check.sh` - UI layout validation
+
+### Docker Commands
 - `docker compose exec -T` - Run commands in containers
 - `docker compose logs` - Service log inspection
+- `nohup docker compose build &` - Async builds to avoid timeout
 
 ## Testing Documentation Map
 
@@ -274,6 +336,57 @@ Essential testing docs to reference:
 - `docs/TEST_EXECUTION_GUIDE.md` - Quick command reference
 - `docs/TEST_PATTERNS_AND_EXAMPLES.md` - Test pattern examples
 - `docs/TEST_SUITE_CATALOG.md` - Complete test inventory
+
+## Specialized Testing Knowledge
+
+### Security Testing
+- SQL injection tests with parameterized queries
+- XSS prevention testing for web UI and API
+- RBAC and authorization boundary testing
+- Rate limiting and DDoS protection tests
+- Input validation and sanitization tests
+- See `docs/current/development/security-testing-strategy.md`
+
+### Mobile & Browser Testing
+- Responsive breakpoints: 768px (mobile/desktop)
+- Viewport testing with Playwright
+- Touch target and gesture testing
+- iOS/Android emulator testing
+- Performance on throttled networks
+- Debug mode: `BROWSER_TEST_MODE=visible`
+- Screenshots on failure for debugging
+
+### HTMX-Specific Testing
+- Real auth required (no mocks in E2E)
+- Page updates via AJAX, not navigation
+- Wait for specific selectors, not timeouts
+- Track JWT tokens and session cookies
+- Test partial page updates
+- See `docs/htmx-browser-testing-solution.md`
+
+### Performance Testing
+- Response time assertions (<3s for chat)
+- Concurrent request testing
+- Load testing patterns
+- Performance budgets per endpoint
+- Network throttling simulation
+
+### Test Data Management
+- `TestUserFactory` for user creation/cleanup
+- UUID-based unique email generation
+- Fixture-based test data
+- Best-effort cleanup patterns
+- Transaction rollback for isolation
+
+### Test Coverage & Metrics
+- 200+ automated tests across all tiers
+- Coverage goals: >80% for critical paths
+- Performance benchmarks:
+  - Unit tests: 50-100ms
+  - Integration tests: 1-2s
+  - E2E tests: 2-5s per workflow
+- Test execution time: <5 minutes for full suite
+- Parallel execution with `pytest-xdist -n auto`
 
 ## Common Test Issues & Solutions
 
@@ -292,6 +405,14 @@ Essential testing docs to reference:
 ### "SUPABASE_SERVICE_KEY not found"
 - **Cause**: E2E tests require real Supabase auth
 - **Fix**: Ensure `.env` has valid `SUPABASE_SERVICE_KEY`
+
+### "EventSource doesn't send cookies"
+- **Cause**: Playwright limitation with SSE
+- **Fix**: Known issue, test other aspects or use API tests
+
+### "Tests pass locally but fail in CI"
+- **Cause**: Missing environment variables or services
+- **Fix**: Check Docker service dependencies and env vars
 
 ## When to Engage
 
