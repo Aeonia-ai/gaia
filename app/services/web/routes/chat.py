@@ -18,6 +18,21 @@ logger = setup_service_logger("chat_routes")
 def setup_routes(app):
     """Setup chat routes"""
     
+    @app.get("/api/session")
+    async def get_session(request):
+        """Get current session info"""
+        jwt_token = request.session.get("jwt_token")
+        user = request.session.get("user")
+        
+        if not user or not jwt_token:
+            return {"authenticated": False}
+        
+        return {
+            "authenticated": True,
+            "jwt_token": jwt_token,
+            "user": user
+        }
+    
     @app.get("/chat")
     async def chat_index(request):
         """Main chat interface"""
@@ -664,8 +679,14 @@ def setup_routes(app):
                 
                 # Store the complete response using chat service
                 if conversation_id and response_content:
-                    await chat_service_client.add_message(conversation_id, "assistant", response_content, jwt_token=jwt_token)
-                    await chat_service_client.update_conversation(user_id, conversation_id, preview=response_content, jwt_token=jwt_token)
+                    logger.info(f"Saving AI response: conversation_id={conversation_id}, content_length={len(response_content)}")
+                    try:
+                        await chat_service_client.add_message(conversation_id, "assistant", response_content, jwt_token=jwt_token)
+                        logger.info(f"Successfully saved AI response to conversation {conversation_id}")
+                        await chat_service_client.update_conversation(user_id, conversation_id, preview=response_content, jwt_token=jwt_token)
+                        logger.info(f"Successfully updated conversation preview")
+                    except Exception as e:
+                        logger.error(f"Failed to save AI response: {e}", exc_info=True)
                     
             except Exception as e:
                 logger.error(f"Streaming error: {e}", exc_info=True)
