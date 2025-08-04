@@ -52,6 +52,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## ⚠️ REMINDER TO CLAUDE CODE
 **BEFORE ANY WEB UI CHANGES:** You MUST read the HTMX + FastHTML Debugging Guide and Auth Layout Isolation docs first. The user will remind you if you don't, because layout bugs "keep coming back" when documentation is ignored. Always use `auth_page_replacement()` for auth responses and proper HTMX container targeting patterns.
 
+## 🤖 Claude Code Agents
+Specialized agents are available for specific tasks. Use them when working in their domains:
+
+- **[Tester Agent](docs/agents/tester.md)** - Testing, debugging, and distributed systems troubleshooting
+  - Use when: Running tests, debugging failures, investigating issues
+  - Knows: All test patterns, async runners, E2E requirements, common issues
+
+More agents coming soon: Builder, Deployer, Documenter
+
 ## 🎯 Current Development Focus (July 2025)
 
 **Completed Systems**:
@@ -139,6 +148,8 @@ AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
 
 ## 🧪 Testing: Critical Requirements
 
+**🤖 USE THE TESTER AGENT**: When working with tests, debugging test failures, or investigating issues, engage the [Tester Agent](docs/agents/tester.md). This specialized agent has comprehensive knowledge of our testing infrastructure, patterns, and common issues.
+
 **🚨 ALWAYS USE ASYNC TEST RUNNER**
 ```bash
 # ❌ WRONG: Direct pytest (will timeout after 2 minutes)
@@ -161,6 +172,7 @@ pytest tests/ -v
 ```
 
 See:
+- **[Tester Agent](docs/agents/tester.md)** - Use this agent for ALL testing tasks!
 - [Testing Philosophy](docs/testing-philosophy.md) - Why we use test scripts
 - [E2E Real Auth Testing](docs/current/development/e2e-real-auth-testing.md) - Real auth patterns
 - [Async Test Execution](docs/current/development/async-test-execution.md) - Avoiding timeouts
@@ -306,6 +318,7 @@ See [Command Reference](docs/command-reference.md) for complete list.
 3. **DON'T** skip the verification scripts after configuration changes
 4. **DON'T** run pytest directly - use `./scripts/pytest-for-claude.sh` instead
 5. **DON'T** use mock authentication in E2E tests - real auth only!
+6. **DON'T** debug tests without the [Tester Agent](docs/agents/tester.md) - it knows all patterns!
 
 ## 📋 Quick Reference: Essential Commands
 
