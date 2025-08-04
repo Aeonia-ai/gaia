@@ -6,7 +6,7 @@
 
 ### 🚀 **Getting Started**
 - **[Environment Setup](dev-environment-setup.md)** - Local development workflow setup
-- **[Command Reference](command-reference.md)** - Correct command syntax (docker compose, not docker-compose)
+- **[Command Reference](command-reference.md)** - Correct command syntax (docker compose, not docker compose)
 - **[Redis Integration](redis-integration.md)** - Caching layer implementation
 
 ### 🧪 **Testing Strategy (PRIORITY)**

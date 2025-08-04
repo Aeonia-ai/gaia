@@ -32,7 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Only restart containers when:**
 - Adding new dependencies to requirements.txt
 - Changing Dockerfile configuration  
-- Modifying docker-compose.yml settings
+- Modifying docker compose.yml settings
 - Environment variable changes requiring container restart
 
 **Quick Test After Changes:**
@@ -51,6 +51,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## ⚠️ REMINDER TO CLAUDE CODE
 **BEFORE ANY WEB UI CHANGES:** You MUST read the HTMX + FastHTML Debugging Guide and Auth Layout Isolation docs first. The user will remind you if you don't, because layout bugs "keep coming back" when documentation is ignored. Always use `auth_page_replacement()` for auth responses and proper HTMX container targeting patterns.
+
+## 🤖 Claude Code Agents
+Specialized agents are available for specific tasks. Use them when working in their domains:
+
+- **[Tester Agent](docs/agents/tester.md)** - Writing tests, running tests, debugging, and distributed systems troubleshooting
+  - Use when: Writing new tests, running tests, debugging failures, investigating issues, creating test patterns
+  - Knows: All test patterns, async runners, E2E requirements, common issues, how to write proper tests
+
+More agents coming soon: Builder, Deployer, Documenter
 
 ## 🎯 Current Development Focus (July 2025)
 
@@ -139,6 +148,8 @@ AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
 
 ## 🧪 Testing: Critical Requirements
 
+**🤖 USE THE TESTER AGENT**: When writing tests, working with tests, debugging test failures, or investigating issues, engage the [Tester Agent](docs/agents/tester.md). This specialized agent has comprehensive knowledge of our testing infrastructure, patterns, common issues, and knows how to write proper tests following our patterns.
+
 **🚨 ALWAYS USE ASYNC TEST RUNNER**
 ```bash
 # ❌ WRONG: Direct pytest (will timeout after 2 minutes)
@@ -161,6 +172,7 @@ pytest tests/ -v
 ```
 
 See:
+- **[Tester Agent](docs/agents/tester.md)** - Use this agent for ALL testing tasks!
 - [Testing Philosophy](docs/testing-philosophy.md) - Why we use test scripts
 - [E2E Real Auth Testing](docs/current/development/e2e-real-auth-testing.md) - Real auth patterns
 - [Async Test Execution](docs/current/development/async-test-execution.md) - Avoiding timeouts
@@ -275,7 +287,7 @@ See:
 ## ⚠️ CRITICAL: Command Version Requirements
 
 **ALWAYS use these command versions:**
-- `docker compose` (with space) - NOT `docker-compose` (with hyphen)
+- `docker compose` (with space) - NOT `docker compose` (with hyphen)
 - `fly postgres` or `fly mpg` - NOT `fly pg`
 - `python -m pip` - NOT direct `pip`
 - Test script - NOT direct `curl` commands
@@ -306,6 +318,7 @@ See [Command Reference](docs/command-reference.md) for complete list.
 3. **DON'T** skip the verification scripts after configuration changes
 4. **DON'T** run pytest directly - use `./scripts/pytest-for-claude.sh` instead
 5. **DON'T** use mock authentication in E2E tests - real auth only!
+6. **DON'T** debug tests without the [Tester Agent](docs/agents/tester.md) - it knows all patterns!
 
 ## 📋 Quick Reference: Essential Commands
 

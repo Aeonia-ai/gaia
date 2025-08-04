@@ -92,6 +92,9 @@ auth.setup_routes(app)
 chat.setup_routes(app)
 api.setup_routes(app)
 profile.setup_routes(app)
+
+# v0.3 endpoints provide conversation persistence - no need for v2
+
 # WebSocket support is not available in FastHTML yet
 # if settings.enable_websocket:
 #     websocket.setup_routes(app)

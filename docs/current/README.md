@@ -26,7 +26,7 @@ These features are fully implemented, tested, and deployed in production.
 - **[Supabase Config](deployment/supabase-configuration.md)** - Multi-environment auth setup
 
 ### 🧪 [Development](development/)
-- **[Command Reference](development/command-reference.md)** - Correct command syntax (docker compose, not docker-compose)
+- **[Command Reference](development/command-reference.md)** - Correct command syntax (docker compose, not docker compose)
 - **[Testing Guide](development/testing-and-quality-assurance.md)** - Pre-commit hooks and test patterns
 - **[Environment Setup](development/dev-environment-setup.md)** - Local development workflow
 - **[Redis Integration](development/redis-integration.md)** - Caching layer implementation

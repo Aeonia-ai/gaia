@@ -21,7 +21,7 @@ n8n will be deployed as an additional containerized service in our existing Dock
 
 ## Docker Compose Configuration
 
-Add these services to `docker-compose.yml`:
+Add these services to `docker compose.yml`:
 
 ```yaml
 services:
@@ -181,7 +181,7 @@ Configure these internal service URLs in n8n:
 
 ## Development Workflow
 
-1. **Setup**: Add n8n services to docker-compose.yml
+1. **Setup**: Add n8n services to docker compose.yml
 2. **Bridge Development**: Implement NATS-to-webhook bridge service
 3. **Configuration**: Set environment variables and credentials
 4. **Testing**: Create test workflows for existing service events

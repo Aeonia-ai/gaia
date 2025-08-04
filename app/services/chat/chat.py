@@ -172,13 +172,19 @@ async def unified_chat_endpoint(
         
         from .unified_chat import unified_chat_handler
         
+        # Check for response format preference
+        response_format = request.headers.get("X-Response-Format", "openai").lower()
+        if response_format not in ["openai", "v0.3"]:
+            response_format = "openai"  # Default to OpenAI format
+        
         # Extract context if available
         context = {
             "conversation_id": body.get("conversation_id"),
             "message_count": len(chat_histories.get(
                 auth_principal.get("sub") or auth_principal.get("key", ""), []
             )),
-            "stream": stream  # Pass streaming preference to handler
+            "stream": stream,  # Pass streaming preference to handler
+            "response_format": response_format  # Pass format preference
         }
         
         # Handle streaming response
@@ -229,6 +235,29 @@ async def unified_chat_endpoint(
                 context=context
             )
             
+            # Convert to requested format if needed
+            if response_format == "v0.3":
+                # Convert from OpenAI format to v0.3 format
+                v03_response = {
+                    "response": "",
+                    "message": message,
+                    "conversation_id": None
+                }
+                
+                # Extract content from OpenAI format
+                if "choices" in result and result["choices"]:
+                    v03_response["response"] = result["choices"][0]["message"]["content"]
+                
+                # Preserve metadata if present
+                if "_metadata" in result:
+                    v03_response["_metadata"] = result["_metadata"]
+                    # Extract conversation_id to top level
+                    if "conversation_id" in result["_metadata"]:
+                        v03_response["conversation_id"] = result["_metadata"]["conversation_id"]
+                
+                return v03_response
+            
+            # Default: return OpenAI format as-is
             return result
         
     except HTTPException as e:

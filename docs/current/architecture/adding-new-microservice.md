@@ -27,7 +27,7 @@ The `create-new-service.sh` script creates:
    - Optimized for Python microservices
 
 3. **Docker Compose entry**
-   - Service definition added to `docker-compose.yml`
+   - Service definition added to `docker compose.yml`
    - Proper networking and dependencies
 
 4. **Fly.io deployment configs**
@@ -167,7 +167,7 @@ curl -H "X-API-Key: YOUR_KEY" http://localhost:8666/api/v1/analytics/metrics
 
 ### Port Conflicts
 Make sure your chosen port isn't already in use. Check:
-- `docker-compose.yml` for local ports
+- `docker compose.yml` for local ports
 - `app/shared/config.py` for service URLs
 
 ### Gateway 503 Errors

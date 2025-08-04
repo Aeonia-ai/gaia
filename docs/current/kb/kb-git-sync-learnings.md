@@ -85,7 +85,7 @@ async def trigger_clone():
 
 **Solution**: Use container-only storage (no local mounts):
 ```yaml
-# docker-compose.yml
+# docker compose.yml
 kb-service:
   volumes:
     # DON'T mount local directory

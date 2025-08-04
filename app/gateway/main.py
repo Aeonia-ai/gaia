@@ -2190,22 +2190,36 @@ def _convert_to_clean_format(response_data):
     """
     Convert any chat response to clean v0.3 format.
     Removes provider, model, reasoning, timing, and other internal details.
+    Preserves conversation_id for conversation continuity.
     """
     if isinstance(response_data, dict):
-        # Handle different response formats
+        clean_response = {}
+        
+        # Extract response content based on format
         if "response" in response_data:
             # Already in simple format
-            return {"response": response_data["response"]}
+            clean_response["response"] = response_data["response"]
         elif "choices" in response_data:
             # OpenAI format - extract content
             choices = response_data.get("choices", [])
             if choices and len(choices) > 0:
                 message = choices[0].get("message", {})
                 content = message.get("content", "")
-                return {"response": content}
+                clean_response["response"] = content
         elif "message" in response_data:
             # Direct message format
-            return {"response": response_data["message"]}
+            clean_response["response"] = response_data["message"]
+        else:
+            # Fallback
+            clean_response["response"] = str(response_data)
+        
+        # Preserve conversation_id if present
+        if "_metadata" in response_data and "conversation_id" in response_data["_metadata"]:
+            clean_response["conversation_id"] = response_data["_metadata"]["conversation_id"]
+        elif "conversation_id" in response_data:
+            clean_response["conversation_id"] = response_data["conversation_id"]
+        
+        return clean_response
     
     # Fallback - return as string
     return {"response": str(response_data)}

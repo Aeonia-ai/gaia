@@ -290,6 +290,19 @@ class UnifiedChatHandler:
                             "usage": {"input_tokens": 0, "output_tokens": len(content) // 4}
                         }
                     
+                    # Extract response content for saving
+                    response_content = ""
+                    if final_response.get("choices"):
+                        response_content = final_response["choices"][0].get("message", {}).get("content", "")
+                    
+                    # Save conversation
+                    conversation_id = await self._save_conversation(
+                        message=message,
+                        response=response_content,
+                        context=context,
+                        auth=auth
+                    )
+                    
                     return {
                         "id": request_id,
                         "object": "chat.completion",
@@ -301,7 +314,8 @@ class UnifiedChatHandler:
                             "route_type": "kb_tools",
                             "tools_used": [tr["tool"] for tr in tool_results],
                             "total_time_ms": int((time.time() - start_time) * 1000),
-                            "request_id": request_id
+                            "request_id": request_id,
+                            "conversation_id": conversation_id
                         }
                     }
                 
@@ -345,12 +359,15 @@ class UnifiedChatHandler:
                     }
                     
                     # Save conversation
-                    await self._save_conversation(
+                    conversation_id = await self._save_conversation(
                         message=message,
                         response=result.get("response", ""),
                         context=context,
                         auth=auth
                     )
+                    
+                    # Add conversation_id to metadata
+                    result["_metadata"]["conversation_id"] = conversation_id
                     
                     return result
                 
@@ -474,6 +491,14 @@ class UnifiedChatHandler:
                 # Update routing metrics - no routing overhead for direct responses
                 self._update_timing_metrics(0, (time.time() - start_time) * 1000)
                 
+                # Save conversation
+                conversation_id = await self._save_conversation(
+                    message=message,
+                    response=content,
+                    context=context,
+                    auth=auth
+                )
+                
                 return {
                     "id": request_id,
                     "object": "chat.completion",
@@ -493,7 +518,8 @@ class UnifiedChatHandler:
                         "routing_time_ms": 0,  # No routing overhead for direct responses
                         "llm_time_ms": int(llm_time),  # Actual LLM response time
                         "total_time_ms": int((time.time() - start_time) * 1000),
-                        "request_id": request_id
+                        "request_id": request_id,
+                        "conversation_id": conversation_id  # Add conversation_id
                     }
                 }
                 
@@ -508,11 +534,20 @@ class UnifiedChatHandler:
                 auth_principal=auth
             )
             
+            # Save conversation even on error fallback
+            conversation_id = await self._save_conversation(
+                message=message,
+                response=result.get("response", ""),
+                context=context,
+                auth=auth
+            )
+            
             result["_metadata"] = {
                 "route_type": RouteType.MCP_AGENT,
                 "error": str(e),
                 "fallback": True,
-                "request_id": request_id
+                "request_id": request_id,
+                "conversation_id": conversation_id
             }
             
             return result
@@ -1034,44 +1069,36 @@ Key principles:
                 from .conversation_store import chat_conversation_store
                 
                 # First check if the conversation exists
-                user_id = auth.get("user_id", "dev-user-id")
+                # Use consistent user_id extraction
+                user_id = auth.get("sub") or auth.get("key", "unknown")
                 conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
                 
                 if conversation is None:
-                    from fastapi import HTTPException
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Conversation {conversation_id} not found"
-                    )
-                
-                # Load messages for the existing conversation
-                messages = chat_conversation_store.get_messages(conversation_id)
-                
-                # Convert to conversation history format
-                conversation_history = []
-                for msg in messages:
-                    conversation_history.append({
-                        "role": msg["role"],
-                        "content": msg["content"],
-                        "timestamp": msg.get("created_at", "")
-                    })
-                
-                context["conversation_history"] = conversation_history
-                context["message_count"] = len(conversation_history)
-                
-                logger.info(f"Loaded {len(conversation_history)} messages for conversation {conversation_id}")
+                    # Conversation doesn't exist - don't use this invalid ID
+                    logger.info(f"Conversation {conversation_id} not found, will create new conversation")
+                    context["conversation_id"] = None  # Don't preserve invalid IDs
+                else:
+                    # Load messages for the existing conversation
+                    messages = chat_conversation_store.get_messages(conversation_id)
+                    
+                    # Convert to conversation history format
+                    conversation_history = []
+                    for msg in messages:
+                        conversation_history.append({
+                            "role": msg["role"],
+                            "content": msg["content"],
+                            "timestamp": msg.get("created_at", "")
+                        })
+                    
+                    context["conversation_history"] = conversation_history
+                    context["message_count"] = len(conversation_history)
+                    
+                    logger.info(f"Loaded {len(conversation_history)} messages for conversation {conversation_id}")
                 
             except Exception as e:
                 logger.error(f"Error loading conversation history: {e}")
-                # Re-raise HTTP exceptions (like 404) without modification
-                from fastapi import HTTPException
-                if isinstance(e, HTTPException):
-                    raise e
-                # For other errors, raise 500 with original error message
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Error loading conversation: {e}"
-                )
+                # For unexpected errors, log but continue (conversation will be created if needed)
+                context["conversation_id"] = None  # Don't preserve IDs on errors
         
         # Add any additional context
         if additional_context:
@@ -1079,17 +1106,37 @@ Key principles:
         
         return context
     
-    async def _save_conversation(self, message: str, response: str, context: Optional[dict], auth: dict):
-        """Save user message and AI response to conversation history"""
-        if not context or not context.get("conversation_id") or context.get("conversation_id") == "new":
-            # No conversation to save to
-            return
-            
-        conversation_id = context["conversation_id"]
+    async def _save_conversation(self, message: str, response: str, context: Optional[dict], auth: dict) -> str:
+        """Save user message and AI response to conversation history.
+        
+        Returns the conversation_id (creates one if needed).
+        """
+        conversation_id = context.get("conversation_id") if context else None
         user_id = auth.get("sub") or auth.get("key", "unknown")
         
         try:
             from .conversation_store import chat_conversation_store
+            
+            # Create conversation if needed
+            if not conversation_id or conversation_id == "new":
+                conv = chat_conversation_store.create_conversation(
+                    user_id=user_id,
+                    title=message[:50] + "..." if len(message) > 50 else message
+                )
+                conversation_id = conv["id"]
+                logger.info(f"Created new conversation: {conversation_id}")
+            else:
+                # Check if conversation exists, create if not
+                existing_conv = chat_conversation_store.get_conversation(user_id, conversation_id)
+                if existing_conv is None:
+                    # If conversation doesn't exist with the provided ID, create a new one
+                    logger.warning(f"Conversation {conversation_id} not found, creating new conversation")
+                    conv = chat_conversation_store.create_conversation(
+                        user_id=user_id,
+                        title=message[:50] + "..." if len(message) > 50 else message
+                    )
+                    conversation_id = conv["id"]  # Use the new ID
+                    logger.info(f"Created new conversation: {conversation_id} (requested ID was not found)")
             
             # Save user message first
             await asyncio.create_task(asyncio.to_thread(
@@ -1112,10 +1159,12 @@ Key principles:
             ))
             
             logger.info(f"Saved conversation for {conversation_id}")
+            return conversation_id
             
         except Exception as e:
             logger.error(f"Error saving conversation: {e}")
             # Don't fail the whole request if conversation saving fails
+            return conversation_id or ""
     
     def _update_timing_metrics(self, routing_time_ms: float, total_time_ms: float):
         """Update rolling average timing metrics"""

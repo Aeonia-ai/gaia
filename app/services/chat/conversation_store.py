@@ -157,6 +157,13 @@ class ChatConversationStore:
         """Get a specific conversation"""
         db = self._get_db()
         try:
+            # Validate conversation_id is a valid UUID
+            try:
+                uuid.UUID(conversation_id)
+            except ValueError:
+                logger.warning(f"Invalid conversation ID format: {conversation_id}")
+                return None
+            
             user = self._get_or_create_user(user_id)
             
             conversation = db.query(Conversation).filter(

@@ -115,7 +115,7 @@ Expected: All services operational, zero tolerance for failures
 
 ### 6. Docker Compose Hyphen vs Space (CRITICAL!)
 
-**Problem**: Using outdated `docker-compose` (hyphen) instead of modern `docker compose` (space).
+**Problem**: Using outdated `docker compose` (hyphen) instead of modern `docker compose` (space).
 
 **Impact**: Commands fail on systems with only Docker Compose v2 installed. This error propagated into AI training data.
 
@@ -128,8 +128,8 @@ docker compose build
 docker compose logs -f service
 
 # ❌ WRONG (v1, deprecated)
-docker-compose up
-docker-compose build
+docker compose up
+docker compose build
 ```
 
 **Prevention Strategy**:
