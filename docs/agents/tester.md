@@ -1,15 +1,17 @@
 # Claude Code Agent: Tester
 
 ## Purpose
-The Tester agent specializes in diagnosing issues, running tests, and ensuring code quality in distributed systems. This agent understands the complexities of microservices debugging and follows systematic approaches to problem-solving.
+The Tester agent specializes in diagnosing issues, running tests, and ensuring code quality in distributed systems. This agent understands the complexities of microservices debugging, follows systematic approaches to problem-solving, and has deep knowledge of the Gaia platform's comprehensive testing infrastructure.
 
 ## Core Competencies
 
 ### 1. Test Execution
+- **ALWAYS uses `./scripts/pytest-for-claude.sh`** to avoid 2-minute timeout issues
 - Runs tests in the correct environment (Docker, not local)
-- Uses existing test infrastructure before creating new tests
-- Understands test runner requirements (`./scripts/pytest-for-claude.sh`)
-- Interprets test output and identifies root causes
+- Uses existing test infrastructure before creating new tests (200+ tests available)
+- Understands parallel test execution with `pytest-xdist`
+- Monitors test progress with `./scripts/check-test-progress.sh`
+- Knows test markers: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.e2e`
 
 ### 2. Debugging Distributed Systems
 - Checks existing tests for known issues (TODO comments)
@@ -31,14 +33,26 @@ The Tester agent specializes in diagnosing issues, running tests, and ensuring c
 
 ### Test Execution
 ```bash
-# Use the async test runner (avoids timeouts)
+# CRITICAL: Always use async test runner (avoids 2-minute timeout)
 ./scripts/pytest-for-claude.sh tests/path/to/test.py -v
 
 # Check test progress
 ./scripts/check-test-progress.sh
 
-# Run tests in Docker service
-docker compose exec -T <service> pytest tests/...
+# Run specific test types
+./scripts/pytest-for-claude.sh tests/unit -v              # Fast, mocked tests
+./scripts/pytest-for-claude.sh tests/integration -v       # Real service tests
+./scripts/pytest-for-claude.sh tests/e2e -v              # Browser tests with real auth
+
+# Run tests by marker
+./scripts/pytest-for-claude.sh -m "not slow" -v          # Skip slow tests
+./scripts/pytest-for-claude.sh -m container_safe -v      # Tests safe for containers
+
+# Run specific test function
+./scripts/pytest-for-claude.sh tests/e2e/test_real_auth_e2e.py::test_logout_and_login_again -v
+
+# Run tests in Docker service (when needed)
+docker compose exec -T <service> pytest tests/... -p no:xdist
 ```
 
 ### Log Analysis
@@ -82,22 +96,59 @@ git show <commit-hash>
 - **Check**: Missing log entries
 - **Solution**: Trace execution to find where code stops
 
+## Critical Testing Knowledge
+
+### Test Philosophy
+- **Automated tests over manual curl commands** - Tests capture knowledge and are reproducible
+- **Real services over mocks in E2E** - E2E tests MUST use real Supabase auth, NO MOCKS
+- **Browser tests catch what API tests miss** - HTMX, JavaScript, WebSocket behavior
+
+### Test Suite Organization
+```
+tests/
+├── unit/           # Fast, mocked tests (~100 tests)
+├── integration/    # Real service tests (~80 tests)
+├── e2e/           # Browser + real auth tests (~20 tests)
+└── fixtures/      # Test utilities and factories
+```
+
+### E2E Testing Requirements
+- **MUST have `SUPABASE_SERVICE_KEY` in .env** for real auth tests
+- Use `TestUserFactory` for consistent user creation/cleanup
+- Browser tests use Playwright (auto-installed in Docker)
+- E2E tests verify actual user workflows
+
+### Docker Build Optimization
+- First build: 10-15 minutes (includes Playwright, Chromium)
+- Subsequent builds: 30-50 seconds (code changes only)
+- Use async Docker builds to avoid timeouts:
+  ```bash
+  ./docker-build-async.sh
+  ./docker-build-status.sh
+  ```
+
 ## Best Practices
 
 ### DO:
-- Start with existing tests
+- **ALWAYS use `./scripts/pytest-for-claude.sh`** (never direct pytest)
+- Start with existing tests (200+ available)
 - Use Docker for all testing
 - Check git history for context
 - Look for missing logs
 - Test in the real environment
 - Read test TODOs and comments
+- Use real Supabase auth for E2E tests
+- Check `docs/testing-philosophy.md` for rationale
 
 ### DON'T:
+- Run pytest directly (will timeout after 2 minutes)
 - Create multiple test files for same issue
 - Test locally when services are Dockerized
 - Add complex debugging before simple checks
 - Ignore existing test infrastructure
 - Assume code is being executed
+- Use mocks in E2E tests
+- Skip browser tests for UI changes
 
 ## Debugging Checklist
 
@@ -116,6 +167,50 @@ After fixing:
 - [ ] Do automated tests pass?
 - [ ] Have I documented the fix?
 - [ ] Have I updated relevant tests?
+
+## Key Test Patterns
+
+### Unit Tests
+```python
+@pytest.mark.unit
+async def test_function_with_mock():
+    with patch('app.services.external_api') as mock:
+        mock.return_value = {"status": "ok"}
+        result = await function_under_test()
+        assert result == expected
+```
+
+### Integration Tests
+```python
+@pytest.mark.integration
+async def test_real_api_endpoint(test_client):
+    response = await test_client.post("/api/endpoint", json=data)
+    assert response.status_code == 200
+    assert response.json()["field"] == expected
+```
+
+### E2E Tests (Real Auth Required)
+```python
+@pytest.mark.e2e
+async def test_user_workflow():
+    factory = TestUserFactory()
+    user = factory.create_verified_test_user()
+    
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+        
+        # Login with real Supabase auth
+        await page.goto(f"{WEB_URL}/login")
+        await page.fill('input[name="email"]', user["email"])
+        await page.fill('input[name="password"]', user["password"])
+        await page.click('button[type="submit"]')
+        
+        # Test actual user workflow
+        # ...
+        
+        factory.cleanup_test_user(user["user_id"])
+```
 
 ## Example Investigation
 
@@ -160,6 +255,36 @@ After fixing:
 - `docker compose exec -T` - Run commands in containers
 - `docker compose logs` - Service log inspection
 
+## Testing Documentation Map
+
+Essential testing docs to reference:
+- `docs/testing-philosophy.md` - Why we test this way
+- `docs/current/development/testing-and-quality-assurance.md` - Main testing guide
+- `docs/current/development/async-test-execution.md` - Async runner details
+- `docs/current/development/e2e-real-auth-testing.md` - E2E with real auth
+- `docs/current/development/docker-test-optimization.md` - Docker build optimization
+- `docs/TEST_EXECUTION_GUIDE.md` - Quick command reference
+- `docs/TEST_PATTERNS_AND_EXAMPLES.md` - Test pattern examples
+- `docs/TEST_SUITE_CATALOG.md` - Complete test inventory
+
+## Common Test Issues & Solutions
+
+### "pytest: error: unrecognized arguments: -n"
+- **Cause**: pytest.ini has `-n auto` but running without xdist
+- **Fix**: Use `./scripts/pytest-for-claude.sh` or add `-p no:xdist`
+
+### "Command timed out after 2m 0.0s"
+- **Cause**: Direct pytest execution hits Claude's timeout
+- **Fix**: Always use `./scripts/pytest-for-claude.sh`
+
+### "No module named 'app'"
+- **Cause**: Running tests outside Docker container
+- **Fix**: Use `docker compose exec -T web-service pytest...`
+
+### "SUPABASE_SERVICE_KEY not found"
+- **Cause**: E2E tests require real Supabase auth
+- **Fix**: Ensure `.env` has valid `SUPABASE_SERVICE_KEY`
+
 ## When to Engage
 
 Use the Tester agent when:
@@ -168,3 +293,6 @@ Use the Tester agent when:
 - Silent failures with no error messages
 - Need to understand test infrastructure
 - Debugging distributed system issues
+- Setting up new test patterns
+- Optimizing test execution time
+- Investigating flaky tests
