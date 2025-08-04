@@ -900,13 +900,15 @@ def setup_routes(app):
     async def get_conversations(request):
         """Get updated conversation list"""
         # Check authentication
+        jwt_token = request.session.get("jwt_token")
         user = request.session.get("user")
-        if not user:
+        if not user or not jwt_token:
             return gaia_error_message("Please log in to view conversations")
         
         user_id = user.get("id", "dev-user-id")
         
-        conversations = await chat_service_client.get_conversations(user_id)
+        # Pass JWT token to chat service for authentication
+        conversations = await chat_service_client.get_conversations(user_id, jwt_token=jwt_token)
         
         # Return updated conversation list with smooth animations
         conversation_items = [gaia_conversation_item(conv) for conv in conversations]
