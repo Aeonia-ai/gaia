@@ -617,9 +617,10 @@ def setup_routes(app):
         message = request.query_params.get("message")
         conversation_id = request.query_params.get("conversation_id")
         
-        logger.info(f"Stream response - message: {message}, conv: {conversation_id}")
+        logger.info(f"Stream response - message: {message}, conv: {conversation_id}, has_jwt: {bool(jwt_token)}, user_id: {user_id}")
         
         async def event_generator():
+            logger.info(f"Starting SSE generator for conversation {conversation_id}")
             try:
                 # Get conversation history from chat service
                 if conversation_id:
@@ -640,6 +641,16 @@ def setup_routes(app):
                             # Parse the chunk
                             import json
                             if chunk.strip() == "[DONE]":
+                                # Save BEFORE sending [DONE] to ensure it completes
+                                if conversation_id and response_content:
+                                    logger.info(f"Saving AI response (before DONE): conversation_id={conversation_id}, content_length={len(response_content)}")
+                                    try:
+                                        await chat_service_client.add_message(conversation_id, "assistant", response_content, jwt_token=jwt_token)
+                                        logger.info(f"Successfully saved AI response to conversation {conversation_id}")
+                                        await chat_service_client.update_conversation(user_id, conversation_id, preview=response_content, jwt_token=jwt_token)
+                                        logger.info(f"Successfully updated conversation preview")
+                                    except Exception as e:
+                                        logger.error(f"Failed to save AI response: {e}", exc_info=True)
                                 yield f"data: [DONE]\n\n"
                                 break
                             
@@ -659,6 +670,16 @@ def setup_routes(app):
                                     # Check for finish reason
                                     finish_reason = choices[0].get("finish_reason")
                                     if finish_reason == "stop":
+                                        # Save BEFORE sending [DONE] to ensure it completes
+                                        if conversation_id and response_content:
+                                            logger.info(f"Saving AI response (finish stop): conversation_id={conversation_id}, content_length={len(response_content)}")
+                                            try:
+                                                await chat_service_client.add_message(conversation_id, "assistant", response_content, jwt_token=jwt_token)
+                                                logger.info(f"Successfully saved AI response to conversation {conversation_id}")
+                                                await chat_service_client.update_conversation(user_id, conversation_id, preview=response_content, jwt_token=jwt_token)
+                                                logger.info(f"Successfully updated conversation preview")
+                                            except Exception as e:
+                                                logger.error(f"Failed to save AI response: {e}", exc_info=True)
                                         yield f"data: [DONE]\n\n"
                                         break
                             elif chunk_data.get("error"):
@@ -677,20 +698,14 @@ def setup_routes(app):
                             logger.error(f"Failed to parse chunk: {chunk}")
                             continue
                 
-                # Store the complete response using chat service
-                if conversation_id and response_content:
-                    logger.info(f"Saving AI response: conversation_id={conversation_id}, content_length={len(response_content)}")
-                    try:
-                        await chat_service_client.add_message(conversation_id, "assistant", response_content, jwt_token=jwt_token)
-                        logger.info(f"Successfully saved AI response to conversation {conversation_id}")
-                        await chat_service_client.update_conversation(user_id, conversation_id, preview=response_content, jwt_token=jwt_token)
-                        logger.info(f"Successfully updated conversation preview")
-                    except Exception as e:
-                        logger.error(f"Failed to save AI response: {e}", exc_info=True)
+                # Log end of streaming (save should have happened before [DONE])
+                logger.info(f"End of streaming loop - conversation_id={conversation_id}, response_content_length={len(response_content) if response_content else 0}")
                     
             except Exception as e:
                 logger.error(f"Streaming error: {e}", exc_info=True)
                 yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+            finally:
+                logger.info(f"SSE generator completed - response_saved={conversation_id and response_content and 'will_save' or 'no_save'}")
         
         return StreamingResponse(
             event_generator(),
