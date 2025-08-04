@@ -50,7 +50,7 @@ fly secrets set DATABASE_URL="..." -a gaia-analytics-dev
 | `app/services/<name>/main.py` | Service implementation |
 | `Dockerfile.<name>` | Container definition |
 | `fly.<name>.*.toml` | Deployment configs |
-| `docker-compose.yml` | Local development (updated) |
+| `docker compose.yml` | Local development (updated) |
 | `.env.example` | Environment vars (updated) |
 | `app/shared/config.py` | Service URL config (updated) |
 
@@ -86,7 +86,7 @@ async with httpx.AsyncClient() as client:
 
 | Issue | Solution |
 |-------|----------|
-| Port conflict | Check `docker-compose.yml` for used ports |
+| Port conflict | Check `docker compose.yml` for used ports |
 | Gateway 503 | Verify SERVICE_URL in gateway secrets |
 | Auth errors | Ensure API_KEY set in service secrets |
 | Service won't start | Check logs: `docker compose logs <name>-service` |

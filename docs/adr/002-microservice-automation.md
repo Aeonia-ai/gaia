@@ -10,7 +10,7 @@ Adding a new microservice to Gaia Platform required 7+ manual steps:
 1. Create service directory structure
 2. Write boilerplate FastAPI code
 3. Create Dockerfile
-4. Update docker-compose.yml
+4. Update docker compose.yml
 5. Create Fly.io deployment configs
 6. Update gateway routes
 7. Configure environment variables
@@ -53,7 +53,7 @@ Implement automation tools:
 ### Service Creation Script
 ```bash
 ./scripts/create-new-service.sh analytics 8005
-# Creates: directory, main.py, Dockerfile, docker-compose entry, Fly configs
+# Creates: directory, main.py, Dockerfile, docker compose entry, Fly configs
 ```
 
 ### Service Registry

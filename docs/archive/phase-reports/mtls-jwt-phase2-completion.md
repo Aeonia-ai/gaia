@@ -56,7 +56,7 @@ async with create_auth_client("gateway") as client:
 
 ### 3. Docker Compose Updates ✅
 
-Updated `docker-compose.yml` to properly mount certificates:
+Updated `docker compose.yml` to properly mount certificates:
 - Mounted entire `/certs` directory as read-only volume for all services
 - Configured service-specific certificate paths via environment variables
 - Added JWT signing key paths for all services that generate tokens

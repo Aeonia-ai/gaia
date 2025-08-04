@@ -37,8 +37,8 @@ docker compose down
 docker compose build
 docker compose logs -f gateway
 
-# ❌ DEPRECATED: Old docker-compose (v1)
-docker-compose up  # DO NOT USE
+# ❌ DEPRECATED: Old docker compose (v1)
+docker compose up  # DO NOT USE
 ```
 
 **Detection**: Check your Docker Compose version:
@@ -47,7 +47,7 @@ docker compose version
 # Output: Docker Compose version v2.x.x
 ```
 
-**Note**: If you only have `docker-compose` (with hyphen), update Docker Desktop or install Compose v2.
+**Note**: If you only have `docker compose` (with hyphen), update Docker Desktop or install Compose v2.
 
 ### Docker Commands
 
@@ -209,7 +209,7 @@ netstat -an | grep 8000  # May not exist on all systems
 
 1. **Docker Compose**:
    ```bash
-   which docker-compose  # Old version (hyphenated)
+   which docker compose  # Old version (hyphenated)
    which docker          # Check for 'compose' subcommand
    docker --help | grep compose
    ```
@@ -230,7 +230,7 @@ netstat -an | grep 8000  # May not exist on all systems
 
 ## 🚨 Critical Rules
 
-1. **ALWAYS** use `docker compose` (space) not `docker-compose` (hyphen)
+1. **ALWAYS** use `docker compose` (space) not `docker compose` (hyphen)
 2. **ALWAYS** use `fly postgres` or `fly mpg`, never `fly pg`
 3. **ALWAYS** use test scripts instead of raw curl for API testing
 4. **ALWAYS** specify organization for Fly.io database operations
@@ -250,7 +250,7 @@ When you encounter a new command version issue:
 
 ```bash
 # Most Common Corrections
-docker compose up          # NOT: docker-compose up
+docker compose up          # NOT: docker compose up
 fly postgres list          # NOT: fly pg list
 fly mpg list              # NEW: Managed postgres list
 ./scripts/test.sh         # NOT: curl commands

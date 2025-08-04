@@ -91,14 +91,14 @@ curl -X POST "http://localhost:8666/api/v1/chat/personas/initialize-default" \
 ### Local Testing:
 ```bash
 # Start services
-docker-compose up -d
+docker compose up -d
 
 # Test personas list
 curl -X GET "http://localhost:8666/api/v1/chat/personas" \
   -H "X-API-Key: FJUeDkZRy0uPp7cYtavMsIfwi7weF9-RT7BeOlusqnE"
 
 # Test direct service (for debugging)
-docker-compose exec chat-service curl -X GET "http://localhost:8000/personas/"
+docker compose exec chat-service curl -X GET "http://localhost:8000/personas/"
 ```
 
 ### Production Testing:

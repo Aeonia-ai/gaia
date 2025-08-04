@@ -107,7 +107,7 @@ Internet → Gateway Service
 
 ### 1. Docker Compose Configuration
 
-Redis service is included in `docker-compose.yml`:
+Redis service is included in `docker compose.yml`:
 
 ```yaml
 redis:
@@ -139,10 +139,10 @@ SERVICE_HEALTH_CACHE_TTL=60 # Service health cache TTL (1 minute)
 
 ```bash
 # Start all services including Redis
-docker-compose up
+docker compose up
 
 # Start just infrastructure
-docker-compose up db nats redis
+docker compose up db nats redis
 
 # Check Redis health
 curl http://localhost:8666/health | jq '.redis'
@@ -427,5 +427,5 @@ time curl http://localhost:8666/api/v1/chat/personas | jq '.total'
 
 - [n8n Integration Guide](./n8n-integration.md) - Workflow automation platform
 - [CLAUDE.md](../CLAUDE.md) - Main development guide
-- [Docker Configuration](../docker-compose.yml) - Container setup
+- [Docker Configuration](../docker compose.yml) - Container setup
 - [Fly.io Configuration](../fly.dev.toml) - Production deployment

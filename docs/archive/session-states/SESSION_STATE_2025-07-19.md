@@ -45,7 +45,7 @@
 4. ✅ Phase 1: Test JWT auth alongside API_KEY auth
 5. ✅ Phase 2: Generate mTLS certificates for all services
 6. ✅ Phase 2: Create mTLS client module
-7. ✅ Phase 2: Update docker-compose for certificate mounting
+7. ✅ Phase 2: Update docker compose for certificate mounting
 8. ⚠️ Phase 2: Test mTLS connections between services **<-- CURRENT**
 9. 🔜 Phase 3: Migrate web and mobile clients to Supabase JWTs
 10. 🔜 Phase 3: Update gateway to validate Supabase JWTs

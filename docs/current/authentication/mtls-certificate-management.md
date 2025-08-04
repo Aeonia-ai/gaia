@@ -86,7 +86,7 @@ openssl rsa -in certs/jwt-signing.key -pubout -out certs/jwt-signing.pub
 All services mount certificates as read-only volumes:
 
 ```yaml
-# docker-compose.yml
+# docker compose.yml
 services:
   gateway:
     volumes:

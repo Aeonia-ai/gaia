@@ -262,7 +262,7 @@ docker compose up kb-service
 **Cause**: Docker volume mount issue
 **Solution**: 
 - Create local directory: `mkdir -p ./kb-data`
-- Update docker-compose.yml to use `./kb-data:/kb:rw`
+- Update docker compose.yml to use `./kb-data:/kb:rw`
 - Restart Docker Desktop if on macOS
 
 #### 4. "Repository not found" or Authentication failed

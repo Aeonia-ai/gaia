@@ -55,7 +55,7 @@ The KB service is **fully operational** with complete implementation, testing, a
 
 ### 🏗️ **Architecture Status**
 - **Service Implementation**: ✅ Complete (`app/services/kb/main.py` - 568 lines)
-- **Docker Integration**: ✅ Operational (`docker-compose.yml` configured)  
+- **Docker Integration**: ✅ Operational (`docker compose.yml` configured)  
 - **Gateway Routing**: ✅ All endpoints (`/api/v0.2/kb/*` and `/api/v1/chat/kb-*`)
 - **Database Schema**: ✅ Complete migrations and tables
 - **Authentication**: ✅ API key and JWT support with RBAC

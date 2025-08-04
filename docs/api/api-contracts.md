@@ -2,6 +2,15 @@
 
 This document defines the API contracts for Gaia Platform services, clearly specifying which endpoints require authentication and which are public.
 
+## API Versioning
+
+The GAIA Platform supports multiple API versions for backward compatibility:
+- **v0.2**: Legacy API format (still supported)
+- **v0.3**: Current API format with cleaner response structure
+- **v1**: OpenAI-compatible format for chat endpoints
+
+Clients can specify their preferred format using the `X-Response-Format` header.
+
 ## Public Endpoints (No Authentication Required)
 
 These endpoints MUST remain publicly accessible without any authentication headers:

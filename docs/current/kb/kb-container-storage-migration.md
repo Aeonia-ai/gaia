@@ -48,7 +48,7 @@ cd ..
 rm -rf ./kb-data
 ```
 
-### 2. Update docker-compose.yml
+### 2. Update docker compose.yml
 Remove the volume mount line:
 ```yaml
 # Remove this line:

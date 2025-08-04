@@ -350,7 +350,7 @@ ENV MALLOC_TRIM_THRESHOLD_=131072
 ENV MALLOC_TOP_PAD_=131072
 ENV MALLOC_MMAP_MAX_=65536
 
-# Also add memory limits to docker-compose.yml
+# Also add memory limits to docker compose.yml
 deploy:
   resources:
     limits:
@@ -493,7 +493,7 @@ docker exec gaia-redis-1 redis-cli -a redis_password KEYS "*" | wc -l
 
 - [Redis Integration Guide](./redis-integration.md) - Comprehensive caching documentation
 - [CLAUDE.md](../CLAUDE.md) - Main development guide
-- [Docker Configuration](../docker-compose.yml) - Container setup
+- [Docker Configuration](../docker compose.yml) - Container setup
 - [Fly.io Configuration](../fly.dev.toml) - Production deployment
 
 ---

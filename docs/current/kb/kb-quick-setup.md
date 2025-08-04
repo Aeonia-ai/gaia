@@ -25,7 +25,7 @@ docker compose exec kb-service ls -la /kb/
 curl -X POST -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"message": "gaia"}' \
-  http://localhost:8004/search
+  http://localhost:8666/api/v0.2/kb/search
 ```
 
 ## GitHub Personal Access Token
@@ -46,7 +46,7 @@ docker compose build kb-service --no-cache
 
 ### Volume Mount Error
 ```bash
-# Update docker-compose.yml:
+# Update docker compose.yml:
 volumes:
   - ./kb-data:/kb:rw
 ```
