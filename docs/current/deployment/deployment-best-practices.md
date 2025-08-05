@@ -19,8 +19,11 @@ The goal is to ensure that what works locally will work identically in remote en
 
 ### 3. Service Communication
 - Local: Docker DNS (`http://service-name:8000`)
-- Remote: Fly.io internal DNS (`http://app-name.internal:8000`)
+- Remote: Fly.io internal DNS (`http://app-name.internal:8000`) 
 - Never use public URLs for inter-service communication
+- **Important**: Cloud platforms may apply transparent compression (e.g., Fly.io uses Brotli)
+  - Ensure HTTP clients support all compression types: `pip install httpx[brotli]`
+  - See [Troubleshooting Inter-Service Communication](../troubleshooting-inter-service-communication.md) for compression issues
 
 ### 4. Testing Parity
 - Same test suite runs locally and remotely
