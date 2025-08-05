@@ -9,12 +9,13 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 PID_FILE=".test-run.pid"
+LOG_DIR="logs/tests/pytest"
 
 if [ ! -f "$PID_FILE" ]; then
     echo -e "${YELLOW}No test run in progress${NC}"
     
     # Check for recent log files
-    LATEST_LOG=$(ls -t test-run-*.log 2>/dev/null | head -1)
+    LATEST_LOG=$(ls -t "$LOG_DIR"/test-run-*.log 2>/dev/null | head -1)
     if [ -n "$LATEST_LOG" ]; then
         echo ""
         echo "Latest test log: $LATEST_LOG"
@@ -37,7 +38,7 @@ if ps -p "$PID" > /dev/null 2>&1; then
     echo -e "${BLUE}🔄 Tests are running (PID: $PID)${NC}"
     
     # Find the log file
-    CURRENT_LOG=$(ls -t test-run-*.log 2>/dev/null | head -1)
+    CURRENT_LOG=$(ls -t "$LOG_DIR"/test-run-*.log 2>/dev/null | head -1)
     if [ -n "$CURRENT_LOG" ]; then
         echo "📝 Log file: $CURRENT_LOG"
         echo ""
@@ -57,7 +58,7 @@ else
     rm -f "$PID_FILE"
     
     # Show final results from log
-    LATEST_LOG=$(ls -t test-run-*.log 2>/dev/null | head -1)
+    LATEST_LOG=$(ls -t "$LOG_DIR"/test-run-*.log 2>/dev/null | head -1)
     if [ -n "$LATEST_LOG" ]; then
         echo ""
         echo "Log file: $LATEST_LOG"

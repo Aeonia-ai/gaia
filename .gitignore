@@ -86,11 +86,15 @@ ipython_config.py
 tests/web/screenshots/current/
 tests/web/screenshots/failures/
 tests/web/screenshots/*.png
+tests/web/screenshots/**/*.png
+tests/web/screenshots/**/*.json
 tests/*/screenshots/
 tests/**/screenshots/
 *.screenshot.png
 test-results/
 test-reports/
+test-run-*.log
+docker-build-*.log
 
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
@@ -189,6 +193,12 @@ data/
 logs/
 *.log
 tmp/
+
+# Test logs (centralized)
+logs/tests/
+logs/docker/
+logs/performance/
+logs/services/
 
 # Docker volumes and runtime
 docker-compose.override.yml

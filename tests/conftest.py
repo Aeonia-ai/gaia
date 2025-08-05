@@ -13,6 +13,11 @@ Pytest configuration for Gaia Platform tests.
 import pytest
 import asyncio
 import os
+from tests.fixtures.screenshot_cleanup import (
+    screenshot_manager,
+    screenshot_cleanup,
+    screenshot_on_failure
+)
 
 # Configure pytest for async tests
 @pytest.fixture(scope="session")
@@ -47,4 +52,10 @@ def pytest_configure(config):
     )
     config.addinivalue_line(
         "markers", "performance: mark test as performance test"
+    )
+    config.addinivalue_line(
+        "markers", "screenshot: mark test as taking screenshots"
+    )
+    config.addinivalue_line(
+        "markers", "keep_screenshots: mark test to preserve its screenshots"
     )

@@ -29,7 +29,11 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-LOG_FILE="test-run-$(date +%Y%m%d-%H%M%S).log"
+# Create log directory if it doesn't exist
+LOG_DIR="logs/tests/pytest"
+mkdir -p "$LOG_DIR"
+
+LOG_FILE="$LOG_DIR/test-run-$(date +%Y%m%d-%H%M%S).log"
 PID_FILE=".test-run.pid"
 
 # Check if a test is already running
