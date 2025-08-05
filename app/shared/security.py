@@ -438,15 +438,7 @@ async def get_current_auth_legacy(
     """
     from app.shared.config import settings
     
-    # First check if the API key matches the one in .env (for local development)
-    if api_key_header and settings.API_KEY and api_key_header == settings.API_KEY:
-        logger.debug("Authenticated with .env API key")
-        return {
-            "auth_type": "api_key",
-            "key": api_key_header,
-            "user_id": "dev@gaia.local",  # Default local dev user
-            "email": "dev@gaia.local"
-        }
+    # Note: Removed hardcoded .env API key check - all API keys now validated through Supabase
     
     # Otherwise use the standard authentication flow
     # This ensures production uses database validation
@@ -479,15 +471,8 @@ async def get_current_auth_legacy(
             if db:
                 db.close()
     except Exception as e:
-        # If database is not available and we have .env API key, allow it
-        if api_key_header and settings.API_KEY and api_key_header == settings.API_KEY:
-            logger.warning(f"Database unavailable, falling back to .env API key: {e}")
-            return {
-                "auth_type": "api_key",
-                "key": api_key_header,
-                "user_id": "dev@gaia.local",
-                "email": "dev@gaia.local"
-            }
+        # Note: Removed hardcoded .env API key fallback - Supabase should always be available
+        logger.error(f"Authentication failed: {e}")
         raise
 
 # API Key management functions

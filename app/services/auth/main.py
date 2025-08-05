@@ -12,6 +12,7 @@ while maintaining identical API behavior for client compatibility.
 """
 
 import asyncio
+import os
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -171,6 +172,120 @@ async def service_status():
         }
     }
 
+@app.get("/auth/health", tags=["Authentication", "Status"])
+async def authentication_health():
+    """
+    Comprehensive authentication system health check.
+    Validates all authentication components and dependencies.
+    """
+    health_result = {
+        "service": "auth",
+        "timestamp": datetime.now().isoformat(),
+        "overall_status": "healthy",
+        "checks": {}
+    }
+    
+    # Check secrets configuration
+    secrets_health = await check_secrets_health()
+    health_result["checks"]["secrets"] = secrets_health
+    
+    # Check authentication backends
+    auth_backend = os.getenv("AUTH_BACKEND", "postgresql")
+    health_result["checks"]["auth_backend"] = {
+        "configured": auth_backend,
+        "status": "healthy"
+    }
+    
+    # Test Supabase connectivity if configured
+    if auth_backend == "supabase" or os.getenv("SUPABASE_AUTH_ENABLED", "false").lower() == "true":
+        try:
+            supabase_health = await supabase_health_check()
+            health_result["checks"]["supabase"] = supabase_health
+            
+            # Test API key validation capability
+            try:
+                from app.shared.supabase_auth import validate_api_key_supabase
+                # Test with a known invalid key to verify the function works
+                test_result = await validate_api_key_supabase("invalid_test_key")
+                health_result["checks"]["api_key_validation"] = {
+                    "status": "healthy",
+                    "backend": "supabase",
+                    "test_performed": True
+                }
+            except Exception as e:
+                health_result["checks"]["api_key_validation"] = {
+                    "status": "error",
+                    "backend": "supabase", 
+                    "error": f"API key validation test failed: {str(e)[:100]}"
+                }
+        except Exception as e:
+            health_result["checks"]["supabase"] = {
+                "status": "error",
+                "error": f"Supabase connection failed: {str(e)[:100]}"
+            }
+    
+    # Test PostgreSQL connectivity if configured
+    if auth_backend == "postgresql":
+        try:
+            db_health = await database_health_check()
+            health_result["checks"]["database"] = db_health
+            
+            # Test API key validation capability
+            try:
+                from app.shared.database import get_database_session
+                from app.shared.security import validate_user_api_key
+                
+                db_gen = get_database_session()
+                db = next(db_gen)
+                
+                # Test with invalid key to verify function works
+                test_result = await validate_user_api_key("invalid_test_key", db)
+                health_result["checks"]["api_key_validation"] = {
+                    "status": "healthy",
+                    "backend": "postgresql",
+                    "test_performed": True
+                }
+            except Exception as e:
+                health_result["checks"]["api_key_validation"] = {
+                    "status": "error", 
+                    "backend": "postgresql",
+                    "error": f"API key validation test failed: {str(e)[:100]}"
+                }
+        except Exception as e:
+            health_result["checks"]["database"] = {
+                "status": "error",
+                "error": f"Database connection failed: {str(e)[:100]}"
+            }
+    
+    # Check AI provider connectivity (for potential service JWT validation)
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    if anthropic_key:
+        health_result["checks"]["ai_provider"] = {
+            "status": "configured",
+            "provider": "anthropic",
+            "key_format": "valid" if anthropic_key.startswith("sk-ant-") else "invalid"
+        }
+    else:
+        health_result["checks"]["ai_provider"] = {
+            "status": "not_configured",
+            "provider": "none"
+        }
+    
+    # Determine overall status
+    error_checks = [check for check in health_result["checks"].values() 
+                   if isinstance(check, dict) and check.get("status") == "error"]
+    warning_checks = [check for check in health_result["checks"].values() 
+                     if isinstance(check, dict) and check.get("status") in ["warning", "unhealthy"]]
+    
+    if error_checks:
+        health_result["overall_status"] = "error"
+        health_result["error_count"] = len(error_checks)
+    elif warning_checks:
+        health_result["overall_status"] = "warning"
+        health_result["warning_count"] = len(warning_checks)
+    
+    return health_result
+
 # ========================================================================================
 # AUTHENTICATION ENDPOINTS
 # ========================================================================================
@@ -228,29 +343,58 @@ async def validate_authentication(request: AuthValidationRequest):
             logger.warning(f"JWT validation failed: {e.detail}")
             log_auth_event("auth", "jwt", success=False)
     
-    # Try API key validation using user-associated database authentication
+    # Try API key validation - check AUTH_BACKEND to determine method
     if request.api_key:
         try:
-            from app.shared.database import get_database_session
-            from app.shared.security import validate_user_api_key
+            auth_backend = os.getenv("AUTH_BACKEND", "postgresql")
             
-            # Get database session
-            db_gen = get_database_session()
-            db = next(db_gen)
-            
-            # Validate user-associated API key
-            user_api_result = await validate_user_api_key(request.api_key, db)
-            
-            if user_api_result:
-                log_auth_event("auth", "api_key", user_api_result.user_id, success=True)
-                
-                return AuthValidationResponse(
-                    valid=True,
-                    auth_type="api_key",
-                    user_id=user_api_result.user_id
-                )
+            if auth_backend == "supabase" or os.getenv("SUPABASE_AUTH_ENABLED", "false").lower() == "true":
+                # Use Supabase exclusively when configured
+                logger.debug("Validating API key in Supabase (exclusive mode)")
+                try:
+                    from app.shared.supabase_auth import validate_api_key_supabase
+                    supabase_result = await validate_api_key_supabase(request.api_key)
+                    
+                    if supabase_result:
+                        log_auth_event("auth", "api_key", supabase_result.user_id, success=True)
+                        logger.debug(f"Authenticated via Supabase API key for user: {supabase_result.user_id}, email: {supabase_result.email}")
+                        
+                        return AuthValidationResponse(
+                            valid=True,
+                            auth_type="api_key",
+                            user_id=supabase_result.user_id
+                        )
+                    else:
+                        logger.warning("Invalid API Key provided - not found in Supabase")
+                        log_auth_event("auth", "api_key", success=False)
+                        
+                except Exception as e:
+                    logger.error(f"Supabase API key validation error: {e}")
+                    log_auth_event("auth", "api_key", success=False)
             else:
-                log_auth_event("auth", "api_key", success=False)
+                # Use PostgreSQL database validation
+                logger.debug("Validating API key in PostgreSQL database")
+                from app.shared.database import get_database_session
+                from app.shared.security import validate_user_api_key
+                
+                # Get database session
+                db_gen = get_database_session()
+                db = next(db_gen)
+                
+                # Validate user-associated API key
+                user_api_result = await validate_user_api_key(request.api_key, db)
+                
+                if user_api_result:
+                    log_auth_event("auth", "api_key", user_api_result.user_id, success=True)
+                    
+                    return AuthValidationResponse(
+                        valid=True,
+                        auth_type="api_key",
+                        user_id=user_api_result.user_id
+                    )
+                else:
+                    logger.warning("Invalid API Key provided - not found in PostgreSQL")
+                    log_auth_event("auth", "api_key", success=False)
                 
         except Exception as e:
             logger.error(f"API key validation error: {e}")
