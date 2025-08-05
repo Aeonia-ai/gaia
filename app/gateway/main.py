@@ -118,8 +118,14 @@ async def get_http_client() -> httpx.AsyncClient:
     """Get or create HTTP client for service communication."""
     global http_client
     if http_client is None:
+        # Configure client to handle compressed responses
+        # httpx[brotli] handles all compression types including Brotli
         http_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(settings.GATEWAY_REQUEST_TIMEOUT)
+            timeout=httpx.Timeout(settings.GATEWAY_REQUEST_TIMEOUT),
+            # Let httpx handle all compression types automatically
+            headers={
+                "User-Agent": "GaiaGateway/1.0"
+            }
         )
     return http_client
 
@@ -2392,22 +2398,7 @@ async def register_user(request: Request):
         headers=headers
     )
 
-@app.post("/api/v1/auth/login", tags=["Authentication"])
-async def login_user(request: Request):
-    """Forward user login to auth service."""
-    body = await request.json()
-    
-    headers = dict(request.headers)
-    headers.pop("content-length", None)
-    headers.pop("Content-Length", None)
-    
-    return await forward_request_to_service(
-        service_name="auth",
-        path="/auth/login",
-        method="POST",
-        json_data=body,
-        headers=headers
-    )
+# Removed duplicate /api/v1/auth/login endpoint - see v1_login below
 
 # Filesystem endpoints - forward to chat service (MCP handles filesystem)
 @app.get("/api/v1/filesystem", tags=["Filesystem"])
