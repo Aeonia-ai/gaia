@@ -1,6 +1,7 @@
 """
 Intelligent Chat Router using LLM Function Calling
 
+TODO: This is Tech Debt, remove
 Uses LLM function calling to quickly classify incoming messages and route them
 to the appropriate endpoint (fast path for simple dialog, orchestrated for complex).
 """

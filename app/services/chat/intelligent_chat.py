@@ -1,6 +1,7 @@
 """
 Intelligent Chat Service with Smart Routing
 
+TODO: This is Tech Debt, remove
 Automatically routes messages to the optimal endpoint based on complexity analysis.
 Provides fast responses for simple dialog while maintaining sophisticated capabilities
 for complex requests.
