@@ -6,6 +6,7 @@ Tests the authentication patterns that browser tests need to understand.
 import pytest
 from unittest.mock import Mock, MagicMock, patch, AsyncMock
 import os
+from starlette.requests import Request
 
 
 class TestWebAuthBehavior:

@@ -27,14 +27,23 @@ class TestPersonaService:
     @pytest.mark.asyncio
     async def test_list_personas_active_only(self, persona_service, mock_db_session):
         """Test listing only active personas"""
-        # Setup mock data
-        mock_personas = [
-            {"id": str(uuid4()), "name": "Mu", "is_active": True},
-            {"id": str(uuid4()), "name": "Inactive", "is_active": False}
-        ]
-        mock_db_session.query().filter().order_by().all.return_value = [
-            Mock(**p) for p in mock_personas if p["is_active"]
-        ]
+        # Setup mock data - the service uses execute/fetchall pattern
+        mock_row1 = Mock(
+            id=uuid4(), 
+            name="Mu", 
+            description="Test",
+            system_prompt="Test prompt",
+            personality_traits={},
+            capabilities={},
+            is_active=True,
+            created_by=None,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        
+        mock_result = Mock()
+        mock_result.fetchall.return_value = [mock_row1]
+        mock_db_session.execute.return_value = mock_result
         
         # Test
         personas = await persona_service.list_personas(active_only=True)
@@ -46,7 +55,10 @@ class TestPersonaService:
     @pytest.mark.asyncio
     async def test_get_user_persona_returns_none_for_new_user(self, persona_service, mock_db_session):
         """Test that new users have no persona preference"""
-        mock_db_session.query().filter().first.return_value = None
+        # Mock no user preference found
+        mock_result = Mock()
+        mock_result.fetchone.return_value = None
+        mock_db_session.execute.return_value = mock_result
         
         persona = await persona_service.get_user_persona("new-user-123")
         assert persona is None
@@ -57,9 +69,22 @@ class TestPersonaService:
         user_id = "test-user"
         persona_id = str(uuid4())
         
-        # Mock persona exists
-        mock_persona = Mock(id=persona_id, is_active=True)
-        mock_db_session.query().filter().first.return_value = mock_persona
+        # Mock persona exists check
+        mock_persona_row = Mock(
+            id=persona_id, 
+            name="Test Persona",
+            description="Test",
+            system_prompt="Test",
+            personality_traits={},
+            capabilities={},
+            is_active=True,
+            created_by=None,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        mock_result = Mock()
+        mock_result.fetchone.return_value = mock_persona_row
+        mock_db_session.execute.return_value = mock_result
         
         # Test
         preference = await persona_service.set_user_persona(user_id, persona_id)
@@ -72,8 +97,22 @@ class TestPersonaService:
     @pytest.mark.asyncio
     async def test_get_default_persona_returns_mu(self, persona_service, mock_db_session):
         """Test that default persona is Mu"""
-        mock_mu = Mock(name="Mu", id=str(uuid4()))
-        mock_db_session.query().filter().order_by().all.return_value = [mock_mu]
+        mock_mu_row = Mock(
+            id=uuid4(),
+            name="Mu",
+            description="Default assistant",
+            system_prompt="You are Mu",
+            personality_traits={},
+            capabilities={},
+            is_active=True,
+            created_by=None,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        
+        mock_result = Mock()
+        mock_result.fetchall.return_value = [mock_mu_row]
+        mock_db_session.execute.return_value = mock_result
         
         persona = await persona_service.get_default_persona()
         assert persona.name == "Mu"
@@ -82,7 +121,9 @@ class TestPersonaService:
     async def test_create_persona_validates_name_unique(self, persona_service, mock_db_session):
         """Test that persona names must be unique"""
         # Mock existing persona with same name
-        mock_db_session.query().filter().first.return_value = Mock(name="Mu")
+        mock_result = Mock()
+        mock_result.fetchone.return_value = Mock(name="Mu")  # Persona exists
+        mock_db_session.execute.return_value = mock_result
         
         persona_data = PersonaCreate(
             name="Mu",
