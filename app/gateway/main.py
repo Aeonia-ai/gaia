@@ -299,9 +299,10 @@ async def health_check():
     # Check health of all services
     service_health = {}
     
+    # Use a single HTTP client for all service checks
+    client = await get_http_client()
     for service_name, service_url in SERVICE_URLS.items():
         try:
-            client = await get_http_client()
             response = await client.get(f"{service_url}/health", timeout=5.0)
             service_health[service_name] = {
                 "status": "healthy" if response.status_code == 200 else "unhealthy",

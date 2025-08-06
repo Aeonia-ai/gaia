@@ -91,7 +91,7 @@ class TestAPIWithRealAuth:
             )
             assert response.status_code == 200
             data = response.json()
-            assert "id" in data  # v0.3 format includes conversation ID
+            assert "conversation_id" in data  # v0.3 format includes conversation ID
             assert "choices" in data or "response" in data or "content" in data
             logger.info("V0.3 chat succeeded")
     
