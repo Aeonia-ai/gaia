@@ -220,11 +220,7 @@ class TestAuthenticationBehaviors:
             await page.wait_for_timeout(1000)
             
             # Look for login indicators - form with email/password fields
-            email_input = await page.locator('input[type="email"], input[type="text"]').filter(
-                has_attribute="name", "email"
-            ).or_(
-                page.locator('input').filter(has_attribute="placeholder", "/email/i")
-            )
+            email_input = page.locator('input[type="email"], input[type="text"][name="email"]')
             
             password_input = await page.locator('input[type="password"]')
             
