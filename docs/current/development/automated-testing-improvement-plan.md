@@ -238,7 +238,7 @@ def test_kb_search_visual_regression(page):
 3. **Container-based Test Isolation**
    ```bash
    # Dedicated test containers
-   docker-compose -f docker-compose.test.yml up --build
+   docker compose -f docker compose.test.yml up --build
    ```
 
 ## 📊 Success Metrics

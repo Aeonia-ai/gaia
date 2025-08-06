@@ -220,7 +220,7 @@ CMD ["uvicorn", "app.services.web.main:app", "--host", "0.0.0.0", "--port", "800
 ### Docker Compose Addition
 
 ```yaml
-# docker-compose.yml addition
+# docker compose.yml addition
 web-service:
   build:
     context: .
@@ -309,7 +309,7 @@ class GaiaAPIClient:
 
 ## Deployment Strategy
 
-1. **Local Development**: Part of docker-compose stack
+1. **Local Development**: Part of docker compose stack
 2. **Staging**: Deploy as separate Fly.io app
 3. **Production**: Scale independently based on traffic
 4. **Monitoring**: Health checks and metrics via gateway

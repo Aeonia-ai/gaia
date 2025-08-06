@@ -3,14 +3,34 @@
 ## Overview
 Gaia Platform supports multiple authentication methods to accommodate different client types and migration paths:
 
-1. **API Keys** - Traditional authentication for existing clients
-2. **Supabase JWTs** - Modern authentication for web/mobile apps
+1. **Supabase JWTs** - Primary authentication for all new implementations
+2. **API Keys** - Legacy support for existing clients during migration
 3. **Service JWTs** - Internal service-to-service authentication
 
 ## Authentication Methods
 
-### 1. API Key Authentication (Legacy)
-Traditional method using user-associated API keys stored in the database.
+### 1. Supabase JWT Authentication (Primary)
+Modern authentication using JWT tokens issued by Supabase after email/password login. This is the primary authentication method.
+
+**Usage:**
+```bash
+curl -H "Authorization: Bearer your-jwt-token" https://api.gaia.com/endpoint
+```
+
+**Where it works:**
+- All endpoints (primary method)
+- Web UI (automatic after login)
+- Mobile apps (with Supabase SDK)
+- New client implementations
+
+**Benefits:**
+- Automatic expiry and refresh
+- User metadata in token
+- No database lookup needed
+- Industry standard
+
+### 2. API Key Authentication (Legacy Support)
+Traditional method using user-associated API keys for backward compatibility.
 
 **Usage:**
 ```bash
@@ -21,25 +41,13 @@ curl -H "X-API-Key: your-api-key" https://api.gaia.com/endpoint
 - All endpoints (backward compatibility)
 - Unity XR, Mobile AR, Unreal clients
 - Local development and testing
-
-### 2. Supabase JWT Authentication (Recommended)
-Modern authentication using JWT tokens issued by Supabase after email/password login.
-
-**Usage:**
-```bash
-curl -H "Authorization: Bearer your-jwt-token" https://api.gaia.com/endpoint
-```
-
-**Where it works:**
-- All v0.2 streaming endpoints
-- Web UI (automatic after login)
-- Mobile apps (after implementing Supabase SDK)
+- Legacy integrations
 
 **Benefits:**
-- Automatic expiry and refresh
-- User metadata in token
-- No database lookup needed
-- Industry standard
+- Simple implementation
+- No token refresh needed
+- Persistent authentication
+- Compatible with existing clients
 
 ### 3. Service-to-Service JWT Authentication
 For internal microservice communication using mTLS certificates and short-lived JWTs.

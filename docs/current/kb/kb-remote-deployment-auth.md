@@ -185,7 +185,7 @@ fly logs -a gaia-kb-dev | grep "Git repository initialized"
 
 ### Complete Docker Compose Setup
 ```yaml
-# docker-compose.yml
+# docker compose.yml
 services:
   kb-service:
     build: .

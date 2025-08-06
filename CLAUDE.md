@@ -32,7 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Only restart containers when:**
 - Adding new dependencies to requirements.txt
 - Changing Dockerfile configuration  
-- Modifying docker-compose.yml settings
+- Modifying docker compose.yml settings
 - Environment variable changes requiring container restart
 
 **Quick Test After Changes:**
@@ -287,7 +287,7 @@ See:
 ## ⚠️ CRITICAL: Command Version Requirements
 
 **ALWAYS use these command versions:**
-- `docker compose` (with space) - NOT `docker-compose` (with hyphen)
+- `docker compose` (with space) - NOT `docker compose` (with hyphen)
 - `fly postgres` or `fly mpg` - NOT `fly pg`
 - `python -m pip` - NOT direct `pip`
 - Test script - NOT direct `curl` commands

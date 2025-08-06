@@ -52,7 +52,7 @@ Modified:
 - /app/shared/security.py (added get_current_auth_unified)
 - /app/gateway/main.py (updated endpoints to unified auth)
 - /app/services/web/utils/gateway_client.py (JWT support)
-- /docker-compose.yml (certificate mounts)
+- /docker compose.yml (certificate mounts)
 ```
 
 ### Testing Results

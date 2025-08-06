@@ -6,6 +6,15 @@
 
 Complete reference for all Gaia Platform API endpoints, contracts, and integration patterns.
 
+### 🗺️ [GAIA Platform API Map](GAIA_API_MAP.md)
+**🆕 NEW** - Complete endpoint mapping across all services with routing details
+
+- **Gateway Routing** - How requests route from Gateway to backend services  
+- **Service Mapping** - Complete endpoint-to-service mapping
+- **Authentication Requirements** - Per-endpoint auth requirements
+- **Target Paths** - Internal service endpoint paths
+- **400+ Endpoints Documented** - Comprehensive API reference
+
 ### 📋 [API Contracts](api-contracts.md)
 **🟢 Status: CURRENT** - Defines which endpoints require authentication and which are public
 

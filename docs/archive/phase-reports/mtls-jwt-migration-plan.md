@@ -109,7 +109,7 @@ Based on industry best practices research (2025), this plan migrates from API_KE
 
 ### Docker Compose Changes
 ```yaml
-# docker-compose.yml
+# docker compose.yml
 services:
   auth-service:
     volumes:

@@ -126,7 +126,7 @@ docker compose down -v        # Clean restart
 ### Configuration
 - `.env` - Local environment variables
 - `fly.*.dev.toml` - Fly.io deployment configs
-- `docker-compose.yml` - Local development stack
+- `docker compose.yml` - Local development stack
 
 ### Scripts
 - `scripts/test.sh` - Smart testing (use this!)

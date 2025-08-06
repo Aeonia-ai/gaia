@@ -121,7 +121,7 @@ docker compose up
 
 ## 🔧 Environment-Specific Configurations
 
-### Local (`docker-compose.yml`)
+### Local (`docker compose.yml`)
 ```yaml
 # Full microservices with NATS coordination
 services:

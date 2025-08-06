@@ -265,7 +265,7 @@ gaia/
 │       └── config.py            # Auto-updated with NOTIFICATION_SERVICE_URL
 ├── Dockerfile.notification       # Created by script
 ├── fly.notification.*.toml      # Deployment configs
-├── docker-compose.yml          # Updated with notification-service
+├── docker compose.yml          # Updated with notification-service
 └── .env.example                # Updated with NOTIFICATION_SERVICE_URL
 ```
 
@@ -392,7 +392,7 @@ gaia service logs notification --env dev
 ## Troubleshooting
 
 ### Service Won't Start
-1. Check port conflicts in docker-compose.yml
+1. Check port conflicts in docker compose.yml
 2. Verify DATABASE_URL is accessible
 3. Check logs: `docker compose logs notification-service`
 

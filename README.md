@@ -82,19 +82,19 @@ Unity/Unreal/Web → (Port 8666)    → ├─ Auth Service (Supabase JWT + API 
 
 ```bash
 # Start all services
-docker-compose up
+docker compose up
 
 # Start specific service
-docker-compose up gateway auth-service
+docker compose up gateway auth-service
 
 # View logs
-docker-compose logs -f gateway
+docker compose logs -f gateway
 
 # Rebuild services
-docker-compose build
+docker compose build
 
 # Run tests
-docker-compose run test
+docker compose run test
 
 # Extract LLM Platform components
 ./scripts/extract-components.sh
@@ -195,11 +195,11 @@ curl -X POST http://localhost:8666/api/v1/chat/completions \
 
 ```bash
 # Run full test suite
-docker-compose run test
+docker compose run test
 
 # Run specific test files
-docker-compose run test pytest tests/test_auth.py
-docker-compose run test pytest tests/test_integration.py
+docker compose run test pytest tests/test_auth.py
+docker compose run test pytest tests/test_integration.py
 ```
 
 ### AI Test Specifications
@@ -264,7 +264,7 @@ gaia/
 ├── scripts/
 │   ├── setup.sh           # Initial setup
 │   └── extract-components.sh  # Extract from LLM Platform
-├── docker-compose.yml     # Multi-service orchestration
+├── docker compose.yml     # Multi-service orchestration
 ├── requirements.txt       # Python dependencies
 └── .env.example          # Environment template
 ```
@@ -319,10 +319,10 @@ Replace LLM Platform service with:
 
 ```bash
 # Stop LLM Platform
-docker-compose -f llm-platform/docker-compose.yml down
+docker compose -f llm-platform/docker compose.yml down
 
 # Start Gaia Platform
-docker-compose -f gaia/docker-compose.yml up
+docker compose -f gaia/docker compose.yml up
 ```
 
 ## 🛣️ Roadmap
@@ -384,38 +384,38 @@ docker-compose -f gaia/docker-compose.yml up
 docker info
 
 # Rebuild images
-docker-compose build --no-cache
+docker compose build --no-cache
 ```
 
 **Database connection failed**
 ```bash
 # Check database status
-docker-compose logs db
+docker compose logs db
 
 # Reset database
-docker-compose down -v
-docker-compose up db
+docker compose down -v
+docker compose up db
 ```
 
 **NATS connection issues**
 ```bash
 # Check NATS logs
-docker-compose logs nats
+docker compose logs nats
 
 # Test NATS connectivity
-docker-compose exec nats nats-server --help
+docker compose exec nats nats-server --help
 ```
 
 ### Performance Issues
 
 **Slow responses**
 - Check service health: `curl localhost:8666/health`
-- Review logs: `docker-compose logs gateway`
+- Review logs: `docker compose logs gateway`
 - Monitor resource usage: `docker stats`
 
 **Memory usage**
 - Adjust database pool settings in `.env`
-- Scale services: `docker-compose up --scale chat-service=2`
+- Scale services: `docker compose up --scale chat-service=2`
 
 ---
 

@@ -143,7 +143,7 @@ scripts/
 - **Integration**: Full user journey from login to multi-conversation chat
 
 ## Deployment Integration
-- **Docker Service**: Runs as `web-service` in docker-compose.yml
+- **Docker Service**: Runs as `web-service` in docker compose.yml
 - **Port Mapping**: External port 8080, internal port 8000
 - **Service Dependencies**: Depends on gateway, auth-service, chat-service
 - **Shared Volumes**: Access to same data volumes as other services
