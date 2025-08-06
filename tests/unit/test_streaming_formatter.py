@@ -193,8 +193,13 @@ class TestStreamingFormatter:
         ):
             if chunk.startswith("data: ") and chunk != "data: [DONE]\n\n":
                 data = json.loads(chunk[6:])
-                if data["choices"][0].get("delta", {}).get("content") is not None:
-                    output.append(data["choices"][0]["delta"]["content"])
+                delta = data["choices"][0].get("delta", {})
+                if "content" in delta:
+                    # Content chunk
+                    output.append(delta["content"])
+                elif delta == {}:
+                    # Final chunk with empty delta
+                    output.append(delta)
         
         # Should include empty strings
         assert output == ["", "Hello", "", {}]  # Last {} is from final chunk

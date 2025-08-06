@@ -23,6 +23,15 @@ class PostgresPersonaService:
         try:
             db = self._get_db()
             
+            # Check if persona name already exists
+            existing_check = db.execute(
+                text("SELECT name FROM personas WHERE name = :name"),
+                {"name": persona_data.name}
+            )
+            if existing_check.fetchone():
+                db.close()
+                raise ValueError(f"Persona with name '{persona_data.name}' already exists")
+            
             # Insert persona into database
             result = db.execute(
                 text("""
@@ -36,7 +45,7 @@ class PostgresPersonaService:
                     "system_prompt": persona_data.system_prompt,
                     "personality_traits": persona_data.personality_traits,
                     "capabilities": persona_data.capabilities,
-                    "is_active": persona_data.is_active,
+                    "is_active": True,  # New personas are active by default
                     "created_by": created_by
                 }
             )

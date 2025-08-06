@@ -61,8 +61,8 @@ class TestUnifiedChatCurrentBehavior:
             logger.info("✓ Currently returns OpenAI format")
     
     @pytest.mark.asyncio
-    async def test_currently_no_conversation_id_returned(self, gateway_url, headers):
-        """CURRENT: Does not return conversation_id."""
+    async def test_currently_returns_conversation_id(self, gateway_url, headers):
+        """CURRENT: Now returns conversation_id with unified chat persistence."""
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 f"{gateway_url}/api/v1/chat",
@@ -73,16 +73,17 @@ class TestUnifiedChatCurrentBehavior:
             assert response.status_code == 200
             data = response.json()
             
-            # Current behavior: Has metadata but only routing metrics
+            # Current behavior: Has metadata with routing metrics AND conversation_id
             assert "_metadata" in data
             assert "route_type" in data["_metadata"]
             assert "routing_time_ms" in data["_metadata"]
             assert "request_id" in data["_metadata"]
             
-            # But no conversation_id
-            assert "conversation_id" not in data["_metadata"]
+            # NOW has conversation_id (unified chat persistence implemented)
+            assert "conversation_id" in data["_metadata"]
+            assert data["_metadata"]["conversation_id"] is not None
             
-            logger.info("✓ Currently returns routing metadata but no conversation_id")
+            logger.info("✓ Now returns conversation_id with unified chat persistence")
     
     @pytest.mark.asyncio
     async def test_currently_no_conversation_persistence(self, gateway_url, headers):
