@@ -1,6 +1,7 @@
 """
 Hot-Loaded Lightweight Chat with mcp-agent
 
+TODO: This is Tech Debt, remove
 Keeps mcp-agent initialized and ready to minimize per-request overhead.
 """
 from typing import Dict, Any, List, Optional

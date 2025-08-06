@@ -1,6 +1,7 @@
 """
 Simple Lightweight Chat - Direct Anthropic Integration
 
+TODO: This is Tech Debt, remove
 Ultra-fast chat endpoint that bypasses mcp-agent overhead
 and uses the Anthropic client directly.
 """

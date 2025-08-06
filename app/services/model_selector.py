@@ -1,5 +1,9 @@
 """
 Dynamic model selection service for optimal performance
+
+TODO: This is Tech Debt, remove
+This service uses outdated string-based context detection and duplicates
+functionality better handled by intelligent_router.py with LLM-based classification.
 """
 import logging
 from typing import Dict, Optional, List
@@ -178,36 +182,22 @@ class ModelSelector:
         return default
     
     def _detect_context(self, message: str, activity: Optional[str] = None) -> ContextType:
-        """Auto-detect context type from message content and activity"""
-        message_lower = message.lower()
+        """
+        Default context detection - always returns CONVERSATION.
         
-        # Check activity first
-        if activity:
-            if activity in ["vr", "ar", "xr", "metaverse"]:
-                return ContextType.VR_INTERACTION
-            elif activity in ["technical", "coding", "programming"]:
-                return ContextType.TECHNICAL
-            elif activity in ["creative", "writing", "art"]:
-                return ContextType.CREATIVE
+        String-based context detection is unreliable and language-dependent.
+        For proper context classification, use the intelligent_router from chat service
+        which provides LLM-based classification with function calling.
         
-        # Analyze message content
-        greeting_words = ["hi", "hello", "hey", "good morning", "good afternoon", "greetings"]
-        if any(word in message_lower for word in greeting_words) and len(message.split()) <= 5:
-            return ContextType.GREETING
+        Args:
+            message: User message (not used in current implementation)
+            activity: Activity context (not used in current implementation)
             
-        technical_words = ["code", "debug", "error", "function", "algorithm", "api", "database"]
-        if any(word in message_lower for word in technical_words):
-            return ContextType.TECHNICAL
-            
-        creative_words = ["write", "story", "poem", "creative", "imagine", "design", "art"]
-        if any(word in message_lower for word in creative_words):
-            return ContextType.CREATIVE
-            
-        emergency_words = ["urgent", "emergency", "critical", "help!", "asap", "immediately"]
-        if any(word in message_lower for word in emergency_words):
-            return ContextType.EMERGENCY
-        
-        # Default to conversation
+        Returns:
+            Always returns ContextType.CONVERSATION for safe defaults
+        """
+        # Always default to conversation - no string matching
+        # TODO: Integrate with app.services.chat.intelligent_router for LLM-based classification
         return ContextType.CONVERSATION
     
     def _select_by_priority(self, priority: ModelPriority) -> str:

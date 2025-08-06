@@ -1,6 +1,7 @@
 """
 MMOIRL Multiagent Orchestrator Service
 
+TODO: This is Tech Debt, remove
 Advanced multiagent coordination using mcp-agent framework within Gaia.
 Demonstrates sophisticated agent orchestration for complex MMOIRL scenarios.
 """
