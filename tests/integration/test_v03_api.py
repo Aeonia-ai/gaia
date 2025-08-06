@@ -64,9 +64,14 @@ class TestV03ChatAPI:
             assert "response_time_ms" not in data
             assert "usage" not in data
             
-            # Response should be just the clean format
-            expected_keys = {"response"}
+            # Response should include response and conversation_id for conversation management
+            expected_keys = {"response", "conversation_id"}
             assert set(data.keys()) == expected_keys
+            
+            # Verify conversation_id is present and valid
+            assert "conversation_id" in data
+            assert isinstance(data["conversation_id"], str)
+            assert len(data["conversation_id"]) > 0
 
     async def test_conversation_context(self, gateway_url, headers):
         """Test that conversations maintain context without exposing internals."""
