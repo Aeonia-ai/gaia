@@ -29,16 +29,12 @@ class TestChatUserBehaviors:
             
             # Action: User types and sends a message
             # Look for any text input that could be for messages
-            message_input = await page.locator('textarea, input[type="text"]').filter(
-                has_text=""
-            ).first
+            message_input = page.locator('textarea, input[type="text"]').first
             
             await message_input.fill("Hello, assistant!")
             
             # Find and click something that looks like a send button
-            send_button = await page.locator('button').filter(
-                has_text=["Send", "Submit", "➤", "→"]
-            ).first
+            send_button = page.locator('button:has-text("Send"), button:has-text("Submit")').first
             
             await send_button.click()
             
@@ -68,12 +64,10 @@ class TestChatUserBehaviors:
             await page.goto(f'{WEB_SERVICE_URL}/chat')
             
             # Action: Try to send a message
-            message_input = await page.locator('textarea, input[type="text"]').first
+            message_input = page.locator('textarea, input[type="text"]').first
             await message_input.fill("This should fail")
             
-            send_button = await page.locator('button').filter(
-                has_text=["Send", "Submit"]
-            ).first
+            send_button = page.locator('button:has-text("Send"), button:has-text("Submit")').first
             await send_button.click()
             
             # Outcome: Should see an error message
@@ -93,15 +87,13 @@ class TestChatUserBehaviors:
             await page.goto(f'{WEB_SERVICE_URL}/chat')
             
             # Action: Click something that starts a new conversation
-            new_chat_button = await page.locator('button, a').filter(
-                has_text=["New", "Start", "+"]
-            ).first
+            new_chat_button = page.locator('button:has-text("New"), button:has-text("Start"), a:has-text("New"), a:has-text("+")').first
             
             if await new_chat_button.count() > 0:
                 await new_chat_button.click()
                 
                 # Outcome: Message area should be clear/ready
-                message_input = await page.locator('textarea, input[type="text"]').first
+                message_input = page.locator('textarea, input[type="text"]').first
                 input_value = await message_input.input_value()
                 assert input_value == "", "New conversation should have empty message input"
             
@@ -125,7 +117,7 @@ class TestChatUserBehaviors:
             
             # Verify key elements are visible and usable on mobile
             # Look for message input
-            message_input = await page.locator('textarea, input[type="text"]').first
+            message_input = page.locator('textarea, input[type="text"]').first
             await expect(message_input).to_be_visible()
             await expect(message_input).to_be_enabled()
             
@@ -222,7 +214,7 @@ class TestAuthenticationBehaviors:
             # Look for login indicators - form with email/password fields
             email_input = page.locator('input[type="email"], input[type="text"][name="email"]')
             
-            password_input = await page.locator('input[type="password"]')
+            password_input = page.locator('input[type="password"]')
             
             # At least one of these should exist on a login page
             login_indicators = await email_input.count() + await password_input.count()
@@ -240,7 +232,7 @@ class TestAuthenticationBehaviors:
             await page.goto(f'{WEB_SERVICE_URL}/login')
             
             # Try to submit without filling anything
-            submit_button = await page.locator('button[type="submit"], input[type="submit"]').first
+            submit_button = page.locator('button[type="submit"], input[type="submit"]').first
             await submit_button.click()
             
             # Check if we're still on login page (form validation prevented submission)
