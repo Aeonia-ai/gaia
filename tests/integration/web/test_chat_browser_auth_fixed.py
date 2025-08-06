@@ -31,8 +31,8 @@ async def test_invalid_login_shows_error():
                 error_element = await page.query_selector('text="Login failed. Please try again."')
                 assert error_element is not None, "Error message should be displayed"
             except:
-                # If specific message not found, check for any error styling
-                error_elements = await page.query_selector_all('.bg-red-500, [class*="red"], .error')
+                # If specific message not found, check for error indicators
+                error_elements = await page.query_selector_all('[role="alert"], .error, [data-error="true"]')
                 assert len(error_elements) > 0, "Some error indication should be present"
                 
         finally:
