@@ -59,13 +59,11 @@ class TestChatFunctionality:
             test_message = "Hello, can you help me with Python?"
             
             # Find message input by looking for textareas or large text inputs
-            message_input = await page.locator('textarea, input[type="text"][size="50"]').first
+            message_input = page.locator('textarea, input[type="text"][size="50"]').first
             await message_input.fill(test_message)
             
             # Find send action - could be button, input, or even Enter key
-            send_button = await page.locator('button, input[type="submit"]').filter(
-                has_text=["Send", "Submit", "Post", "→", "➤"]
-            ).first
+            send_button = page.locator('button:has-text("Send"), button:has-text("Submit")').first
             
             # Clear any existing content to track new messages
             messages_before = await page.locator('[role="log"], .messages, .chat-messages').inner_text()
@@ -123,7 +121,7 @@ class TestChatFunctionality:
             await page.locator('text="Python Help"').click()
             
             # Verify we can still send new messages in this conversation
-            message_input = await page.locator('textarea, input[type="text"]').first
+            message_input = page.locator('textarea, input[type="text"]').first
             await expect(message_input).to_be_enabled()
             
             await browser.close()
@@ -163,10 +161,10 @@ class TestChatFunctionality:
             await page.goto(f'{WEB_SERVICE_URL}/chat')
             
             # First attempt - should fail
-            message_input = await page.locator('textarea, input[type="text"]').first
+            message_input = page.locator('textarea, input[type="text"]').first
             await message_input.fill("First attempt")
             
-            send_button = await page.locator('button').filter(has_text=["Send", "Submit"]).first
+            send_button = page.locator('button:has-text("Send"), button:has-text("Submit")').first
             await send_button.click()
             
             # Should see error indication
@@ -181,7 +179,8 @@ class TestChatFunctionality:
             
             # Error should be gone
             error_count = await page.locator('text=/error|failed/i').count()
-            assert error_count == 0 or not await page.locator('text=/error|failed/i').is_visible(), \
+            is_error_visible = await page.locator('text=/error|failed/i').is_visible()
+            assert error_count == 0 or not is_error_visible, \
                 "Error message should be cleared after successful retry"
             
             await browser.close()
@@ -207,10 +206,10 @@ class TestChatFunctionality:
             await page.goto(f'{WEB_SERVICE_URL}/chat')
             
             # Send message
-            message_input = await page.locator('textarea, input[type="text"]').first
+            message_input = page.locator('textarea, input[type="text"]').first
             await message_input.fill("Hi")
             
-            send_button = await page.locator('button').filter(has_text=["Send", "Submit"]).first
+            send_button = page.locator('button:has-text("Send"), button:has-text("Submit")').first
             await send_button.click()
             
             # Message should appear progressively (if streaming is implemented)

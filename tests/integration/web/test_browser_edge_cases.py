@@ -478,7 +478,7 @@ class TestDynamicContent:
             email_input = await page.query_selector('input[name="email"]')
             
             # Type partial email
-            await email_input.type('test@', {delay: 100})
+            await email_input.type('test@', delay=100)
             
             # Check if any validation message appears
             # This is app-specific
