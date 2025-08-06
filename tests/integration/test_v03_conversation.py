@@ -72,7 +72,7 @@ class TestV03Conversation:
             
             if conv_response.status_code in [200, 201]:
                 conversation = conv_response.json()
-                conversation_id = conversation.get("id")
+                conversation_id = conversation.get("conversation_id")
                 logger.info(f"Created conversation: {conversation_id}")
                 
                 # Send first message with conversation_id
@@ -202,7 +202,7 @@ class TestV03Conversation:
             
             if conv_response.status_code in [200, 201]:
                 conversation = conv_response.json()
-                conversation_id = conversation.get("id")
+                conversation_id = conversation.get("conversation_id")
                 
                 # Chat with conversation_id
                 response = await client.post(
@@ -242,12 +242,13 @@ class TestV03Conversation:
             )
             
             if response.status_code == 200:
-                conversations = response.json()
+                data = response.json()
+                conversations = data.get("conversations", [])
                 logger.info(f"Found {len(conversations)} conversations")
                 
                 # If we have conversations, test getting messages
                 if conversations and len(conversations) > 0:
-                    conv_id = conversations[0].get("id")
+                    conv_id = conversations[0].get("conversation_id")
                     
                     # Try to get messages (if endpoint exists)
                     msg_response = await client.get(
