@@ -28,18 +28,17 @@ class TestPersonaService:
     async def test_list_personas_active_only(self, persona_service, mock_db_session):
         """Test listing only active personas"""
         # Setup mock data - the service uses execute/fetchall pattern
-        mock_row1 = Mock(
-            id=uuid4(), 
-            name="Mu", 
-            description="Test",
-            system_prompt="Test prompt",
-            personality_traits={},
-            capabilities={},
-            is_active=True,
-            created_by=None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
+        mock_row1 = Mock()
+        mock_row1.id = uuid4()
+        mock_row1.name = "Mu"
+        mock_row1.description = "Test"
+        mock_row1.system_prompt = "Test prompt"
+        mock_row1.personality_traits = {}
+        mock_row1.capabilities = {}
+        mock_row1.is_active = True
+        mock_row1.created_by = None
+        mock_row1.created_at = datetime.utcnow()
+        mock_row1.updated_at = datetime.utcnow()
         
         mock_result = Mock()
         mock_result.fetchall.return_value = [mock_row1]
@@ -70,18 +69,17 @@ class TestPersonaService:
         persona_id = str(uuid4())
         
         # Mock persona exists check
-        mock_persona_row = Mock(
-            id=persona_id, 
-            name="Test Persona",
-            description="Test",
-            system_prompt="Test",
-            personality_traits={},
-            capabilities={},
-            is_active=True,
-            created_by=None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
+        mock_persona_row = Mock()
+        mock_persona_row.id = persona_id
+        mock_persona_row.name = "Test Persona"
+        mock_persona_row.description = "Test"
+        mock_persona_row.system_prompt = "Test"
+        mock_persona_row.personality_traits = {}
+        mock_persona_row.capabilities = {}
+        mock_persona_row.is_active = True
+        mock_persona_row.created_by = None
+        mock_persona_row.created_at = datetime.utcnow()
+        mock_persona_row.updated_at = datetime.utcnow()
         mock_result = Mock()
         mock_result.fetchone.return_value = mock_persona_row
         mock_db_session.execute.return_value = mock_result
@@ -97,18 +95,17 @@ class TestPersonaService:
     @pytest.mark.asyncio
     async def test_get_default_persona_returns_mu(self, persona_service, mock_db_session):
         """Test that default persona is Mu"""
-        mock_mu_row = Mock(
-            id=uuid4(),
-            name="Mu",
-            description="Default assistant",
-            system_prompt="You are Mu",
-            personality_traits={},
-            capabilities={},
-            is_active=True,
-            created_by=None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
+        mock_mu_row = Mock()
+        mock_mu_row.id = uuid4()
+        mock_mu_row.name = "Mu"
+        mock_mu_row.description = "Default assistant"
+        mock_mu_row.system_prompt = "You are Mu"
+        mock_mu_row.personality_traits = {}
+        mock_mu_row.capabilities = {}
+        mock_mu_row.is_active = True
+        mock_mu_row.created_by = None
+        mock_mu_row.created_at = datetime.utcnow()
+        mock_mu_row.updated_at = datetime.utcnow()
         
         mock_result = Mock()
         mock_result.fetchall.return_value = [mock_mu_row]
@@ -121,8 +118,10 @@ class TestPersonaService:
     async def test_create_persona_validates_name_unique(self, persona_service, mock_db_session):
         """Test that persona names must be unique"""
         # Mock existing persona with same name
+        mock_existing = Mock()
+        mock_existing.name = "Mu"
         mock_result = Mock()
-        mock_result.fetchone.return_value = Mock(name="Mu")  # Persona exists
+        mock_result.fetchone.return_value = mock_existing  # Persona exists
         mock_db_session.execute.return_value = mock_result
         
         persona_data = PersonaCreate(
