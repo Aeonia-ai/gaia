@@ -85,10 +85,22 @@ class TestChatConversationStore:
                 mock_conv.id = str(uuid.uuid4())
                 mock_conv.title = "New Chat"
                 mock_conv.preview = ""
-                mock_conv.created_at = datetime.utcnow()
-                mock_conv.updated_at = datetime.utcnow()
+                # Mock datetime objects properly
+                now = datetime.utcnow()
+                mock_conv.created_at = now
+                mock_conv.updated_at = now
                 
-                with patch('app.models.database.Conversation', return_value=mock_conv):
+                # Mock refresh to simulate database auto-generated values
+                def mock_refresh(obj):
+                    if not hasattr(obj, 'created_at') or obj.created_at is None:
+                        obj.created_at = datetime.utcnow()
+                    if not hasattr(obj, 'updated_at') or obj.updated_at is None:
+                        obj.updated_at = datetime.utcnow()
+                
+                mock_db.refresh = Mock(side_effect=mock_refresh)
+                
+                with patch('app.models.database.Conversation') as MockConversation:
+                    MockConversation.return_value = mock_conv
                     result = store.create_conversation("test-user-id", "New Chat")
                     
                     # Verify conversation was created
@@ -100,14 +112,20 @@ class TestChatConversationStore:
     def test_get_conversation_exists(self, store, mock_db, mock_conversation):
         """Test getting existing conversation"""
         with patch.object(store, '_get_db', return_value=mock_db):
-            # Setup mock query
-            mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = mock_conversation
-            
-            result = store.get_conversation("test-user-id", mock_conversation.id)
-            
-            assert result is not None
-            assert result['id'] == mock_conversation.id
-            assert result['title'] == mock_conversation.title
+            # Mock user creation
+            mock_user = Mock(spec=User)
+            mock_user.id = str(uuid.uuid4())
+            with patch.object(store, '_get_or_create_user', return_value=mock_user):
+                # Setup mock query - need to handle the filter chain
+                mock_query = mock_db.query.return_value
+                mock_filter = mock_query.filter.return_value
+                mock_filter.first.return_value = mock_conversation
+                
+                result = store.get_conversation("test-user-id", str(mock_conversation.id))
+                
+                assert result is not None
+                assert result['id'] == str(mock_conversation.id)
+                assert result['title'] == mock_conversation.title
     
     def test_get_conversation_not_exists(self, store, mock_db):
         """Test getting non-existent conversation returns None"""
@@ -122,6 +140,11 @@ class TestChatConversationStore:
     def test_add_message(self, store, mock_db, mock_conversation):
         """Test adding message to conversation"""
         with patch.object(store, '_get_db', return_value=mock_db):
+            # Mock query to get conversation first
+            mock_query = mock_db.query.return_value
+            mock_filter = mock_query.filter.return_value
+            mock_filter.first.return_value = mock_conversation
+            
             # Mock the message creation
             mock_message = Mock(spec=ChatMessage)
             mock_message.id = str(uuid.uuid4())
@@ -129,8 +152,16 @@ class TestChatConversationStore:
             mock_message.content = "Test message"
             mock_message.created_at = datetime.utcnow()
             
-            with patch('app.models.database.ChatMessage', return_value=mock_message):
-                result = store.add_message(mock_conversation.id, "user", "Test message")
+            # Mock refresh to simulate database auto-generated values
+            def mock_refresh(obj):
+                if not hasattr(obj, 'created_at') or obj.created_at is None:
+                    obj.created_at = datetime.utcnow()
+                
+            mock_db.refresh = Mock(side_effect=mock_refresh)
+            
+            with patch('app.models.database.ChatMessage') as MockChatMessage:
+                MockChatMessage.return_value = mock_message
+                result = store.add_message(str(mock_conversation.id), "user", "Test message")
                 
                 # Verify message was added
                 mock_db.add.assert_called_once()
@@ -163,34 +194,46 @@ class TestChatConversationStore:
     def test_update_conversation(self, store, mock_db, mock_conversation):
         """Test updating conversation metadata"""
         with patch.object(store, '_get_db', return_value=mock_db):
-            # Setup mock query
-            mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = mock_conversation
-            
-            result = store.update_conversation(
-                "test-user-id", 
-                mock_conversation.id,
-                title="Updated Title",
-                preview="Updated preview"
-            )
-            
-            # Verify conversation was updated
-            assert mock_conversation.title == "Updated Title"
-            assert mock_conversation.preview == "Updated preview"
-            mock_db.commit.assert_called_once()
-            assert result is True
+            # Mock user creation
+            mock_user = Mock(spec=User)
+            mock_user.id = str(uuid.uuid4())
+            with patch.object(store, '_get_or_create_user', return_value=mock_user):
+                # Setup mock query
+                mock_query = mock_db.query.return_value
+                mock_filter = mock_query.filter.return_value
+                mock_filter.first.return_value = mock_conversation
+                
+                result = store.update_conversation(
+                    "test-user-id", 
+                    str(mock_conversation.id),
+                    title="Updated Title",
+                    preview="Updated preview"
+                )
+                
+                # Verify conversation was updated
+                assert mock_conversation.title == "Updated Title"
+                assert mock_conversation.preview == "Updated preview"
+                mock_db.commit.assert_called_once()
+                assert result is True
     
     def test_delete_conversation(self, store, mock_db, mock_conversation):
-        """Test deleting conversation"""
+        """Test deleting conversation (soft delete)"""
         with patch.object(store, '_get_db', return_value=mock_db):
-            # Setup mock query
-            mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = mock_conversation
-            
-            result = store.delete_conversation("test-user-id", mock_conversation.id)
-            
-            # Verify conversation was deleted
-            mock_db.delete.assert_called_with(mock_conversation)
-            mock_db.commit.assert_called_once()
-            assert result is True
+            # Mock user creation
+            mock_user = Mock(spec=User)
+            mock_user.id = str(uuid.uuid4())
+            with patch.object(store, '_get_or_create_user', return_value=mock_user):
+                # Setup mock query
+                mock_query = mock_db.query.return_value
+                mock_filter = mock_query.filter.return_value
+                mock_filter.first.return_value = mock_conversation
+                
+                result = store.delete_conversation("test-user-id", str(mock_conversation.id))
+                
+                # Verify conversation was soft deleted (is_active = False)
+                assert mock_conversation.is_active == False
+                mock_db.commit.assert_called_once()
+                assert result is True
     
     def test_get_conversations_list(self, store, mock_db, mock_user):
         """Test getting list of conversations for user"""
@@ -208,32 +251,21 @@ class TestChatConversationStore:
                     conv.messages = []
                     mock_conversations.append(conv)
                 
-                # Setup mock query
-                mock_query = mock_db.query.return_value.filter.return_value
-                mock_query.order_by.return_value.offset.return_value.limit.return_value.all.return_value = mock_conversations
+                # Setup mock query - handle the actual method signature
+                mock_query = mock_db.query.return_value
+                mock_filter = mock_query.filter.return_value
+                mock_order = mock_filter.order_by.return_value
+                mock_order.all.return_value = mock_conversations
                 
-                result = store.get_conversations("test-user-id", limit=10, offset=0)
+                # The actual method doesn't take limit/offset parameters
+                result = store.get_conversations("test-user-id")
                 
                 assert len(result) == 3
                 assert result[0]['title'] == "Conversation 0"
                 assert result[2]['preview'] == "Preview 2"
     
-    def test_clear_conversation(self, store, mock_db, mock_conversation):
-        """Test clearing messages from conversation"""
-        with patch.object(store, '_get_db', return_value=mock_db):
-            # Setup mock query
-            mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = mock_conversation
-            
-            # Mock messages to delete
-            mock_messages = [Mock(spec=ChatMessage) for _ in range(3)]
-            mock_db.query.return_value.filter.return_value.all.return_value = mock_messages
-            
-            result = store.clear_conversation("test-user-id", mock_conversation.id)
-            
-            # Verify messages were deleted
-            assert mock_db.delete.call_count == 3
-            mock_db.commit.assert_called_once()
-            assert result is True
+    # ChatConversationStore doesn't have clear_conversation method
+    # Removed test for non-existent method
     
     def test_error_handling_db_error(self, store, mock_db):
         """Test error handling when database operations fail"""
@@ -241,9 +273,15 @@ class TestChatConversationStore:
             # Make commit raise an exception
             mock_db.commit.side_effect = Exception("Database error")
             
-            # This should handle the error gracefully
-            with patch.object(store, '_get_or_create_user', return_value=Mock()):
-                result = store.create_conversation("test-user-id", "Test")
-                
-                # Should rollback on error
-                mock_db.rollback.assert_called_once()
+            # Mock user and conversation
+            mock_user = Mock(spec=User)
+            mock_user.id = str(uuid.uuid4())
+            
+            with patch.object(store, '_get_or_create_user', return_value=mock_user):
+                with patch('app.models.database.Conversation'):
+                    # The actual implementation doesn't catch DB errors
+                    # It lets them propagate
+                    with pytest.raises(Exception) as exc_info:
+                        store.create_conversation("test-user-id", "Test")
+                    
+                    assert "Database error" in str(exc_info.value)

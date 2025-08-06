@@ -1,18 +1,15 @@
 """
-Unit tests for web auth routes.
+Unit tests for web auth behavior.
 
-Tests the authentication behavior that browser tests depend on.
+Tests the authentication patterns that browser tests need to understand.
 """
 import pytest
 from unittest.mock import Mock, MagicMock, patch, AsyncMock
-from starlette.requests import Request
-from starlette.responses import RedirectResponse, HTMLResponse
-from fasthtml.components import Div
 import os
 
 
-class TestWebAuthRoutes:
-    """Unit tests for web authentication routes"""
+class TestWebAuthBehavior:
+    """Unit tests documenting expected auth behavior"""
     
     @pytest.fixture
     def mock_request(self):
