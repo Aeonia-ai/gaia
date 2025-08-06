@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 from datetime import datetime
 from uuid import uuid4
 
-from app.services.chat.persona_service_postgres import PersonaService
+from app.services.chat.persona_service_postgres import PostgresPersonaService
 from app.models.persona import PersonaCreate, PersonaUpdate
 
 
@@ -14,7 +14,7 @@ class TestPersonaService:
     @pytest.fixture
     def persona_service(self):
         """Create PersonaService instance"""
-        return PersonaService()
+        return PostgresPersonaService()
     
     @pytest.fixture
     def mock_db_session(self):

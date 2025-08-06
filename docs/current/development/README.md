@@ -19,6 +19,7 @@
 #### 🛡️ **Current Testing Foundation**
 - **[Testing Guide](testing-and-quality-assurance.md)** - Pre-commit hooks and current test patterns
 - **[Testing Philosophy](testing-philosophy.md)** - Development testing principles
+- **[Integration Test Resource Management](integration-test-resource-management.md)** - **🚨 CRITICAL** Resource exhaustion patterns and solutions
 
 ### 🔧 **Development Tools & Patterns**
 - **[MCP Agent Hot Loading](mcp-agent-hot-loading.md)** - Development workflow optimizations

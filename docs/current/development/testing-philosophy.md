@@ -279,6 +279,47 @@ user = factory.create_verified_test_user(
 - **Real bugs need real tests** - Mocks hide integration issues
 - **User experience validation** - Users don't use mocks
 
+## Resource Management in Integration Tests
+
+### 🚨 Critical Learning: Test Design Can Break Services
+**August 2025 Discovery:** 28 failing integration tests appeared to be "service performance issues" but were actually **resource exhaustion from bad test design**.
+
+**The Problem:** Each test was creating/deleting Supabase users, causing:
+- 200+ concurrent external API calls (8 workers × 28 tests)
+- Database connection pool exhaustion  
+- HTTP client resource leaks
+- Services hanging completely (not slow responses)
+
+**The Solution:** Session-scoped shared resources and sequential execution for resource-intensive tests.
+
+```python
+# ❌ BAD: Each test creates external resources
+async def test_auth(self, user_factory):
+    user = user_factory.create_verified_test_user()  # Supabase API call
+
+# ✅ GOOD: Shared session-scoped resources  
+@pytest.fixture(scope="session")
+def shared_test_user():
+    # Create ONCE per test session, not per test
+```
+
+**Results:** 89% reduction in test failures, 75% faster execution time.
+
+**→ See [Integration Test Resource Management](integration-test-resource-management.md) for complete details**
+
+### Integration Test Execution Strategy
+
+```bash
+# Resource-intensive tests (external APIs, databases)
+./scripts/pytest-for-claude.sh tests/integration/test_supabase_auth.py -n 1  # Sequential
+
+# Unit tests (fast, isolated)
+./scripts/pytest-for-claude.sh tests/unit/ -n auto  # Parallel
+
+# Mixed execution with proper resource management
+python run_sequential_tests.py
+```
+
 ## Async Test Execution
 
 ### Avoiding Claude Code Timeouts
@@ -298,6 +339,15 @@ pytest tests/ -v
 2. Output redirected to timestamped log file
 3. **check-test-progress.sh** monitors test progress
 4. Tests complete even if Claude Code times out
+
+### Diagnosing Test Issues
+```bash
+# If tests timeout, check for resource exhaustion first:
+./scripts/pytest-for-claude.sh tests/integration/failing_test.py -n 1  # Try sequential
+
+# If passes individually but fails in parallel = resource exhaustion  
+# If fails in both = actual service issue
+```
 
 ## The Payoff
 

@@ -222,6 +222,7 @@ See:
 
 #### Development & Testing
 - [Command Reference](docs/current/development/command-reference.md) - Correct command syntax
+- [Integration Test Resource Management](docs/current/development/integration-test-resource-management.md) - **🚨 CRITICAL** Resource exhaustion solutions
 - [Testing Guide](docs/current/development/testing-and-quality-assurance.md) - Pre-commit hooks and test patterns
 - [Environment Setup](docs/current/development/dev-environment-setup.md) - Local development workflow
 - [Testing Philosophy](docs/testing-philosophy.md) - **IMPORTANT** - Why we use test scripts, not curl

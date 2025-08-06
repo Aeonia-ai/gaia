@@ -38,6 +38,33 @@ def setup_test_environment():
     os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@db:5432/llm_platform")
     os.environ.setdefault("NATS_URL", "nats://nats:4222")
 
+# Shared test user for integration tests
+@pytest.fixture(scope="session")
+def shared_test_user():
+    """
+    Create a single test user for the entire test session.
+    This reduces Supabase API calls and prevents resource exhaustion.
+    """
+    try:
+        from tests.fixtures.test_auth import TestUserFactory
+        factory = TestUserFactory()
+        user = factory.create_verified_test_user(
+            email="shared-test-user@test.local"
+        )
+        print(f"Created shared test user: {user['email']}")
+        yield user
+        # Cleanup at end of session
+        factory.cleanup_test_user(user["user_id"])
+        print(f"Cleaned up shared test user: {user['email']}")
+    except Exception as e:
+        print(f"Warning: Could not create shared test user (Supabase not configured?): {e}")
+        # Provide a mock user for tests that don't need real Supabase
+        yield {
+            "user_id": "mock-user-id",
+            "email": "mock@test.local", 
+            "password": "mock-password"
+        }
+
 # Markers for test categorization
 def pytest_configure(config):
     """Configure custom pytest markers."""

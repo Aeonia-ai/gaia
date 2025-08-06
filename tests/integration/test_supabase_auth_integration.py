@@ -9,11 +9,12 @@ import os
 import asyncio
 from typing import Dict, Any, Optional
 from app.shared.logging import setup_service_logger
-from tests.fixtures.test_auth import TestUserFactory
 
 logger = setup_service_logger("test_supabase_auth_integration")
 
 
+@pytest.mark.integration
+@pytest.mark.sequential
 class TestSupabaseAuthIntegration:
     """Test API endpoints with real Supabase authentication flow."""
     
@@ -27,13 +28,7 @@ class TestSupabaseAuthIntegration:
         """Auth service URL for login endpoints."""
         return os.getenv("AUTH_URL", "http://auth-service:8000")
     
-    @pytest.fixture
-    def user_factory(self):
-        """Factory for creating test users with Supabase service key."""
-        factory = TestUserFactory()
-        yield factory
-        # Cleanup after tests
-        factory.cleanup_all()
+    # Remove shared_test_user - use shared_test_user instead
     
     async def login_user(self, auth_url: str, email: str, password: str) -> Dict[str, Any]:
         """Login a user and return the response with JWT token."""
@@ -54,13 +49,12 @@ class TestSupabaseAuthIntegration:
             return data
     
     @pytest.mark.asyncio
-    async def test_complete_auth_flow(self, gateway_url, auth_url, user_factory):
+    async def test_complete_auth_flow(self, gateway_url, auth_url, shared_test_user):
         """Test complete authentication flow: create user -> login -> use JWT."""
-        # Step 1: Create a verified test user
-        test_user = user_factory.create_verified_test_user()
-        email = test_user["email"]
-        password = test_user["password"]
-        logger.info(f"Created test user: {email}")
+        # Use shared test user (created once per session)
+        email = shared_test_user["email"]
+        password = shared_test_user["password"]
+        logger.info(f"Using shared test user: {email}")
         
         # Step 2: Login with the test user
         login_response = await self.login_user(auth_url, email, password)
@@ -118,10 +112,10 @@ class TestSupabaseAuthIntegration:
             logger.info("Invalid credentials correctly rejected")
     
     @pytest.mark.asyncio
-    async def test_jwt_expiry_handling(self, gateway_url, auth_url, user_factory):
+    async def test_jwt_expiry_handling(self, gateway_url, auth_url, shared_test_user):
         """Test handling of expired JWT tokens."""
-        # Create and login user
-        test_user = user_factory.create_verified_test_user()
+        # Use shared test user
+        test_user = shared_test_user
         login_response = await self.login_user(auth_url, test_user["email"], test_user["password"])
         jwt_token = login_response["access_token"]
         
@@ -146,57 +140,63 @@ class TestSupabaseAuthIntegration:
             logger.info("Invalid JWT correctly rejected")
     
     @pytest.mark.asyncio
-    async def test_multiple_users_isolation(self, gateway_url, auth_url, user_factory):
+    async def test_multiple_users_isolation(self, gateway_url, auth_url, shared_test_user):
         """Test that multiple users have isolated conversations."""
-        # Create two test users
-        user1 = user_factory.create_verified_test_user()
-        user2 = user_factory.create_verified_test_user()
+        # Use shared user as user1, create temporary user2 for this test
+        from tests.fixtures.test_auth import TestUserFactory
+        factory = TestUserFactory()
         
-        # Login both users
-        login1 = await self.login_user(auth_url, user1["email"], user1["password"])
-        login2 = await self.login_user(auth_url, user2["email"], user2["password"])
-        
-        headers1 = {"Authorization": f"Bearer {login1['access_token']}"}
-        headers2 = {"Authorization": f"Bearer {login2['access_token']}"}
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # User 1 sends a message with specific content
-            response1 = await client.post(
-                f"{gateway_url}/api/v1/chat",
-                headers=headers1,
-                json={"message": "User 1 secret: pineapple"}
-            )
-            assert response1.status_code == 200
+        user1 = shared_test_user
+        user2 = factory.create_verified_test_user()
+        try:
+            # Login both users
+            login1 = await self.login_user(auth_url, user1["email"], user1["password"])
+            login2 = await self.login_user(auth_url, user2["email"], user2["password"])
             
-            # User 2 sends a different message
-            response2 = await client.post(
-                f"{gateway_url}/api/v1/chat",
-                headers=headers2,
-                json={"message": "User 2 secret: mango"}
-            )
-            assert response2.status_code == 200
+            headers1 = {"Authorization": f"Bearer {login1['access_token']}"}
+            headers2 = {"Authorization": f"Bearer {login2['access_token']}"}
             
-            # User 1 asks about their secret
-            response1_check = await client.post(
-                f"{gateway_url}/api/v1/chat",
-                headers=headers1,
-                json={"message": "What was my secret?"}
-            )
-            assert response1_check.status_code == 200
-            data1 = response1_check.json()
-            content1 = data1["choices"][0]["message"]["content"].lower()
-            
-            # User 1 should see their own secret, not user 2's
-            assert "pineapple" in content1 or "secret" in content1
-            assert "mango" not in content1
-            
-            logger.info("User isolation verified - conversations are separate")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # User 1 sends a message with specific content
+                response1 = await client.post(
+                    f"{gateway_url}/api/v1/chat",
+                    headers=headers1,
+                    json={"message": "User 1 secret: pineapple"}
+                )
+                assert response1.status_code == 200
+                
+                # User 2 sends a different message
+                response2 = await client.post(
+                    f"{gateway_url}/api/v1/chat",
+                    headers=headers2,
+                    json={"message": "User 2 secret: mango"}
+                )
+                assert response2.status_code == 200
+                
+                # User 1 asks about their secret
+                response1_check = await client.post(
+                    f"{gateway_url}/api/v1/chat",
+                    headers=headers1,
+                    json={"message": "What was my secret?"}
+                )
+                assert response1_check.status_code == 200
+                data1 = response1_check.json()
+                content1 = data1["choices"][0]["message"]["content"].lower()
+                
+                # User 1 should see their own secret, not user 2's
+                assert "pineapple" in content1 or "secret" in content1
+                assert "mango" not in content1
+                
+                logger.info("User isolation verified - conversations are separate")
+        finally:
+            # Cleanup temporary user
+            factory.cleanup_test_user(user2["user_id"])
     
     @pytest.mark.asyncio
-    async def test_conversation_persistence(self, gateway_url, auth_url, user_factory):
+    async def test_conversation_persistence(self, gateway_url, auth_url, shared_test_user):
         """Test that conversations persist across sessions."""
-        # Create user and login
-        test_user = user_factory.create_verified_test_user()
+        # Use shared test user
+        test_user = shared_test_user
         login_response = await self.login_user(auth_url, test_user["email"], test_user["password"])
         
         headers = {"Authorization": f"Bearer {login_response['access_token']}"}
@@ -235,10 +235,10 @@ class TestSupabaseAuthIntegration:
             logger.info(f"Conversation persistence verified")
     
     @pytest.mark.asyncio
-    async def test_concurrent_requests_same_user(self, gateway_url, auth_url, user_factory):
+    async def test_concurrent_requests_same_user(self, gateway_url, auth_url, shared_test_user):
         """Test handling concurrent requests from the same user."""
         # Create user and login
-        test_user = user_factory.create_verified_test_user()
+        test_user = shared_test_user
         login_response = await self.login_user(auth_url, test_user["email"], test_user["password"])
         
         headers = {"Authorization": f"Bearer {login_response['access_token']}"}
@@ -268,10 +268,10 @@ class TestSupabaseAuthIntegration:
             assert success_count == 3, f"Only {success_count}/3 concurrent requests succeeded"
     
     @pytest.mark.asyncio
-    async def test_auth_refresh_token(self, auth_url, user_factory):
+    async def test_auth_refresh_token(self, auth_url, shared_test_user):
         """Test refresh token functionality if available."""
         # Create user and login
-        test_user = user_factory.create_verified_test_user()
+        test_user = shared_test_user
         login_response = await self.login_user(auth_url, test_user["email"], test_user["password"])
         
         # Check if refresh token is provided (either at top level or in session)
@@ -299,10 +299,10 @@ class TestSupabaseAuthIntegration:
                 logger.info(f"Token refresh returned {refresh_response.status_code}")
     
     @pytest.mark.asyncio
-    async def test_user_profile_access(self, gateway_url, auth_url, user_factory):
+    async def test_user_profile_access(self, gateway_url, auth_url, shared_test_user):
         """Test accessing user profile with JWT."""
         # Create user and login
-        test_user = user_factory.create_verified_test_user()
+        test_user = shared_test_user
         login_response = await self.login_user(auth_url, test_user["email"], test_user["password"])
         
         headers = {"Authorization": f"Bearer {login_response['access_token']}"}
@@ -322,10 +322,10 @@ class TestSupabaseAuthIntegration:
                 logger.info(f"User profile endpoint returned {profile_response.status_code}")
     
     @pytest.mark.asyncio
-    async def test_streaming_with_supabase_auth(self, gateway_url, auth_url, user_factory):
+    async def test_streaming_with_supabase_auth(self, gateway_url, auth_url, shared_test_user):
         """Test streaming responses with Supabase authentication."""
         # Create user and login
-        test_user = user_factory.create_verified_test_user()
+        test_user = shared_test_user
         login_response = await self.login_user(auth_url, test_user["email"], test_user["password"])
         
         headers = {"Authorization": f"Bearer {login_response['access_token']}"}
