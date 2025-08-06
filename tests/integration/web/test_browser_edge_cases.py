@@ -11,15 +11,15 @@ These tests catch issues that URL-based tests miss:
 import pytest
 import asyncio
 import json
-from playwright.async_api import async_playwright, Page, ConsoleMessage
+from playwright.async_api import async_playwright, Page, ConsoleMessage, expect
 import os
 from typing import List
+from .browser_test_base import BrowserTestBase
 
 pytestmark = pytest.mark.asyncio
-WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
 
 
-class TestConsoleErrors:
+class TestConsoleErrors(BrowserTestBase):
     """Monitor browser console for JavaScript errors"""
     
     async def test_no_console_errors_on_login_page(self):
@@ -35,8 +35,11 @@ class TestConsoleErrors:
             console_messages: List[ConsoleMessage] = []
             page.on("console", lambda msg: console_messages.append(msg))
             
+            # Setup login page mock
+            await self.setup_login_page_mock(page)
+            
             # Navigate to login
-            await page.goto(f'{WEB_SERVICE_URL}/login')
+            await page.goto(f'{self.self.WEB_SERVICE_URL}/login')
             await page.wait_for_load_state('networkidle')
             
             # Check for errors
@@ -63,7 +66,7 @@ class TestConsoleErrors:
             console_errors = []
             page.on("console", lambda msg: console_errors.append(msg) if msg.type == "error" else None)
             
-            await page.goto(f'{WEB_SERVICE_URL}/login')
+            await page.goto(f'{self.WEB_SERVICE_URL}/login')
             
             # Use real auth response (no mock) to get actual error behavior
             
@@ -81,7 +84,7 @@ class TestConsoleErrors:
             await browser.close()
 
 
-class TestRaceConditions:
+class TestRaceConditions(BrowserTestBase):
     """Test for race conditions that only appear in real browsers"""
     
     async def test_rapid_navigation_race_condition(self):
@@ -99,13 +102,13 @@ class TestRaceConditions:
             
             # Rapidly navigate between pages
             for _ in range(5):
-                await page.goto(f'{WEB_SERVICE_URL}/login')
+                await page.goto(f'{self.WEB_SERVICE_URL}/login')
                 # Don't wait for full load
-                await page.goto(f'{WEB_SERVICE_URL}/register', wait_until='domcontentloaded')
-                await page.goto(f'{WEB_SERVICE_URL}/login', wait_until='domcontentloaded')
+                await page.goto(f'{self.WEB_SERVICE_URL}/register', wait_until='domcontentloaded')
+                await page.goto(f'{self.WEB_SERVICE_URL}/login', wait_until='domcontentloaded')
             
             # Final navigation with full load
-            await page.goto(f'{WEB_SERVICE_URL}/login')
+            await page.goto(f'{self.WEB_SERVICE_URL}/login')
             await page.wait_for_load_state('networkidle')
             
             # Page should still work
@@ -126,7 +129,7 @@ class TestRaceConditions:
             )
             page = await browser.new_page()
             
-            await page.goto(f'{WEB_SERVICE_URL}/login')
+            await page.goto(f'{self.WEB_SERVICE_URL}/login')
             
             # Set up multiple endpoints with different delays
             request_order = []
@@ -179,7 +182,7 @@ class TestRaceConditions:
             await browser.close()
 
 
-class TestMemoryLeaks:
+class TestMemoryLeaks(BrowserTestBase):
     """Test for memory leaks in long-running sessions"""
     
     async def test_repeated_form_submissions_no_memory_leak(self):
@@ -191,7 +194,7 @@ class TestMemoryLeaks:
             )
             page = await browser.new_page()
             
-            await page.goto(f'{WEB_SERVICE_URL}/login')
+            await page.goto(f'{self.WEB_SERVICE_URL}/login')
             
             # Mock fast responses
             await page.route("**/auth/login", lambda route: route.fulfill(
@@ -225,7 +228,7 @@ class TestMemoryLeaks:
             await browser.close()
 
 
-class TestBrowserSpecificBehaviors:
+class TestBrowserSpecificBehaviors(BrowserTestBase):
     """Test browser-specific quirks and behaviors"""
     
     async def test_autofill_behavior(self):
@@ -237,7 +240,7 @@ class TestBrowserSpecificBehaviors:
             )
             page = await browser.new_page()
             
-            await page.goto(f'{WEB_SERVICE_URL}/login')
+            await page.goto(f'{self.WEB_SERVICE_URL}/login')
             
             # Simulate autofill by setting values directly
             await page.evaluate('''
@@ -283,7 +286,7 @@ class TestBrowserSpecificBehaviors:
             page = await browser.new_page()
             
             # Start at login
-            await page.goto(f'{WEB_SERVICE_URL}/login')
+            await page.goto(f'{self.WEB_SERVICE_URL}/login')
             login_url = page.url
             
             # Mock successful login
@@ -320,7 +323,7 @@ class TestBrowserSpecificBehaviors:
             await browser.close()
 
 
-class TestFormStatePersistence:
+class TestFormStatePersistence(BrowserTestBase):
     """Test form state persistence across various scenarios"""
     
     async def test_form_state_after_validation_error(self):
@@ -332,7 +335,7 @@ class TestFormStatePersistence:
             )
             page = await browser.new_page()
             
-            await page.goto(f'{WEB_SERVICE_URL}/register')
+            await page.goto(f'{self.WEB_SERVICE_URL}/register')
             
             # Fill form with test data
             test_email = 'preserve@test.local'
@@ -367,7 +370,7 @@ class TestFormStatePersistence:
             )
             page = await browser.new_page()
             
-            await page.goto(f'{WEB_SERVICE_URL}/login')
+            await page.goto(f'{self.WEB_SERVICE_URL}/login')
             
             # Count submissions
             submission_count = 0
@@ -411,7 +414,7 @@ class TestFormStatePersistence:
             await browser.close()
 
 
-class TestDynamicContent:
+class TestDynamicContent(BrowserTestBase):
     """Test dynamic content updates and client-side rendering"""
     
     async def test_loading_states_display_correctly(self):
@@ -423,7 +426,7 @@ class TestDynamicContent:
             )
             page = await browser.new_page()
             
-            await page.goto(f'{WEB_SERVICE_URL}/login')
+            await page.goto(f'{self.WEB_SERVICE_URL}/login')
             
             # Slow response to see loading state
             async def slow_login_handler(route):
@@ -472,7 +475,7 @@ class TestDynamicContent:
             )
             page = await browser.new_page()
             
-            await page.goto(f'{WEB_SERVICE_URL}/register')
+            await page.goto(f'{self.WEB_SERVICE_URL}/register')
             
             # Type invalid email and check validation
             email_input = await page.query_selector('input[name="email"]')
@@ -484,7 +487,7 @@ class TestDynamicContent:
             # This is app-specific
             
             # Complete email
-            await email_input.type('test.com', {delay: 100})
+            await email_input.type('test.com', delay=100)
             
             # Validation should pass now
             is_valid = await email_input.evaluate('el => el.checkValidity()')

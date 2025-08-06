@@ -66,7 +66,10 @@ class TestChatFunctionality:
             send_button = page.locator('button:has-text("Send"), button:has-text("Submit")').first
             
             # Clear any existing content to track new messages
-            messages_before = await page.locator('[role="log"], .messages, .chat-messages').inner_text()
+            try:
+                messages_before = await page.locator('[role="log"], .messages, .chat-messages').inner_text()
+            except:
+                messages_before = ""  # No messages yet
             
             await send_button.click()
             
@@ -178,10 +181,11 @@ class TestChatFunctionality:
             await expect(page.locator('text="Success after retry!"')).to_be_visible()
             
             # Error should be gone
-            error_count = await page.locator('text=/error|failed/i').count()
-            is_error_visible = await page.locator('text=/error|failed/i').is_visible()
-            assert error_count == 0 or not is_error_visible, \
-                "Error message should be cleared after successful retry"
+            error_locator = page.locator('text=/error|failed/i')
+            error_count = await error_locator.count()
+            if error_count > 0:
+                is_error_visible = await error_locator.is_visible()
+                assert not is_error_visible, "Error message should be cleared after successful retry"
             
             await browser.close()
     
