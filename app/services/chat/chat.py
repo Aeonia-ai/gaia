@@ -177,9 +177,31 @@ async def unified_chat_endpoint(
         if response_format not in ["openai", "v0.3"]:
             response_format = "openai"  # Default to OpenAI format
         
+        # Validate conversation_id if provided
+        conversation_id = body.get("conversation_id")
+        if conversation_id:
+            # Check if the conversation actually exists
+            try:
+                from .conversation_store import chat_conversation_store
+                user_id = auth_principal.get("sub") or auth_principal.get("key", "unknown")
+                conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
+                
+                if conversation is None:
+                    # Conversation doesn't exist - return 404
+                    raise HTTPException(
+                        status_code=404, 
+                        detail=f"Conversation {conversation_id} not found"
+                    )
+            except HTTPException:
+                # Re-raise HTTP exceptions
+                raise
+            except Exception as e:
+                logger.error(f"Error validating conversation {conversation_id}: {e}")
+                # For unexpected errors, continue (will be handled in build_context)
+        
         # Extract context if available
         context = {
-            "conversation_id": body.get("conversation_id"),
+            "conversation_id": conversation_id,
             "message_count": len(chat_histories.get(
                 auth_principal.get("sub") or auth_principal.get("key", ""), []
             )),
