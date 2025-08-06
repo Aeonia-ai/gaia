@@ -293,7 +293,9 @@ class TestSupabaseAuthIntegration:
             
             if refresh_response.status_code == 200:
                 refresh_data = refresh_response.json()
-                assert "access_token" in refresh_data
+                # Check for session structure with access_token
+                assert "session" in refresh_data
+                assert "access_token" in refresh_data["session"]
                 logger.info("Token refresh successful")
             else:
                 logger.info(f"Token refresh returned {refresh_response.status_code}")
