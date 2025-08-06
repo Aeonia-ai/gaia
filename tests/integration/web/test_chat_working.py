@@ -128,7 +128,7 @@ async def test_chat_with_session_mock():
         assert chat_form, "Chat form should exist"
         print("✓ Chat form found")
         
-        message_input = await page.query_selector('textarea[name="message"]')
+        message_input = await page.query_selector('input[name="message"]')
         assert message_input, "Message input should exist"
         print("✓ Message input found")
         
@@ -224,7 +224,7 @@ async def test_chat_message_send():
         await page.wait_for_function("typeof htmx !== 'undefined'", timeout=5000)
         
         # Send message
-        message_input = await page.query_selector('textarea[name="message"]')
+        message_input = await page.query_selector('input[name="message"]')
         await message_input.fill("Hello!")
         
         # Submit form

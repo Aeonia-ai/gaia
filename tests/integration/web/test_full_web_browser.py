@@ -254,7 +254,7 @@ class TestClientSideValidation:
             # This is app-specific
             
             # Type strong password
-            await password_input.clear()
+            await password_input.fill('')  # Clear first
             await password_input.fill('StrongP@ssw0rd123!')
             
             # Verify form can be submitted with strong password
@@ -515,7 +515,7 @@ class TestChatFunctionality:
             # Send multiple messages
             for i in range(5):
                 message_count = i
-                await page.fill('textarea[name="message"]', f"Message {i}")
+                await page.fill('input[name="message"]', f"Message {i}")
                 await page.keyboard.press('Enter')
                 await page.wait_for_timeout(200)
             
@@ -589,7 +589,7 @@ class TestChatFunctionality:
             await page.goto(f'{WEB_SERVICE_URL}/chat')
             
             # Send a message
-            await page.fill('textarea[name="message"]', 'Test message')
+            await page.fill('input[name="message"]', 'Test message')
             await page.keyboard.press('Enter')
             await page.wait_for_selector('text="Test response"')
             

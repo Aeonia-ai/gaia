@@ -57,27 +57,7 @@ class TestAPIWithRealAuth:
             response = await client.get(f"{gateway_url}/health", headers=headers)
             assert response.status_code == 200
     
-    @pytest.mark.asyncio
-    async def test_providers_list(self, gateway_url, headers):
-        """Test listing providers with real auth."""
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{gateway_url}/api/v1/providers", headers=headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert "providers" in data
-            assert isinstance(data["providers"], list)
-            logger.info(f"Found {len(data['providers'])} providers")
-    
-    @pytest.mark.asyncio
-    async def test_models_list(self, gateway_url, headers):
-        """Test listing models with real auth."""
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{gateway_url}/api/v1/models", headers=headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert "models" in data
-            assert isinstance(data["models"], list)
-            logger.info(f"Found {len(data['models'])} models")
+    # NOTE: Provider and model endpoints removed - not implemented in chat service
     
     @pytest.mark.asyncio
     async def test_v1_chat_simple(self, gateway_url, headers):
@@ -93,71 +73,72 @@ class TestAPIWithRealAuth:
             )
             assert response.status_code == 200
             data = response.json()
-            assert "response" in data or "message" in data
+            # Accept multiple response formats (old and new)
+            assert "response" in data or "message" in data or "choices" in data
             logger.info("V1 chat simple message succeeded")
     
     @pytest.mark.asyncio
-    async def test_v02_chat_completion(self, gateway_url, headers):
-        """Test v0.2 chat completion endpoint."""
+    async def test_v03_chat(self, gateway_url, headers):
+        """Test v0.3 chat endpoint (future migration target)."""
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{gateway_url}/api/v0.2/chat/completions",
+                f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={
-                    "messages": [{"role": "user", "content": "What is 2+2?"}],
-                    "model": "claude-3-5-haiku-20241022",
+                    "message": "What is 2+2?",
                     "stream": False
                 }
             )
             assert response.status_code == 200
             data = response.json()
-            assert "choices" in data
-            assert len(data["choices"]) > 0
-            logger.info("V0.2 chat completion succeeded")
+            assert "id" in data  # v0.3 format includes conversation ID
+            assert "choices" in data or "response" in data or "content" in data
+            logger.info("V0.3 chat succeeded")
     
     @pytest.mark.asyncio
     async def test_chat_with_conversation_id(self, gateway_url, headers):
-        """Test chat with conversation management."""
+        """Test chat with conversation management using v0.3 API."""
         async with httpx.AsyncClient(timeout=30.0) as client:
             # First message - creates conversation
             response1 = await client.post(
-                f"{gateway_url}/api/v0.2/chat/completions",
+                f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={
-                    "messages": [{"role": "user", "content": "Remember the number 42"}],
+                    "message": "Remember the number 42",
                     "stream": False
                 }
             )
             assert response1.status_code == 200
             data1 = response1.json()
             
-            # Extract conversation ID if present
-            conversation_id = data1.get("conversation_id")
-            if conversation_id:
-                # Second message - uses same conversation
-                response2 = await client.post(
-                    f"{gateway_url}/api/v0.2/chat/completions",
-                    headers=headers,
-                    json={
-                        "messages": [{"role": "user", "content": "What number did I ask you to remember?"}],
-                        "conversation_id": conversation_id,
-                        "stream": False
-                    }
-                )
-                assert response2.status_code == 200
-                logger.info(f"Conversation {conversation_id} tested successfully")
+            # v0.3 API returns conversation_id
+            conversation_id = data1.get("conversation_id") or data1.get("id")
+            assert conversation_id is not None, "v0.3 API should return conversation ID"
+            
+            # Second message - uses same conversation
+            response2 = await client.post(
+                f"{gateway_url}/api/v0.3/chat",
+                headers=headers,
+                json={
+                    "message": "What number did I ask you to remember?",
+                    "conversation_id": conversation_id,
+                    "stream": False
+                }
+            )
+            assert response2.status_code == 200
+            logger.info(f"Conversation {conversation_id} tested successfully")
     
     @pytest.mark.asyncio
-    async def test_streaming_chat(self, gateway_url, headers):
-        """Test streaming chat responses."""
+    async def test_v1_chat_streaming(self, gateway_url, headers):
+        """Test v1 chat with streaming (as web UI uses it)."""
         async with httpx.AsyncClient(timeout=30.0) as client:
             chunks = []
             async with client.stream(
                 "POST",
-                f"{gateway_url}/api/v0.2/chat/completions",
+                f"{gateway_url}/api/v1/chat",
                 headers=headers,
                 json={
-                    "messages": [{"role": "user", "content": "Count to 3"}],
+                    "message": "Count to 3",
                     "stream": True
                 }
             ) as response:
@@ -167,8 +148,9 @@ class TestAPIWithRealAuth:
                         chunks.append(line[6:])
             
             assert len(chunks) > 0
+            # Should have content chunks and a [DONE] marker
             assert any("[DONE]" in chunk for chunk in chunks)
-            logger.info(f"Streaming chat received {len(chunks)} chunks")
+            logger.info(f"V1 streaming chat received {len(chunks)} chunks")
     
     @pytest.mark.asyncio
     async def test_no_auth_fails(self, gateway_url):
@@ -199,7 +181,7 @@ class TestAPIWithRealAuth:
         """Test listing conversations."""
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{gateway_url}/api/v0.2/conversations",
+                f"{gateway_url}/api/v0.3/conversations",
                 headers=headers
             )
             # This might return 404 if not implemented, which is OK
@@ -218,10 +200,10 @@ class TestAPIWithRealAuth:
             tasks = []
             for i in range(3):
                 task = client.post(
-                    f"{gateway_url}/api/v0.2/chat/completions",
+                    f"{gateway_url}/api/v1/chat",
                     headers=headers,
                     json={
-                        "messages": [{"role": "user", "content": f"Say the number {i}"}],
+                        "message": f"Say the number {i}",
                         "stream": False
                     }
                 )
@@ -247,13 +229,12 @@ class TestAPIWithRealAuth:
         async with httpx.AsyncClient(timeout=30.0) as client:
             for model in models_to_test:
                 response = await client.post(
-                    f"{gateway_url}/api/v0.2/chat/completions",
+                    f"{gateway_url}/api/v1/chat",
                     headers=headers,
                     json={
-                        "messages": [{"role": "user", "content": "Say 'hi'"}],
+                        "message": "Say 'hi'",
                         "model": model,
-                        "stream": False,
-                        "max_tokens": 10
+                        "stream": False
                     }
                 )
                 

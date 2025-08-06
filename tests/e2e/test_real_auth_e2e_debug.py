@@ -57,7 +57,7 @@ async def test_debug_real_auth():
             print("7. Page title:", await page.title())
             
             # Check for error messages
-            error_elements = await page.query_selector_all('[role="alert"], .error, .alert')
+            error_elements = await page.query_selector_all('.bg-red-500\/10, .error, .alert')
             if error_elements:
                 print("8. Found error elements:")
                 for elem in error_elements:
@@ -69,7 +69,7 @@ async def test_debug_real_auth():
             
             # Try different selectors
             selectors_to_try = [
-                'textarea[name="message"]',
+                'input[name="message"]',
                 'textarea',
                 'input[type="text"]',
                 '#message-input',

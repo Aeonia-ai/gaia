@@ -59,7 +59,7 @@ async def test_real_e2e_login_with_supabase():
             print("✓ Successfully logged in and navigated to chat!")
             
             # 4. Verify chat interface
-            chat_form = await page.wait_for_selector('#chat-form', timeout=5000)
+            chat_form = await page.wait_for_selector('form', timeout=5000)
             assert chat_form, "Chat form should be present"
             
             message_input = await page.query_selector('input[name="message"]')
@@ -72,7 +72,7 @@ async def test_real_e2e_login_with_supabase():
             await message_input.fill("Hello from real E2E test with Supabase!")
             
             # Submit message
-            send_button = await page.query_selector('#chat-form button[type="submit"]')
+            send_button = await page.query_selector('form button[type="submit"]')
             if send_button:
                 await send_button.click()
             else:
@@ -154,7 +154,7 @@ async def test_real_e2e_registration_and_login():
         # Check result
         if page.url.endswith('/register'):
             # Still on register page - check for error
-            error_elem = await page.query_selector('[role="alert"], .error, .text-red-500')
+            error_elem = await page.query_selector('.bg-red-500\/10, .error, .text-red-500')
             if error_elem:
                 error_text = await error_elem.inner_text()
                 print(f"Registration response: {error_text}")
@@ -238,7 +238,7 @@ async def test_concurrent_users():
             
             # Both users send messages
             for i, (page, user) in enumerate(zip(pages, users)):
-                message_input = await page.query_selector('textarea[name="message"]')
+                message_input = await page.query_selector('input[name="message"]')
                 await message_input.fill(f"Hello from {user['name']}!")
                 await page.keyboard.press('Enter')
                 print(f"✓ {user['name']} sent message")

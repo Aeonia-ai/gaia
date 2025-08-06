@@ -101,7 +101,7 @@ class TestSimpleAuth:
             assert "/chat" in page.url, f"Should be on chat page, but on {page.url}"
             
             # Should have basic chat elements
-            message_input = await page.query_selector('textarea[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             assert message_input is not None, "Chat input should be present"
             
             await browser.close()

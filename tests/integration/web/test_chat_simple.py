@@ -100,7 +100,7 @@ async def test_chat_message_input():
         
         # Find message input
         print("Looking for message input...")
-        message_input = await page.query_selector('textarea[name="message"]')
+        message_input = await page.query_selector('input[name="message"]')
         if not message_input:
             # Try other selectors
             message_input = await page.query_selector('#message-input')

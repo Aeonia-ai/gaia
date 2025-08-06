@@ -70,7 +70,7 @@ class TestAuthenticatedChat:
                 }
             ))
             
-            message_input = await page.query_selector('textarea[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             await message_input.fill("Test message")
             await page.keyboard.press("Enter")
             

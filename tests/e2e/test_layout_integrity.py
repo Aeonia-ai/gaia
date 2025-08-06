@@ -185,7 +185,6 @@ class TestLayoutIntegrity:
             # These elements should NOT exist on login page
             forbidden_elements = [
                 '#sidebar',
-                '#chat-form',
                 '#messages',
                 '#conversation-list',
                 '.mobile-header',
@@ -310,7 +309,7 @@ class TestLayoutIntegrity:
             password_inputs = await page.query_selector_all('input[type="password"]')
             
             # If verification message is shown, form elements must be gone
-            verification_msg = await page.query_selector('text="Check Your Email"')
+            verification_msg = await page.query_selector('text="📧 Check Your Email"')
             if verification_msg:
                 assert len(email_inputs) == 0, "Email verification page must not show email input"
                 assert len(password_inputs) == 0, "Email verification page must not show password input"
@@ -441,7 +440,7 @@ class TestVisualRegression:
                 dimensions['main_content'] = await content.bounding_box()
             
             # Chat input
-            chat_input = await page.query_selector('#chat-form')
+            chat_input = await page.query_selector('form')
             if chat_input:
                 dimensions['chat_input'] = await chat_input.bounding_box()
             

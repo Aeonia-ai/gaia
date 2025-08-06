@@ -72,7 +72,7 @@ class TestChatWithHTMX:
             chat_form = await page.query_selector('#chat-form')
             assert chat_form, "Chat form should exist"
             
-            message_input = await page.query_selector('textarea[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             assert message_input, "Message input should exist"
             
             # Type a message
@@ -159,7 +159,7 @@ class TestChatWithHTMX:
             await page.wait_for_function("typeof htmx !== 'undefined'")
             
             # Send a message
-            message_input = await page.query_selector('textarea[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             await message_input.fill("Test message")
             
             submit_button = await page.query_selector('button[type="submit"]')

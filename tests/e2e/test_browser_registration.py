@@ -48,7 +48,7 @@ async def test_registration_flow():
         
         # Look for any messages
         possible_selectors = [
-            '[role="alert"]',
+            '.bg-red-500\/10',
             '.error',
             '.success',
             '.message',

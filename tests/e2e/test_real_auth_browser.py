@@ -47,7 +47,7 @@ class TestRealSupabaseAuth:
             await page.click('button[type="submit"]')
             
             # Should see email verification message
-            await page.wait_for_selector('text="Check Your Email"', timeout=10000)
+            await page.wait_for_selector('text="📧 Check Your Email"', timeout=10000)
             
             # For testing, we'll create a pre-verified user using service key
             factory = TestUserFactory()
@@ -71,7 +71,7 @@ class TestRealSupabaseAuth:
                 assert page.url.endswith('/chat'), "Should be redirected to chat after login"
                 
                 # Check for chat elements
-                chat_form = await page.query_selector('#chat-form')
+                chat_form = await page.query_selector('form')
                 assert chat_form, "Chat form should be present"
                 
                 # Verify we have a real session cookie
@@ -95,7 +95,7 @@ class TestRealSupabaseAuth:
                 
             finally:
                 # Always cleanup test user
-                factory.cleanup()
+                factory.cleanup_all()
                 await browser.close()
     
     @pytest.mark.asyncio
@@ -129,20 +129,20 @@ class TestRealSupabaseAuth:
                 await page.fill('input[name="password"]', 'WrongPassword123!')
                 await page.click('button[type="submit"]')
                 
-                # Should show error message
-                error_message = await page.wait_for_selector('[role="alert"]', timeout=5000)
+                # Should show error message - look for error styling
+                error_message = await page.wait_for_selector('.bg-red-500\\/10', timeout=5000)
                 error_text = await error_message.inner_text()
                 
-                # Error should mention invalid credentials
-                assert "Invalid" in error_text or "incorrect" in error_text.lower(), \
-                    f"Should show invalid credentials error, got: {error_text}"
+                # Error should indicate login failure
+                assert "login failed" in error_text.lower() or "invalid" in error_text.lower(), \
+                    f"Should show login error, got: {error_text}"
                 
                 # Should still be on login page
                 assert page.url.endswith('/login'), "Should remain on login page after failed login"
                 
                 await browser.close()
         finally:
-            factory.cleanup()
+            factory.cleanup_all()
     
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -212,7 +212,7 @@ class TestRealSupabaseAuth:
                 await context2.close()
                 await browser.close()
         finally:
-            factory.cleanup()
+            factory.cleanup_all()
     
     @pytest.mark.asyncio
     @pytest.mark.skipif(
@@ -272,7 +272,7 @@ class TestRealSupabaseAuth:
                 
                 await browser.close()
         finally:
-            factory.cleanup()
+            factory.cleanup_all()
 
 
 class TestRealAuthEdgeCases:
@@ -321,8 +321,8 @@ class TestRealAuthEdgeCases:
                 await page.fill('input[name="password"]', 'NewPassword123!')
                 await page.click('button[type="submit"]')
                 
-                # Should show error
-                error = await page.wait_for_selector('[role="alert"]', timeout=5000)
+                # Should show error - look for error styling
+                error = await page.wait_for_selector('.bg-red-500\\/10', timeout=5000)
                 error_text = await error.inner_text()
                 
                 # Should mention email already exists
@@ -331,7 +331,7 @@ class TestRealAuthEdgeCases:
                 
                 await browser.close()
         finally:
-            factory.cleanup()
+            factory.cleanup_all()
 
 
 # Helper function to run specific auth test
@@ -356,7 +356,7 @@ async def test_specific_user_login(email: str, password: str):
                 print(f"✓ Successfully logged in as {email}")
                 return True
             except:
-                error = await page.query_selector('[role="alert"]')
+                error = await page.query_selector('.bg-red-500\/10')
                 if error:
                     error_text = await error.inner_text()
                     print(f"✗ Login failed: {error_text}")

@@ -94,7 +94,7 @@ class TestChatWithAuth:
             await page.wait_for_function("typeof htmx !== 'undefined'")
             
             # Send a message
-            message_input = await page.query_selector('textarea[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             await message_input.fill("Hello, AI assistant!")
             await page.keyboard.press("Enter")
             

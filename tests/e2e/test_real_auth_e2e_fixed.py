@@ -103,7 +103,7 @@ class TestRealE2EFixed:
                 message_input = None
                 input_selectors = [
                     'input[name="message"]',
-                    'textarea[name="message"]',
+                    'input[name="message"]',
                     '#message-input',
                     '[placeholder*="Type a message"]',
                     '[placeholder*="Send a message"]'

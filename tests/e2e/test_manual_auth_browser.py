@@ -65,14 +65,14 @@ class TestManualAuth:
                 await page.screenshot(path="tests/web/screenshots/chat-page.png")
                 
                 # Check for chat elements
-                chat_form = await page.query_selector('#chat-form')
+                chat_form = await page.query_selector('form')
                 assert chat_form, "Chat form should be present"
                 
                 messages = await page.query_selector('#messages')
                 assert messages, "Messages container should be present"
                 
                 # Try sending a test message
-                message_input = await page.query_selector('textarea[name="message"]')
+                message_input = await page.query_selector('input[name="message"]')
                 if message_input:
                     await message_input.fill("Hello from browser test!")
                     print("✓ Can interact with chat interface")
@@ -84,7 +84,7 @@ class TestManualAuth:
                 await page.screenshot(path="tests/web/screenshots/login-error.png")
                 
                 # Check for error message
-                error = await page.query_selector('[role="alert"]')
+                error = await page.query_selector('.bg-red-500\/10')
                 if error:
                     error_text = await error.inner_text()
                     print(f"Error message: {error_text}")
@@ -121,7 +121,7 @@ class TestManualAuth:
                     print("✓ Dev login successful!")
                     assert page.url.endswith('/chat')
                 except:
-                    error = await page.query_selector('[role="alert"]')
+                    error = await page.query_selector('.bg-red-500\/10')
                     if error:
                         error_text = await error.inner_text()
                         print(f"Dev login error: {error_text}")
@@ -175,7 +175,7 @@ async def manual_login_test(email: str, password: str, headless: bool = False):
                 print("✅ Login successful! Redirected to chat.")
                 
                 # Test chat functionality
-                chat_form = await page.query_selector('#chat-form')
+                chat_form = await page.query_selector('form')
                 if chat_form:
                     print("✅ Chat interface loaded successfully")
                 
@@ -188,7 +188,7 @@ async def manual_login_test(email: str, password: str, headless: bool = False):
                 print(f"❌ Login failed: {e}")
                 
                 # Check for error
-                error = await page.query_selector('[role="alert"]')
+                error = await page.query_selector('.bg-red-500\/10')
                 if error:
                     error_text = await error.inner_text()
                     print(f"📋 Error message: {error_text}")

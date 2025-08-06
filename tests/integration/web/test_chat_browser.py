@@ -112,7 +112,7 @@ class TestChatFunctionality:
             chat_form = await page.query_selector('#chat-form')
             assert chat_form, "Chat form should be present"
             
-            message_input = await page.query_selector('textarea[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             assert message_input, "Message input should be present"
             
             # Send a message
@@ -269,7 +269,7 @@ class TestChatFunctionality:
                 assert page.url.endswith('/chat'), "Should stay on chat page"
                 
                 # Message input should be empty and ready
-                message_input = await page.query_selector('textarea[name="message"]')
+                message_input = await page.query_selector('input[name="message"]')
                 value = await message_input.input_value()
                 assert value == "", "Message input should be empty for new chat"
             
@@ -320,7 +320,7 @@ class TestChatFunctionality:
             await page.wait_for_url('**/chat')
             
             # Send a message
-            message_input = await page.query_selector('textarea[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             await message_input.fill("This will fail")
             await page.keyboard.press('Enter')
             
@@ -379,7 +379,7 @@ class TestChatFunctionality:
             await page.wait_for_url('**/chat')
             
             # Send message
-            message_input = await page.query_selector('textarea[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             await message_input.fill("Test streaming")
             await page.keyboard.press('Enter')
             
@@ -445,7 +445,7 @@ class TestChatFunctionality:
                 # Sidebar might be hidden on mobile
             
             # Chat form should still work
-            message_input = await page.query_selector('textarea[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             assert message_input, "Message input should exist on mobile"
             
             # Send message
@@ -509,10 +509,10 @@ class TestChatWithRealAuth:
                 
                 # Wait for chat to fully load
                 await page.wait_for_selector('#chat-form', timeout=5000)
-                await page.wait_for_selector('textarea[name="message"]', timeout=5000)
+                await page.wait_for_selector('input[name="message"]', timeout=5000)
                 
                 # Send a real message
-                message_input = await page.query_selector('textarea[name="message"]')
+                message_input = await page.query_selector('input[name="message"]')
                 test_message = "Hello! Can you tell me what day it is?"
                 await message_input.fill(test_message)
                 
@@ -575,8 +575,8 @@ async def manual_chat_test(email: str, password: str, message: str = "Hello!"):
             print("✅ Logged in successfully!")
             
             # Send message
-            await page.wait_for_selector('textarea[name="message"]')
-            message_input = await page.query_selector('textarea[name="message"]')
+            await page.wait_for_selector('input[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             
             print(f"💬 Sending: {message}")
             await message_input.fill(message)

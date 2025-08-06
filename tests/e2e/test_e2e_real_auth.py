@@ -68,11 +68,11 @@ async def test_real_login_flow():
             assert page.url.endswith('/chat'), "Should be on chat page"
             
             # Wait for chat interface to load
-            chat_form = await page.wait_for_selector('#chat-form', timeout=5000)
+            chat_form = await page.wait_for_selector('form', timeout=5000)
             assert chat_form, "Chat form should be present"
             print("✓ Chat form loaded")
             
-            message_input = await page.query_selector('textarea[name="message"]')
+            message_input = await page.query_selector('input[name="message"]')
             assert message_input, "Message input should be present"
             print("✓ Message input found")
             
@@ -81,7 +81,7 @@ async def test_real_login_flow():
             await message_input.fill("Hello from E2E test!")
             
             # Look for send button or use Enter
-            send_button = await page.query_selector('#chat-form button[type="submit"]')
+            send_button = await page.query_selector('form button[type="submit"]')
             if send_button:
                 await send_button.click()
             else:
@@ -104,7 +104,7 @@ async def test_real_login_flow():
             print(f"✗ Login failed: {e}")
             
             # Look for error message on page
-            error_element = await page.query_selector('[role="alert"], .error, .text-red-500')
+            error_element = await page.query_selector('.bg-red-500\/10, .error, .text-red-500')
             if error_element:
                 error_text = await error_element.inner_text()
                 print(f"Error message: {error_text}")
@@ -153,7 +153,7 @@ async def test_real_registration_flow():
         # Check what happened
         if page.url.endswith('/register'):
             # Still on register page - check for error
-            error_element = await page.query_selector('[role="alert"], .error')
+            error_element = await page.query_selector('.bg-red-500\/10, .error')
             if error_element:
                 error_text = await error_element.inner_text()
                 print(f"Registration error: {error_text}")
