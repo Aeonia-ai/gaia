@@ -303,7 +303,7 @@ async def health_check():
     client = await get_http_client()
     for service_name, service_url in SERVICE_URLS.items():
         try:
-            response = await client.get(f"{service_url}/health", timeout=5.0)
+            response = await client.get(f"{service_url}/health", timeout=15.0)
             service_health[service_name] = {
                 "status": "healthy" if response.status_code == 200 else "unhealthy",
                 "response_time": response.elapsed.total_seconds() if hasattr(response, 'elapsed') else None
@@ -2602,7 +2602,7 @@ async def startup_event():
     for service_name, service_url in SERVICE_URLS.items():
         try:
             client = await get_http_client()
-            response = await client.get(f"{service_url}/health", timeout=5.0)
+            response = await client.get(f"{service_url}/health", timeout=15.0)
             if response.status_code == 200:
                 logger.lifecycle(f"Connected to {service_name} service")
             else:
