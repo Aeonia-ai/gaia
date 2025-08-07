@@ -6,6 +6,7 @@ NOTE: Fixed async/sync patterns and undefined variables.
 See tests/web/README_TEST_FIXES.md for detailed documentation.
 """
 import pytest
+import os
 from bs4 import BeautifulSoup
 import re
 
@@ -57,8 +58,8 @@ class TestUILayout:
         """Test chat page layout structure"""
         # First authenticate
         response = client.post("/auth/login", data={
-            "email": "admin@aeonia.ai",
-            "password": "TestPassword123!"
+            "email": os.getenv("GAIA_TEST_EMAIL", "test@example.com"),
+            "password": os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         }, follow_redirects=False)
         assert response.status_code == 303  # Should redirect to chat
         
@@ -237,8 +238,8 @@ class TestUIComponents:
         """Test message components maintain structure"""
         # First authenticate
         response = client.post("/auth/login", data={
-            "email": "admin@aeonia.ai",
-            "password": "TestPassword123!"
+            "email": os.getenv("GAIA_TEST_EMAIL", "test@example.com"),
+            "password": os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         }, follow_redirects=False)
         assert response.status_code == 303
         

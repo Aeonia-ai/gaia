@@ -27,7 +27,7 @@ class TestRealSupabaseAuth:
         """Test creating a real user and logging in through the browser"""
         # Generate unique test email
         test_email = f"test-browser-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "TestPassword123!@#"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -223,7 +223,7 @@ class TestRealSupabaseAuth:
         """Test that real Supabase session persists across page refreshes"""
         factory = TestUserFactory()
         test_email = f"test-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "TestPassword123!"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         user = factory.create_verified_test_user(
             email=test_email,
@@ -299,7 +299,7 @@ class TestRealAuthEdgeCases:
         """Test registration with email that already exists"""
         factory = TestUserFactory()
         test_email = f"existing-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "TestPassword123!"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         # Create user first
         user = factory.create_verified_test_user(

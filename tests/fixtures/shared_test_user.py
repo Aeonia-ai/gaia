@@ -1,7 +1,7 @@
 """
 Shared test user management for the entire test suite.
 
-Creates a single test user (pytest@aeonia.ai) at the start of the test run
+Creates a single test user from environment variables at the start of the test run
 and reuses it for all tests, dramatically reducing email sending.
 """
 import os
@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 # Global shared test user
 _SHARED_TEST_USER: Optional[Dict[str, str]] = None
-_TEST_USER_EMAIL = "pytest@aeonia.ai"
-_TEST_USER_PASSWORD = "PyTest-Aeonia-2025!"
+_TEST_USER_EMAIL = os.getenv("GAIA_TEST_EMAIL", "test@example.com")
+_TEST_USER_PASSWORD = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
 
 
 class SharedTestUser:

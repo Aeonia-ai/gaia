@@ -19,7 +19,7 @@ class TestRealE2E:
         # Create real Supabase user
         factory = TestUserFactory()
         test_email = f"e2e-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "TestPassword123!"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         user = factory.create_verified_test_user(
             email=test_email,
@@ -84,7 +84,7 @@ class TestRealE2E:
         """
         factory = TestUserFactory()
         test_email = f"e2e-conv-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "TestPassword123!"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         user = factory.create_verified_test_user(
             email=test_email,
@@ -149,7 +149,7 @@ class TestRealE2E:
         """Test that authentication persists across page refreshes"""
         factory = TestUserFactory()
         test_email = f"e2e-persist-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "TestPassword123!"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         user = factory.create_verified_test_user(
             email=test_email,
@@ -195,7 +195,7 @@ class TestRealE2E:
         """Test logout functionality with real auth"""
         factory = TestUserFactory()
         test_email = f"e2e-logout-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "TestPassword123!"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         user = factory.create_verified_test_user(
             email=test_email,
@@ -252,7 +252,7 @@ class TestRealE2E:
         """Test logout and login again with the same user"""
         factory = TestUserFactory()
         test_email = f"e2e-relogin-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "TestPassword123!"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         user = factory.create_verified_test_user(
             email=test_email,

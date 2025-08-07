@@ -49,8 +49,8 @@ def shared_test_user():
         from tests.fixtures.test_auth import TestUserFactory
         factory = TestUserFactory()
         
-        test_email = "pytest@aeonia.ai"
-        test_password = "PyTest-Aeonia-2025!"
+        test_email = os.getenv("GAIA_TEST_EMAIL", "test@example.com")
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         # First, delete any existing user with this email to ensure clean state
         print(f"Ensuring clean state for test user: {test_email}")

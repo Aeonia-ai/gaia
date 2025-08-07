@@ -243,7 +243,7 @@ class TestAuthManager:
 TEST_USERS = {
     "default": {
         "email": "test@test.local",
-        "password": "TestPassword123!",
+        "password": os.getenv("GAIA_TEST_PASSWORD", "default-test-password"),
         "role": "user"
     },
     "admin": {
