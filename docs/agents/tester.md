@@ -141,7 +141,7 @@ tests/
   nohup docker compose build > build.log 2>&1 &  # Run in background
   tail -f build.log                              # Monitor progress
   ```
-- Layer caching strategies in `docs/current/development/docker-test-optimization.md`
+- Layer caching strategies in `docs/testing/TEST_INFRASTRUCTURE.md`
 - Always include `.dockerignore` to exclude large directories
 
 ## Best Practices
@@ -155,7 +155,7 @@ tests/
 - Test in the real environment
 - Read test TODOs and comments
 - Use real Supabase auth for E2E tests
-- Check `docs/testing-philosophy.md` for rationale
+- Check `docs/testing/TESTING_GUIDE.md` for rationale
 
 ### DON'T:
 - Run pytest directly (will timeout after 2 minutes)
@@ -328,14 +328,13 @@ async def test_websocket():
 ## Testing Documentation Map
 
 Essential testing docs to reference:
-- `docs/testing-philosophy.md` - Why we test this way
-- `docs/current/development/testing-and-quality-assurance.md` - Main testing guide
-- `docs/current/development/async-test-execution.md` - Async runner details
-- `docs/current/development/e2e-real-auth-testing.md` - E2E with real auth
-- `docs/current/development/docker-test-optimization.md` - Docker build optimization
-- `docs/TEST_EXECUTION_GUIDE.md` - Quick command reference
-- `docs/TEST_PATTERNS_AND_EXAMPLES.md` - Test pattern examples
-- `docs/TEST_SUITE_CATALOG.md` - Complete test inventory
+- `docs/testing/README.md` - Testing documentation navigation
+- `docs/testing/TESTING_GUIDE.md` - Main testing guide
+- `docs/testing/TESTING_BEST_PRACTICES.md` - Patterns and best practices
+- `docs/testing/TEST_INFRASTRUCTURE.md` - Async runner and Docker details
+- `docs/testing/e2e-real-auth-testing.md` - E2E with real auth
+- `docs/testing/security-testing-strategy.md` - Security testing patterns
+- `docs/testing/mobile-testing-guide.md` - Mobile and browser testing
 
 ## Specialized Testing Knowledge
 
@@ -345,7 +344,7 @@ Essential testing docs to reference:
 - RBAC and authorization boundary testing
 - Rate limiting and DDoS protection tests
 - Input validation and sanitization tests
-- See `docs/current/development/security-testing-strategy.md`
+- See `docs/testing/security-testing-strategy.md`
 
 ### Mobile & Browser Testing
 - Responsive breakpoints: 768px (mobile/desktop)
@@ -362,7 +361,7 @@ Essential testing docs to reference:
 - Wait for specific selectors, not timeouts
 - Track JWT tokens and session cookies
 - Test partial page updates
-- See `docs/htmx-browser-testing-solution.md`
+- See browser testing patterns in `docs/testing/TESTING_BEST_PRACTICES.md`
 
 ### Performance Testing
 - Response time assertions (<3s for chat)
