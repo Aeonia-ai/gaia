@@ -10,7 +10,7 @@ import os
 from typing import Dict, Any
 from app.shared.logging import setup_service_logger
 
-logger = setup_service_logger("test_webui_migration")
+logger = setup_service_logger("test_migration_format_planning")
 
 
 class TestWebUICurrentBehavior:

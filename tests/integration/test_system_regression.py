@@ -10,7 +10,7 @@ from typing import Dict, Any
 from app.shared.logging import setup_service_logger
 from tests.fixtures.test_auth import TestAuthManager
 
-logger = setup_service_logger("test_working_endpoints")
+logger = setup_service_logger("test_system_regression")
 
 
 class TestWorkingEndpoints:
