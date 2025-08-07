@@ -45,7 +45,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. **Web UI Changes** → MUST read [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md) and [Auth Layout Isolation](docs/auth-layout-isolation.md)
 2. **Authentication Setup** → Always check [API Key Configuration Guide](docs/api-key-configuration-guide.md)
-3. **Testing** → Review [Testing Philosophy](docs/testing-philosophy.md) - ALWAYS use test scripts, NOT curl
+3. **Testing** → Review [Testing Guide](docs/testing/TESTING_GUIDE.md) - ALWAYS use pytest-for-claude.sh, NOT curl
 4. **Adding Services** → Follow [Adding New Microservice](docs/adding-new-microservice.md)
 5. **Deployment** → Check [Smart Scripts & Deployment](docs/smart-scripts-deployment.md)
 
@@ -173,9 +173,9 @@ pytest tests/ -v
 
 See:
 - **[Tester Agent](docs/agents/tester.md)** - Use this agent for ALL testing tasks!
-- [Testing Philosophy](docs/testing-philosophy.md) - Why we use test scripts
-- [E2E Real Auth Testing](docs/current/development/e2e-real-auth-testing.md) - Real auth patterns
-- [Async Test Execution](docs/current/development/async-test-execution.md) - Avoiding timeouts
+- [Testing Guide](docs/testing/TESTING_GUIDE.md) - Main testing documentation
+- [Testing Best Practices](docs/testing/TESTING_BEST_PRACTICES.md) - Patterns and practices
+- [Test Infrastructure](docs/testing/TEST_INFRASTRUCTURE.md) - Technical details
 
 ## 🧠 Development Philosophy & Problem-Solving Approach
 
@@ -198,7 +198,7 @@ See:
 - ALWAYS use automated tests instead of manual curl commands
 - If you need to test something new, ADD it to the test suite
 - Automated tests capture knowledge, curl commands vanish with your terminal
-- See [Testing Philosophy](docs/testing-philosophy.md) for why this matters
+- See [Testing Guide](docs/testing/TESTING_GUIDE.md) for complete testing documentation
 
 ## 📚 Essential Documentation Index
 
@@ -221,12 +221,11 @@ See:
 - [Supabase Configuration](docs/current/deployment/supabase-configuration.md) - Email confirmation URLs and auth setup
 
 #### Development & Testing
+- [Testing Guide](docs/testing/TESTING_GUIDE.md) - **MAIN** - Complete testing documentation
+- [Testing Best Practices](docs/testing/TESTING_BEST_PRACTICES.md) - Patterns and best practices
+- [Test Infrastructure](docs/testing/TEST_INFRASTRUCTURE.md) - Async runner, Docker, resources
 - [Command Reference](docs/current/development/command-reference.md) - Correct command syntax
-- [Integration Test Resource Management](docs/current/development/integration-test-resource-management.md) - **🚨 CRITICAL** Resource exhaustion solutions
-- [Testing Guide](docs/current/development/testing-and-quality-assurance.md) - Pre-commit hooks and test patterns
 - [Environment Setup](docs/current/development/dev-environment-setup.md) - Local development workflow
-- [Testing Philosophy](docs/testing-philosophy.md) - **IMPORTANT** - Why we use test scripts, not curl
-- [Docker Test Optimization](docs/current/development/docker-test-optimization.md) - **NEW** - Build caching and timeout handling
 
 #### Web UI Development
 - [FastHTML Service](docs/current/web-ui/fasthtml-web-service.md) - Web UI architecture
@@ -243,7 +242,7 @@ See:
 
 #### Troubleshooting & Performance  
 - [Fly.io DNS Issues](docs/current/troubleshooting/troubleshooting-flyio-dns.md) - Internal DNS issues
-- [Mobile Testing](docs/current/troubleshooting/mobile-testing-guide.md) - Testing on mobile devices
+- [Mobile Testing](docs/testing/mobile-testing-guide.md) - Testing on mobile devices
 - [Optimization Guide](docs/current/troubleshooting/optimization-guide.md) - Performance improvements
 
 #### KB & Advanced Features
