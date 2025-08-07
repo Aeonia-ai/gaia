@@ -33,8 +33,8 @@ class TestAuthIntegration:
         
         # 2. Login with test credentials
         response = client.post("/auth/login", data={
-            "email": "admin@aeonia.ai",
-            "password": "TestPassword123!"
+            "email": os.getenv("GAIA_TEST_EMAIL", "test@example.com"),
+            "password": os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         }, follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/chat"
@@ -95,8 +95,8 @@ class TestAuthIntegration:
         """Test session persists across requests"""
         # Login
         client.post("/auth/login", data={
-            "email": "admin@aeonia.ai",
-            "password": "TestPassword123!"
+            "email": os.getenv("GAIA_TEST_EMAIL", "test@example.com"),
+            "password": os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         })
         
         # Make multiple requests
@@ -112,8 +112,8 @@ class TestAuthIntegration:
         
         # Login with client1
         response1 = client1.post("/auth/login", data={
-            "email": "admin@aeonia.ai",
-            "password": "TestPassword123!"
+            "email": os.getenv("GAIA_TEST_EMAIL", "test@example.com"),
+            "password": os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         }, follow_redirects=False)
         assert response1.status_code == 303
         

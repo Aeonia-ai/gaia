@@ -1,0 +1,12 @@
+[0;34m🚀 Starting async test run...[0m
+📝 Logging to: logs/tests/pytest/test-run-20250806-225748.log
+📂 Test args: tests/unit tests/integration tests/e2e -v --ignore=tests/integration/web/ --tb=short
+[0;32m✅ Tests started in background (PID: 54101)[0m
+
+Monitor progress with:
+  tail -f logs/tests/pytest/test-run-20250806-225748.log
+
+Check status with:
+  ./scripts/check-test-progress.sh
+
+[1;33mNote: Tests will run in parallel using all available CPU cores[0m

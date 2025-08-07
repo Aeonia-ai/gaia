@@ -13,23 +13,9 @@ WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
 
 
 @pytest.fixture
-async def test_user_factory():
-    """Create test user factory for managing test users"""
-    if not os.getenv("SUPABASE_SERVICE_KEY"):
-        pytest.skip("Requires SUPABASE_SERVICE_KEY for real user creation")
-    
-    factory = TestUserFactory()
-    yield factory
-    # Cleanup all created users after tests
-    factory.cleanup_all()
-
-
-@pytest.fixture
-async def test_user(test_user_factory):
-    """Create a verified test user for individual tests"""
-    user = test_user_factory.create_verified_test_user()
-    yield user
-    # User will be cleaned up by factory
+async def test_user(shared_test_user):
+    """Use the shared test user (pytest@aeonia.ai) for all tests"""
+    return shared_test_user
 
 
 @pytest.mark.skipif(
@@ -145,8 +131,8 @@ async def test_real_login_flow(test_user):
     reason="Requires SUPABASE_SERVICE_KEY for real user creation"
 )
 @pytest.mark.asyncio
-async def test_real_registration_flow():
-    """Test real registration flow (if enabled)"""
+async def test_real_registration_flow(shared_test_user):
+    """Test that shared user already exists (registration should fail)"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -154,13 +140,11 @@ async def test_real_registration_flow():
         )
         page = await browser.new_page()
         
-        # Generate unique test email with a domain that passes validation
-        test_id = uuid.uuid4().hex[:8]
-        # Use gmail.com or another valid domain for testing
-        test_email = f"test.user.{test_id}@gmail.com"
-        test_password = "TestPass123!"
+        # Use shared test user that already exists
+        test_email = shared_test_user["email"]
+        test_password = shared_test_user["password"]
         
-        print(f"\n=== Testing Registration with {test_email} ===")
+        print(f"\n=== Testing Registration with existing user {test_email} ===")
         
         # Navigate to registration page
         await page.goto(f"{WEB_SERVICE_URL}/register")

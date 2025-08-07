@@ -48,14 +48,29 @@ def shared_test_user():
     try:
         from tests.fixtures.test_auth import TestUserFactory
         factory = TestUserFactory()
+        
+        test_email = "pytest@aeonia.ai"
+        test_password = "PyTest-Aeonia-2025!"
+        
+        # First, delete any existing user with this email to ensure clean state
+        print(f"Ensuring clean state for test user: {test_email}")
+        factory.cleanup_user_by_email(test_email)
+        
+        # Now create a fresh test user
         user = factory.create_verified_test_user(
-            email="shared-test-user@test.local"
+            email=test_email,
+            password=test_password
         )
-        print(f"Created shared test user: {user['email']}")
+        print(f"Created fresh test user: {user['email']}")
+        
         yield user
-        # Cleanup at end of session
-        factory.cleanup_test_user(user["user_id"])
-        print(f"Cleaned up shared test user: {user['email']}")
+        
+        # Always cleanup at end of session
+        try:
+            factory.cleanup_test_user(user["user_id"])
+            print(f"Cleaned up test user: {user['email']}")
+        except Exception as e:
+            print(f"Warning: Failed to cleanup test user: {e}")
     except Exception as e:
         print(f"Warning: Could not create shared test user (Supabase not configured?): {e}")
         # Provide a mock user for tests that don't need real Supabase

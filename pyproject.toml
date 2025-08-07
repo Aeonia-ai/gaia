@@ -1,0 +1,34 @@
+[tool.pytest.ini_options]
+# Override pytest.ini for specific test configurations
+
+[tool.pytest.browser]
+# Special configuration for browser/E2E tests
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "-n", "1",  # Sequential execution for browser tests
+    "--asyncio-mode=strict",  # Strict async mode to catch issues
+    "--timeout=30",  # 30 second timeout per test
+    "--timeout-method=thread",  # Use thread-based timeout
+]
+
+[tool.pytest.unit]
+# Configuration for unit tests  
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "-n", "auto",  # Parallel execution for unit tests
+    "--asyncio-mode=auto",
+]
+
+[tool.pytest.integration]
+# Configuration for integration tests
+addopts = [
+    "-v", 
+    "--tb=short",
+    "--strict-markers",
+    "-n", "auto",  # Parallel execution for API tests
+    "--asyncio-mode=auto",
+]
