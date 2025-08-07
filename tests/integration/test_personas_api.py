@@ -1,13 +1,17 @@
 """Integration tests for persona API endpoints"""
 import pytest
 import httpx
-from tests.fixtures.test_auth import create_test_jwt
+from tests.fixtures.test_auth import JWTTestAuth
 
 BASE_URL = "http://chat-service:8000"
 
 
 class TestPersonasAPI:
     """Test persona API endpoints"""
+    
+    def setup_method(self):
+        """Setup test JWT auth helper"""
+        self.jwt_auth = JWTTestAuth()
     
     @pytest.mark.asyncio
     async def test_list_personas_requires_auth(self):
@@ -19,7 +23,7 @@ class TestPersonasAPI:
     @pytest.mark.asyncio
     async def test_list_personas_with_auth(self):
         """Test listing personas with valid authentication"""
-        token = create_test_jwt(user_id="test-user-123")
+        token = self.jwt_auth.create_test_token(user_id="test-user-123")
         headers = {"Authorization": f"Bearer {token}"}
         
         async with httpx.AsyncClient() as client:
@@ -35,7 +39,7 @@ class TestPersonasAPI:
     @pytest.mark.asyncio
     async def test_get_current_persona_defaults_to_mu(self):
         """Test that users get Mu as default persona"""
-        token = create_test_jwt(user_id="new-user-456")
+        token = self.jwt_auth.create_test_token(user_id="new-user-456")
         headers = {"Authorization": f"Bearer {token}"}
         
         async with httpx.AsyncClient() as client:
@@ -48,7 +52,7 @@ class TestPersonasAPI:
     @pytest.mark.asyncio
     async def test_set_user_persona(self):
         """Test setting a user's active persona"""
-        token = create_test_jwt(user_id="test-user-789")
+        token = self.jwt_auth.create_test_token(user_id="test-user-789")
         headers = {"Authorization": f"Bearer {token}"}
         
         async with httpx.AsyncClient() as client:
@@ -74,7 +78,7 @@ class TestPersonasAPI:
     @pytest.mark.asyncio
     async def test_get_specific_persona(self):
         """Test getting a specific persona by ID"""
-        token = create_test_jwt(user_id="test-user-321")
+        token = self.jwt_auth.create_test_token(user_id="test-user-321")
         headers = {"Authorization": f"Bearer {token}"}
         
         async with httpx.AsyncClient() as client:
@@ -92,7 +96,7 @@ class TestPersonasAPI:
     @pytest.mark.asyncio
     async def test_persona_affects_chat_response(self):
         """Test that persona selection affects chat responses"""
-        token = create_test_jwt(user_id="test-user-chat")
+        token = self.jwt_auth.create_test_token(user_id="test-user-chat")
         headers = {"Authorization": f"Bearer {token}"}
         
         async with httpx.AsyncClient() as client:
