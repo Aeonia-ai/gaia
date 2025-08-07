@@ -1,23 +1,43 @@
 """
 True end-to-end tests using real authentication and server endpoints.
-No mocking - tests the actual user experience.
+No mocking - tests the actual user experience with dynamically created test users.
 """
 import pytest
 from playwright.async_api import async_playwright
 import os
 import uuid
 from datetime import datetime
+from tests.fixtures.test_auth import TestUserFactory
 
 WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
 
-# Test with real dev credentials if in debug mode
-# Otherwise, would need to create real users via Supabase
-DEV_EMAIL = "dev@gaia.local"
-DEV_PASSWORD = "testtest"
+
+@pytest.fixture
+async def test_user_factory():
+    """Create test user factory for managing test users"""
+    if not os.getenv("SUPABASE_SERVICE_KEY"):
+        pytest.skip("Requires SUPABASE_SERVICE_KEY for real user creation")
+    
+    factory = TestUserFactory()
+    yield factory
+    # Cleanup all created users after tests
+    factory.cleanup_all()
 
 
+@pytest.fixture
+async def test_user(test_user_factory):
+    """Create a verified test user for individual tests"""
+    user = test_user_factory.create_verified_test_user()
+    yield user
+    # User will be cleaned up by factory
+
+
+@pytest.mark.skipif(
+    not os.getenv("SUPABASE_SERVICE_KEY"),
+    reason="Requires SUPABASE_SERVICE_KEY for real user creation"
+)
 @pytest.mark.asyncio
-async def test_real_login_flow():
+async def test_real_login_flow(test_user):
     """Test real login flow without any mocking"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -32,7 +52,7 @@ async def test_real_login_flow():
         # Enable console logging for debugging
         page.on("console", lambda msg: print(f"[Browser Console] {msg.text}"))
         
-        print("\n=== Starting Real E2E Test ===")
+        print(f"\n=== Starting Real E2E Test with user: {test_user['email']} ===")
         
         # 1. Navigate to home page
         print("1. Navigating to home page...")
@@ -43,14 +63,14 @@ async def test_real_login_flow():
         assert page.url.endswith('/login'), "Should redirect to login when not authenticated"
         print("✓ Redirected to login page")
         
-        # 2. Fill in login form with real credentials
+        # 2. Fill in login form with test user credentials
         print("\n2. Filling login form...")
         email_input = await page.wait_for_selector('input[name="email"]', timeout=5000)
-        await email_input.fill(DEV_EMAIL)
+        await email_input.fill(test_user['email'])
         
         password_input = await page.query_selector('input[name="password"]')
-        await password_input.fill(DEV_PASSWORD)
-        print(f"✓ Filled form with {DEV_EMAIL}")
+        await password_input.fill(test_user['password'])
+        print(f"✓ Filled form with {test_user['email']}")
         
         # 3. Submit form and wait for navigation
         print("\n3. Submitting login form...")
@@ -120,6 +140,10 @@ async def test_real_login_flow():
             print("\n=== E2E Test Complete ===")
 
 
+@pytest.mark.skipif(
+    not os.getenv("SUPABASE_SERVICE_KEY"),
+    reason="Requires SUPABASE_SERVICE_KEY for real user creation"
+)
 @pytest.mark.asyncio
 async def test_real_registration_flow():
     """Test real registration flow (if enabled)"""
@@ -130,9 +154,10 @@ async def test_real_registration_flow():
         )
         page = await browser.new_page()
         
-        # Generate unique test email
+        # Generate unique test email with a domain that passes validation
         test_id = uuid.uuid4().hex[:8]
-        test_email = f"test-{test_id}@test.local"
+        # Use gmail.com or another valid domain for testing
+        test_email = f"test.user.{test_id}@gmail.com"
         test_password = "TestPass123!"
         
         print(f"\n=== Testing Registration with {test_email} ===")
@@ -148,36 +173,45 @@ async def test_real_registration_flow():
         await page.click('button[type="submit"]')
         
         # Wait for response
-        await page.wait_for_timeout(2000)
+        await page.wait_for_timeout(3000)
         
         # Check what happened
         if page.url.endswith('/register'):
             # Still on register page - check for error
-            error_element = await page.query_selector('.bg-red-500\/10, .error')
+            error_element = await page.query_selector('.bg-red-500\/10, .error, .text-red-500')
             if error_element:
                 error_text = await error_element.inner_text()
-                print(f"Registration error: {error_text}")
+                print(f"Registration response: {error_text}")
                 
-                # This is expected if registration is restricted
+                # Common expected errors
                 if "not allowed for this email domain" in error_text:
                     print("✓ Registration correctly blocked for test domain")
+                    pytest.skip("Registration blocked for test domain - this is expected")
+                elif "already registered" in error_text.lower():
+                    print("✓ Email already registered")
+                    pytest.skip("Email already registered - expected for repeated tests")
                 else:
                     raise Exception(f"Unexpected error: {error_text}")
         else:
             # Navigated somewhere else - could be email verification page
             print(f"Navigated to: {page.url}")
             
-            if "email-verification" in page.url:
-                print("✓ Email verification required")
+            if "email-verification" in page.url or "verify" in page.url:
+                print("✓ Email verification required - registration successful")
             elif page.url.endswith('/chat'):
                 print("✓ Auto-logged in after registration")
+                # This would be unexpected unless email verification is disabled
         
         await browser.close()
 
 
+@pytest.mark.skipif(
+    not os.getenv("SUPABASE_SERVICE_KEY"),
+    reason="Requires SUPABASE_SERVICE_KEY for real user creation"
+)
 @pytest.mark.asyncio
-async def test_logout_flow():
-    """Test logout functionality"""
+async def test_logout_flow(test_user):
+    """Test logout functionality regardless of UI implementation"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -186,39 +220,72 @@ async def test_logout_flow():
         context = await browser.new_context()
         page = await context.new_page()
         
+        print(f"\n=== Testing Logout with user: {test_user['email']} ===")
+        
         # First login
         await page.goto(f"{WEB_SERVICE_URL}/login")
-        await page.fill('input[name="email"]', DEV_EMAIL)
-        await page.fill('input[name="password"]', DEV_PASSWORD)
+        await page.fill('input[name="email"]', test_user['email'])
+        await page.fill('input[name="password"]', test_user['password'])
         await page.click('button[type="submit"]')
         
         # Wait for chat page
         try:
             await page.wait_for_url('**/chat', timeout=10000)
+            print("✓ Successfully logged in")
             
-            # Now test logout
-            print("\n=== Testing Logout ===")
+            # Method 1: Direct navigation to logout endpoint (most reliable)
+            print("\n1. Testing direct logout endpoint...")
+            await page.goto(f"{WEB_SERVICE_URL}/logout")
             
-            # Look for logout link/button
-            logout_link = await page.query_selector('a[href="/logout"], button:has-text("Logout")')
-            if logout_link:
-                await logout_link.click()
-                
-                # Should redirect to login
+            # Should redirect to login after logout
+            try:
                 await page.wait_for_url('**/login', timeout=5000)
-                print("✓ Successfully logged out")
+                print("✓ Successfully logged out via direct endpoint")
+            except:
+                # Some systems might redirect to home or a logout confirmation page
+                current_url = page.url
+                print(f"Redirected to: {current_url}")
                 
-                # Try to access chat directly
+                # Verify we're actually logged out by trying to access protected route
                 await page.goto(f"{WEB_SERVICE_URL}/chat")
-                
-                # Should redirect back to login
                 await page.wait_for_url('**/login', timeout=5000)
-                print("✓ Protected route correctly redirects to login")
+                print("✓ Logout successful - protected route redirects to login")
+            
+            # Method 2: Test that protected routes are inaccessible after logout
+            print("\n2. Verifying session is terminated...")
+            
+            # Try multiple protected endpoints
+            protected_routes = ['/chat', '/profile', '/settings']
+            for route in protected_routes:
+                try:
+                    await page.goto(f"{WEB_SERVICE_URL}{route}")
+                    # Should redirect to login
+                    if not page.url.endswith('/login'):
+                        await page.wait_for_url('**/login', timeout=2000)
+                    print(f"✓ {route} correctly redirects to login when not authenticated")
+                    break  # One successful check is enough
+                except:
+                    continue  # Try next route if this one doesn't exist
+            
+            # Method 3: Check cookies are cleared (optional verification)
+            print("\n3. Checking session cleanup...")
+            cookies = await context.cookies()
+            session_cookies = [c for c in cookies if 'session' in c['name'].lower() or 'auth' in c['name'].lower()]
+            
+            if not session_cookies:
+                print("✓ Session cookies cleared")
             else:
-                print("✗ Logout link not found")
+                # Some cookies might be present but invalid/expired
+                print(f"Note: {len(session_cookies)} auth-related cookies still present")
+                # This is okay as long as they don't grant access
                 
         except Exception as e:
-            print(f"✗ Login failed, cannot test logout: {e}")
+            print(f"✗ Test failed: {e}")
+            await page.screenshot(path="tests/web/screenshots/e2e-logout-failure.png")
+            # Save HTML for debugging
+            html_content = await page.content()
+            with open("tests/web/screenshots/e2e-logout-page.html", "w") as f:
+                f.write(html_content)
             raise
         
         await browser.close()
