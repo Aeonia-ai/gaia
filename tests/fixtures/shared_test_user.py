@@ -6,16 +6,19 @@ and reuses it for all tests, dramatically reducing email sending.
 """
 import os
 import logging
+import threading
+import time
 from typing import Dict, Optional
 from tests.fixtures.test_auth import TestUserFactory
 from gotrue.errors import AuthApiError
 
 logger = logging.getLogger(__name__)
 
-# Global shared test user
+# Global shared test user with thread-safe access
 _SHARED_TEST_USER: Optional[Dict[str, str]] = None
 _TEST_USER_EMAIL = os.getenv("GAIA_TEST_EMAIL", "test@example.com")
 _TEST_USER_PASSWORD = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
+_USER_LOCK = threading.Lock()
 
 
 class SharedTestUser:
@@ -31,74 +34,80 @@ class SharedTestUser:
         """
         global _SHARED_TEST_USER
         
-        if _SHARED_TEST_USER is not None:
-            logger.debug(f"Reusing shared test user: {_TEST_USER_EMAIL}")
-            return _SHARED_TEST_USER
-        
-        # Create the shared test user
-        factory = TestUserFactory()
-        
-        # First, try to login with existing user
-        try:
-            logger.info(f"Attempting to login with existing user: {_TEST_USER_EMAIL}")
-            response = factory.client.auth.sign_in_with_password({
-                "email": _TEST_USER_EMAIL,
-                "password": _TEST_USER_PASSWORD
-            })
-            
-            if response.user:
-                logger.info(f"Using existing shared test user: {response.user.id}")
-                _SHARED_TEST_USER = {
-                    "email": _TEST_USER_EMAIL,
-                    "password": _TEST_USER_PASSWORD,
-                    "user_id": response.user.id
-                }
+        with _USER_LOCK:
+            if _SHARED_TEST_USER is not None:
+                logger.debug(f"Reusing shared test user: {_TEST_USER_EMAIL}")
                 return _SHARED_TEST_USER
-        except Exception as e:
-            logger.debug(f"Login failed, will try to create user: {e}")
-        
-        # If login failed, try to create the user
-        try:
-            logger.info(f"Creating shared test user: {_TEST_USER_EMAIL}")
-            user = factory.create_verified_test_user(
-                email=_TEST_USER_EMAIL,
-                password=_TEST_USER_PASSWORD,
-                role="user"
-            )
             
-            _SHARED_TEST_USER = user
-            logger.info(f"Shared test user created successfully: {user['user_id']}")
+            # Create the shared test user
+            factory = TestUserFactory()
             
-            return user
-            
-        except Exception as e:
-            # If creation failed due to user existing, we have a password mismatch
-            # Clean up and recreate
-            if "already registered" in str(e).lower() or "already exists" in str(e).lower() or "email_exists" in str(e).lower():
-                logger.info(f"User exists but password may be wrong, cleaning up and recreating")
-                try:
-                    factory.cleanup_user_by_email(_TEST_USER_EMAIL)
-                    # Try to create again
-                    user = factory.create_verified_test_user(
-                        email=_TEST_USER_EMAIL,
-                        password=_TEST_USER_PASSWORD,
-                        role="user"
-                    )
-                    _SHARED_TEST_USER = user
-                    logger.info(f"Shared test user recreated successfully: {user['user_id']}")
-                    return user
-                except Exception as recreate_error:
-                    logger.error(f"Failed to recreate user: {recreate_error}")
-                    # Return credentials anyway for tests that don't need user ID
+            # First, try to login with existing user
+            try:
+                logger.info(f"Attempting to login with existing user: {_TEST_USER_EMAIL}")
+                response = factory.client.auth.sign_in_with_password({
+                    "email": _TEST_USER_EMAIL,
+                    "password": _TEST_USER_PASSWORD
+                })
+                
+                if response.user:
+                    logger.info(f"Using existing shared test user: {response.user.id}")
                     _SHARED_TEST_USER = {
                         "email": _TEST_USER_EMAIL,
                         "password": _TEST_USER_PASSWORD,
-                        "user_id": "unknown"
+                        "user_id": response.user.id
                     }
                     return _SHARED_TEST_USER
-            else:
-                logger.error(f"Failed to create shared test user: {e}")
-                raise
+            except Exception as e:
+                logger.debug(f"Login failed, will try to create user: {e}")
+            
+            # If login failed, try to create the user
+            try:
+                logger.info(f"Creating shared test user: {_TEST_USER_EMAIL}")
+                user = factory.create_verified_test_user(
+                    email=_TEST_USER_EMAIL,
+                    password=_TEST_USER_PASSWORD,
+                    role="user"
+                )
+                
+                _SHARED_TEST_USER = user
+                logger.info(f"Shared test user created successfully: {user['user_id']}")
+                
+                return user
+                
+            except Exception as e:
+                # If creation failed due to user existing, try to login instead
+                if "already registered" in str(e).lower() or "already exists" in str(e).lower() or "email_exists" in str(e).lower():
+                    logger.info(f"User already exists, attempting to login to get user ID")
+                    try:
+                        # Try to login with the credentials
+                        response = factory.client.auth.sign_in_with_password({
+                            "email": _TEST_USER_EMAIL,
+                            "password": _TEST_USER_PASSWORD
+                        })
+                        
+                        if response.user:
+                            logger.info(f"Successfully logged in existing shared test user: {response.user.id}")
+                            _SHARED_TEST_USER = {
+                                "email": _TEST_USER_EMAIL,
+                                "password": _TEST_USER_PASSWORD,
+                                "user_id": response.user.id
+                            }
+                            return _SHARED_TEST_USER
+                    except Exception as login_error:
+                        logger.warning(f"Failed to login with existing user: {login_error}")
+                        
+                    # If login failed, return credentials anyway for tests that don't need user ID
+                    logger.warning("User exists but login failed, returning credentials without user_id")
+                    _SHARED_TEST_USER = {
+                        "email": _TEST_USER_EMAIL,
+                        "password": _TEST_USER_PASSWORD,
+                        "user_id": "existing"
+                    }
+                    return _SHARED_TEST_USER
+                else:
+                    logger.error(f"Failed to create shared test user: {e}")
+                    raise
     
     @classmethod
     def get_credentials(cls) -> Dict[str, str]:

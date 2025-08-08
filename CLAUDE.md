@@ -52,6 +52,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## ⚠️ REMINDER TO CLAUDE CODE
 **BEFORE ANY WEB UI CHANGES:** You MUST read the HTMX + FastHTML Debugging Guide and Auth Layout Isolation docs first. The user will remind you if you don't, because layout bugs "keep coming back" when documentation is ignored. Always use `auth_page_replacement()` for auth responses and proper HTMX container targeting patterns.
 
+**COMMUNICATION REQUIREMENT:** Tell the user what you are planning to do before you do it and what you actually did after you accomplished the goal. This helps with transparency and ensures alignment between expectations and results. Make sure you explain your hypothesis and assumptions.
+
 ## 🤖 Claude Code Agents
 Specialized agents are available for specific tasks. Use them when working in their domains:
 
@@ -199,6 +201,36 @@ See:
 - If you need to test something new, ADD it to the test suite
 - Automated tests capture knowledge, curl commands vanish with your terminal
 - See [Testing Guide](docs/testing/TESTING_GUIDE.md) for complete testing documentation
+
+### 🎯 Problem-Solving Patterns
+
+**1. Question the Problem Definition**
+- When something fails, don't assume the obvious failure point is the root cause
+- Before fixing, ask "Why was it designed this way?" and "What problem was the original design solving?"
+
+**2. Respect Existing Abstractions**
+- Well-designed systems have fixtures, patterns, and abstractions for reasons
+- When you see a shared resource pattern (like `shared_test_user`), it's likely solving a resource constraint or rate limiting issue
+
+**3. Understand the System's Constraints**
+- External systems impose constraints that shape our code design
+- Rate limits, validation rules, and security measures aren't bugs to work around - they're boundaries that inform architecture
+
+**4. Complexity is a Code Smell**
+- If your solution is more complex than the original, you're probably solving the wrong problem
+- Simple failing test → Complex multi-step solution = Step back and reconsider
+
+**5. Debug the Assumption, Not Just the Code**
+- Failed tests often reveal incorrect assumptions about system behavior
+- "User doesn't exist" wasn't a bug - it was a misunderstanding of fixture lifecycle
+
+**6. Context Over Correctness**
+- The "correct" solution in isolation may be wrong in context
+- Creating fresh test users is "correct" but wrong when the system has rate limits
+
+**7. Error Messages are Features**
+- Different error messages often indicate different layers of system protection
+- "Invalid email domain" → "Rate limit exceeded" → "User exists" shows a validation pipeline, not random failures
 
 ## 📚 Essential Documentation Index
 
