@@ -57,6 +57,7 @@ class TestUserFactory:
                 "email": email,
                 "password": password,
                 "email_confirm": True,  # Bypass email verification
+                "send_email": False,    # Prevent sending ANY emails
                 "user_metadata": {
                     "test_user": True,
                     "role": role,
@@ -87,6 +88,26 @@ class TestUserFactory:
             logger.info(f"Deleted test user: {user_id}")
         except Exception as e:
             logger.warning(f"Failed to delete test user {user_id}: {e}")
+    
+    def cleanup_user_by_email(self, email: str):
+        """Delete a test user by email address."""
+        try:
+            # First, we need to get the user by email
+            # Using the admin API to list users with filter
+            response = self.client.auth.admin.list_users()
+            
+            # Find the user with matching email
+            for user in response:
+                if user.email == email:
+                    self.client.auth.admin.delete_user(user.id)
+                    logger.info(f"Deleted test user by email: {email} (ID: {user.id})")
+                    return True
+                    
+            logger.warning(f"No user found with email: {email}")
+            return False
+        except Exception as e:
+            logger.warning(f"Failed to delete test user by email {email}: {e}")
+            return False
             
     def cleanup_all(self):
         """Delete all test users created by this factory."""
@@ -222,7 +243,7 @@ class TestAuthManager:
 TEST_USERS = {
     "default": {
         "email": "test@test.local",
-        "password": "TestPassword123!",
+        "password": os.getenv("GAIA_TEST_PASSWORD", "default-test-password"),
         "role": "user"
     },
     "admin": {

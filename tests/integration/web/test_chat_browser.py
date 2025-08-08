@@ -14,6 +14,11 @@ import json
 import uuid
 from playwright.async_api import async_playwright, expect
 import os
+import sys
+
+# Add integration helpers to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from helpers.browser_auth import BrowserAuthHelper
 
 WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
 
@@ -22,7 +27,7 @@ class TestChatFunctionality:
     """Test chat interface functionality"""
     
     @pytest.mark.asyncio
-    async def test_send_and_receive_message(self):
+    async def test_send_and_receive_message(self, test_user_credentials):
         """Test sending a message and receiving AI response"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -30,195 +35,56 @@ class TestChatFunctionality:
                 args=['--no-sandbox', '--disable-setuid-sandbox']
             )
             context = await browser.new_context(viewport={'width': 1920, 'height': 1080})
-            
-            # Add session cookie for authentication
-            await context.add_cookies([{
-                "name": "session",
-                "value": "test-session-token",
-                "domain": "web-service",
-                "path": "/",
-                "httpOnly": True
-            }])
-            
             page = await context.new_page()
+            
+            # Login with real credentials
+            await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
             
             # Track network activity
             api_calls = []
             page.on("request", lambda req: api_calls.append(req) if "/api/" in req.url else None)
             
-            # Mock session validation endpoint
-            await page.route("**/api/session", lambda route: route.fulfill(
-                status=200,
-                json={
-                    "authenticated": True,
-                    "user": {
-                        "id": "test-user-123",
-                        "email": "test@test.local"
-                    },
-                    "jwt_token": "mock-jwt-token"
-                }
-            ))
+            # Wait for chat interface to load
+            await page.wait_for_selector('#chat-form', timeout=10000)
             
-            # Mock the login page
-            await page.route("**/login", lambda route: route.fulfill(
-                status=200,
-                content_type="text/html",
-                body="""
-                <!DOCTYPE html>
-                <html>
-                <head><title>Login</title></head>
-                <body>
-                    <form action="/auth/login" method="post">
-                        <input type="email" name="email" required>
-                        <input type="password" name="password" required>
-                        <button type="submit">Sign In</button>
-                    </form>
-                </body>
-                </html>
-                """
-            ))
-            
-            # Mock authentication with HTMX support
-            async def handle_auth(route):
-                # HTMX requests need HX-Redirect header
-                if 'hx-request' in route.request.headers:
-                    await route.fulfill(
-                        status=200,
-                        headers={"HX-Redirect": "/chat"},
-                        body=""
-                    )
-                else:
-                    await route.fulfill(
-                        status=303,
-                        headers={"Location": "/chat"},
-                        body=""
-                    )
-            
-            await page.route("**/auth/login", handle_auth)
-            
-            # Mock the chat page with session check
-            await page.route("**/chat", lambda route: route.fulfill(
-                status=200,
-                content_type="text/html",
-                body="""
-                <!DOCTYPE html>
-                <html>
-                <head><title>Chat</title></head>
-                <body>
-                    <div id="chat-container">
-                        <div id="messages"></div>
-                        <form id="chat-form">
-                            <input type="text" name="message" placeholder="Type a message...">
-                            <button type="submit">Send</button>
-                        </form>
-                    </div>
-                    <script>
-                        // Check session on load
-                        fetch('/api/session')
-                            .then(r => r.json())
-                            .then(data => {
-                                if (!data.authenticated) {
-                                    window.location.href = '/login';
-                                }
-                            });
-                            
-                        // Handle form submission
-                        document.getElementById('chat-form').onsubmit = function(e) {
-                            e.preventDefault();
-                            const input = this.querySelector('input[name="message"]');
-                            const messages = document.getElementById('messages');
-                            
-                            // Add user message
-                            messages.innerHTML += '<div class="user">' + input.value + '</div>';
-                            
-                            // Make API call
-                            fetch('/api/v1/chat', {
-                                method: 'POST',
-                                headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({messages: [{role: 'user', content: input.value}]})
-                            })
-                            .then(r => r.json())
-                            .then(data => {
-                                const content = data.choices[0].message.content;
-                                messages.innerHTML += '<div class="assistant">' + content + '</div>';
-                            });
-                            
-                            input.value = '';
-                            return false;
-                        };
-                    </script>
-                </body>
-                </html>
-                """
-            ))
-            
-            # Mock conversations list
-            await page.route("**/api/conversations", lambda route: route.fulfill(
-                json={
-                    "conversations": [],
-                    "has_more": False
-                }
-            ))
-            
-            # Mock chat response
-            await page.route("**/api/v1/chat", lambda route: route.fulfill(
-                json={
-                    "id": "chatcmpl-123",
-                    "object": "chat.completion",
-                    "created": 1677858242,
-                    "model": "gpt-4",
-                    "choices": [{
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": "Hello! I'm here to help. How can I assist you today?"
-                        },
-                        "finish_reason": "stop"
-                    }],
-                    "usage": {
-                        "prompt_tokens": 13,
-                        "completion_tokens": 17,
-                        "total_tokens": 30
-                    }
-                }
-            ))
-            
-            # Navigate directly to chat (we have session cookie)
-            await page.goto(f'{WEB_SERVICE_URL}/chat')
-            await page.wait_for_timeout(500)  # Let session check complete
-            
-            # Verify chat interface loaded
-            chat_form = page.locator('#chat-form')
-            await expect(chat_form).to_be_visible()
-            
-            message_input = page.locator('input[name="message"]')
+            # Find the message input - it might be a textarea or input
+            message_input = page.locator('textarea[name="message"], input[name="message"]').first
             await expect(message_input).to_be_visible()
             
-            # Send a message
-            test_message = "Hello, AI assistant!"
+            # Send a test message
+            test_message = "Hello, this is a test message!"
             await message_input.fill(test_message)
             
-            # Submit the form
-            send_button = page.locator('button[type="submit"]')
+            # Submit the form - find the send button
+            send_button = page.locator('button[type="submit"], button:has-text("Send")')
             await send_button.click()
             
-            # Wait for user message to appear
-            await expect(page.locator(f'text="{test_message}"')).to_be_visible(timeout=5000)
+            # Wait for the message to be sent (input should clear)
+            await expect(message_input).to_have_value("", timeout=5000)
             
-            # Wait for AI response
-            await expect(page.locator('text="Hello! I\'m here to help"')).to_be_visible(timeout=5000)
+            # Wait for response to appear in messages area
+            messages_area = page.locator('#messages')
+            
+            # Wait for some response to appear (we don't know exact text)
+            # Look for any new message that's not our test message
+            await page.wait_for_timeout(2000)  # Give AI time to respond
+            
+            # Check that our message appears
+            user_message = messages_area.locator(f'text="{test_message}"')
+            await expect(user_message).to_be_visible(timeout=10000)
+            
+            # Check that there's at least one more message (the AI response)
+            all_messages = await messages_area.locator('.message, [class*="message"], div').all()
+            assert len(all_messages) >= 2, "Should have user message and AI response"
             
             # Verify API was called
-            chat_api_calls = [req for req in api_calls if "/api/v1/chat" in req.url]
+            chat_api_calls = [req for req in api_calls if any(endpoint in req.url for endpoint in ["/api/chat", "/api/v1/chat", "/api/v0.2/chat"])]
             assert len(chat_api_calls) > 0, "Chat API should have been called"
-            
-            # Check message input is cleared
-            await expect(message_input).to_have_value("")
             
             await browser.close()
     
     @pytest.mark.asyncio
-    async def test_conversation_history(self):
+    async def test_conversation_history(self, test_user_credentials):
         """Test that conversation history is displayed"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -226,17 +92,10 @@ class TestChatFunctionality:
                 args=['--no-sandbox', '--disable-setuid-sandbox']
             )
             context = await browser.new_context()
-            
-            # Add session cookie for authentication
-            await context.add_cookies([{
-                "name": "session",
-                "value": "test-session-token",
-                "domain": "web-service",
-                "path": "/",
-                "httpOnly": True
-            }])
-            
             page = await context.new_page()
+            
+            # Login with real credentials
+            await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
             
             # Mock session validation endpoint
             await page.route("**/api/session", lambda route: route.fulfill(

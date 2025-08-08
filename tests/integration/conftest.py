@@ -2,6 +2,14 @@
 Pytest configuration for integration tests.
 """
 import pytest
+import sys
+import os
+
+# Add project root to path so we can import test fixtures
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import shared test user fixture
+from fixtures.shared_test_user import shared_test_user, test_user_credentials
 
 def pytest_configure(config):
     """Register custom markers."""

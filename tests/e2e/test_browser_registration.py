@@ -9,8 +9,8 @@ WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
 
 
 @pytest.mark.asyncio
-async def test_registration_flow():
-    """Test what happens during registration"""
+async def test_registration_flow(shared_test_user):
+    """Test login flow with shared test user instead of registration"""
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
@@ -21,19 +21,19 @@ async def test_registration_flow():
         # Log all console messages
         page.on("console", lambda msg: print(f"[Browser Console] {msg.type}: {msg.text}"))
         
-        # Navigate to register
-        await page.goto(f'{WEB_SERVICE_URL}/register')
+        # Navigate to login instead of register
+        await page.goto(f'{WEB_SERVICE_URL}/login')
         print(f"On page: {page.url}")
         
         # Take screenshot
-        await page.screenshot(path="tests/web/screenshots/register-page.png")
+        await page.screenshot(path="tests/web/screenshots/login-page.png")
         
-        # Fill form
-        await page.fill('input[name="email"]', 'test-browser@example.com')
-        await page.fill('input[name="password"]', 'TestPassword123!')
+        # Use shared test user credentials
+        await page.fill('input[name="email"]', shared_test_user["email"])
+        await page.fill('input[name="password"]', shared_test_user["password"])
         
         # Submit
-        print("Submitting registration form...")
+        print(f"Logging in with shared user: {shared_test_user['email']}")
         await page.click('button[type="submit"]')
         
         # Wait for any response

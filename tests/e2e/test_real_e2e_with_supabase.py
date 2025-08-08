@@ -22,7 +22,7 @@ async def test_real_e2e_login_with_supabase():
     """Test real login flow with actual Supabase user"""
     factory = TestUserFactory()
     test_email = f"e2e-test-{uuid.uuid4().hex[:8]}@test.local"
-    test_password = "TestPassword123!"
+    test_password = "os.getenv("GAIA_TEST_PASSWORD", "default-test-password")"
     
     # Create real user in Supabase
     user = factory.create_verified_test_user(
