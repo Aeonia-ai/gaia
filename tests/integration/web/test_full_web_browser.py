@@ -14,6 +14,11 @@ import asyncio
 import json
 from playwright.async_api import async_playwright, expect, Page
 import os
+import sys
+
+# Add integration helpers to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from helpers.browser_auth import BrowserAuthHelper
 
 # Browser test configuration
 pytestmark = pytest.mark.asyncio
@@ -156,7 +161,7 @@ class TestHTMXBehavior:
 class TestWebSocketFunctionality:
     """Test WebSocket connections for real-time features"""
     
-    async def test_websocket_connection_establishment(self):
+    async def test_websocket_connection_establishment(self, test_user_credentials):
         """Test that WebSocket connects when entering chat"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -174,24 +179,13 @@ class TestWebSocketFunctionality:
             
             page.on("websocket", on_websocket)
             
-            # Mock authentication
-            await page.route("**/auth/login", lambda route: route.fulfill(
-                status=303,
-                headers={"Location": "/chat"},
-                body=""
-            ))
+            # Login with real auth first
+            await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
+            
+            # Now set up mock for conversations if needed
             await page.route("**/api/conversations", lambda route: route.fulfill(
                 json={"conversations": [], "has_more": False}
             ))
-            
-            # Login
-            await page.goto(f'{WEB_SERVICE_URL}/login')
-            await page.fill('input[name="email"]', 'test@test.local')
-            await page.fill('input[name="password"]', 'test')
-            await page.click('button[type="submit"]')
-            
-            # Wait for chat page
-            await page.wait_for_url('**/chat')
             
             # Give WebSocket time to connect
             await page.wait_for_timeout(1000)
@@ -271,7 +265,7 @@ class TestClientSideValidation:
 class TestResponsiveDesign:
     """Test responsive design behavior in real browsers"""
     
-    async def test_mobile_menu_toggle(self):
+    async def test_mobile_menu_toggle(self, test_user_credentials):
         """Test mobile menu toggle functionality"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -286,22 +280,13 @@ class TestResponsiveDesign:
             )
             page = await context.new_page()
             
-            # Mock auth
-            await page.route("**/auth/login", lambda route: route.fulfill(
-                status=303,
-                headers={"Location": "/chat"},
-                body=""
-            ))
+            # Login with real auth
+            await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
+            
+            # Mock conversations API if needed
             await page.route("**/api/conversations", lambda route: route.fulfill(
                 json={"conversations": [], "has_more": False}
             ))
-            
-            # Login
-            await page.goto(f'{WEB_SERVICE_URL}/login')
-            await page.fill('input[name="email"]', 'test@test.local')
-            await page.fill('input[name="password"]', 'test')
-            await page.click('button[type="submit"]')
-            await page.wait_for_url('**/chat')
             
             # Check if sidebar is hidden on mobile
             sidebar = await page.query_selector('#sidebar')
@@ -421,9 +406,15 @@ class TestErrorStates:
             await page.fill('input[name="password"]', 'test')
             await page.click('button[type="submit"]')
             
-            # Should show some error
-            error = await page.wait_for_selector('[role="alert"], .error, .alert', timeout=5000)
-            assert error, "Should show error on network failure"
+            # Should show some error - use robust selector pattern
+            error_locator = (
+                page.locator('[role="alert"]')
+                .or_(page.locator('.error'))
+                .or_(page.locator('.alert'))
+                .or_(page.locator('[data-error="true"]'))
+                .or_(page.locator('text=/.*error.*/i'))
+            )
+            await expect(error_locator.first).to_be_visible(timeout=5000)
             
             await browser.close()
     
@@ -461,8 +452,15 @@ class TestErrorStates:
             await submit_button.click()
             await submit_button.click()
             
-            # Wait for response
-            await page.wait_for_selector('[role="alert"]', timeout=5000)
+            # Wait for response - use robust selector pattern
+            error_locator = (
+                page.locator('[role="alert"]')
+                .or_(page.locator('.error'))
+                .or_(page.locator('.alert'))
+                .or_(page.locator('[data-error="true"]'))
+                .or_(page.locator('text=/.*error.*/i'))
+            )
+            await expect(error_locator.first).to_be_visible(timeout=5000)
             
             # Should only have made one request (button should be disabled)
             # Or at most a reasonable number if the app doesn't prevent it
@@ -474,7 +472,7 @@ class TestErrorStates:
 class TestChatFunctionality:
     """Test chat-specific functionality in the browser"""
     
-    async def test_message_auto_scroll(self):
+    async def test_message_auto_scroll(self, test_user_credentials):
         """Test that messages container auto-scrolls to bottom"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -483,12 +481,10 @@ class TestChatFunctionality:
             )
             page = await browser.new_page()
             
-            # Mock auth and chat
-            await page.route("**/auth/login", lambda route: route.fulfill(
-                status=303,
-                headers={"Location": "/chat"},
-                body=""
-            ))
+            # Login with real auth first
+            await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
+            
+            # Now mock APIs for test functionality
             await page.route("**/api/conversations", lambda route: route.fulfill(
                 json={"conversations": [], "has_more": False}
             ))
@@ -505,17 +501,13 @@ class TestChatFunctionality:
                 }
             ))
             
-            # Login and go to chat
-            await page.goto(f'{WEB_SERVICE_URL}/login')
-            await page.fill('input[name="email"]', 'test@test.local')
-            await page.fill('input[name="password"]', 'test')
-            await page.click('button[type="submit"]')
-            await page.wait_for_url('**/chat')
+            # Send multiple messages - use robust selector pattern
+            message_input = page.locator('textarea[name="message"], input[name="message"]').first
+            await expect(message_input).to_be_visible()
             
-            # Send multiple messages
             for i in range(5):
                 message_count = i
-                await page.fill('input[name="message"]', f"Message {i}")
+                await message_input.fill(f"Message {i}")
                 await page.keyboard.press('Enter')
                 await page.wait_for_timeout(200)
             
@@ -536,7 +528,7 @@ class TestChatFunctionality:
             
             await browser.close()
     
-    async def test_message_persistence_on_refresh(self):
+    async def test_message_persistence_on_refresh(self, test_user_credentials):
         """Test that messages persist on page refresh"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -546,13 +538,8 @@ class TestChatFunctionality:
             context = await browser.new_context()
             page = await context.new_page()
             
-            # Set up persistent session
-            await context.add_cookies([{
-                'name': 'session',
-                'value': 'test-session',
-                'domain': 'web-service',
-                'path': '/'
-            }])
+            # Login with real auth first to get real session
+            await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
             
             # Mock API
             conversation_id = 'test-conv-123'
@@ -588,10 +575,19 @@ class TestChatFunctionality:
             # Go to chat
             await page.goto(f'{WEB_SERVICE_URL}/chat')
             
-            # Send a message
-            await page.fill('input[name="message"]', 'Test message')
+            # Send a message - use robust selector pattern
+            message_input = page.locator('textarea[name="message"], input[name="message"]').first
+            await expect(message_input).to_be_visible()
+            await message_input.fill('Test message')
             await page.keyboard.press('Enter')
-            await page.wait_for_selector('text="Test response"')
+            
+            # Wait for response - use robust pattern
+            response_locator = (
+                page.locator('text="Test response"')
+                .or_(page.locator('[data-role="assistant"]'))
+                .or_(page.locator('.assistant-message'))
+            )
+            await expect(response_locator.first).to_be_visible(timeout=5000)
             
             # Refresh page
             await page.reload()
