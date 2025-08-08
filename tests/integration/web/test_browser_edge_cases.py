@@ -215,7 +215,7 @@ class TestMemoryLeaks(BrowserTestBase):
                     await page.wait_for_selector('text="Login failed. Please try again."', timeout=1000)
                 except:
                     # Fallback: look for error indicators
-                    await page.wait_for_selector('[role="alert"], .error, text=/error|failed/i', timeout=1000)
+                    await page.wait_for_selector('[role="alert"], .error', timeout=1000)
                 await page.wait_for_timeout(50)  # Small delay
             
             # Check memory didn't grow excessively
@@ -458,7 +458,7 @@ class TestDynamicContent(BrowserTestBase):
                 await page.wait_for_selector('text="Login failed. Please try again."', timeout=2000)
             except:
                 # Fallback: look for error indicators
-                await page.wait_for_selector('[role="alert"], .error, text=/error|failed/i', timeout=2000)
+                await page.wait_for_selector('[role="alert"], .error', timeout=2000)
             
             # Button should return to normal
             final_text = await submit_button.inner_text()

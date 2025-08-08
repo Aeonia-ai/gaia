@@ -8,6 +8,7 @@ import os
 import logging
 from typing import Dict, Optional
 from tests.fixtures.test_auth import TestUserFactory
+from gotrue.errors import AuthApiError
 
 logger = logging.getLogger(__name__)
 
@@ -34,19 +35,30 @@ class SharedTestUser:
             logger.debug(f"Reusing shared test user: {_TEST_USER_EMAIL}")
             return _SHARED_TEST_USER
         
+        # Create the shared test user
+        factory = TestUserFactory()
+        
+        # First, try to login with existing user
         try:
-            # Create the shared test user
-            factory = TestUserFactory()
+            logger.info(f"Attempting to login with existing user: {_TEST_USER_EMAIL}")
+            response = factory.client.auth.sign_in_with_password({
+                "email": _TEST_USER_EMAIL,
+                "password": _TEST_USER_PASSWORD
+            })
             
-            # First, try to delete any existing user with this email
-            # This handles cases where previous test runs didn't clean up
-            try:
-                # Note: We can't easily check if user exists without trying to create
-                # So we'll just try to create and handle the error
-                pass
-            except Exception:
-                pass
-            
+            if response.user:
+                logger.info(f"Using existing shared test user: {response.user.id}")
+                _SHARED_TEST_USER = {
+                    "email": _TEST_USER_EMAIL,
+                    "password": _TEST_USER_PASSWORD,
+                    "user_id": response.user.id
+                }
+                return _SHARED_TEST_USER
+        except Exception as e:
+            logger.debug(f"Login failed, will try to create user: {e}")
+        
+        # If login failed, try to create the user
+        try:
             logger.info(f"Creating shared test user: {_TEST_USER_EMAIL}")
             user = factory.create_verified_test_user(
                 email=_TEST_USER_EMAIL,
@@ -60,15 +72,30 @@ class SharedTestUser:
             return user
             
         except Exception as e:
-            # If user already exists, that's fine - just use it
-            if "already registered" in str(e).lower() or "already exists" in str(e).lower():
-                logger.info(f"Shared test user already exists: {_TEST_USER_EMAIL}")
-                _SHARED_TEST_USER = {
-                    "email": _TEST_USER_EMAIL,
-                    "password": _TEST_USER_PASSWORD,
-                    "user_id": "existing"  # We don't know the ID, but that's ok
-                }
-                return _SHARED_TEST_USER
+            # If creation failed due to user existing, we have a password mismatch
+            # Clean up and recreate
+            if "already registered" in str(e).lower() or "already exists" in str(e).lower() or "email_exists" in str(e).lower():
+                logger.info(f"User exists but password may be wrong, cleaning up and recreating")
+                try:
+                    factory.cleanup_user_by_email(_TEST_USER_EMAIL)
+                    # Try to create again
+                    user = factory.create_verified_test_user(
+                        email=_TEST_USER_EMAIL,
+                        password=_TEST_USER_PASSWORD,
+                        role="user"
+                    )
+                    _SHARED_TEST_USER = user
+                    logger.info(f"Shared test user recreated successfully: {user['user_id']}")
+                    return user
+                except Exception as recreate_error:
+                    logger.error(f"Failed to recreate user: {recreate_error}")
+                    # Return credentials anyway for tests that don't need user ID
+                    _SHARED_TEST_USER = {
+                        "email": _TEST_USER_EMAIL,
+                        "password": _TEST_USER_PASSWORD,
+                        "user_id": "unknown"
+                    }
+                    return _SHARED_TEST_USER
             else:
                 logger.error(f"Failed to create shared test user: {e}")
                 raise
@@ -85,12 +112,16 @@ class SharedTestUser:
     @classmethod
     def cleanup(cls):
         """
-        Cleanup the shared test user.
-        Note: We intentionally DON'T delete the user to avoid recreation on next run.
+        Cleanup the shared test user by deleting it from Supabase.
         """
         global _SHARED_TEST_USER
-        if _SHARED_TEST_USER and _SHARED_TEST_USER.get("user_id") != "existing":
-            logger.info(f"Keeping shared test user for future runs: {_TEST_USER_EMAIL}")
+        if _SHARED_TEST_USER and _SHARED_TEST_USER.get("user_id") not in ["existing", "unknown"]:
+            try:
+                factory = TestUserFactory()
+                factory.cleanup_test_user(_SHARED_TEST_USER["user_id"])
+                logger.info(f"Deleted shared test user: {_TEST_USER_EMAIL}")
+            except Exception as e:
+                logger.warning(f"Failed to delete shared test user: {e}")
         _SHARED_TEST_USER = None
 
 
@@ -101,11 +132,11 @@ import pytest
 def shared_test_user():
     """
     Session-scoped fixture that provides the shared test user.
-    Created once per test run, reused by all tests.
+    Created once per test run, reused by all tests, deleted at end.
     """
     user = SharedTestUser.get_or_create()
     yield user
-    # Don't cleanup - keep for next run
+    # Cleanup after all tests are done
     SharedTestUser.cleanup()
 
 
