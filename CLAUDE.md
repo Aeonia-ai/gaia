@@ -173,6 +173,80 @@ pytest tests/ -v
 ./scripts/pytest-for-claude.sh tests/e2e/test_real_auth_e2e.py -v
 ```
 
+### 🎯 Systematic Integration Test Patterns
+
+**🔧 SYSTEMATIC FIXES OVER INDIVIDUAL FIXES**
+- When multiple tests fail with similar patterns, identify the systematic root cause
+- Fix the pattern once rather than fixing each test individually
+- Look for common anti-patterns that affect multiple tests
+
+**🚨 COMMON INTEGRATION TEST PATTERNS TO FIX:**
+
+**1. Authentication/Navigation Pattern**
+```bash
+# ❌ BRITTLE PATTERN: Manual login + expect navigation
+await page.goto(f'{WEB_SERVICE_URL}/login')
+await page.fill('input[name="email"]', 'test@test.local')  # Hardcoded!
+await page.fill('input[name="password"]', 'test123')       # Hardcoded!
+await page.click('button[type="submit"]')
+await page.wait_for_url('**/chat')  # ← TIMES OUT
+
+# ✅ ROBUST PATTERN: Use shared auth helper
+await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
+# Handles entire flow: navigation, form filling, waiting, error handling
+```
+
+**2. Route Mocking vs Real Auth Pattern**
+```bash
+# ❌ WRONG ORDER: Mocks interfere with real auth
+await page.route("**/auth/login", mock_handler)  # ← Blocks real login!
+await BrowserAuthHelper.login_with_real_user(page, creds)  # Fails
+
+# ✅ CORRECT ORDER: Real auth first, then mocks for specific functionality
+await BrowserAuthHelper.login_with_real_user(page, creds)  # Real auth works
+await page.route("**/api/v1/chat", mock_error_handler)     # Mock specific APIs
+```
+
+**3. CSS Selector Robustness Pattern**
+```bash
+# ❌ BRITTLE: Single selector, synchronous, no fallbacks
+message_input = await page.query_selector('input[name="message"]')  # ← Fails if textarea
+await message_input.fill("test")  # ← NoneType error if not found
+
+# ✅ ROBUST: Multiple selectors, async expectations, fallbacks  
+message_input = page.locator('textarea[name="message"], input[name="message"]').first
+await expect(message_input).to_be_visible()  # Wait + verify
+await message_input.fill("test")
+
+# ❌ INVALID: Mixing CSS + text selectors
+await page.wait_for_selector('[role="alert"], .error, text="error"')  # Syntax error
+
+# ✅ CORRECT: Proper Playwright locator composition
+error_locator = page.locator('[role="alert"], .error').or_(page.locator('text=error'))
+await expect(error_locator.first).to_be_visible()
+```
+
+**4. Test Method Signature Pattern**
+```bash
+# ❌ MISSING: Test uses fixture but doesn't declare it
+async def test_something_with_auth(self):
+    await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)  # ← NameError
+
+# ✅ COMPLETE: All required fixtures declared
+async def test_something_with_auth(self, test_user_credentials):
+    await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)  # ✓ Works
+```
+
+**🎯 SYSTEMATIC DIAGNOSIS APPROACH:**
+1. **Identify the pattern**: Look for identical/similar failures across multiple tests
+2. **Find the root cause**: Usually authentication, timing, or CSS selector issues  
+3. **Create systematic fix**: Update the pattern once, applies to all affected tests
+4. **Validate the fix**: Run all affected tests to ensure systematic improvement
+
+**📊 SUCCESS METRICS:**
+- Multiple test failures → Single pattern fix → Multiple tests pass
+- Example: 4 navigation timeout failures → 1 auth pattern fix → 4 tests pass
+
 See:
 - **[Tester Agent](docs/agents/tester.md)** - Use this agent for ALL testing tasks!
 - [Testing Guide](docs/testing/TESTING_GUIDE.md) - Main testing documentation

@@ -8,7 +8,7 @@ import httpx
 import os
 from typing import Dict, Any
 from app.shared.logging import setup_service_logger
-from tests.fixtures.test_auth import TestAuthManager
+from tests.fixtures.shared_test_user import shared_test_user
 
 logger = setup_service_logger("test_v02_chat")
 
@@ -19,22 +19,26 @@ class TestV02ChatAPI:
     @pytest.fixture
     def gateway_url(self):
         """Gateway service URL for testing."""
-        return os.getenv("GATEWAY_URL", "http://localhost:8666")
+        return os.getenv("GATEWAY_URL", "http://gateway:8000")
     
     @pytest.fixture
-    def auth_manager(self):
-        """Provide test authentication manager."""
-        return TestAuthManager(test_type="unit")
-    
-    @pytest.fixture
-    def headers(self, auth_manager):
-        """Standard headers with JWT authentication."""
-        auth_headers = auth_manager.get_auth_headers(
-            email="test@test.local",
-            role="authenticated"
-        )
+    async def headers(self, shared_test_user):
+        """Standard headers with real JWT authentication."""
+        # Login to get real JWT
+        gateway_url = os.getenv("GATEWAY_URL", "http://gateway:8000")
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{gateway_url}/api/v1/auth/login",
+                json={
+                    "email": shared_test_user["email"],
+                    "password": shared_test_user["password"]
+                }
+            )
+            assert response.status_code == 200
+            jwt_token = response.json()["session"]["access_token"]
+            
         return {
-            **auth_headers,
+            "Authorization": f"Bearer {jwt_token}",
             "Content-Type": "application/json"
         }
     

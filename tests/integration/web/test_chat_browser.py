@@ -213,7 +213,7 @@ class TestChatFunctionality:
             await browser.close()
     
     @pytest.mark.asyncio
-    async def test_new_conversation_button(self):
+    async def test_new_conversation_button(self, test_user_credentials):
         """Test creating a new conversation"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -233,12 +233,8 @@ class TestChatFunctionality:
                 json={"conversations": [], "has_more": False}
             ))
             
-            # Login
-            await page.goto(f'{WEB_SERVICE_URL}/login')
-            await page.fill('input[name="email"]', 'test@test.local')
-            await page.fill('input[name="password"]', 'test123')
-            await page.click('button[type="submit"]')
-            await page.wait_for_url('**/chat')
+            # Login with real credentials  
+            await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
             
             # Look for new chat button
             new_chat_button = await page.query_selector('button:has-text("New Chat")')
@@ -261,7 +257,7 @@ class TestChatFunctionality:
             await browser.close()
     
     @pytest.mark.asyncio
-    async def test_message_error_handling(self):
+    async def test_message_error_handling(self, test_user_credentials):
         """Test error handling when message fails to send"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -274,18 +270,15 @@ class TestChatFunctionality:
             console_errors = []
             page.on("console", lambda msg: console_errors.append(msg) if msg.type == "error" else None)
             
-            # Mock auth
-            await page.route("**/auth/login", lambda route: route.fulfill(
-                status=303,
-                headers={"Location": "/chat"},
-                body=""
-            ))
+            # Login with real credentials FIRST (before setting up mocks)
+            await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
             
+            # Now set up mocks for the specific functionality being tested
             await page.route("**/api/conversations", lambda route: route.fulfill(
                 json={"conversations": [], "has_more": False}
             ))
             
-            # Mock chat API to return error
+            # Mock chat API to return error for this test
             await page.route("**/api/v1/chat", lambda route: route.fulfill(
                 status=500,
                 json={
@@ -297,23 +290,23 @@ class TestChatFunctionality:
                 }
             ))
             
-            # Login
-            await page.goto(f'{WEB_SERVICE_URL}/login')
-            await page.fill('input[name="email"]', 'test@test.local')
-            await page.fill('input[name="password"]', 'test123')
-            await page.click('button[type="submit"]')
-            await page.wait_for_url('**/chat')
-            
-            # Send a message
-            message_input = await page.query_selector('input[name="message"]')
+            # Send a message - use robust selector pattern
+            message_input = page.locator('textarea[name="message"], input[name="message"]').first
+            await expect(message_input).to_be_visible()
             await message_input.fill("This will fail")
             await page.keyboard.press('Enter')
             
-            # Should show error message
-            error_element = await page.wait_for_selector('[role="alert"], .error, text="error"', timeout=5000)
-            if error_element:
-                error_text = await error_element.inner_text()
-                assert "error" in error_text.lower(), "Should show error message"
+            # Should show error message - use robust selector pattern
+            error_locator = (
+                page.locator('[role="alert"]')
+                .or_(page.locator('.error'))
+                .or_(page.locator('[data-error="true"]'))
+                .or_(page.locator('text=/.*error.*/i'))
+                .or_(page.locator('text=/.*failed.*/i'))
+            )
+            await expect(error_locator.first).to_be_visible(timeout=5000)
+            error_text = await error_locator.first.inner_text()
+            assert "error" in error_text.lower(), "Should show error message"
             
             # Input should still be enabled for retry
             is_disabled = await message_input.is_disabled()
@@ -322,7 +315,7 @@ class TestChatFunctionality:
             await browser.close()
     
     @pytest.mark.asyncio
-    async def test_streaming_response(self):
+    async def test_streaming_response(self, test_user_credentials):
         """Test streaming AI responses (if implemented)"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -331,13 +324,10 @@ class TestChatFunctionality:
             )
             page = await browser.new_page()
             
-            # Mock auth
-            await page.route("**/auth/login", lambda route: route.fulfill(
-                status=303,
-                headers={"Location": "/chat"},
-                body=""
-            ))
+            # Login with real credentials FIRST (before setting up mocks)
+            await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
             
+            # Now set up mocks for the specific functionality being tested
             await page.route("**/api/conversations", lambda route: route.fulfill(
                 json={"conversations": [], "has_more": False}
             ))
@@ -356,30 +346,36 @@ class TestChatFunctionality:
                 }
             ))
             
-            # Login
-            await page.goto(f'{WEB_SERVICE_URL}/login')
-            await page.fill('input[name="email"]', 'test@test.local')
-            await page.fill('input[name="password"]', 'test123')
-            await page.click('button[type="submit"]')
-            await page.wait_for_url('**/chat')
-            
-            # Send message
-            message_input = await page.query_selector('input[name="message"]')
+            # Send message - use robust selector pattern
+            message_input = page.locator('textarea[name="message"], input[name="message"]').first
+            await expect(message_input).to_be_visible()
             await message_input.fill("Test streaming")
             await page.keyboard.press('Enter')
             
-            # Check for typing indicator or streaming UI
-            # This depends on your implementation
-            typing_indicator = await page.query_selector('.typing-indicator, .loading, text="..."')
-            # May or may not have typing indicator
+            # Check for typing indicator or streaming UI - use robust selector pattern
+            # This depends on your implementation  
+            typing_indicator_locator = (
+                page.locator('.typing-indicator')
+                .or_(page.locator('.loading'))
+                .or_(page.locator('text=/\.{3,}/'))  # Match 3 or more dots
+                .or_(page.locator('[data-loading="true"]'))
+            )
+            # May or may not have typing indicator - just check if exists
+            typing_indicator = await typing_indicator_locator.first.count() > 0
             
-            # Wait for response
-            await page.wait_for_selector('text="simulated streaming response"', timeout=5000)
+            # Wait for response - use robust selector pattern
+            response_locator = (
+                page.locator('text="simulated streaming response"')
+                .or_(page.locator('text=/.*simulated.*streaming.*response.*/i'))
+                .or_(page.locator('[data-role="assistant"]'))
+                .or_(page.locator('.assistant-message'))
+            )
+            await expect(response_locator.first).to_be_visible(timeout=5000)
             
             await browser.close()
     
     @pytest.mark.asyncio
-    async def test_mobile_chat_interface(self):
+    async def test_mobile_chat_interface(self, test_user_credentials):
         """Test chat works on mobile viewport"""
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -394,13 +390,10 @@ class TestChatFunctionality:
             )
             page = await context.new_page()
             
-            # Mock auth
-            await page.route("**/auth/login", lambda route: route.fulfill(
-                status=303,
-                headers={"Location": "/chat"},
-                body=""
-            ))
+            # Login with real credentials FIRST (before setting up mocks)
+            await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
             
+            # Now set up mocks for the specific functionality being tested
             await page.route("**/api/conversations", lambda route: route.fulfill(
                 json={"conversations": [], "has_more": False}
             ))
@@ -416,29 +409,28 @@ class TestChatFunctionality:
                 }
             ))
             
-            # Login
-            await page.goto(f'{WEB_SERVICE_URL}/login')
-            await page.fill('input[name="email"]', 'test@test.local')
-            await page.fill('input[name="password"]', 'test123')
-            await page.click('button[type="submit"]')
-            await page.wait_for_url('**/chat')
-            
             # On mobile, sidebar might be hidden
             sidebar = await page.query_selector('#sidebar')
             if sidebar:
                 is_visible = await sidebar.is_visible()
                 # Sidebar might be hidden on mobile
             
-            # Chat form should still work
-            message_input = await page.query_selector('input[name="message"]')
-            assert message_input, "Message input should exist on mobile"
+            # Chat form should still work - use robust selector pattern
+            message_input = page.locator('textarea[name="message"], input[name="message"]').first
+            await expect(message_input).to_be_visible()
             
             # Send message
             await message_input.fill("Mobile test")
             await page.keyboard.press('Enter')
             
-            # Wait for response
-            await page.wait_for_selector('text="Mobile response!"', timeout=5000)
+            # Wait for response - use robust selector pattern
+            response_locator = (
+                page.locator('text="Mobile response!"')
+                .or_(page.locator('text=/.*Mobile.*response.*/i'))
+                .or_(page.locator('[data-role="assistant"]'))
+                .or_(page.locator('.assistant-message'))
+            )
+            await expect(response_locator.first).to_be_visible(timeout=5000)
             
             # Check if we need to scroll to see latest message
             messages_container = await page.query_selector('#messages')

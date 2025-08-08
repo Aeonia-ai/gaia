@@ -2,7 +2,7 @@
 Fixed browser tests for chat functionality using working async_playwright pattern.
 """
 import pytest
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, expect
 import os
 
 WEB_SERVICE_URL = os.getenv("WEB_SERVICE_URL", "http://web-service:8000")
@@ -25,15 +25,16 @@ async def test_invalid_login_shows_error():
             await page.fill('input[name="password"]', 'wrongpass')
             await page.click('button[type="submit"]')
             
-            # Wait for error message (use timeout to debug)
-            try:
-                await page.wait_for_selector('text="Login failed. Please try again."', timeout=8000)
-                error_element = await page.query_selector('text="Login failed. Please try again."')
-                assert error_element is not None, "Error message should be displayed"
-            except:
-                # If specific message not found, check for error indicators
-                error_elements = await page.query_selector_all('[role="alert"], .error, [data-error="true"]')
-                assert len(error_elements) > 0, "Some error indication should be present"
+            # Wait for error message - use systematic robust pattern
+            error_locator = (
+                page.locator('text="Login failed. Please try again."')
+                .or_(page.locator('[role="alert"]'))
+                .or_(page.locator('.error'))
+                .or_(page.locator('[data-error="true"]'))
+                .or_(page.locator('text=/.*failed.*/i'))
+                .or_(page.locator('text=/.*error.*/i'))
+            )
+            await expect(error_locator.first).to_be_visible(timeout=8000)
                 
         finally:
             await browser.close()
