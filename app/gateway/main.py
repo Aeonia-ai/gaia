@@ -2453,85 +2453,69 @@ async def calculator_add(request: Request):
 @app.post("/api/v1/auth/login", tags=["v1 Authentication"])
 async def v1_login(request: Request):
     """User login via Supabase - for web interface"""
-    try:
-        body = await request.json()
-        
-        # Forward to auth service
-        headers = dict(request.headers)
-        headers.pop("content-length", None)
-        headers.pop("Content-Length", None)
-        
-        return await forward_request_to_service(
-            service_name="auth",
-            path="/auth/login",
-            method="POST",
-            json_data=body,
-            headers=headers
-        )
-    except Exception as e:
-        logger.error(f"Login error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    body = await request.json()
+    
+    # Forward to auth service
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="auth",
+        path="/auth/login",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
 
 @app.post("/api/v1/auth/register", tags=["v1 Authentication"])
 async def v1_register(request: Request):
     """User registration via Supabase - for web interface"""
-    try:
-        body = await request.json()
-        
-        # Forward to auth service
-        headers = dict(request.headers)
-        headers.pop("content-length", None)
-        headers.pop("Content-Length", None)
-        
-        return await forward_request_to_service(
-            service_name="auth",
-            path="/auth/register",
-            method="POST",
-            json_data=body,
-            headers=headers
-        )
-    except Exception as e:
-        logger.error(f"Registration error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    body = await request.json()
+    
+    # Forward to auth service
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="auth",
+        path="/auth/register",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
 
 @app.post("/api/v1/auth/refresh", tags=["v1 Authentication"])
 async def v1_refresh(request: Request):
     """Refresh JWT token"""
-    try:
-        body = await request.json()
-        
-        # Forward to auth service
-        headers = dict(request.headers)
-        headers.pop("content-length", None)
-        headers.pop("Content-Length", None)
-        
-        return await forward_request_to_service(
-            service_name="auth",
-            path="/auth/refresh",
-            method="POST",
-            json_data=body,
-            headers=headers
-        )
-    except Exception as e:
-        logger.error(f"Token refresh error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    body = await request.json()
+    
+    # Forward to auth service
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    return await forward_request_to_service(
+        service_name="auth",
+        path="/auth/refresh",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
 
 @app.post("/api/v1/auth/logout", tags=["v1 Authentication"])
 async def v1_logout(request: Request):
     """User logout"""
-    try:
-        # Forward to auth service
-        headers = dict(request.headers)
-        
-        return await forward_request_to_service(
-            service_name="auth",
-            path="/auth/logout",
-            method="POST",
-            headers=headers
-        )
-    except Exception as e:
-        logger.error(f"Logout error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    # Forward to auth service
+    headers = dict(request.headers)
+    
+    return await forward_request_to_service(
+        service_name="auth",
+        path="/auth/logout",
+        method="POST",
+        headers=headers
+    )
 
 @app.post("/api/v1/auth/confirm", tags=["v1 Authentication"])
 async def v1_confirm_email(request: Request):
