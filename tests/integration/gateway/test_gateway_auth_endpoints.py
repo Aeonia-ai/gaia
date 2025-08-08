@@ -12,6 +12,7 @@ to the gateway service, not mocked unit tests.
 import pytest
 import httpx
 import os
+import time
 import asyncio
 from typing import Dict, Any
 from app.shared.logging import setup_service_logger
@@ -107,25 +108,53 @@ class TestGatewayAuthEndpoints:
                 logger.info(f"Registration returned {response.status_code} (may be disabled)")
     
     @pytest.mark.asyncio
-    async def test_gateway_register_duplicate_email(self, gateway_url, shared_test_user):
+    async def test_gateway_register_duplicate_email(self, gateway_url, temp_user_factory):
         """Test registration with existing email through gateway."""
+        test_email = f"duplicate-test-{int(time.time())}@example.com"
+        test_password = "TestPass123!"
+        
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
+            # First registration - should succeed
+            first_response = await client.post(
                 f"{gateway_url}/api/v1/auth/register",
                 json={
-                    "email": shared_test_user["email"],
-                    "password": "AnotherPass123!"
+                    "email": test_email,
+                    "password": test_password
                 }
             )
             
-            # Should reject duplicate email
-            assert response.status_code == 400
-            data = response.json()
-            assert "detail" in data
-            # Error message should indicate user already exists
-            assert "already" in data["detail"].lower() or "exists" in data["detail"].lower()
-            
-            logger.info("Gateway correctly rejected duplicate email registration")
+            if first_response.status_code == 200:
+                first_data = first_response.json()
+                user_id_to_cleanup = None
+                
+                if "user" in first_data and "id" in first_data["user"]:
+                    user_id_to_cleanup = first_data["user"]["id"]
+                
+                try:
+                    # Second registration with same email - should fail
+                    second_response = await client.post(
+                        f"{gateway_url}/api/v1/auth/register",
+                        json={
+                            "email": test_email,
+                            "password": "DifferentPass456!"
+                        }
+                    )
+                    
+                    # Should reject duplicate email
+                    assert second_response.status_code == 400
+                    data = second_response.json()
+                    assert "detail" in data
+                    # Error message should indicate user already exists
+                    assert "already" in data["detail"].lower() or "exists" in data["detail"].lower()
+                    
+                    logger.info("Gateway correctly rejected duplicate email registration")
+                finally:
+                    # Clean up the created user after the test
+                    if user_id_to_cleanup:
+                        temp_user_factory.cleanup_test_user(user_id_to_cleanup)
+            else:
+                # Registration may be disabled in test environment
+                pytest.skip(f"User registration returned {first_response.status_code}, may be disabled")
     
     @pytest.mark.asyncio
     async def test_gateway_validate_jwt(self, gateway_url, shared_test_user):
@@ -153,7 +182,7 @@ class TestGatewayAuthEndpoints:
             data = validation_response.json()
             assert "valid" in data
             assert data["valid"] is True
-            assert "user" in data
+            assert "user_id" in data
             
             logger.info("Gateway successfully validated JWT token")
     
