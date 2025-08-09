@@ -63,10 +63,24 @@ echo "📂 Test args: $TEST_ARGS"
     echo "Running pytest with parallel execution (-n auto)..."
     echo "Test arguments: $TEST_ARGS"
     
-    # Run tests in Docker with parallel execution
-    docker compose run --rm test bash -c "PYTHONPATH=/app pytest -v -n auto $TEST_ARGS" 2>&1
+    # Run tests in Docker - handle sequential tests separately
+    # First run non-sequential tests in parallel
+    echo "Running parallel tests..."
+    docker compose run --rm test bash -c "PYTHONPATH=/app pytest -v -n auto -m 'not sequential' $TEST_ARGS" 2>&1
+    PARALLEL_EXIT_CODE=$?
     
-    TEST_EXIT_CODE=$?
+    # Then run sequential tests serially WITHOUT any workers
+    echo "Running sequential tests serially (no parallelization)..."
+    # Override the pytest.ini addopts that includes '-n auto'
+    docker compose run --rm test bash -c "PYTHONPATH=/app pytest --override-ini='addopts=-v --tb=short --strict-markers --disable-warnings' -m sequential $TEST_ARGS" 2>&1
+    SEQUENTIAL_EXIT_CODE=$?
+    
+    # Combine exit codes (0 only if both are 0)
+    if [ $PARALLEL_EXIT_CODE -eq 0 ] && [ $SEQUENTIAL_EXIT_CODE -eq 0 ]; then
+        TEST_EXIT_CODE=0
+    else
+        TEST_EXIT_CODE=1
+    fi
     
     if [ $TEST_EXIT_CODE -eq 0 ]; then
         echo -e "\n${GREEN}✅ All tests passed!${NC}"

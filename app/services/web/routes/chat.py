@@ -300,6 +300,14 @@ def setup_routes(app):
                     }}
                     // Update browser URL without reload
                     history.pushState(null, '', '/chat/{conversation_id}');
+                    
+                    // Auto-scroll to bottom when loading conversation with messages
+                    setTimeout(() => {{
+                        const messagesContainer = document.getElementById('messages');
+                        if (messagesContainer) {{
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        }}
+                    }}, 100); // Small delay to ensure DOM is updated
                 ''')),
                 cls="flex flex-col h-full",
                 data_conversation_id=conversation_id,
@@ -475,6 +483,12 @@ def setup_routes(app):
         GaiaToast.success('Message sent successfully!', 2000);
     }}
     
+    // Auto-scroll to bottom after adding user message
+    const messagesContainer = document.getElementById('messages');
+    if (messagesContainer) {{
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }}
+    
     // Use Server-Sent Events for streaming response
     setTimeout(() => {{
         const loadingEl = document.getElementById('loading-{message_id}');
@@ -535,6 +549,12 @@ def setup_routes(app):
                     const contentEl = document.getElementById('response-content-{message_id}');
                     if (contentEl) {{
                         contentEl.textContent = responseContent;
+                        
+                        // Auto-scroll to bottom as response streams in
+                        const messagesContainer = document.getElementById('messages');
+                        if (messagesContainer) {{
+                            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        }}
                     }}
                 }}
                 else if (data.type === 'error') {{
