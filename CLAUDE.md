@@ -280,6 +280,15 @@ From August 2025 integration test fixing session that achieved **85-90% improvem
 
 **Architecture Validation**: User observation: *"Timing has turned out to often be either parallel run resource issues or underlying bugs"* - test failures should be investigated as potential system issues, not dismissed as flaky tests.
 
+**🎯 Critical Testing Insights**:
+- **Verify Before Claiming Missing Features**: When tests fail, check if features actually exist with different selectors/structure before assuming they're missing
+- **Integration Tests Should Use Real Services**: Avoid mocking in integration tests - they should test real system behavior
+- **Differentiate Test Categories**:
+  - `@pytest.mark.skip(reason="Feature not implemented")` - for planned features
+  - `@pytest.mark.xfail(reason="Bug #123: description")` - for known bugs
+  - Broken tests should be fixed immediately, not left failing
+- **Debug First**: When a test fails looking for `.message` elements, check what's actually in the DOM (might be `#messages > div`)
+
 See:
 - **[Tester Agent](docs/agents/tester.md)** - Use this agent for ALL testing tasks!
 - [Testing Guide](docs/testing/TESTING_GUIDE.md) - Main testing documentation
@@ -370,6 +379,8 @@ See:
 - [FastHTML Service](docs/current/web-ui/fasthtml-web-service.md) - Web UI architecture
 - [HTMX Debugging](docs/current/web-ui/htmx-fasthtml-debugging-guide.md) - **MANDATORY** read before web changes
 - [Auth Layout Rules](docs/current/web-ui/auth-layout-isolation.md) - **CRITICAL** prevent layout bugs
+- [Web Service Standardization](docs/web-service-standardization-spec.md) - **NEW** - Accessibility and testing standards
+- [Web Testing Strategy](docs/web-testing-strategy-post-standardization.md) - **NEW** - How testing will improve
 
 #### Architecture & Scaling
 - [Microservices Scaling](docs/current/architecture/microservices-scaling.md) - Scaling patterns and strategies
