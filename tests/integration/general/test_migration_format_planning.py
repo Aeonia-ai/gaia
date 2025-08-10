@@ -201,6 +201,12 @@ class TestWebUICompatibilityHelpers:
                         content = choices[0]["delta"].get("content", "")
                         if content:
                             return {"type": "content", "content": content}
+            elif target_format == "openai":
+                if "type" in chunk and chunk["type"] == "content":
+                    return {
+                        "object": "chat.completion.chunk",
+                        "choices": [{"delta": {"content": chunk.get("content", "")}}]
+                    }
             return chunk
         
         # OpenAI chunk to v0.3 style
@@ -215,6 +221,7 @@ class TestWebUICompatibilityHelpers:
         v03_chunk = {"type": "content", "content": "Hello"}
         adapted = adapt_streaming_chunk(v03_chunk, target_format="openai")
         assert "choices" in adapted
+        assert adapted["choices"][0]["delta"]["content"] == "Hello"
 
 
 # Proposed format adapter module (not implemented yet)
