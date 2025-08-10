@@ -136,32 +136,37 @@ class UnifiedChatHandler:
         request_id = f"chat-{uuid.uuid4()}"
         
         print(f"DEBUG: Starting unified chat process for message: {message[:50]}...")
+        print(f"[AUTH DEBUG] Auth dict: {auth}")
+        logger.info(f"[AUTH DEBUG] Auth dict: {auth}")
         
         # Update metrics
         self._routing_metrics["total_requests"] += 1
         
         # Build context (user info, conversation history, etc.)
         full_context = await self.build_context(auth, context)
+        print(f"[CONTEXT DEBUG] Full context user_id: {full_context.get('user_id')}")
+        logger.info(f"[CONTEXT DEBUG] Full context: {full_context}")
         
         # Single LLM call with routing capability - but no "routing overhead"
         llm_start = time.time()
         
         try:
             # Prepare messages for routing decision
-            messages = [
-                {
-                    "role": "system",
-                    "content": self.get_routing_prompt(full_context)
-                }
-            ]
+            system_prompt = await self.get_routing_prompt(full_context)
+            print(f"[SYSTEM PROMPT DEBUG] First 300 chars: {system_prompt[:300]}...")
+            logger.info(f"[SYSTEM PROMPT DEBUG] First 200 chars: {system_prompt[:200]}...")
             
-            # Add conversation history if available
+            # PERSONA FIX: Don't put system message in messages array
+            messages = []  # Start with empty messages
+            
+            # Add conversation history if available (skip system messages!)
             if full_context.get("conversation_history"):
                 for hist_msg in full_context["conversation_history"]:
-                    messages.append({
-                        "role": hist_msg["role"],
-                        "content": hist_msg["content"]
-                    })
+                    if hist_msg["role"] in ["user", "assistant"]:  # Only user/assistant
+                        messages.append({
+                            "role": hist_msg["role"],
+                            "content": hist_msg["content"]
+                        })
             
             # Add current message
             messages.append({
@@ -169,12 +174,19 @@ class UnifiedChatHandler:
                 "content": message
             })
             
+            # Debug: Print the messages being sent to LLM
+            print(f"[MESSAGES DEBUG] Total messages: {len(messages)}")
+            print(f"[PERSONA FIX] System prompt passed via parameter, not in messages")
+            for i, msg in enumerate(messages):
+                print(f"[MESSAGES DEBUG] Message {i} - Role: {msg['role']}, Content preview: {msg['content'][:100]}...")
+            
             # Combine routing tools with KB tools
             all_tools = self.routing_tools + KB_TOOLS
             
             # Use chat service with all available tools
             routing_response = await chat_service.chat_completion(
                 messages=messages,
+                system_prompt=system_prompt,  # PASS SYSTEM PROMPT AS PARAMETER!
                 tools=all_tools,
                 tool_choice={"type": "auto"},  # Let LLM decide: direct response or tool use
                 temperature=0.7,
@@ -577,20 +589,21 @@ class UnifiedChatHandler:
         
         try:
             # Prepare messages for routing decision
-            messages = [
-                {
-                    "role": "system",
-                    "content": self.get_routing_prompt(full_context)
-                }
-            ]
+            system_prompt = await self.get_routing_prompt(full_context)
+            print(f"[SYSTEM PROMPT DEBUG] First 300 chars: {system_prompt[:300]}...")
+            logger.info(f"[SYSTEM PROMPT DEBUG] First 200 chars: {system_prompt[:200]}...")
             
-            # Add conversation history if available
+            # PERSONA FIX: Don't put system message in messages array
+            messages = []  # Start with empty messages
+            
+            # Add conversation history if available (skip system messages!)
             if full_context.get("conversation_history"):
                 for hist_msg in full_context["conversation_history"]:
-                    messages.append({
-                        "role": hist_msg["role"],
-                        "content": hist_msg["content"]
-                    })
+                    if hist_msg["role"] in ["user", "assistant"]:  # Only user/assistant
+                        messages.append({
+                            "role": hist_msg["role"],
+                            "content": hist_msg["content"]
+                        })
             
             # Add current message
             messages.append({
@@ -601,6 +614,7 @@ class UnifiedChatHandler:
             # First, make routing decision (non-streaming)
             routing_response = await chat_service.chat_completion(
                 messages=messages,
+                system_prompt=system_prompt,  # PASS SYSTEM PROMPT AS PARAMETER!
                 tools=self.routing_tools,
                 tool_choice={"type": "auto"},
                 temperature=0.7,
@@ -993,11 +1007,22 @@ class UnifiedChatHandler:
                 }
             }
     
-    def get_routing_prompt(self, context: dict) -> str:
+    async def get_routing_prompt(self, context: dict) -> str:
         """
-        System prompt that helps LLM make routing decisions.
+        System prompt that helps LLM make routing decisions with persona.
         """
-        return f"""You are an intelligent assistant that can either respond directly or use specialized tools when needed.
+        # Get persona prompt first
+        user_id = context.get('user_id', 'unknown')
+        try:
+            from app.shared.prompt_manager import PromptManager
+            persona_prompt = await PromptManager.get_system_prompt(user_id=user_id)
+            logger.info(f"[PERSONA DEBUG] Loaded persona for user {user_id}: {persona_prompt[:100]}...")
+        except Exception as e:
+            logger.error(f"[PERSONA DEBUG] Failed to load persona for user {user_id}: {e}")
+            persona_prompt = "You are a helpful AI assistant."
+        
+        # Build the tools/routing section
+        tools_section = f"""You can either respond directly or use specialized tools when needed.
 
 Current context:
 - User: {context.get('user_id', 'unknown')}
@@ -1047,12 +1072,22 @@ Key principles:
 3. "What is X?" or "Explain Y" are knowledge questions - answer directly
 4. "Find X in my files/KB" or "Search for X online" require tools
 5. When uncertain, prefer direct responses - tools add latency"""
+        
+        # Check if persona prompt has {tools_section} placeholder
+        if "{tools_section}" in persona_prompt:
+            # Replace the placeholder with the tools section
+            final_prompt = persona_prompt.replace("{tools_section}", tools_section)
+        else:
+            # No placeholder, append tools section after persona
+            final_prompt = f"{persona_prompt}\n\n{tools_section}"
+        
+        return final_prompt
     
     async def build_context(self, auth: dict, additional_context: Optional[dict] = None) -> dict:
         """
         Build context for routing decision, including conversation history.
         """
-        user_id = auth.get("sub") or auth.get("key", "unknown")
+        user_id = auth.get("user_id") or auth.get("sub") or auth.get("key", "unknown")
         conversation_id = additional_context.get("conversation_id") if additional_context else None
         
         context = {
@@ -1070,7 +1105,7 @@ Key principles:
                 
                 # First check if the conversation exists
                 # Use consistent user_id extraction
-                user_id = auth.get("sub") or auth.get("key", "unknown")
+                user_id = auth.get("user_id") or auth.get("sub") or auth.get("key", "unknown")
                 conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
                 
                 if conversation is None:
@@ -1112,7 +1147,7 @@ Key principles:
         Returns the conversation_id (creates one if needed).
         """
         conversation_id = context.get("conversation_id") if context else None
-        user_id = auth.get("sub") or auth.get("key", "unknown")
+        user_id = auth.get("user_id") or auth.get("sub") or auth.get("key", "unknown")
         
         try:
             from .conversation_store import chat_conversation_store

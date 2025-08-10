@@ -141,7 +141,8 @@ async def chat_completion(
 
 @router.post("/unified")
 async def unified_chat_endpoint(
-    request: Request
+    request: Request,
+    auth_principal: Dict[str, Any] = Depends(get_current_auth)
 ):
     """
     Unified intelligent chat endpoint with streaming support.
@@ -159,21 +160,20 @@ async def unified_chat_endpoint(
         
         # Handle both gateway format (_auth in body) and direct format
         if "_auth" in body:
-            # Gateway format
+            # Gateway format - override auth_principal with what's in body
             message = body.get("message", "")
             auth_principal = body.get("_auth", {})
             stream = body.get("stream", False)
         else:
-            # Direct format - extract from ChatRequest
+            # Direct format - use auth_principal from dependency injection
             message = body.get("message", "")
             stream = body.get("stream", False)
-            # For direct calls, we'd need proper auth - for now use empty
-            auth_principal = {}
+            # auth_principal already populated from Depends(get_current_auth)
         
         from .unified_chat import unified_chat_handler
         
-        # Check for response format preference
-        response_format = request.headers.get("X-Response-Format", "openai").lower()
+        # Check for response format preference (can be in body or headers)
+        response_format = body.get("response_format", request.headers.get("X-Response-Format", "openai")).lower()
         if response_format not in ["openai", "v0.3"]:
             response_format = "openai"  # Default to OpenAI format
         
