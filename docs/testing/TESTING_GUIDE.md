@@ -2,6 +2,8 @@
 
 > **This is the canonical testing guide for the GAIA platform.** It consolidates all testing documentation into a single, authoritative source.
 
+> **🆕 Update**: A new testing strategy is being developed as part of web service standardization. See [Web Testing Strategy Post-Standardization](../web-testing-strategy-post-standardization.md) for upcoming improvements that will dramatically simplify web testing.
+
 ## Table of Contents
 1. [Quick Start](#quick-start)
 2. [Testing Philosophy](#testing-philosophy)
@@ -376,10 +378,18 @@ echo "SUPABASE_SERVICE_KEY=your-key" >> .env
 
 ### Performance Issues
 
-1. **Run tests in parallel**:
+1. **Run tests in parallel** (⚠️ See warning):
    ```bash
    ./scripts/pytest-for-claude.sh -n auto
    ```
+   
+   **WARNING**: While parallel execution is faster, it can cause test failures due to:
+   - Resource conflicts (shared test users, database connections)
+   - State pollution between tests
+   - Timing issues with HTMX and WebSocket tests
+   - See [TEST_INFRASTRUCTURE.md](TEST_INFRASTRUCTURE.md#️-critical-parallel-execution-issues) for details
+   
+   The default `pytest-for-claude.sh` runs tests sequentially to avoid these issues.
 
 2. **Skip slow tests during development**:
    ```bash

@@ -333,6 +333,41 @@ addopts = -n auto
 --durations=10
 ```
 
+### ⚠️ Critical: Parallel Execution Issues
+
+**Why pytest-for-claude.sh runs tests sequentially:**
+
+The Docker pytest.ini contains `-n auto` which enables parallel test execution with pytest-xdist. While this speeds up test runs, it causes several problems:
+
+1. **Resource Conflicts**:
+   - Shared test user conflicts (e.g., `pytest@aeonia.ai` being created/deleted simultaneously)
+   - Database connection pool exhaustion
+   - Port binding conflicts for test servers
+   - File system race conditions
+
+2. **State Pollution**:
+   - Tests modifying shared state (cookies, sessions, cache)
+   - Browser tests navigating to different pages simultaneously
+   - Mock configurations bleeding between tests
+
+3. **Timing Issues**:
+   - HTMX not fully loaded before test assertions
+   - WebSocket connections not established
+   - API calls completing out of order
+
+4. **Debugging Difficulty**:
+   - Non-deterministic failures
+   - Different results on each run
+   - Logs interleaved from multiple tests
+
+**Solution**: The pytest-for-claude.sh script overrides pytest.ini to disable parallel execution:
+```bash
+# Override pytest.ini to remove -n auto
+docker compose run --rm test bash -c "PYTHONPATH=/app pytest --override-ini='addopts=-v --tb=short --strict-markers --disable-warnings' $TEST_ARGS"
+```
+
+This ensures tests run one at a time, eliminating race conditions and resource conflicts at the cost of slower execution (but still within Claude's timeout limits).
+
 ### Selective Test Running
 
 ```bash
