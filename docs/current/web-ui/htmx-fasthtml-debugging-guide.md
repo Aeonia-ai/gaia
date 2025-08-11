@@ -4,6 +4,8 @@
 
 This guide documents critical lessons learned while debugging HTMX issues in the Gaia FastHTML web interface. These insights will save hours of debugging time.
 
+> **📌 Note**: A comprehensive standardization effort is underway to address many of these issues systematically. See [Web Service Standardization Specification](../../web-service-standardization-spec.md) for upcoming improvements.
+
 ## 🚨 Critical Issues and Solutions
 
 ### 1. Loading Indicator Placement
@@ -252,6 +254,12 @@ When HTMX requests fail:
 - [HTMX Documentation](https://htmx.org/)
 - [FastHTML Documentation](https://www.fastht.ml/)
 - [HTMX Debugging Guide](https://htmx.org/docs/#debugging)
+
+## 📚 Related Documentation
+
+- [Web Service Standardization Specification](../../web-service-standardization-spec.md) - Comprehensive standards to address these issues
+- [Web Testing Strategy Post-Standardization](../../web-testing-strategy-post-standardization.md) - How testing will improve
+- [Auth Layout Isolation](./auth-layout-isolation.md) - Specific auth form patterns
 
 ## 💡 Key Takeaways
 

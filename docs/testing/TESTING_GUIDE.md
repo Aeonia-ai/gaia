@@ -26,6 +26,17 @@
 docker compose up -d
 ```
 
+### 🚨 CRITICAL: Append-Only Test Fixes Log
+**When working on test failures, ALWAYS update [APPEND-ONLY-TEST-FIXES-LOG.md](../../APPEND-ONLY-TEST-FIXES-LOG.md)**
+
+This log captures institutional knowledge about:
+- Test failure patterns and root causes
+- Successful fixes and their reasoning
+- Framework-specific gotchas (FastHTML, HTMX, Playwright)
+- Testing best practices learned through experience
+
+**Format**: Append entries chronologically - NEVER overwrite existing content.
+
 ### Running Your First Tests
 ```bash
 # Run all tests asynchronously (avoids timeouts)
@@ -350,6 +361,8 @@ echo "SUPABASE_SERVICE_KEY=your-key" >> .env
 
 ### Debugging Failed Tests
 
+**🚨 ALWAYS document findings in [APPEND-ONLY-TEST-FIXES-LOG.md](../../APPEND-ONLY-TEST-FIXES-LOG.md)**
+
 1. **Run with verbose output**:
    ```bash
    ./scripts/pytest-for-claude.sh tests/failing_test.py -v -s
@@ -375,6 +388,11 @@ echo "SUPABASE_SERVICE_KEY=your-key" >> .env
    # Run just the failing test
    ./scripts/pytest-for-claude.sh tests/file.py::TestClass::test_method -v -s
    ```
+
+5. **Document the fix**:
+   - Root cause analysis in APPEND-ONLY-TEST-FIXES-LOG.md
+   - Pattern recognition for similar future failures
+   - Framework-specific gotchas discovered
 
 ### Performance Issues
 

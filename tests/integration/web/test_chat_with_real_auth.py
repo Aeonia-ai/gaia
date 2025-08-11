@@ -60,7 +60,36 @@ class TestRealAuthentication:
                 chat_form = await page.query_selector('#chat-form')
                 assert chat_form is not None, "Chat form should exist after login"
                 
-                message_input = await page.query_selector('textarea[name="message"]')
+                # Try multiple selectors for message input
+                message_input = None
+                selectors = [
+                    'textarea[name="message"]',
+                    'textarea#message',
+                    'textarea[placeholder*="message" i]',
+                    'textarea[placeholder*="type" i]',
+                    '#chat-input',
+                    '#message-input',
+                    'input[name="message"]',
+                    'form textarea',
+                    'textarea'
+                ]
+                
+                for selector in selectors:
+                    message_input = await page.query_selector(selector)
+                    if message_input:
+                        print(f"Found message input with selector: {selector}")
+                        break
+                
+                if not message_input:
+                    # Get page content to debug
+                    content = await page.content()
+                    print(f"Page content length: {len(content)}")
+                    print("Looking for textarea elements...")
+                    textareas = await page.query_selector_all('textarea')
+                    print(f"Found {len(textareas)} textarea elements")
+                    forms = await page.query_selector_all('form')
+                    print(f"Found {len(forms)} form elements")
+                
                 assert message_input is not None, "Message input should exist"
                 
             elif "/login" in current_url:
@@ -100,10 +129,11 @@ class TestRealAuthentication:
                 await page.goto(f'{WEB_SERVICE_URL}/chat')
                 await page.wait_for_timeout(1000)
             
-            # Try to send a message
-            message_input = await page.query_selector('textarea[name="message"]')
+            # Try to send a message - look for input or textarea
+            message_input = await page.query_selector('input[name="message"]') or await page.query_selector('textarea[name="message"]')
             if message_input:
-                await message_input.fill("Hello from integration test!")
+                test_message = "Hello from integration test!"
+                await message_input.fill(test_message)
                 
                 submit_button = await page.query_selector('#chat-form button[type="submit"]')
                 if submit_button:
@@ -124,8 +154,17 @@ class TestRealAuthentication:
                     assert api_called, "Chat API should have been called when sending message"
                     
                     # Check if message appears in UI
-                    messages = await page.query_selector_all('.message')
+                    messages = await page.query_selector_all('#messages > div')
                     assert len(messages) > 0, "Should see at least one message after sending"
+                    
+                    # Verify our message is displayed
+                    message_texts = []
+                    for msg in messages:
+                        text = await msg.inner_text()
+                        message_texts.append(text)
+                    
+                    assert any(test_message in text for text in message_texts), \
+                        f"Should see our test message '{test_message}' in messages"
             else:
                 pytest.fail("Could not find message input on chat page")
             

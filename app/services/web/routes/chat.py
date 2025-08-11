@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from fasthtml.components import Div, H2, Button, P, A, H1, Style
 from fasthtml.core import Script, NotStr
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, JSONResponse
 from app.services.web.components.gaia_ui import (
     gaia_layout, gaia_conversation_item, gaia_message_bubble,
     gaia_chat_input, gaia_loading_spinner, gaia_error_message, gaia_toast_script, gaia_mobile_styles
@@ -959,7 +959,12 @@ def setup_routes(app):
         jwt_token = request.session.get("jwt_token")
         user = request.session.get("user")
         if not user or not jwt_token:
-            return gaia_error_message("Please log in to view conversations")
+            # FastHTML best practice: return 401 with HTML fragment for HTMX endpoints
+            response = HTMLResponse(
+                content=str(gaia_error_message("Please log in to view conversations")),
+                status_code=401
+            )
+            return response
         
         user_id = user.get("id", "dev-user-id")
         

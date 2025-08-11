@@ -15,6 +15,13 @@
 
 ## Core Testing Principles
 
+### 🚨 INSTITUTIONAL KNOWLEDGE CAPTURE
+**Always document test fixes and discoveries in [APPEND-ONLY-TEST-FIXES-LOG.md](../../APPEND-ONLY-TEST-FIXES-LOG.md)**
+- Captures patterns that prevent future debugging sessions
+- Documents framework-specific gotchas (FastHTML, HTMX, Playwright)
+- Records successful fix strategies for similar failures
+- NEVER overwrite - always append chronologically
+
 ### The GAIA Test Philosophy
 
 1. **Test Behavior, Not Implementation**

@@ -27,7 +27,99 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+# Function to check if Docker services are running
+check_docker_services() {
+    local services_needed=($@)
+    local all_running=true
+    
+    echo -e "${CYAN}🔍 Checking required services...${NC}"
+    
+    for service in "${services_needed[@]}"; do
+        # Check if container exists and is running
+        if docker compose ps --status running | grep -q "gaia-${service}-1"; then
+            echo -e "  ${GREEN}✓${NC} ${service} is running"
+        else
+            echo -e "  ${RED}✗${NC} ${service} is not running"
+            all_running=false
+        fi
+    done
+    
+    if [ "$all_running" = false ]; then
+        echo -e "\n${RED}❌ Required services are not running!${NC}"
+        echo -e "${YELLOW}Please start services with: docker compose up -d${NC}"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Function to check service health endpoints
+check_service_health() {
+    echo -e "\n${CYAN}🏥 Checking service health...${NC}"
+    
+    # Check gateway health (which checks all other services)
+    if curl -s -f http://localhost:8666/health > /dev/null 2>&1; then
+        echo -e "  ${GREEN}✓${NC} Gateway health check passed"
+        
+        # Get detailed health status
+        local health_json=$(curl -s http://localhost:8666/health)
+        
+        # Check individual service health from gateway response
+        if echo "$health_json" | grep -q '"auth".*"status".*"healthy"'; then
+            echo -e "  ${GREEN}✓${NC} Auth service is healthy"
+        else
+            echo -e "  ${YELLOW}⚠${NC} Auth service may have issues"
+        fi
+        
+        if echo "$health_json" | grep -q '"chat".*"status".*"healthy"'; then
+            echo -e "  ${GREEN}✓${NC} Chat service is healthy"
+        else
+            echo -e "  ${YELLOW}⚠${NC} Chat service may have issues"
+        fi
+        
+        if echo "$health_json" | grep -q '"database".*"status".*"healthy"'; then
+            echo -e "  ${GREEN}✓${NC} Database is healthy"
+        else
+            echo -e "  ${YELLOW}⚠${NC} Database may have issues"
+        fi
+        
+        return 0
+    else
+        echo -e "  ${RED}✗${NC} Gateway health check failed"
+        echo -e "  ${YELLOW}Services may still be starting up...${NC}"
+        return 1
+    fi
+}
+
+# Function to determine which services are needed based on test type
+get_required_services() {
+    local test_args="$1"
+    
+    # Unit tests don't need any services
+    if [[ "$test_args" == *"tests/unit"* ]]; then
+        echo ""
+        return
+    fi
+    
+    # E2E and web tests need all services including web
+    if [[ "$test_args" == *"tests/e2e"* ]] || [[ "$test_args" == *"tests/web"* ]]; then
+        echo "db redis nats auth-service chat-service kb-service asset-service gateway web-service"
+        return
+    fi
+    
+    # Integration tests need core services
+    if [[ "$test_args" == *"tests/integration"* ]] || [[ "$test_args" == "tests/"* ]]; then
+        echo "db redis nats auth-service chat-service kb-service asset-service gateway"
+        return
+    fi
+    
+    # Default: assume integration tests need core services
+    echo "db redis nats auth-service chat-service kb-service asset-service gateway"
+}
 
 # Create log directory if it doesn't exist
 LOG_DIR="logs/tests/pytest"
@@ -53,34 +145,58 @@ else
     TEST_ARGS="$@"
 fi
 
-echo -e "${BLUE}🚀 Starting async test run...${NC}"
+# Determine which services are needed
+REQUIRED_SERVICES=$(get_required_services "$TEST_ARGS")
+
+# Check services if needed
+if [ -n "$REQUIRED_SERVICES" ]; then
+    echo -e "${MAGENTA}🐳 Test type detected: $(echo $TEST_ARGS | grep -oE 'tests/[^/]+' | head -1 || echo 'mixed')${NC}"
+    
+    # Check if Docker daemon is running
+    if ! docker info > /dev/null 2>&1; then
+        echo -e "${RED}❌ Docker is not running!${NC}"
+        echo -e "${YELLOW}Please start Docker Desktop and try again.${NC}"
+        exit 1
+    fi
+    
+    # Check if required services are running
+    if ! check_docker_services $REQUIRED_SERVICES; then
+        # Services not running - try to start them
+        echo -e "\n${BLUE}Starting services automatically...${NC}"
+        docker compose up -d
+        echo -e "${YELLOW}Waiting 15 seconds for services to be ready...${NC}"
+        sleep 15
+        
+        # Check health after starting
+        if ! check_service_health; then
+            echo -e "${YELLOW}⚠️  Services are starting up. Proceeding with tests anyway...${NC}"
+            echo -e "${YELLOW}Some tests may fail if services aren't fully ready.${NC}"
+        fi
+    else
+        # Services are running, check their health
+        if ! check_service_health; then
+            echo -e "\n${YELLOW}⚠️  Services are running but may not be fully healthy.${NC}"
+            echo -e "${YELLOW}Proceeding anyway - some tests may fail.${NC}"
+        fi
+    fi
+else
+    echo -e "${MAGENTA}🧪 Running unit tests - no services required${NC}"
+fi
+
+echo -e "\n${BLUE}🚀 Starting async test run...${NC}"
 echo "📝 Logging to: $LOG_FILE"
 echo "📂 Test args: $TEST_ARGS"
 
 # Start the test in background
 {
     echo "=== Test run started at $(date) ===" 
-    echo "Running pytest with parallel execution (-n auto)..."
+    echo "Running pytest sequentially (no parallel execution)..."
     echo "Test arguments: $TEST_ARGS"
     
-    # Run tests in Docker - handle sequential tests separately
-    # First run non-sequential tests in parallel
-    echo "Running parallel tests..."
-    docker compose run --rm test bash -c "PYTHONPATH=/app pytest -v -n auto -m 'not sequential' $TEST_ARGS" 2>&1
-    PARALLEL_EXIT_CODE=$?
-    
-    # Then run sequential tests serially WITHOUT any workers
-    echo "Running sequential tests serially (no parallelization)..."
-    # Override the pytest.ini addopts that includes '-n auto'
-    docker compose run --rm test bash -c "PYTHONPATH=/app pytest --override-ini='addopts=-v --tb=short --strict-markers --disable-warnings' -m sequential $TEST_ARGS" 2>&1
-    SEQUENTIAL_EXIT_CODE=$?
-    
-    # Combine exit codes (0 only if both are 0)
-    if [ $PARALLEL_EXIT_CODE -eq 0 ] && [ $SEQUENTIAL_EXIT_CODE -eq 0 ]; then
-        TEST_EXIT_CODE=0
-    else
-        TEST_EXIT_CODE=1
-    fi
+    # Run ALL tests sequentially - override pytest.ini to remove -n auto
+    echo "Running all tests sequentially..."
+    docker compose run --rm test bash -c "PYTHONPATH=/app pytest --override-ini='addopts=-v --tb=short --strict-markers --disable-warnings' $TEST_ARGS" 2>&1
+    TEST_EXIT_CODE=$?
     
     if [ $TEST_EXIT_CODE -eq 0 ]; then
         echo -e "\n${GREEN}✅ All tests passed!${NC}"
@@ -105,4 +221,4 @@ echo ""
 echo "Check status with:"
 echo "  ./scripts/check-test-progress.sh"
 echo ""
-echo -e "${YELLOW}Note: Tests will run in parallel using all available CPU cores${NC}"
+echo -e "${YELLOW}Note: Tests will run sequentially (no parallel execution)${NC}"

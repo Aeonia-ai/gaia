@@ -16,6 +16,9 @@ Understand the microservices architecture, scaling patterns, and database design
 ### 🗄️ **For Knowledge Base** → [`current/kb/`](current/kb/)
 Access and manage the Knowledge Base service with Git sync and RBAC.
 
+### 🌐 **For Web UI** → [`current/web-ui/`](current/web-ui/)
+FastHTML frontend development, HTMX patterns, and debugging guides.
+
 ### 🔮 **For Roadmap** → [`future/roadmap/`](future/roadmap/)
 See what's coming next and current development status.
 
@@ -35,10 +38,23 @@ docs/
 │   ├── roadmap/         ← Feature timeline & status
 │   └── research/        ← Experimental features
 ├── 📚 api/              ← API REFERENCE & CONTRACTS
-└── 🗄️ archive/          ← HISTORICAL & DEPRECATED
-    ├── phase-reports/   ← Implementation phases
-    └── deprecated/      ← Outdated documentation
+├── 🧪 testing/          ← TESTING GUIDES & PATTERNS
+│   ├── TESTING_GUIDE.md ← Main testing documentation
+│   └── agents/          ← Specialized test agents
+├── 🗄️ archive/          ← HISTORICAL & DEPRECATED
+│   ├── phase-reports/   ← Implementation phases
+│   └── deprecated/      ← Outdated documentation
+├── 🔧 web-service-standardization-spec.md  ← NEW: Web UI standards
+└── 🎯 web-testing-strategy-post-standardization.md ← NEW: Testing transformation
 ```
+
+## 🆕 **Latest Documentation (August 2025)**
+
+### Web Service Improvements
+- **[Web Service Standardization Specification](./web-service-standardization-spec.md)** - Comprehensive standards for accessibility, testability, and UX improvements
+- **[Web Testing Strategy Post-Standardization](./web-testing-strategy-post-standardization.md)** - How testing will be transformed with semantic HTML and data-testid attributes
+
+These documents outline the transformation of our web service from brittle CSS-based testing to robust, accessible, standards-compliant patterns.
 
 ## 🎯 **Implementation Status Legend**
 - 🟢 **CURRENT** - Fully implemented and tested (main branch)

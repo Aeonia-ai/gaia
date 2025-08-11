@@ -152,6 +152,8 @@ AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
 
 **🤖 USE THE TESTER AGENT**: When writing tests, working with tests, debugging test failures, or investigating issues, engage the [Tester Agent](docs/agents/tester.md). This specialized agent has comprehensive knowledge of our testing infrastructure, patterns, common issues, and knows how to write proper tests following our patterns.
 
+**📋 APPEND-ONLY TEST FIXES LOG**: ALWAYS update the [APPEND-ONLY-TEST-FIXES-LOG.md](APPEND-ONLY-TEST-FIXES-LOG.md) when working on test failures. This captures institutional knowledge about test patterns, fixes, and discoveries. NEVER overwrite - always append new findings.
+
 **🎯 THE ULTIMATE META LESSON ON TEST FAILURES:**
 > **Test failures are rarely about the tests themselves.** They're usually telling you about:
 > - **Missing features** (e.g., auto-scroll functionality wasn't implemented)

@@ -12,6 +12,7 @@ import re
 
 # Import test fixtures from web conftest
 from tests.web.conftest import client
+from tests.fixtures.auth_helpers import create_authenticated_session
 
 # Removed asyncio marker - TestClient is synchronous
 
@@ -56,15 +57,11 @@ class TestUILayout:
     
     def test_chat_page_layout(self, client):
         """Test chat page layout structure"""
-        # First authenticate
-        response = client.post("/auth/login", data={
-            "email": os.getenv("GAIA_TEST_EMAIL", "test@example.com"),
-            "password": os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
-        }, follow_redirects=False)
-        assert response.status_code == 303  # Should redirect to chat
+        # Create authenticated session
+        auth_client = create_authenticated_session(client, email="test@example.com")
         
         # Now test the chat page
-        response = client.get("/chat")
+        response = auth_client.get("/chat")
         assert response.status_code == 200
         soup = BeautifulSoup(response.text, 'html.parser')
         
@@ -236,15 +233,11 @@ class TestUIComponents:
     
     def test_message_component_structure(self, client):
         """Test message components maintain structure"""
-        # First authenticate
-        response = client.post("/auth/login", data={
-            "email": os.getenv("GAIA_TEST_EMAIL", "test@example.com"),
-            "password": os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
-        }, follow_redirects=False)
-        assert response.status_code == 303
+        # Create authenticated session
+        auth_client = create_authenticated_session(client, email="test@example.com")
         
         # Go to chat page
-        response = client.get("/chat")
+        response = auth_client.get("/chat")
         assert response.status_code == 200
         soup = BeautifulSoup(response.text, 'html.parser')
         

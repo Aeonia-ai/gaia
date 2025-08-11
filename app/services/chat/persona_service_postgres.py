@@ -45,7 +45,7 @@ class PostgresPersonaService:
                     "system_prompt": persona_data.system_prompt,
                     "personality_traits": persona_data.personality_traits,
                     "capabilities": persona_data.capabilities,
-                    "is_active": True,  # New personas are active by default
+                    "is_active": True,  # New personas are active by default - PersonaCreate doesn't have is_active field
                     "created_by": created_by
                 }
             )
