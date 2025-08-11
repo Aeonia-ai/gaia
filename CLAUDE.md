@@ -43,11 +43,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🚨 BEFORE YOU START: Required Reading
 
-1. **Web UI Changes** → MUST read [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md) and [Auth Layout Isolation](docs/auth-layout-isolation.md)
-2. **Authentication Setup** → Always check [API Key Configuration Guide](docs/api-key-configuration-guide.md)
-3. **Testing** → Review [Testing Guide](docs/testing/TESTING_GUIDE.md) - ALWAYS use pytest-for-claude.sh, NOT curl
-4. **Adding Services** → Follow [Adding New Microservice](docs/adding-new-microservice.md)
-5. **Deployment** → Check [Smart Scripts & Deployment](docs/smart-scripts-deployment.md)
+1. **Database Setup** → MUST run [Database Initialization Guide](docs/current/development/database-initialization-guide.md) - Required for persona functionality
+2. **Web UI Changes** → MUST read [HTMX + FastHTML Debugging Guide](docs/htmx-fasthtml-debugging-guide.md) and [Auth Layout Isolation](docs/auth-layout-isolation.md)
+3. **Authentication Setup** → Always check [API Key Configuration Guide](docs/api-key-configuration-guide.md)
+4. **Testing** → Review [Testing Guide](docs/testing/TESTING_GUIDE.md) - ALWAYS use pytest-for-claude.sh, NOT curl
+5. **Adding Services** → Follow [Adding New Microservice](docs/adding-new-microservice.md)
+6. **Deployment** → Check [Smart Scripts & Deployment](docs/smart-scripts-deployment.md)
 
 ## ⚠️ REMINDER TO CLAUDE CODE
 **BEFORE ANY WEB UI CHANGES:** You MUST read the HTMX + FastHTML Debugging Guide and Auth Layout Isolation docs first. The user will remind you if you don't, because layout bugs "keep coming back" when documentation is ignored. Always use `auth_page_replacement()` for auth responses and proper HTMX container targeting patterns.

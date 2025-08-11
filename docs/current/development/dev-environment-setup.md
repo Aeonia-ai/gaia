@@ -33,7 +33,12 @@ fly postgres create --name gaia-db-dev --region lax --vm-size shared-cpu-1x --vo
 
 # Initialize with users and API keys
 ./scripts/init-database.sh --env dev --user admin@gaia.dev
+
+# CRITICAL: Initialize persona tables (required for persona functionality)
+fly postgres connect -a gaia-db-dev < scripts/create_persona_tables.sql
 ```
+
+**⚠️ IMPORTANT**: Persona functionality requires additional database setup. See [Database Initialization Guide](database-initialization-guide.md) for complete setup requirements.
 
 ### 2. Service Configuration
 Each service uses the **same database** with proper URL conversion:
