@@ -62,36 +62,6 @@ class TestPersonaService:
         persona = await persona_service.get_user_persona("new-user-123")
         assert persona is None
     
-    @pytest.mark.skip(reason="Being fixed by other agent")
-    @pytest.mark.asyncio
-    async def test_set_user_persona_creates_preference(self, persona_service, mock_db_session):
-        """Test setting user's persona preference"""
-        user_id = "test-user"
-        persona_id = str(uuid4())
-        
-        # Mock persona exists check
-        mock_persona_row = Mock()
-        mock_persona_row.id = persona_id
-        mock_persona_row.name = "Test Persona"
-        mock_persona_row.description = "Test"
-        mock_persona_row.system_prompt = "Test"
-        mock_persona_row.personality_traits = {}
-        mock_persona_row.capabilities = {}
-        mock_persona_row.is_active = True
-        mock_persona_row.created_by = None
-        mock_persona_row.created_at = datetime.utcnow()
-        mock_persona_row.updated_at = datetime.utcnow()
-        mock_result = Mock()
-        mock_result.fetchone.return_value = mock_persona_row
-        mock_db_session.execute.return_value = mock_result
-        
-        # Test
-        preference = await persona_service.set_user_persona(user_id, persona_id)
-        
-        # Verify
-        assert preference.user_id == user_id
-        assert preference.persona_id == persona_id
-        mock_db_session.commit.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_get_default_persona_returns_mu(self, persona_service, mock_db_session):

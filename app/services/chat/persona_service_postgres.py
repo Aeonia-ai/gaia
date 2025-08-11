@@ -355,14 +355,17 @@ class PostgresPersonaService:
                 }
             )
             
+            # Get the preference row and persona name
             row = result.fetchone()
             db.commit()
             db.close()
             
             if row:
+                # Use the persona name from the get_persona call we already made
                 pref = UserPersonaPreference(
                     user_id=str(row.user_id),
                     persona_id=str(row.persona_id),
+                    persona_name=persona.name,  # Use name from the persona we already fetched
                     updated_at=row.updated_at
                 )
                 
