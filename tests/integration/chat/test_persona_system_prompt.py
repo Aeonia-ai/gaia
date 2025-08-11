@@ -4,7 +4,7 @@ Quick test to verify persona system prompt issue
 import pytest
 import httpx
 import os
-from tests.fixtures.jwt_auth import jwt_auth, shared_test_user
+from tests.fixtures.shared_test_user import shared_test_user  # Fixed: was importing from non-existent jwt_auth module
 from app.shared.logging import setup_service_logger
 
 logger = setup_service_logger("test_persona_system")
