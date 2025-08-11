@@ -71,7 +71,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
         
         # Hash for consistent length
         key_string = ":".join(components)
-        key_hash = hashlib.sha256(key_string.encode()).hexdigest()[:16]
+        key_hash = hashlib.sha256(key_string.encode()).hexdigest()[:32]
         
         return f"{self.cache_prefix}{request.url.path}:{key_hash}"
     

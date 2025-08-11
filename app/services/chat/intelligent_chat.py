@@ -66,7 +66,7 @@ class IntelligentChatService:
         
         try:
             # Get user context for better routing decisions
-            auth_key = auth_principal.get("sub") or auth_principal.get("key")
+            auth_key = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key")
             context = {
                 "user_id": auth_key,
                 "has_conversation_history": hasattr(request, "conversation_id"),

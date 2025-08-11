@@ -207,13 +207,15 @@ class CacheManager:
     
     @staticmethod
     def auth_cache_key(token_hash: str) -> str:
-        """Generate auth cache key."""
-        return CacheManager.cache_key("auth", "jwt", token_hash)
+        """Generate JWT auth cache key with extended hash to prevent collisions."""
+        # Use longer hash (32 chars) and specific JWT prefix for collision prevention
+        return CacheManager.cache_key("gaia", "auth", "jwt", "v1", token_hash[:32])
     
     @staticmethod
     def api_key_cache_key(key_hash: str) -> str:
-        """Generate API key cache key."""
-        return CacheManager.cache_key("auth", "api_key", key_hash)
+        """Generate API key cache key with extended hash to prevent collisions."""
+        # Use longer hash (32 chars) and specific API key prefix for collision prevention
+        return CacheManager.cache_key("gaia", "auth", "apikey", "v1", key_hash[:32])
     
     @staticmethod
     def user_session_key(user_id: str) -> str:

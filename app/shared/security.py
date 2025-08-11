@@ -69,7 +69,7 @@ async def validate_user_api_key(api_key: str, db: Session) -> Optional[Authentic
     try:
         # Hash the provided API key
         key_hash = hash_api_key(api_key)
-        cache_key = CacheManager.api_key_cache_key(key_hash[:16])
+        cache_key = CacheManager.api_key_cache_key(key_hash)
         
         # Try to get cached validation result
         if redis_client.is_connected():
@@ -160,7 +160,7 @@ async def validate_supabase_jwt(
         )
     
     # Generate cache key from token hash
-    token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()[:16]
+    token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
     cache_key = CacheManager.auth_cache_key(token_hash)
     
     # Try to get cached validation result

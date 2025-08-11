@@ -104,7 +104,7 @@ class HotLoadedChatService:
         # Ensure initialized
         await self.initialize()
         
-        auth_key = auth_principal.get("sub") or auth_principal.get("key")
+        auth_key = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key")
         if not auth_key:
             raise HTTPException(status_code=401, detail="Invalid auth")
         

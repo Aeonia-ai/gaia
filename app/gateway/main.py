@@ -60,11 +60,11 @@ def redis_rate_limit_key_func(request: Request):
         if auth_header and auth_header.startswith("Bearer "):
             # Use JWT token hash for user rate limiting
             token = auth_header[7:]
-            token_hash = hashlib.sha256(token.encode()).hexdigest()[:16]
+            token_hash = hashlib.sha256(token.encode()).hexdigest()[:32]
             return f"user:jwt:{token_hash}"
         elif api_key:
             # Use API key hash for service rate limiting
-            key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+            key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:32]
             return f"user:api:{key_hash}"
         else:
             # Fall back to IP-based rate limiting
