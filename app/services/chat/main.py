@@ -123,13 +123,13 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️ Could not import conversations router: {e}")
 
-# Include personas router (disabled until persona models are implemented)
-# try:
-#     from .personas import router as personas_router
-#     app.include_router(personas_router, prefix="/personas")
-#     logger.info("✅ Personas router included")
-# except ImportError as e:
-#     logger.warning(f"⚠️ Could not import personas router: {e}")
+# Include personas router
+try:
+    from .personas import router as personas_router
+    app.include_router(personas_router, prefix="/personas")
+    logger.info("✅ Personas router included")
+except ImportError as e:
+    logger.warning(f"⚠️ Could not import personas router: {e}")
 
 # Create enhanced health endpoint with route discovery AFTER all routers are included
 create_service_health_endpoint(app, "chat", "0.2")

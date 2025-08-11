@@ -1,9 +1,11 @@
 """Integration tests for persona API endpoints"""
 import pytest
 import httpx
+from tests.fixtures.test_auth import JWTTestAuth
 from tests.fixtures.shared_test_user import shared_test_user
 
-BASE_URL = "http://gateway:8000"
+BASE_URL = "http://chat-service:8000"
+GATEWAY_URL = "http://gateway:8000"
 
 
 @pytest.mark.skip(reason="Persona endpoints not exposed through gateway - needs architecture decision")
@@ -104,25 +106,49 @@ class TestPersonasAPI:
             assert data["persona"]["name"] == "Mu"
     
     @pytest.mark.asyncio
-    async def test_persona_affects_chat_response(self, auth_headers):
+    async def test_persona_affects_chat_response(self, shared_test_user):
         """Test that persona selection affects chat responses"""
-        headers = auth_headers
+        # Use the shared test user that exists in the database
+        from tests.fixtures.test_auth import JWTTestAuth
+        jwt_auth = JWTTestAuth()
+        headers = jwt_auth.create_auth_headers(
+            user_id=shared_test_user["user_id"],
+            email=shared_test_user["email"]
+        )
         
         async with httpx.AsyncClient() as client:
-            # Send a chat message (should use default Mu persona)
+            # Send a chat message directly to chat service's unified endpoint
             response = await client.post(
-                f"{BASE_URL}/api/v1/chat",
+                f"{BASE_URL}/chat/unified",
                 headers=headers,
                 json={
-                    "message": "Hello, who are you?",
-                    "response_format": "text"
+                    "message": "Hello! Please introduce yourself and tell me who you are.",
+                    "response_format": "v0.3"
                 }
             )
+            print(f"DEBUG: Status code: {response.status_code}")
+            print(f"DEBUG: Response text: {response.text}")
             assert response.status_code == 200
-            response_text = response.json()["response"]
+            response_data = response.json()
+            print(f"DEBUG: Response data: {response_data}")
+            response_text = response_data["response"]
             
-            # Should contain Mu-like personality indicators
-            # (robotic expressions, cheerful tone, etc.)
-            assert any(indicator in response_text.lower() for indicator in [
-                "beep", "boop", "mu", "robot", "companion"
+            # Check for Mu persona characteristics
+            # The persona might not always say "Mu" as its name, but should show robot characteristics
+            response_lower = response_text.lower()
+            
+            # Check for any of these Mu characteristics:
+            # - Name "mu"
+            # - Robot/robotic references
+            # - Beep boop expressions
+            # - Cheerful/upbeat tone
+            has_mu_characteristics = any([
+                "mu" in response_lower,
+                "robot" in response_lower,
+                "beep" in response_lower,
+                "boop" in response_lower,
+                "cheerful" in response_lower,
+                "companion" in response_lower
             ])
+            
+            assert has_mu_characteristics, f"Response doesn't show Mu persona characteristics: {response_text}"
