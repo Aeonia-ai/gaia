@@ -19,6 +19,7 @@ from typing import Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, status, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from fastapi import Header
 
 # Import shared Gaia utilities
 from app.shared import (
@@ -611,6 +612,117 @@ async def resend_verification(request: ResendVerificationRequest):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=detail
+        )
+
+@app.post("/auth/api-key-login", tags=["Authentication"])
+async def exchange_api_key_for_jwt(api_key: str = Header(alias="X-API-Key")):
+    """
+    Exchange an API key for a JWT token.
+    
+    This endpoint allows API key holders to obtain a JWT token that can be used
+    for subsequent API calls. The JWT will contain the same user ID and permissions
+    as the API key, ensuring consistent authentication across the platform.
+    
+    Returns:
+        Standard OAuth2 token response with access_token, token_type, and expires_in
+    """
+    logger.info("API key to JWT exchange requested")
+    
+    try:
+        # Determine which backend to use for API key validation
+        auth_backend = os.getenv("AUTH_BACKEND", "postgresql")
+        auth_result = None
+        
+        if auth_backend == "supabase" or os.getenv("SUPABASE_AUTH_ENABLED", "false").lower() == "true":
+            # Use Supabase validation
+            logger.debug("Validating API key via Supabase")
+            from app.shared.supabase_auth import validate_api_key_supabase
+            auth_result = await validate_api_key_supabase(api_key)
+        else:
+            # Use PostgreSQL validation
+            logger.debug("Validating API key via PostgreSQL")
+            from app.shared.database import get_database_session
+            from app.shared.security import validate_user_api_key
+            
+            db_gen = get_database_session()
+            db = next(db_gen)
+            try:
+                auth_result = await validate_user_api_key(api_key, db)
+            finally:
+                db.close()
+        
+        if not auth_result:
+            logger.warning("Invalid API key provided for exchange")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key"
+            )
+        
+        # Generate JWT token with Supabase-compatible claims
+        import jwt
+        from datetime import datetime, timedelta
+        
+        # Get the JWT secret
+        jwt_secret = os.getenv("SUPABASE_JWT_SECRET")
+        if not jwt_secret:
+            logger.error("SUPABASE_JWT_SECRET not configured")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="JWT configuration error"
+            )
+        
+        # Create JWT claims matching Supabase format
+        now = datetime.utcnow()
+        expires_at = now + timedelta(minutes=15)  # 15-minute expiration as per ADR
+        
+        claims = {
+            # Standard JWT claims
+            "aud": "authenticated",  # Supabase audience
+            "exp": int(expires_at.timestamp()),
+            "iat": int(now.timestamp()),
+            "iss": os.getenv("SUPABASE_URL", "https://gaia-platform.supabase.co"),
+            
+            # User claims - matching Supabase structure
+            "sub": auth_result.user_id,  # User ID in 'sub' claim for consistency
+            "email": auth_result.email,
+            "role": "authenticated",
+            
+            # Additional metadata
+            "user_metadata": {
+                "auth_source": "api_key_exchange",
+                "original_auth_type": auth_result.auth_type
+            },
+            
+            # Include user_id for backward compatibility
+            "user_id": auth_result.user_id
+        }
+        
+        # Encode the JWT
+        jwt_token = jwt.encode(claims, jwt_secret, algorithm="HS256")
+        
+        log_auth_event("auth", "api_key_exchange", auth_result.user_id, success=True)
+        logger.info(f"Successfully exchanged API key for JWT: user_id={auth_result.user_id}")
+        
+        # Return OAuth2-compatible response
+        return {
+            "access_token": jwt_token,
+            "token_type": "bearer",
+            "expires_in": 900,  # 15 minutes in seconds
+            "user": {
+                "id": auth_result.user_id,
+                "email": auth_result.email
+            }
+        }
+        
+    except HTTPException:
+        log_auth_event("auth", "api_key_exchange", success=False)
+        raise
+    except Exception as e:
+        log_auth_event("auth", "api_key_exchange", success=False)
+        logger.error(f"API key exchange error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to exchange API key"
         )
 
 # ========================================================================================

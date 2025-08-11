@@ -49,7 +49,8 @@ async def chat_completion(
     """
     try:
         # Use a unique key for chat history based on auth_principal
-        auth_key = auth_principal.get("sub") or auth_principal.get("key")
+        # Handle both JWT (user_id) and API key (key) authentication
+        auth_key = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key")
         if not auth_key:
             raise ValueError("Could not determine unique auth key for chat history.")
 
@@ -183,7 +184,7 @@ async def unified_chat_endpoint(
             # Check if the conversation actually exists
             try:
                 from .conversation_store import chat_conversation_store
-                user_id = auth_principal.get("sub") or auth_principal.get("key", "unknown")
+                user_id = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key", "unknown")
                 conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
                 
                 if conversation is None:
@@ -203,7 +204,7 @@ async def unified_chat_endpoint(
         context = {
             "conversation_id": conversation_id,
             "message_count": len(chat_histories.get(
-                auth_principal.get("sub") or auth_principal.get("key", ""), []
+                auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key", ""), []
             )),
             "stream": stream,  # Pass streaming preference to handler
             "response_format": response_format  # Pass format preference
@@ -320,7 +321,8 @@ async def get_chat_status(
     """
     try:
         # Use a unique key for chat history based on auth_principal
-        auth_key = auth_principal.get("sub") or auth_principal.get("key")
+        # Handle both JWT (user_id) and API key (key) authentication
+        auth_key = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key")
         if not auth_key:
             raise ValueError("Could not determine unique auth key for chat history.")
 
@@ -362,7 +364,7 @@ async def multi_provider_chat_completion(
     with instrument_request(metadata={"endpoint": "multi-provider", "auth_type": auth_principal.get('type', 'unknown'), "stream": request.stream}) as request_id:
         try:
             # Use a unique key for chat history based on auth_principal
-            auth_key = auth_principal.get("sub") or auth_principal.get("key")
+            auth_key = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key")
             if not auth_key:
                 raise ValueError("Could not determine unique auth key for chat history.")
 
@@ -606,7 +608,8 @@ async def chat_completion(
     """
     try:
         # Use a unique key for chat history based on auth_principal
-        auth_key = auth_principal.get("sub") or auth_principal.get("key")
+        # Handle both JWT (user_id) and API key (key) authentication
+        auth_key = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key")
         if not auth_key:
             raise ValueError("Could not determine unique auth key for chat history.")
 
@@ -715,7 +718,8 @@ async def reload_system_prompt(
     """Reload the system prompt from disk and update all active chat histories"""
     try:
         # Use a unique key for chat history based on auth_principal
-        auth_key = auth_principal.get("sub") or auth_principal.get("key")
+        # Handle both JWT (user_id) and API key (key) authentication
+        auth_key = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key")
         if not auth_key:
             raise ValueError("Could not determine unique auth key for chat history.")
 
@@ -744,7 +748,8 @@ async def clear_chat_history(
     """Clear the chat history in both memory and Redis"""
     try:
         # Use a unique key for chat history based on auth_principal
-        auth_key = auth_principal.get("sub") or auth_principal.get("key")
+        # Handle both JWT (user_id) and API key (key) authentication
+        auth_key = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key")
         if not auth_key:
             raise ValueError("Could not determine unique auth key for chat history.")
 
