@@ -459,3 +459,115 @@ DEBUG: Received 0 chunks
 - ✅ Integration changes: Targeted and successful
 - ✅ Service functionality: No regressions detected
 - ✅ Documentation: Complete audit trail maintained
+
+---
+
+## 2025-08-12 12:45 PDT - INTEGRATION TEST FIXES: Fallback Bug and Retry Logic
+
+**[CRITICAL FIX]** **Fixed provider fallback async/await bug**:
+- **Problem**: "object list can't be used in 'await' expression" error when Claude fails
+- **Root cause**: Missing await on `get_provider_recommendations()` coroutine
+- **Solution**: Create coroutine object first, then pass to `instrument_async_operation`
+- **Impact**: Fallback to OpenAI now works when Claude returns 529 errors
+
+**[ENHANCEMENT]** **Added exponential backoff retry for Claude 529 errors**:
+- **Implementation**: 3 retries with exponential backoff (1s, 2s, 4s delays)
+- **Max delay**: 30 seconds to prevent excessive waiting
+- **Applied to**: chat_completion, validate_config, and health_check methods
+- **Note**: Streaming endpoint retry still needs implementation (complex due to context manager)
+
+**[PATTERN]** **Retry logic for rate-limited APIs**:
+```python
+async def _retry_with_backoff(self, func, *args, **kwargs):
+    for attempt in range(MAX_RETRIES):
+        try:
+            return await func(*args, **kwargs)
+        except APIError as e:
+            if "529" in str(e) or "overloaded" in str(e).lower():
+                if attempt < MAX_RETRIES - 1:
+                    delay = min(INITIAL_DELAY * (2 ** attempt), MAX_DELAY)
+                    await asyncio.sleep(delay)
+                    continue
+            raise
+```
+
+**[LESSON]** **Environment-specific failures reveal production issues**:
+- Remote agent's constrained environment exposed critical bugs
+- Fallback mechanism failure was a production reliability issue
+- Test suite is efficient (0.7 API calls per test), not excessive
+- Environmental constraints are valuable for finding edge cases
+
+**[STATUS]** **Integration test improvements**:
+- ✅ Fallback mechanism now works properly
+- ✅ Non-streaming endpoints have retry logic
+- ✅ Better resilience to rate limiting
+- 🔄 Streaming retry still needs implementation
+- 📝 Test isolation issue still pending
+
+---
+
+## 2025-08-12 13:15 PDT - TEST PHILOSOPHY: Separating Load Tests from Integration Tests
+
+**[CRITICAL INSIGHT]** **Integration tests were testing the wrong things**:
+- **Problem**: Integration tests were triggering Claude 529 rate limits
+- **Root cause**: Tests were verifying external API behavior, not integration correctness
+- **User feedback**: "that seems to be addressing symptoms instead of root causes?"
+- **Solution**: Separate load testing concerns from integration testing
+
+**[REVERTED]** **Removed retry logic after reconsidering test purpose**:
+- Initially added exponential backoff to handle 529 errors
+- User correctly identified this as treating symptoms
+- Reverted changes to focus on proper test design
+- Key insight: Integration tests should NOT test external API limits
+
+**[IMPLEMENTATION]** **Created dedicated load test suite**:
+- **Location**: `/tests/load/` directory with own README and configuration
+- **Separation**: Moved all concurrent request tests to load suite
+- **Configuration**: Updated pytest.ini to exclude load tests by default (`-m "not load"`)
+- **Documentation**: Clear explanations in skipped tests pointing to load suite
+
+**[TEST PHILOSOPHY]** **What integration tests SHOULD vs SHOULD NOT test**:
+
+**SHOULD Test**:
+- Service-to-service communication
+- Data flow through the system
+- Authentication and authorization
+- Error handling and responses
+- State management and persistence
+
+**SHOULD NOT Test**:
+- External API rate limits
+- System behavior under load
+- Performance metrics
+- API quota consumption
+- Non-deterministic timing
+
+**[PATTERN]** **Load test organization**:
+```bash
+tests/load/
+├── README.md                    # Explains why load tests are separate
+├── conftest.py                  # Load test specific fixtures
+├── pytest.ini                   # Load test configuration
+└── test_concurrent_requests.py  # Moved concurrent tests
+```
+
+**[SCRIPT]** **Created run-load-tests.sh for explicit load testing**:
+- Warns about API quota consumption
+- Requires explicit API key
+- Configurable via environment variables
+- Runs with pytest-for-claude.sh to avoid timeouts
+
+**[LESSON]** **Test categorization prevents false failures**:
+- Load tests have different success criteria than integration tests
+- Running load tests in CI/CD wastes API quotas
+- Concurrent behavior testing belongs in dedicated suite
+- Clear separation improves test reliability
+
+**[STATUS]** **Test reorganization complete**:
+- ✅ Fallback mechanism fixed (kept this fix)
+- ❌ Retry logic reverted (symptom-based approach)
+- ✅ Load tests separated into dedicated suite
+- ✅ pytest configured to exclude load tests by default
+- ✅ Documentation updated with clear skip reasons
+- ✅ Load test runner script created
+- 📝 Test isolation issue still pending

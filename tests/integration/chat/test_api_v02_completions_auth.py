@@ -218,33 +218,13 @@ class TestAPIWithRealAuthFixed:
             logger.info("Auth validation working correctly")
     
     @pytest.mark.asyncio
+    @pytest.mark.skip(reason="Moved to load tests - see tests/load/test_concurrent_requests.py")
     async def test_concurrent_requests_real_auth(self, gateway_url, headers):
-        """Test handling concurrent requests with real auth."""
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Send 3 requests concurrently
-            tasks = []
-            for i in range(3):
-                task = client.post(
-                    f"{gateway_url}/api/v1/chat",
-                    headers=headers,
-                    json={
-                        "message": f"Say the number {i}",
-                        "stream": False
-                    }
-                )
-                tasks.append(task)
-            
-            responses = await asyncio.gather(*tasks)
-            
-            # All should succeed
-            success_count = 0
-            for i, response in enumerate(responses):
-                if response.status_code == 200:
-                    success_count += 1
-                    data = response.json()
-                    logger.info(f"Concurrent request {i} succeeded")
-            
-            assert success_count == 3, f"Only {success_count}/3 concurrent requests succeeded"
+        """Test handling concurrent requests with real auth.
+        
+        This test has been moved to load tests as it tests system behavior
+        under concurrent load rather than API integration correctness."""
+        pass  # Implementation moved to load tests
     
     @pytest.mark.asyncio
     async def test_response_metadata(self, gateway_url, headers):

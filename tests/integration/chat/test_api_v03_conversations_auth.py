@@ -193,30 +193,20 @@ class TestAPIWithRealAuth:
                 logger.info(f"Conversation list returned {response.status_code}")
     
     @pytest.mark.asyncio
+    @pytest.mark.skip(reason="Moved to load tests - see tests/load/test_concurrent_requests.py")
     async def test_concurrent_requests(self, gateway_url, headers):
-        """Test handling concurrent requests with real auth."""
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Send 3 requests concurrently
-            tasks = []
-            for i in range(3):
-                task = client.post(
-                    f"{gateway_url}/api/v1/chat",
-                    headers=headers,
-                    json={
-                        "message": f"Say the number {i}",
-                        "stream": False
-                    }
-                )
-                tasks.append(task)
-            
-            responses = await asyncio.gather(*tasks)
-            
-            # All should succeed
-            for i, response in enumerate(responses):
-                assert response.status_code == 200
-                data = response.json()
-                assert "choices" in data
-                logger.info(f"Concurrent request {i} succeeded")
+        """Test handling concurrent requests with real auth.
+        
+        This test has been moved to the load test suite because it:
+        - Tests system behavior under load, not integration correctness
+        - Can trigger rate limits on external APIs
+        - Has non-deterministic timing requirements
+        
+        For integration testing of multi-request scenarios, see:
+        - test_conversation_persistence (sequential requests)
+        - test_model_selection (different model handling)
+        """
+        pass  # Moved to load tests
     
     @pytest.mark.asyncio
     async def test_model_selection(self, gateway_url, headers):

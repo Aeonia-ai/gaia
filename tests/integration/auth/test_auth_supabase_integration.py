@@ -235,37 +235,13 @@ class TestSupabaseAuthIntegration:
             logger.info(f"Conversation persistence verified")
     
     @pytest.mark.asyncio
+    @pytest.mark.skip(reason="Moved to load tests - see tests/load/test_concurrent_requests.py")
     async def test_concurrent_requests_same_user(self, gateway_url, auth_url, shared_test_user):
-        """Test handling concurrent requests from the same user."""
-        # Create user and login
-        test_user = shared_test_user
-        login_response = await self.login_user(auth_url, test_user["email"], test_user["password"])
+        """Test handling concurrent requests from the same user.
         
-        headers = {"Authorization": f"Bearer {login_response['access_token']}"}
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Send 3 concurrent requests
-            tasks = []
-            for i in range(3):
-                task = client.post(
-                    f"{gateway_url}/api/v1/chat",
-                    headers=headers,
-                    json={"message": f"Concurrent request {i}"}
-                )
-                tasks.append(task)
-            
-            responses = await asyncio.gather(*tasks)
-            
-            # All should succeed
-            success_count = 0
-            for i, response in enumerate(responses):
-                if response.status_code == 200:
-                    success_count += 1
-                    logger.info(f"Concurrent request {i} succeeded")
-                else:
-                    logger.warning(f"Concurrent request {i} failed: {response.status_code}")
-            
-            assert success_count == 3, f"Only {success_count}/3 concurrent requests succeeded"
+        This test has been moved to load tests as it tests system behavior
+        under concurrent load rather than authentication integration."""
+        pass  # Implementation moved to load tests
     
     @pytest.mark.asyncio
     async def test_auth_refresh_token(self, auth_url, shared_test_user):
