@@ -271,16 +271,19 @@ class MultiProviderChatService:
                 try:
                     message_text = messages[-1].get("content", "") if messages else ""
                     
+                    # Get provider recommendations with proper await
+                    get_recommendations_coro = self.selector.get_provider_recommendations({
+                        "message": message_text,
+                        "context_type": context_type,
+                        "priority": priority,
+                        "max_response_time_ms": max_response_time_ms,
+                        "required_capabilities": required_capabilities or []
+                    })
+                    
                     recommendations = await instrument_async_operation(
                         request_id,
                         "fallback_provider_selection",
-                        self.selector.get_provider_recommendations({
-                            "message": message_text,
-                            "context_type": context_type,
-                            "priority": priority,
-                            "max_response_time_ms": max_response_time_ms,
-                            "required_capabilities": required_capabilities or []
-                        })
+                        get_recommendations_coro
                     )
                     
                     # Try each recommendation until one works
