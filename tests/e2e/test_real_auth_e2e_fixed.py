@@ -19,7 +19,7 @@ class TestRealE2EFixed:
         """Test logout functionality with real auth - handles dropdown menu"""
         factory = TestUserFactory()
         test_email = f"e2e-logout-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "os.getenv("GAIA_TEST_PASSWORD", "default-test-password")"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         user = factory.create_verified_test_user(
             email=test_email,
@@ -79,7 +79,7 @@ class TestRealE2EFixed:
         """Test chat functionality with updated selectors"""
         factory = TestUserFactory()
         test_email = f"e2e-chat-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "os.getenv("GAIA_TEST_PASSWORD", "default-test-password")"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         user = factory.create_verified_test_user(
             email=test_email,

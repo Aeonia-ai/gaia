@@ -15,7 +15,7 @@ async def test_debug_real_auth():
     """Debug test to see what's happening on the chat page"""
     factory = TestUserFactory()
     test_email = f"e2e-debug-{uuid.uuid4().hex[:8]}@test.local"
-    test_password = "os.getenv("GAIA_TEST_PASSWORD", "default-test-password")"
+    test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
     
     user = factory.create_verified_test_user(
         email=test_email,

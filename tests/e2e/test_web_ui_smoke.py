@@ -20,7 +20,7 @@ class TestWebUISmoke:
         """Test the most basic chat flow: login, send message, get response."""
         factory = TestUserFactory()
         test_email = f"smoke-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "os.getenv("GAIA_TEST_PASSWORD", "default-test-password")"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         user = factory.create_verified_test_user(
             email=test_email,
@@ -88,7 +88,7 @@ class TestWebUISmoke:
         """Test that conversations persist across page loads."""
         factory = TestUserFactory()
         test_email = f"persist-{uuid.uuid4().hex[:8]}@test.local"
-        test_password = "os.getenv("GAIA_TEST_PASSWORD", "default-test-password")"
+        test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
         
         user = factory.create_verified_test_user(
             email=test_email,

@@ -19,7 +19,7 @@ class ScreenshotManager:
         self.preserved_dirs = {"baseline", "reference"}  # Don't clean these
         self.screenshots_taken = []
         
-    def take_screenshot(self, page, name: str, subdir: Optional[str] = None) -> Path:
+    async def take_screenshot(self, page, name: str, subdir: Optional[str] = None) -> Path:
         """Take a screenshot and track it for cleanup"""
         if subdir:
             screenshot_dir = self.base_dir / subdir
@@ -30,7 +30,7 @@ class ScreenshotManager:
         screenshot_path = screenshot_dir / name
         
         # Take the screenshot
-        page.screenshot(path=str(screenshot_path))
+        await page.screenshot(path=str(screenshot_path))
         
         # Track it for cleanup
         self.screenshots_taken.append(screenshot_path)
