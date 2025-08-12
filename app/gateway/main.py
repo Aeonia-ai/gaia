@@ -1568,6 +1568,9 @@ async def v03_chat(
     # Add authentication info to request
     body["_auth"] = auth
     
+    # Mark this as v0.3 request for directive-enhanced responses
+    body["response_format"] = "v0.3"
+    
     # Remove content-length header since we modified the body
     headers = dict(request.headers)
     headers.pop("content-length", None)

@@ -1073,6 +1073,39 @@ Key principles:
 4. "Find X in my files/KB" or "Search for X online" require tools
 5. When uncertain, prefer direct responses - tools add latency"""
         
+        # Check for directive-enhanced context and add JSON-RPC directive instructions
+        if self._is_directive_enhanced_context(context):
+            directive_section = """
+
+DIRECTIVE-ENHANCED RESPONSES:
+For immersive virtual world interactions, embed JSON-RPC directives within your responses.
+
+Directive Format: {"m":"method_name","p":{"param":"value"}}
+
+Available Methods:
+- pause: {"m":"pause","p":{"sec":2}} or {"m":"pause","p":{"ms":1500}}
+- effect: {"m":"effect","p":{"name":"sparkle","intensity":0.8,"duration":3}}
+- animation: {"m":"animation","p":{"name":"wave","duration":2,"loop":false}}
+- meditation: {"m":"meditation","p":{"type":"breathing","duration":60}}
+- whisper: {"m":"whisper","p":{"text":"secret message"}}
+- emphasis: {"m":"emphasis","p":{"text":"important","level":"strong"}}
+
+Examples:
+- "Let me think for a moment... {"m":"pause","p":{"sec":2}} I have an idea!"
+- "Watch this magical effect! {"m":"effect","p":{"name":"sparkle","intensity":0.8}}"
+- "Let's begin breathing together. {"m":"meditation","p":{"type":"breathing","duration":60}}"
+- "*waves hello* {"m":"animation","p":{"name":"wave","duration":2}}"
+
+Guidelines:
+- Embed directives naturally within conversational flow
+- Use pauses for dramatic timing or thinking moments
+- Use effects for emphasis or magical moments
+- Use animations for character expressions
+- Use meditation directives for relaxation guidance
+- Multiple directives can be used in one response"""
+            
+            tools_section += directive_section
+        
         # Check if persona prompt has {tools_section} placeholder
         if "{tools_section}" in persona_prompt:
             # Replace the placeholder with the tools section
@@ -1082,6 +1115,26 @@ Key principles:
             final_prompt = f"{persona_prompt}\n\n{tools_section}"
         
         return final_prompt
+    
+    def _is_directive_enhanced_context(self, context: dict) -> bool:
+        """
+        Check if this context should use directive-enhanced responses.
+        
+        v0.3 API always uses directives for immersive experiences.
+        """
+        # v0.3 always uses directives
+        if context.get("response_format") == "v0.3":
+            return True
+            
+        # Legacy: Check explicit directive flag
+        if context.get("directive_enhanced"):
+            return True
+            
+        # Legacy: Check for VR priority/context 
+        if context.get("priority") == "vr" or context.get("context_type") == "vr":
+            return True
+            
+        return False
     
     async def build_context(self, auth: dict, additional_context: Optional[dict] = None) -> dict:
         """

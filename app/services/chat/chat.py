@@ -207,7 +207,7 @@ async def unified_chat_endpoint(
                 auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key", ""), []
             )),
             "stream": stream,  # Pass streaming preference to handler
-            "response_format": response_format  # Pass format preference
+            "response_format": response_format  # Pass format preference (v0.3 = directives enabled)
         }
         
         # Handle streaming response
