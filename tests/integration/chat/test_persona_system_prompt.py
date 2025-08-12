@@ -15,11 +15,9 @@ async def test_persona_system_prompt_method(shared_test_user):
     gateway_url = os.getenv("GATEWAY_URL", "http://gateway:8000")
     
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # Create auth headers using shared test user
-        user = shared_test_user
-        from tests.fixtures.jwt_auth import JWTAuthHelper
-        jwt_auth = JWTAuthHelper()
-        headers = jwt_auth.create_auth_headers(user_id=user["user_id"])
+        # Create auth headers using environment API key
+        api_key = os.getenv("API_KEY") or os.getenv("TEST_API_KEY", "test-key-123")
+        headers = {"X-API-Key": api_key}
         
         # Test 1: Simple name question
         response = await client.post(
