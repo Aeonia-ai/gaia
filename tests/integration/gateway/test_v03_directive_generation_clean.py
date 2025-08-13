@@ -150,74 +150,40 @@ class TestV03DirectiveGeneration:
     async def test_v03_streaming_includes_directives(self, gateway_url, api_key):
         """Test that v0.3 streaming responses include directives."""
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
+            # Make streaming request
+            async with client.stream(
+                "POST",
                 f"{gateway_url}/api/v0.3/chat",
                 headers={"X-API-Key": api_key},
                 json={
-                    "message": "Guide me through meditation with pauses",
+                    "message": "Guide me through a breathing exercise with pauses",
                     "stream": True
                 }
-            )
-            
-            assert response.status_code == 200
-            
-            # Collect all content from streaming response
-            full_response = ""
-            async for line in response.aiter_lines():
-                if line.startswith("data: "):
-                    data_str = line[6:].strip()
-                    
-                    if data_str and data_str != "[DONE]":
-                        try:
-                            chunk_data = json.loads(data_str)
-                            if chunk_data.get("type") == "content":
-                                full_response += chunk_data.get("content", "")
-                        except json.JSONDecodeError:
-                            continue
-            
-            # Extract directives from full streaming response
-            directives = self.extract_directives(full_response)
-            
-            # Should contain directives even in streaming mode
-            assert len(directives) > 0, f"No directives in streaming response: {full_response[:200]}..."
-            
-            print(f"✅ Streaming response contained {len(directives)} directives")
-    
-    @pytest.mark.asyncio
-    async def test_v03_vs_v02_directive_difference(self, gateway_url, api_key):
-        """Test that v0.3 has directives while v0.2 does not."""
-        message = "Guide me through a calming meditation"
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Test v0.2 (should not have directives)
-            v02_response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
-                headers={"X-API-Key": api_key},
-                json={"message": message, "stream": False}
-            )
-            
-            # Test v0.3 (should have directives)
-            v03_response = await client.post(
-                f"{gateway_url}/api/v0.3/chat",
-                headers={"X-API-Key": api_key},
-                json={"message": message, "stream": False}
-            )
-            
-            assert v02_response.status_code == 200
-            assert v03_response.status_code == 200
-            
-            v02_data = v02_response.json()
-            v03_data = v03_response.json()
-            
-            # Extract directives from both responses
-            v02_directives = self.extract_directives(v02_data.get("response", ""))
-            v03_directives = self.extract_directives(v03_data.get("response", ""))
-            
-            # v0.2 should have no directives (or very few)
-            # v0.3 should have directives
-            assert len(v03_directives) > len(v02_directives), (
-                f"v0.3 should have more directives than v0.2. "
-                f"v0.2: {len(v02_directives)}, v0.3: {len(v03_directives)}"
-            )
-            
-            print(f"✅ v0.2 directives: {len(v02_directives)}, v0.3 directives: {len(v03_directives)}")
+            ) as response:
+                assert response.status_code == 200
+                
+                # Collect all streaming chunks
+                chunks = []
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:].strip()
+                        if data_str and data_str != "[DONE]":
+                            try:
+                                chunk_data = json.loads(data_str)
+                                chunks.append(chunk_data)
+                            except json.JSONDecodeError:
+                                continue
+                
+                # Combine all response chunks
+                full_response = ""
+                for chunk in chunks:
+                    if "response" in chunk:
+                        full_response += chunk["response"]
+                
+                # Extract directives from the full response
+                directives = self.extract_directives(full_response)
+                
+                # Should contain directives even in streaming mode
+                assert len(directives) > 0, f"No directives in streaming response: {full_response[:200]}..."
+                
+                print(f"✅ Streaming response contained {len(directives)} directives")

@@ -23,6 +23,7 @@ class TestRealAuthentication:
         factory.cleanup_test_user(user['user_id'])
     
     @pytest.mark.asyncio
+    @pytest.mark.requires_env
     @pytest.mark.skipif(not os.getenv("SUPABASE_SERVICE_KEY"), 
                         reason="Requires SUPABASE_SERVICE_KEY for real auth")
     async def test_real_login_and_chat_access(self, test_user):
@@ -106,6 +107,7 @@ class TestRealAuthentication:
             await browser.close()
     
     @pytest.mark.asyncio
+    @pytest.mark.requires_env
     @pytest.mark.skipif(not os.getenv("SUPABASE_SERVICE_KEY"), 
                         reason="Requires SUPABASE_SERVICE_KEY for real auth")
     async def test_send_message_with_real_auth(self, test_user):
@@ -171,6 +173,7 @@ class TestRealAuthentication:
             await browser.close()
     
     @pytest.mark.asyncio
+    @pytest.mark.requires_env
     @pytest.mark.skipif(not os.getenv("SUPABASE_SERVICE_KEY"), 
                         reason="Requires SUPABASE_SERVICE_KEY for real auth")
     async def test_unauthorized_chat_access(self):
@@ -193,6 +196,7 @@ class TestRealAuthentication:
             await browser.close()
     
     @pytest.mark.asyncio
+    @pytest.mark.requires_env
     @pytest.mark.skipif(not os.getenv("SUPABASE_SERVICE_KEY"), 
                         reason="Requires SUPABASE_SERVICE_KEY for real auth") 
     async def test_session_persistence(self, test_user):

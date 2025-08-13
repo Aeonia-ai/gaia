@@ -103,6 +103,7 @@ class TestServiceHealth:
 class TestDatabaseConnectivity:
     """Test database connectivity and basic operations."""
     
+    @pytest.mark.not_implemented(reason="tested via service health checks")
     async def test_database_connection(self):
         """Test that services can connect to the database."""
         # This would be tested via service health endpoints
@@ -113,6 +114,7 @@ class TestDatabaseConnectivity:
 class TestNATSConnectivity:
     """Test NATS messaging connectivity."""
     
+    @pytest.mark.not_implemented(reason="tested via service health checks")
     async def test_nats_connection(self):
         """Test NATS connectivity via service health."""
         # NATS connectivity is tested via service startup and health checks

@@ -155,11 +155,13 @@ class TestAuthenticationConsistency:
 class TestAPIEndpointProtection:
     """Verify API endpoints are properly protected"""
     
+    @pytest.mark.not_implemented(reason="tested in test_api_contracts.py")
     def test_health_endpoints_are_public(self):
         """Ensure health endpoints don't require authentication"""
         # This is tested in test_api_contracts.py
         pass
     
+    @pytest.mark.not_implemented(reason="tested in test_api_contracts.py")
     def test_chat_endpoints_require_auth(self):
         """Ensure chat endpoints require authentication"""
         # This is tested in test_api_contracts.py
@@ -170,6 +172,7 @@ class TestAPIEndpointProtection:
 class TestAuthenticationIntegration:
     """Integration tests for authentication across services"""
     
+    @pytest.mark.not_implemented(reason="requires running services for integration test")
     @pytest.mark.asyncio
     async def test_service_to_service_auth(self):
         """Verify services can authenticate with each other"""
