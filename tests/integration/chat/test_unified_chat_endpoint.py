@@ -225,7 +225,7 @@ class TestUnifiedChatEndpoint:
                 assert response.status_code == 200
     
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="v1 streaming returns only '[DONE]' marker without content - known bug")
+    @pytest.mark.skip(reason="Bug: v1 streaming with conversation_id returns empty response - works without conversation_id")
     async def test_streaming_preserves_conversation(self, gateway_url, headers):
         """Should maintain conversation context with streaming responses.
         
