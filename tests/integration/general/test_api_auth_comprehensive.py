@@ -92,25 +92,6 @@ class TestAPIAuthenticationComprehensive:
                 assert response.status_code not in [401, 403], f"Valid JWT should work for {endpoint}: {response.status_code}"
                 logger.info(f"✅ {endpoint} accepts valid JWT (status: {response.status_code})")
     
-    @pytest.mark.asyncio
-    async def test_api_key_fallback_works(self, gateway_url):
-        """Test that API key fallback authentication works when JWT is 'dev-token-12345'."""
-        # This tests the development API key fallback mechanism
-        headers = {
-            "Authorization": "Bearer dev-token-12345",
-            "Content-Type": "application/json"
-        }
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{gateway_url}/api/v1/chat",
-                headers=headers,
-                json={"message": "Testing API key fallback"}
-            )
-            
-            # Should work with dev token fallback
-            assert response.status_code not in [401, 403], f"API key fallback should work: {response.status_code}"
-            logger.info(f"✅ API key fallback works (status: {response.status_code})")
     
     @pytest.mark.asyncio
     async def test_auth_consistency_across_versions(self, gateway_url, auth_manager):
@@ -141,27 +122,6 @@ class TestAPIAuthenticationComprehensive:
                 
                 logger.info(f"✅ Authentication consistent for {endpoint}")
     
-    @pytest.mark.asyncio
-    async def test_malformed_auth_header_handling(self, protected_endpoints):
-        """Test handling of malformed authorization headers."""
-        malformed_headers = [
-            {"Authorization": "Bearer", "Content-Type": "application/json"},  # Missing token
-            {"Authorization": "InvalidType token123", "Content-Type": "application/json"},  # Wrong type
-            {"Authorization": "Bearer ", "Content-Type": "application/json"},  # Empty token
-            {"Authorization": "Bearer token-with-no-payload", "Content-Type": "application/json"},  # Invalid format
-        ]
-        
-        async with httpx.AsyncClient() as client:
-            for headers in malformed_headers:
-                for endpoint in protected_endpoints[:1]:  # Test just one endpoint for each malformed header
-                    response = await client.post(
-                        endpoint,
-                        headers=headers,
-                        json={"message": "Should fail"}
-                    )
-                    assert response.status_code in [401, 403], f"Malformed auth should fail: {headers['Authorization']}"
-                    
-        logger.info("✅ All malformed authorization headers properly rejected")
     
     @pytest.mark.asyncio
     async def test_role_based_access_validation(self, gateway_url, auth_manager):

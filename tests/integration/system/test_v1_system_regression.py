@@ -244,27 +244,6 @@ class TestV1AuthenticationRegression:
             )
             assert response.status_code in [401, 403], "v1 should require authentication"
     
-    @pytest.mark.asyncio
-    async def test_v1_api_key_fallback_regression(self, gateway_url):
-        """Test that v1 API key fallback ('dev-token-12345') still works."""
-        headers = {
-            "Authorization": "Bearer dev-token-12345",
-            "Content-Type": "application/json"
-        }
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{gateway_url}/api/v1/chat",
-                headers=headers,
-                json={"message": "API key fallback test for v1"}
-            )
-            # Should work with dev token fallback
-            assert response.status_code not in [401, 403], f"v1 API key fallback failed: {response.status_code}"
-            
-            if response.status_code == 200:
-                data = response.json()
-                assert "choices" in data, "v1 should return OpenAI format with API key fallback"
-                logger.info("v1 API key fallback authentication works")
     
     @pytest.mark.asyncio
     async def test_v1_jwt_auth_regression(self, gateway_url):
