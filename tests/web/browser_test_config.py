@@ -134,7 +134,9 @@ class MockResponses:
     """Common mock responses for browser tests"""
     
     @staticmethod
-    def auth_success(email: str = "test@test.local"):
+    def auth_success(email: str = None):
+        if email is None:
+            email = os.getenv("GAIA_TEST_EMAIL", "test@test.local")
         return {
             "status": 200,
             "json": {
@@ -216,8 +218,12 @@ class BrowserHelpers:
         ))
     
     @staticmethod
-    async def login_user(page, email="test@test.local", password="test123"):
+    async def login_user(page, email=None, password=None):
         """Perform login action"""
+        if email is None:
+            email = os.getenv("GAIA_TEST_EMAIL", "test@test.local")
+        if password is None:
+            password = os.getenv("GAIA_TEST_PASSWORD", "test123")
         await page.goto("/login")
         await page.fill('input[name="email"]', email)
         await page.fill('input[name="password"]', password)

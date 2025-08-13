@@ -561,6 +561,72 @@ def docker_services(docker_ip, docker_services):
     return docker_services
 ```
 
+## API Version Test Organization
+
+When testing endpoints that support multiple API versions (v1, v0.2, v0.3), follow these principles:
+
+### Separate Test Files by Version
+```python
+# ✅ GOOD: Clear version separation
+tests/integration/chat/test_api_v1_conversations_auth.py
+tests/integration/chat/test_api_v02_completions_auth.py
+tests/integration/chat/test_api_v03_conversations_auth.py
+
+# ❌ BAD: Mixed versions in same file
+tests/integration/chat/test_conversations_auth.py  # Contains v1, v0.2, v0.3 tests
+```
+
+### Version-Specific Behaviors to Test
+```python
+# v1: OpenAI-compatible, requires explicit conversation_id
+async def test_v1_requires_conversation_id_for_context(self):
+    # First message
+    response1 = await client.post("/api/v1/chat", json={"message": "Remember 42"})
+    conv_id = response1.json()["_metadata"]["conversation_id"]
+    
+    # Without conversation_id - no context
+    response2 = await client.post("/api/v1/chat", json={"message": "What number?"})
+    assert "42" not in response2.json()["response"]
+    
+    # With conversation_id - has context
+    response3 = await client.post("/api/v1/chat", json={
+        "message": "What number?",
+        "conversation_id": conv_id
+    })
+    assert "42" in response3.json()["response"]
+
+# v0.2: Legacy format, automatic context persistence
+async def test_v02_automatic_context_persistence(self):
+    # First message
+    await client.post("/api/v0.2/chat", json={"message": "Remember blue"})
+    
+    # Second message - automatically has context
+    response2 = await client.post("/api/v0.2/chat", json={"message": "What color?"})
+    assert "blue" in response2.json()["response"]
+
+# v0.3: Clean interface, no internal details exposed
+async def test_v03_clean_interface(self):
+    response = await client.post("/api/v0.3/chat", json={"message": "Hello"})
+    data = response.json()
+    
+    # Should only have clean fields
+    assert "response" in data
+    assert "conversation_id" in data
+    
+    # Should NOT expose internal details
+    assert "provider" not in data
+    assert "model" not in data
+    assert "usage" not in data
+```
+
+### Ensure Equivalent Coverage
+When splitting tests, verify each version has tests for:
+- Basic chat functionality
+- Authentication (valid/invalid)
+- Conversation persistence patterns
+- Error handling
+- Version-specific features (personas, directives, etc.)
+
 ## Best Practices Summary
 
 ### Do's ✅
@@ -572,6 +638,8 @@ def docker_services(docker_ip, docker_services):
 6. Use real services in E2E tests
 7. Mock at service boundaries
 8. Run tests in CI/CD
+9. Keep API version tests in separate files
+10. Test version-specific behaviors explicitly
 
 ### Don'ts ❌
 1. Don't test implementation details
@@ -582,6 +650,8 @@ def docker_services(docker_ip, docker_services):
 6. Don't test framework code
 7. Don't use production credentials
 8. Don't skip writing tests
+9. Don't mix API versions in the same test file
+10. Don't assume all versions behave identically
 
 ## Additional Resources
 

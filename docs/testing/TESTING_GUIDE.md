@@ -214,6 +214,15 @@ user_factory.cleanup_all()  # Clean up after tests
 3. **One assertion focus**: Test one behavior per test
 4. **Clean up resources**: Use fixtures with cleanup
 5. **Mock external services**: Except in E2E tests
+6. **Separate tests by API version**: Don't mix v1, v0.2, and v0.3 tests in the same file
+7. **Test version-specific behaviors**: Each API version has different context persistence patterns
+8. **Validate response formats**: v0.3 should never expose internal details
+
+**API Version Test Organization**:
+- Keep API versions in separate test files for clarity
+- Name files with version prefix: `test_api_v1_*.py`, `test_api_v02_*.py`, `test_api_v03_*.py`
+- Ensure equivalent test coverage across all supported API versions
+- Document version-specific behaviors in test comments
 
 For more patterns, see [TESTING_BEST_PRACTICES.md](TESTING_BEST_PRACTICES.md).
 
@@ -237,6 +246,51 @@ For more patterns, see [TESTING_BEST_PRACTICES.md](TESTING_BEST_PRACTICES.md).
 
 ```bash
 ./scripts/pytest-for-claude.sh tests/integration -v
+```
+
+#### API Version Test Organization
+
+Integration tests are organized by API version to ensure clear separation and equivalent coverage:
+
+**v0.3 API Tests** (`test_api_v03_*.py`)
+- Clean interface with no exposed provider details
+- Automatic persona integration via unified chat
+- Always-on directive enhancement system
+- Example: `test_api_v03_conversations_auth.py`, `test_api_v03_endpoints.py`
+
+**v1 API Tests** (`test_api_v1_*.py`, `test_v1_*.py`)
+- OpenAI-compatible format
+- Requires explicit conversation_id for context persistence
+- Model/provider selection support
+- Example: `test_api_v1_conversations_auth.py`, `test_v1_conversation_persistence.py`
+
+**v0.2 API Tests** (`test_api_v02_*.py`, `test_v02_*.py`)
+- Legacy format with provider details
+- Automatic context persistence without conversation_id
+- Direct provider/model exposure
+- Example: `test_api_v02_completions_auth.py`, `test_v02_conversation_persistence.py`
+
+**Key API Version Behaviors**:
+```python
+# v1: Requires conversation_id for context
+response1 = await client.post("/api/v1/chat", json={"message": "Remember 42"})
+# Context lost without conversation_id
+response2 = await client.post("/api/v1/chat", json={"message": "What number?"})
+# Context maintained with conversation_id
+response3 = await client.post("/api/v1/chat", json={
+    "message": "What number?",
+    "conversation_id": response1.json()["_metadata"]["conversation_id"]
+})
+
+# v0.2: Automatic context persistence
+response1 = await client.post("/api/v0.2/chat", json={"message": "Remember blue"})
+# Context maintained automatically
+response2 = await client.post("/api/v0.2/chat", json={"message": "What color?"})
+
+# v0.3: Clean interface with hidden intelligence
+response = await client.post("/api/v0.3/chat", json={"message": "Hello"})
+# Returns only: {"response": "...", "conversation_id": "..."}
+# No provider, model, or internal details exposed
 ```
 
 ### End-to-End Tests (`tests/e2e/`)

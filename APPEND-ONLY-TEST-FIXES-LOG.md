@@ -571,3 +571,88 @@ tests/load/
 - ✅ Documentation updated with clear skip reasons
 - ✅ Load test runner script created
 - 📝 Test isolation issue still pending
+
+---
+
+## 2025-08-12 21:30 PDT - TEST ISOLATION: Comprehensive Solution for Test User Conflicts
+
+**[PROBLEM]** **Test user email conflicts causing database errors**:
+- Multiple tests using hardcoded emails (test@example.com, test@test.local)
+- Potential conflicts when tests run in parallel
+- No systematic approach to ensure test isolation
+
+**[SOLUTION]** **Two-tier test user strategy implemented**:
+
+**1. Shared Test User** (`shared_test_user` fixture):
+- Uses `pytest@aeonia.ai` from environment variables
+- For read-only tests that don't modify user data
+- Fast performance (single user for entire test run)
+- Already implemented and working well
+
+**2. Isolated Test User** (`isolated_test_user` fixture):
+- Creates unique user for each test with automatic cleanup
+- Email format: `{prefix}-{timestamp}-{uuid}@test.local`
+- For tests that modify user data or need isolation
+- Prevents all possibility of conflicts
+
+**[IMPLEMENTATION DETAILS]**:
+
+**Created `/tests/fixtures/test_isolation.py`**:
+```python
+class TestIsolation:
+    @staticmethod
+    def generate_unique_email(prefix="test"):
+        timestamp = int(time.time() * 1000)  # Millisecond precision
+        unique_id = uuid.uuid4().hex[:8]
+        return f"{prefix}-{timestamp}-{unique_id}@test.local"
+```
+
+**Created `/tests/fixtures/isolated_user.py`**:
+```python
+@pytest.fixture
+def isolated_test_user():
+    """Create isolated test user with automatic cleanup."""
+    creds = create_isolated_test_user()
+    factory = TestUserFactory()
+    user = factory.create_verified_test_user(
+        email=creds["email"],
+        password=creds["password"]
+    )
+    yield user
+    # Automatic cleanup
+    factory.cleanup_test_user(user["user_id"])
+```
+
+**[PATTERN]** **When to use each fixture**:
+
+**Use `isolated_test_user` when**:
+- Testing user creation/registration flows
+- Testing features that modify user data
+- Running tests that could conflict if using same user
+- Testing concurrent operations
+- Testing user-specific features (profiles, settings)
+
+**Use `shared_test_user` when**:
+- Testing read-only operations
+- Testing general authentication flows
+- Performance is critical
+- Testing features that don't modify user state
+
+**[DOCUMENTATION]** **Created comprehensive guide**:
+- Location: `/docs/testing/test-isolation-guide.md`
+- Includes migration examples
+- Best practices for test isolation
+- Common patterns and debugging tips
+
+**[LESSON]** **Test isolation is critical for reliable test suites**:
+- Hardcoded test data causes intermittent failures
+- Unique data generation prevents all conflicts
+- Two-tier approach balances performance and isolation
+- Automatic cleanup prevents test pollution
+
+**[STATUS]** **Test isolation implementation complete**:
+- ✅ Created test isolation utilities
+- ✅ Implemented isolated_test_user fixture
+- ✅ Added to integration conftest.py
+- ✅ Documented migration guide
+- ✅ Backward compatible with existing tests

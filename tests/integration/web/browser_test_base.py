@@ -187,8 +187,12 @@ class BrowserTestBase:
         await page.goto(f'{self.WEB_SERVICE_URL}/chat')
         await page.wait_for_timeout(500)  # Let session check complete
     
-    async def login_user(self, page: Page, email="test@test.local", password="test123"):
+    async def login_user(self, page: Page, email=None, password=None):
         """Perform login flow"""
+        if email is None:
+            email = os.getenv("GAIA_TEST_EMAIL", "test@test.local")
+        if password is None:
+            password = os.getenv("GAIA_TEST_PASSWORD", "test123")
         await page.goto(f'{self.WEB_SERVICE_URL}/login')
         await page.fill('input[name="email"]', email)
         await page.fill('input[name="password"]', password)

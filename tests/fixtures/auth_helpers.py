@@ -4,15 +4,19 @@ Helper functions for authentication in tests
 from starlette.testclient import TestClient
 from unittest.mock import patch, Mock
 import asyncio
+import os
 
 
-def create_authenticated_session(client: TestClient, email: str = "test@test.local", 
+def create_authenticated_session(client: TestClient, email: str = None, 
                                user_id: str = "test-user-id") -> TestClient:
     """
     Create an authenticated session by mocking the login flow.
     
     The web service stores auth info in the session after successful login.
     """
+    if email is None:
+        email = os.getenv("GAIA_TEST_EMAIL", "test@test.local")
+    
     # Create a mock session
     session_data = {
         "access_token": "test-jwt-token",

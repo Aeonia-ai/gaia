@@ -58,7 +58,7 @@ class TestUILayout:
     def test_chat_page_layout(self, client):
         """Test chat page layout structure"""
         # Create authenticated session
-        auth_client = create_authenticated_session(client, email="test@example.com")
+        auth_client = create_authenticated_session(client)
         
         # Now test the chat page
         response = auth_client.get("/chat")
@@ -234,7 +234,7 @@ class TestUIComponents:
     def test_message_component_structure(self, client):
         """Test message components maintain structure"""
         # Create authenticated session
-        auth_client = create_authenticated_session(client, email="test@example.com")
+        auth_client = create_authenticated_session(client)
         
         # Go to chat page
         response = auth_client.get("/chat")

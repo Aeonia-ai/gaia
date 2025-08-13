@@ -23,10 +23,12 @@ async def simple_auth_page(page: Page) -> Page:
         json={"conversations": [], "has_more": False}
     ))
     
-    # Do simple login
+    # Do simple login with env credentials
     await page.goto(f"{WEB_SERVICE_URL}/login")
-    await page.fill('input[name="email"]', 'test@example.com')
-    await page.fill('input[name="password"]', 'password123')
+    test_email = os.getenv("GAIA_TEST_EMAIL", "test@example.com")
+    test_password = os.getenv("GAIA_TEST_PASSWORD", "default-test-password")
+    await page.fill('input[name="email"]', test_email)
+    await page.fill('input[name="password"]', test_password)
     await page.click('button[type="submit"]')
     
     # Wait for redirect with timeout
