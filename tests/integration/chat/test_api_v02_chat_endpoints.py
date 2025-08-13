@@ -60,15 +60,6 @@ class TestV02ChatAPI:
             data = response.json()
             assert data.get("status") in ["healthy", "degraded"]
     
-    @pytest.mark.deprecated(reason="Chat status endpoint - system uses conversation-based storage")
-    async def test_v02_chat_status(self, gateway_url, headers):
-        """Test v0.2 chat status endpoint."""
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{gateway_url}/api/v0.2/chat/status", headers=headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert "message_count" in data
-            assert "has_history" in data
     
     async def test_v02_chat_completion(self, gateway_url, headers):
         """Test v0.2 chat completion endpoint."""
@@ -136,24 +127,6 @@ class TestV02ChatAPI:
                 # Should have provider information
                 assert len(data) > 0
     
-    @pytest.mark.deprecated(reason="Clear history endpoint - was scaffolding for persona development")
-    async def test_v02_clear_chat_history(self, gateway_url, headers):
-        """Test v0.2 clear chat history endpoint."""
-        async with httpx.AsyncClient() as client:
-            # First send a message to create history
-            await client.post(
-                f"{gateway_url}/api/v0.2/chat",
-                headers=headers,
-                json={"message": "Create some history"}
-            )
-            
-            # Then clear the history
-            response = await client.delete(f"{gateway_url}/api/v0.2/chat/history", headers=headers)
-            assert response.status_code == 200
-            data = response.json()
-            
-            # Should indicate success
-            assert data.get("status") == "success" or "cleared" in str(data).lower()
     
     async def test_v02_chat_conversation_flow(self, gateway_url, headers):
         """Test full conversation flow with v0.2 API."""
