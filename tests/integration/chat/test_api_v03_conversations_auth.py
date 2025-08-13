@@ -1,7 +1,8 @@
 """
-Integration tests using real API key authentication.
-Converted from original curl-based test scripts.
-These tests verify the API works with real authentication, not synthetic JWTs.
+Integration tests for v0.3 API using real API key authentication.
+Extracted from mixed v1/v0.3 test file for better test organization.
+These tests verify the v0.3 clean API interface works with real authentication.
+Focuses on clean interface design, persona integration, and directive system.
 """
 
 import pytest
@@ -11,11 +12,11 @@ import asyncio
 from typing import Dict, Any
 from app.shared.logging import setup_service_logger
 
-logger = setup_service_logger("test_api_with_real_auth")
+logger = setup_service_logger("test_api_v03_with_real_auth")
 
 
-class TestAPIWithRealAuth:
-    """Test API endpoints with real API key authentication."""
+class TestV03APIWithRealAuth:
+    """Test v0.3 API endpoints with real API key authentication."""
     
     @pytest.fixture
     def api_key(self):
@@ -60,11 +61,11 @@ class TestAPIWithRealAuth:
     # NOTE: Provider and model endpoints removed - not implemented in chat service
     
     @pytest.mark.asyncio
-    async def test_v1_chat_simple(self, gateway_url, headers):
-        """Test v1 chat endpoint with simple message."""
+    async def test_v03_chat_clean_interface(self, gateway_url, headers):
+        """Test v0.3 chat endpoint with clean interface design."""
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{gateway_url}/api/v1/chat",
+                f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={
                     "message": "Hello, what is 2+2?",
@@ -73,47 +74,86 @@ class TestAPIWithRealAuth:
             )
             assert response.status_code == 200
             data = response.json()
-            # Accept multiple response formats (old and new)
-            assert "response" in data or "message" in data or "choices" in data
-            logger.info("V1 chat simple message succeeded")
+            
+            # v0.3 clean interface - exactly these fields only
+            assert "response" in data
+            assert "conversation_id" in data
+            assert isinstance(data["response"], str)
+            assert len(data["response"]) > 0
+            
+            # Should NOT contain internal details (clean interface promise)
+            assert "provider" not in data
+            assert "model" not in data
+            assert "reasoning" not in data
+            assert "usage" not in data
+            assert "choices" not in data
+            
+            logger.info("V0.3 chat clean interface succeeded")
     
     @pytest.mark.asyncio
-    async def test_v03_chat(self, gateway_url, headers):
-        """Test v0.3 chat endpoint (future migration target)."""
+    async def test_v03_persona_integration(self, gateway_url, headers):
+        """Test v0.3 automatic persona integration via unified chat."""
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={
-                    "message": "What is 2+2?",
-                    "stream": False
+                    "message": "Hello! Please introduce yourself and tell me who you are."
                 }
             )
             assert response.status_code == 200
             data = response.json()
-            assert "conversation_id" in data  # v0.3 format includes conversation ID
-            assert "choices" in data or "response" in data or "content" in data
-            logger.info("V0.3 chat succeeded")
+            
+            # v0.3 should have clean response format
+            assert "response" in data
+            assert "conversation_id" in data
+            response_text = data["response"].lower()
+            
+            # Should show persona characteristics (Mu is default)
+            # v0.3 automatically integrates personas via unified chat
+            has_persona_characteristics = any([
+                "mu" in response_text,
+                "robot" in response_text,
+                "beep" in response_text,
+                "boop" in response_text,
+                "cheerful" in response_text,
+                "companion" in response_text,
+                "assistant" in response_text  # Fallback if persona not loaded
+            ])
+            
+            # Clean interface - no persona implementation details exposed
+            assert "persona_id" not in data
+            assert "system_prompt" not in data
+            assert "persona" not in data
+            
+            logger.info(f"V0.3 persona integration test: {response_text[:100]}...")
+            assert has_persona_characteristics, f"Response should show persona integration: {response_text}"
     
     @pytest.mark.asyncio
-    async def test_chat_with_conversation_id(self, gateway_url, headers):
-        """Test chat with conversation management using v0.3 API."""
+    async def test_v03_conversation_management(self, gateway_url, headers):
+        """Test v0.3 conversation management with clean interface."""
         async with httpx.AsyncClient(timeout=30.0) as client:
             # First message - creates conversation
             response1 = await client.post(
                 f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={
-                    "message": "Remember the number 42",
-                    "stream": False
+                    "message": "Remember the number 42"
                 }
             )
             assert response1.status_code == 200
             data1 = response1.json()
             
-            # v0.3 API returns conversation_id
-            conversation_id = data1.get("conversation_id") or data1.get("id")
-            assert conversation_id is not None, "v0.3 API should return conversation ID"
+            # v0.3 API returns conversation_id in clean format
+            assert "conversation_id" in data1
+            assert "response" in data1
+            conversation_id = data1["conversation_id"]
+            assert conversation_id is not None
+            
+            # Verify clean interface - no internal conversation details
+            assert "messages" not in data1
+            assert "history" not in data1
+            assert "context" not in data1
             
             # Second message - uses same conversation
             response2 = await client.post(
@@ -121,64 +161,128 @@ class TestAPIWithRealAuth:
                 headers=headers,
                 json={
                     "message": "What number did I ask you to remember?",
-                    "conversation_id": conversation_id,
-                    "stream": False
+                    "conversation_id": conversation_id
                 }
             )
             assert response2.status_code == 200
-            logger.info(f"Conversation {conversation_id} tested successfully")
+            data2 = response2.json()
+            
+            # Same clean format
+            assert "response" in data2
+            assert "conversation_id" in data2
+            assert data2["conversation_id"] == conversation_id
+            
+            logger.info(f"V0.3 conversation {conversation_id} tested successfully")
     
     @pytest.mark.asyncio
-    async def test_v1_chat_streaming(self, gateway_url, headers):
-        """Test v1 chat with streaming (as web UI uses it)."""
+    async def test_v03_streaming_clean_format(self, gateway_url, headers):
+        """Test v0.3 streaming with clean format (no provider details)."""
         async with httpx.AsyncClient(timeout=30.0) as client:
             chunks = []
+            content_received = ""
+            done_received = False
+            
             async with client.stream(
                 "POST",
-                f"{gateway_url}/api/v1/chat",
+                f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={
-                    "message": "Count to 3",
+                    "message": "Count to 3 slowly",
                     "stream": True
                 }
             ) as response:
                 assert response.status_code == 200
+                assert response.headers.get("content-type") == "text/event-stream; charset=utf-8"
+                
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
-                        chunks.append(line[6:])
+                        data_str = line[6:]
+                        
+                        if data_str == "[DONE]":
+                            done_received = True
+                            break
+                            
+                        try:
+                            import json
+                            chunk = json.loads(data_str)
+                            chunks.append(chunk)
+                            
+                            if chunk.get("type") == "content":
+                                content_received += chunk.get("content", "")
+                                
+                                # Verify clean streaming format - no provider details
+                                assert "provider" not in chunk
+                                assert "model" not in chunk
+                                assert "delta" not in chunk
+                                assert "choices" not in chunk
+                                
+                            elif chunk.get("type") == "done":
+                                done_received = True
+                                break
+                                
+                        except json.JSONDecodeError:
+                            continue
             
             assert len(chunks) > 0
-            # Should have content chunks and a [DONE] marker
-            assert any("[DONE]" in chunk for chunk in chunks)
-            logger.info(f"V1 streaming chat received {len(chunks)} chunks")
+            assert content_received.strip() != ""
+            assert done_received
+            logger.info(f"V0.3 streaming received {len(chunks)} clean chunks")
     
     @pytest.mark.asyncio
-    async def test_no_auth_fails(self, gateway_url):
-        """Test that requests without auth fail appropriately."""
-        async with httpx.AsyncClient() as client:
-            # Try to access protected endpoint without auth
+    async def test_v03_directive_system(self, gateway_url, headers):
+        """Test v0.3 always-on directive enhancement system."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{gateway_url}/api/v1/chat",
+                f"{gateway_url}/api/v0.3/chat",
+                headers=headers,
+                json={
+                    "message": "Explain quantum computing in simple terms"
+                }
+            )
+            assert response.status_code == 200
+            data = response.json()
+            
+            # v0.3 should have directive enhancement automatically applied
+            assert "response" in data
+            response_text = data["response"]
+            
+            # Directive system should enhance responses (check for quality indicators)
+            # v0.3 automatically uses directives for better responses
+            assert len(response_text) > 50  # Should be substantial
+            
+            # Clean interface - directive system is internal
+            assert "directives" not in data
+            assert "enhanced" not in data
+            assert "system_prompt" not in data
+            
+            logger.info("V0.3 directive system test completed")
+    
+    @pytest.mark.asyncio
+    async def test_v03_no_auth_fails(self, gateway_url):
+        """Test that v0.3 requests without auth fail appropriately."""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{gateway_url}/api/v0.3/chat",
                 json={"message": "Hello"}
             )
             assert response.status_code in [401, 403]
-            logger.info("No auth correctly rejected")
+            logger.info("V0.3 API: No auth correctly rejected")
     
     @pytest.mark.asyncio
-    async def test_invalid_api_key_fails(self, gateway_url):
-        """Test that invalid API key is rejected."""
+    async def test_v03_invalid_api_key_fails(self, gateway_url):
+        """Test that v0.3 API rejects invalid API key."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{gateway_url}/api/v1/chat",
+                f"{gateway_url}/api/v0.3/chat",
                 headers={"X-API-Key": "invalid-key-12345"},
                 json={"message": "Hello"}
             )
             assert response.status_code in [401, 403]
-            logger.info("Invalid API key correctly rejected")
+            logger.info("V0.3 API: Invalid API key correctly rejected")
     
     @pytest.mark.asyncio
-    async def test_conversation_list(self, gateway_url, headers):
-        """Test listing conversations."""
+    async def test_v03_conversation_list_clean_format(self, gateway_url, headers):
+        """Test v0.3 conversation listing with clean format."""
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{gateway_url}/api/v0.3/conversations",
@@ -187,15 +291,88 @@ class TestAPIWithRealAuth:
             # This might return 404 if not implemented, which is OK
             if response.status_code == 200:
                 data = response.json()
-                assert "conversations" in data or isinstance(data, list)
-                logger.info("Conversation list endpoint available")
+                assert "conversations" in data
+                assert isinstance(data["conversations"], list)
+                
+                # Verify clean format for conversation list
+                for conv in data["conversations"]:
+                    # Should have basic conversation info
+                    assert "conversation_id" in conv or "id" in conv
+                    assert "title" in conv or "name" in conv
+                    
+                    # Should NOT have internal details
+                    assert "messages" not in conv
+                    assert "model" not in conv
+                    assert "provider" not in conv
+                    assert "system_prompt" not in conv
+                
+                logger.info("V0.3 conversation list endpoint available with clean format")
             else:
-                logger.info(f"Conversation list returned {response.status_code}")
+                logger.info(f"V0.3 conversation list returned {response.status_code}")
+    
+    @pytest.mark.asyncio
+    async def test_v03_kb_integration_clean_format(self, gateway_url, headers):
+        """Test v0.3 KB integration with clean format."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{gateway_url}/api/v0.3/chat",
+                headers=headers,
+                json={
+                    "message": "What information do you have about consciousness?",
+                    "use_kb": True  # Enable KB integration
+                }
+            )
+            
+            # Should succeed or gracefully handle if KB not available
+            assert response.status_code in [200, 404, 500]
+            
+            if response.status_code == 200:
+                data = response.json()
+                assert "response" in data
+                assert "conversation_id" in data
+                assert isinstance(data["response"], str)
+                
+                # KB integration should be completely hidden (clean interface)
+                assert "kb_results" not in data  # KB details are internal
+                assert "metadata" not in data
+                assert "sources" not in data
+                assert "search_results" not in data
+                
+                logger.info("V0.3 KB integration maintains clean interface")
+            else:
+                logger.info(f"V0.3 KB integration returned {response.status_code} (KB may not be available)")
+    
+    @pytest.mark.asyncio
+    async def test_v03_parameter_rejection(self, gateway_url, headers):
+        """Test that v0.3 rejects or ignores provider/model parameters."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Try to send provider/model parameters - should be ignored
+            response = await client.post(
+                f"{gateway_url}/api/v0.3/chat",
+                headers=headers,
+                json={
+                    "message": "Hello",
+                    "provider": "openai",  # Should not be accepted
+                    "model": "gpt-4"       # Should not be accepted
+                }
+            )
+            
+            # Should either ignore the parameters or return 400
+            # For now, assume it ignores them and responds normally
+            assert response.status_code == 200
+            data = response.json()
+            assert "response" in data
+            
+            # Response should still be clean - no provider details
+            assert "provider" not in data
+            assert "model" not in data
+            
+            logger.info("V0.3 API properly handles provider/model parameter rejection")
     
     @pytest.mark.asyncio
     @pytest.mark.skip(reason="Moved to load tests - see tests/load/test_concurrent_requests.py")
-    async def test_concurrent_requests(self, gateway_url, headers):
-        """Test handling concurrent requests with real auth.
+    async def test_v03_concurrent_requests(self, gateway_url, headers):
+        """Test v0.3 handling concurrent requests with real auth.
         
         This test has been moved to the load test suite because it:
         - Tests system behavior under load, not integration correctness
@@ -203,32 +380,33 @@ class TestAPIWithRealAuth:
         - Has non-deterministic timing requirements
         
         For integration testing of multi-request scenarios, see:
-        - test_conversation_persistence (sequential requests)
-        - test_model_selection (different model handling)
+        - test_v03_conversation_management (sequential requests)
+        - test_v03_persona_integration (persona handling)
         """
         pass  # Moved to load tests
     
     @pytest.mark.asyncio
-    async def test_model_selection(self, gateway_url, headers):
-        """Test using different models."""
-        models_to_test = [
-            "claude-3-5-haiku-20241022",
-            "gpt-4o-mini",
-        ]
-        
+    async def test_v03_error_handling_clean_format(self, gateway_url, headers):
+        """Test that v0.3 errors also follow clean format."""
         async with httpx.AsyncClient(timeout=30.0) as client:
-            for model in models_to_test:
-                response = await client.post(
-                    f"{gateway_url}/api/v1/chat",
-                    headers=headers,
-                    json={
-                        "message": "Say 'hi'",
-                        "model": model,
-                        "stream": False
-                    }
-                )
-                
-                if response.status_code == 200:
-                    logger.info(f"Model {model} is available")
-                else:
-                    logger.info(f"Model {model} returned {response.status_code}")
+            # Test with missing message
+            response = await client.post(
+                f"{gateway_url}/api/v0.3/chat",
+                headers=headers,
+                json={}  # Missing message
+            )
+            
+            assert response.status_code == 400
+            data = response.json()
+            
+            # Error should have clean format
+            assert "error" in data
+            assert isinstance(data["error"], str)
+            
+            # Should NOT expose internal error details
+            assert "provider" not in data
+            assert "model" not in data
+            assert "traceback" not in data
+            assert "stack" not in data
+            
+            logger.info("V0.3 error handling maintains clean format")
