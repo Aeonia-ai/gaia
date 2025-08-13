@@ -1083,26 +1083,22 @@ For immersive virtual world interactions, embed JSON-RPC directives within your 
 Directive Format: {"m":"method_name","p":{"param":"value"}}
 
 Available Methods:
-- pause: {"m":"pause","p":{"sec":2}} or {"m":"pause","p":{"ms":1500}}
-- effect: {"m":"effect","p":{"name":"sparkle","intensity":0.8,"duration":3}}
-- animation: {"m":"animation","p":{"name":"wave","duration":2,"loop":false}}
-- meditation: {"m":"meditation","p":{"type":"breathing","duration":60}}
-- whisper: {"m":"whisper","p":{"text":"secret message"}}
-- emphasis: {"m":"emphasis","p":{"text":"important","level":"strong"}}
+
+PAUSE:
+- pause: {"m":"pause","p":{"secs":2.0}} - Pause for 2 seconds
+- pause: {"m":"pause","p":{"secs":0.5}} - Brief pause for half a second
+- pause: {"m":"pause","p":{"secs":5.0}} - Longer pause for 5 seconds
 
 Examples:
-- "Let me think for a moment... {"m":"pause","p":{"sec":2}} I have an idea!"
-- "Watch this magical effect! {"m":"effect","p":{"name":"sparkle","intensity":0.8}}"
-- "Let's begin breathing together. {"m":"meditation","p":{"type":"breathing","duration":60}}"
-- "*waves hello* {"m":"animation","p":{"name":"wave","duration":2}}"
+- "Let me think for a moment... {"m":"pause","p":{"secs":2.0}} I have an idea!"
+- "Take a deep breath... {"m":"pause","p":{"secs":3.0}} ...and exhale slowly."
+- "Wait for it... {"m":"pause","p":{"secs":1.5}} Surprise!"
 
 Guidelines:
+- Only use the "pause" method (currently the only supported directive)
+- The "secs" parameter specifies duration in seconds (can be decimal)
 - Embed directives naturally within conversational flow
-- Use pauses for dramatic timing or thinking moments
-- Use effects for emphasis or magical moments
-- Use animations for character expressions
-- Use meditation directives for relaxation guidance
-- Multiple directives can be used in one response"""
+- Multiple pauses can be used in one response"""
             
             tools_section += directive_section
         
