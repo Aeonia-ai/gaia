@@ -26,8 +26,9 @@ class TestV03DirectiveGeneration:
     
     def extract_directives(self, response_text: str) -> list:
         """Extract JSON-RPC directives from response text."""
-        # Pattern to match JSON-RPC directives: {"m":"method","p":{...}}
-        directive_pattern = r'\{"m":"[^"]+","p":\{[^}]*\}\}'
+        # Pattern to match minimal JSON-RPC directives: {"m":"method","p":{...}}
+        # Also accepts optional "s" field: {"m":"method","s":"subcategory","p":{...}}
+        directive_pattern = r'\{"m":"[^"]+","p":\{[^}]*\}\}|\{"m":"[^"]+","s":"[^"]+","p":\{[^}]*\}\}'
         matches = re.findall(directive_pattern, response_text)
         
         directives = []
@@ -68,12 +69,10 @@ class TestV03DirectiveGeneration:
             # Should contain at least one directive
             assert len(directives) > 0, f"No directives found in response: {response_text[:200]}..."
             
-            # Look for meditation or pause directives
+            # Should contain pause directives (only supported method currently)
             directive_methods = [d.get("m") for d in directives]
-            expected_methods = ["meditation", "pause", "effect"]
             
-            has_expected = any(method in directive_methods for method in expected_methods)
-            assert has_expected, f"Expected directive methods {expected_methods}, got: {directive_methods}"
+            assert "pause" in directive_methods, f"Expected 'pause' directive, got: {directive_methods}"
             
             print(f"✅ Found {len(directives)} directives: {directive_methods}")
     
@@ -116,7 +115,7 @@ class TestV03DirectiveGeneration:
                 f"{gateway_url}/api/v0.3/chat",
                 headers={"X-API-Key": api_key},
                 json={
-                    "message": "Create a magical moment with sparkles and effects",
+                    "message": "Guide me through a breathing exercise with timed pauses",
                     "stream": False
                 }
             )
@@ -128,23 +127,32 @@ class TestV03DirectiveGeneration:
             # Extract directives
             directives = self.extract_directives(response_text)
             
-            # Should contain directives for magical effects
-            assert len(directives) > 0, "No directives found for magical effects request"
+            # Should contain directives for breathing exercise with pauses
+            assert len(directives) > 0, "No directives found for breathing exercise request"
             
-            # Validate each directive follows JSON-RPC format
+            # Validate each directive follows minimal JSON-RPC format
             for directive in directives:
                 # Required: method field
                 assert "m" in directive, f"Missing method 'm' in directive: {directive}"
                 assert isinstance(directive["m"], str), f"Method must be string: {directive}"
                 assert len(directive["m"]) > 0, f"Method cannot be empty: {directive}"
                 
-                # Optional: parameters field
-                if "p" in directive:
-                    assert isinstance(directive["p"], dict), f"Parameters must be dict: {directive}"
+                # Should NOT have category field (deprecated)
+                assert "c" not in directive, f"Directive should not have 'c' field: {directive}"
                 
-                # Check for valid method names
-                valid_methods = ["pause", "effect", "animation", "meditation", "whisper", "emphasis"]
-                assert directive["m"] in valid_methods, f"Unknown method '{directive['m']}' in directive: {directive}"
+                # Optional: subcategory field
+                if "s" in directive:
+                    assert isinstance(directive["s"], str), f"Subcategory must be string: {directive}"
+                    assert len(directive["s"]) > 0, f"Subcategory cannot be empty: {directive}"
+                
+                # Required: parameters field for pause
+                assert "p" in directive, f"Missing parameters 'p' in directive: {directive}"
+                assert isinstance(directive["p"], dict), f"Parameters must be dict: {directive}"
+                
+                # Check for pause method and secs parameter
+                assert directive["m"] == "pause", f"Only 'pause' method is currently supported, got: {directive['m']}"
+                assert "secs" in directive["p"], f"Pause directive must have 'secs' parameter: {directive}"
+                assert isinstance(directive["p"]["secs"], (int, float)), f"'secs' must be a number: {directive}"
     
     @pytest.mark.asyncio
     @pytest.mark.skip(reason="Directives not implemented in streaming responses")

@@ -200,8 +200,14 @@ logs/docker/
 logs/performance/
 logs/services/
 
+# Build tracking files
+*.pid
+.docker-build*.pid
+docker-build-*.pid
+
 # Docker volumes and runtime
 docker-compose.override.yml
+.swarm/
 
 # Temporary files
 *.tmp
@@ -244,6 +250,9 @@ endpoint_test_results.json
 # Editor specific
 *.swp
 *.swo
+
+# Local development scripts
+# (none currently - useful scripts are tracked)
 
 cookies*.txt
 

@@ -41,7 +41,7 @@ async def get_current_persona(
 ):
     """Get the current user's active persona"""
     try:
-        user_id = auth_principal.get("sub") or auth_principal.get("key")
+        user_id = auth_principal.get("sub") or auth_principal.get("user_id")
         if not user_id:
             raise ValueError("Could not determine user ID")
         
@@ -70,7 +70,7 @@ async def set_user_persona(
 ):
     """Set the current user's active persona"""
     try:
-        user_id = auth_principal.get("sub") or auth_principal.get("key")
+        user_id = auth_principal.get("sub") or auth_principal.get("user_id")
         if not user_id:
             raise ValueError("Could not determine user ID")
         
@@ -119,7 +119,7 @@ async def create_persona(
 ):
     """Create a new persona"""
     try:
-        user_id = auth_principal.get("sub") or auth_principal.get("key")
+        user_id = auth_principal.get("sub") or auth_principal.get("user_id")
         persona = await persona_service.create_persona(persona_data, created_by=user_id)
         
         return PersonaResponse(

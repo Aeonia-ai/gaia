@@ -203,31 +203,13 @@ class UnifiedChatHandler:
                 print(f"DEBUG: Tool call names: {[tc['function']['name'] for tc in tool_calls]}")
                 
                 # Check if any KB tools were called
-                kb_tool_names = {tool["function"]["name"] for tool in KB_TOOLS}
-                kb_calls = [tc for tc in tool_calls if tc["function"]["name"] in kb_tool_names]
-                print(f"DEBUG: KB tool names available: {list(kb_tool_names)}")
+                kb_calls = [tc for tc in tool_calls if self._classify_tool_call(tc["function"]["name"])[1]]
                 print(f"DEBUG: KB calls found: {len(kb_calls)}")
                 
                 if kb_calls:
                     print(f"DEBUG: Found {len(kb_calls)} KB tool calls")
-                    # Handle KB tool calls directly
-                    kb_executor = KBToolExecutor(auth)
-                    tool_results = []
-                    
-                    for tool_call in kb_calls:
-                        tool_name = tool_call["function"]["name"]
-                        tool_args_raw = tool_call["function"].get("arguments", "{}")
-                        if isinstance(tool_args_raw, str):
-                            tool_args = json.loads(tool_args_raw)
-                        else:
-                            tool_args = tool_args_raw
-                        
-                        logger.info(f"[{request_id}] Executing KB tool: {tool_name} with args: {tool_args}")
-                        result = await kb_executor.execute_tool(tool_name, tool_args)
-                        tool_results.append({
-                            "tool": tool_name,
-                            "result": result
-                        })
+                    # Execute KB tools
+                    tool_results = await self._execute_kb_tools(kb_calls, auth, request_id)
                     
                     # Make another LLM call with the tool results to generate final response
                     # For Anthropic, tool results are included as user messages
@@ -629,16 +611,83 @@ class UnifiedChatHandler:
                 # Route to appropriate service with streaming
                 tool_call = routing_response["tool_calls"][0]
                 tool_name = tool_call["function"]["name"]
+                tool_args = self._parse_tool_arguments(tool_call)
                 
-                # Parse tool arguments
-                tool_args_raw = tool_call["function"].get("arguments", "{}")
-                if isinstance(tool_args_raw, str):
-                    tool_args = json.loads(tool_args_raw)
-                else:
-                    tool_args = tool_args_raw
+                # Classify the tool
+                tool_type, is_kb_tool = self._classify_tool_call(tool_name)
+                
+                # Handle KB tools first
+                if is_kb_tool:
+                    route_type = RouteType.DIRECT  # KB tools are direct responses
+                    self._routing_metrics[route_type] += 1
+                    
+                    logger.info(f"[{request_id}] Executing KB tool in streaming mode: {tool_name}")
+                    
+                    # Execute KB tool
+                    kb_executor = KBToolExecutor(auth)
+                    kb_result = await kb_executor.execute_tool(tool_name, tool_args)
+                    
+                    # Format the response
+                    if kb_result.get('success') and kb_result.get('content'):
+                        content = kb_result['content']
+                    else:
+                        content = f"No results found for: {tool_args.get('query', 'your search')}"
+                    
+                    # Stream the KB results
+                    model = "kb-service"
+                    
+                    # First chunk with role
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"role": "assistant"},
+                            "finish_reason": None
+                        }]
+                    }
+                    
+                    # Stream content in chunks
+                    chunk_size = 100
+                    for i in range(0, len(content), chunk_size):
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": content[i:i + chunk_size]},
+                                "finish_reason": None
+                            }]
+                        }
+                        await asyncio.sleep(0.003)
+                    
+                    # Final chunk
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {},
+                            "finish_reason": "stop"
+                        }],
+                        "_metadata": {
+                            "route_type": route_type.value,
+                            "kb_tool": tool_name,
+                            "routing_time_ms": int(llm_time),
+                            "total_time_ms": int((time.time() - start_time) * 1000),
+                            "request_id": request_id
+                        }
+                    }
+                    return
                 
                 # Tool-routed responses - simulate streaming for better UX
-                if tool_name == "use_mcp_agent":
+                elif tool_name == "use_mcp_agent":
                     route_type = RouteType.MCP_AGENT
                     self._routing_metrics[route_type] += 1
                     
@@ -929,7 +978,67 @@ class UnifiedChatHandler:
                 else:
                     # Unknown tool - fallback
                     logger.warning(f"[{request_id}] Unknown tool {tool_name}, using MCP fallback")
-                    # Use same pattern as MCP agent...
+                    route_type = RouteType.MCP_AGENT
+                    self._routing_metrics[route_type] += 1
+                    
+                    # Fallback to MCP agent for unknown tools
+                    from app.models.chat import ChatRequest
+                    chat_request = ChatRequest(message=message)
+                    
+                    result = await self.mcp_hot_service.process_chat(
+                        request=chat_request,
+                        auth_principal=auth
+                    )
+                    
+                    # Stream the fallback response
+                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    model = result.get("model", "unknown")
+                    
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"role": "assistant"},
+                            "finish_reason": None
+                        }]
+                    }
+                    
+                    chunk_size = 50
+                    for i in range(0, len(content), chunk_size):
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": content[i:i + chunk_size]},
+                                "finish_reason": None
+                            }]
+                        }
+                        await asyncio.sleep(0.01)
+                    
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {},
+                            "finish_reason": "stop"
+                        }],
+                        "_metadata": {
+                            "route_type": route_type.value,
+                            "routing_time_ms": int(llm_time),
+                            "total_time_ms": int((time.time() - start_time) * 1000),
+                            "request_id": request_id,
+                            "error": f"Unknown tool: {tool_name}, used fallback"
+                        }
+                    }
                     
             else:
                 # Direct response - stream the LLM response
@@ -1083,26 +1192,22 @@ For immersive virtual world interactions, embed JSON-RPC directives within your 
 Directive Format: {"m":"method_name","p":{"param":"value"}}
 
 Available Methods:
-- pause: {"m":"pause","p":{"sec":2}} or {"m":"pause","p":{"ms":1500}}
-- effect: {"m":"effect","p":{"name":"sparkle","intensity":0.8,"duration":3}}
-- animation: {"m":"animation","p":{"name":"wave","duration":2,"loop":false}}
-- meditation: {"m":"meditation","p":{"type":"breathing","duration":60}}
-- whisper: {"m":"whisper","p":{"text":"secret message"}}
-- emphasis: {"m":"emphasis","p":{"text":"important","level":"strong"}}
+
+PAUSE:
+- pause: {"m":"pause","p":{"secs":2.0}} - Pause for 2 seconds
+- pause: {"m":"pause","p":{"secs":0.5}} - Brief pause for half a second
+- pause: {"m":"pause","p":{"secs":5.0}} - Longer pause for 5 seconds
 
 Examples:
-- "Let me think for a moment... {"m":"pause","p":{"sec":2}} I have an idea!"
-- "Watch this magical effect! {"m":"effect","p":{"name":"sparkle","intensity":0.8}}"
-- "Let's begin breathing together. {"m":"meditation","p":{"type":"breathing","duration":60}}"
-- "*waves hello* {"m":"animation","p":{"name":"wave","duration":2}}"
+- "Let me think for a moment... {"m":"pause","p":{"secs":2.0}} I have an idea!"
+- "Take a deep breath... {"m":"pause","p":{"secs":3.0}} ...and exhale slowly."
+- "Wait for it... {"m":"pause","p":{"secs":1.5}} Surprise!"
 
 Guidelines:
+- Only use the "pause" method (currently the only supported directive)
+- The "secs" parameter specifies duration in seconds (can be decimal)
 - Embed directives naturally within conversational flow
-- Use pauses for dramatic timing or thinking moments
-- Use effects for emphasis or magical moments
-- Use animations for character expressions
-- Use meditation directives for relaxation guidance
-- Multiple directives can be used in one response"""
+- Multiple pauses can be used in one response"""
             
             tools_section += directive_section
         
@@ -1136,11 +1241,63 @@ Guidelines:
             
         return False
     
+    def _classify_tool_call(self, tool_name: str) -> tuple[str, bool]:
+        """
+        Classify a tool call and determine its type.
+        
+        Returns:
+            tuple: (tool_type, is_kb_tool) where:
+                - tool_type: 'kb', 'mcp_agent', 'asset_service', 'kb_service', 'multiagent', 'unknown'
+                - is_kb_tool: True if this is a KB tool, False otherwise
+        """
+        # Check if it's a KB tool
+        kb_tool_names = {tool["function"]["name"] for tool in KB_TOOLS}
+        if tool_name in kb_tool_names:
+            return ('kb', True)
+        
+        # Check routing tools
+        routing_tool_map = {
+            'use_mcp_agent': 'mcp_agent',
+            'use_asset_service': 'asset_service',
+            'use_kb_service': 'kb_service',
+            'use_multiagent_orchestration': 'multiagent'
+        }
+        
+        if tool_name in routing_tool_map:
+            return (routing_tool_map[tool_name], False)
+        
+        return ('unknown', False)
+    
+    def _parse_tool_arguments(self, tool_call: dict) -> dict:
+        """Parse tool arguments from a tool call."""
+        tool_args_raw = tool_call["function"].get("arguments", "{}")
+        if isinstance(tool_args_raw, str):
+            return json.loads(tool_args_raw)
+        return tool_args_raw
+    
+    async def _execute_kb_tools(self, kb_calls: list, auth: dict, request_id: str) -> list:
+        """Execute KB tool calls and return results."""
+        kb_executor = KBToolExecutor(auth)
+        tool_results = []
+        
+        for tool_call in kb_calls:
+            tool_name = tool_call["function"]["name"]
+            tool_args = self._parse_tool_arguments(tool_call)
+            
+            logger.info(f"[{request_id}] Executing KB tool: {tool_name} with args: {tool_args}")
+            result = await kb_executor.execute_tool(tool_name, tool_args)
+            tool_results.append({
+                "tool": tool_name,
+                "result": result
+            })
+        
+        return tool_results
+    
     async def build_context(self, auth: dict, additional_context: Optional[dict] = None) -> dict:
         """
         Build context for routing decision, including conversation history.
         """
-        user_id = auth.get("user_id") or auth.get("sub") or auth.get("key", "unknown")
+        user_id = auth.get("user_id") or auth.get("sub") or "unknown"
         conversation_id = additional_context.get("conversation_id") if additional_context else None
         
         context = {
@@ -1158,7 +1315,7 @@ Guidelines:
                 
                 # First check if the conversation exists
                 # Use consistent user_id extraction
-                user_id = auth.get("user_id") or auth.get("sub") or auth.get("key", "unknown")
+                user_id = auth.get("user_id") or auth.get("sub") or "unknown"
                 conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
                 
                 if conversation is None:
@@ -1200,7 +1357,7 @@ Guidelines:
         Returns the conversation_id (creates one if needed).
         """
         conversation_id = context.get("conversation_id") if context else None
-        user_id = auth.get("user_id") or auth.get("sub") or auth.get("key", "unknown")
+        user_id = auth.get("user_id") or auth.get("sub") or "unknown"
         
         try:
             from .conversation_store import chat_conversation_store
