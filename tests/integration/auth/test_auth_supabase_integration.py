@@ -136,7 +136,7 @@ class TestSupabaseAuthIntegration:
                 headers=bad_headers,
                 json={"message": "Test with invalid token"}
             )
-            assert response.status_code in [401, 403]
+            assert response.status_code == 401
             logger.info("Invalid JWT correctly rejected")
     
     @pytest.mark.asyncio

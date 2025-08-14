@@ -97,4 +97,4 @@ class TestWebConversationsAPI:
             response = await client.get(f"{web_url}/api/conversations")
             
             # Should get an error without auth
-            assert response.status_code in [401, 403] or "Please log in" in response.text
+            assert response.status_code == 401 or "Please log in" in response.text

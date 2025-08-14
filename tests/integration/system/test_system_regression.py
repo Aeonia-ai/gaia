@@ -171,7 +171,7 @@ class TestAuthenticationMethods:
                 f"{gateway_url}/api/v0.2/chat",
                 json={"message": "This should fail"}
             )
-            assert response.status_code in [401, 403]
+            assert response.status_code == 401
     
     async def test_invalid_api_key_rejected(self, gateway_url):
         """Test that invalid API keys are rejected."""
@@ -186,7 +186,7 @@ class TestAuthenticationMethods:
                 headers=headers,
                 json={"message": "This should fail"}
             )
-            assert response.status_code in [401, 403]
+            assert response.status_code == 401
     
     async def test_valid_api_key_accepted(self, gateway_url):
         """Test that valid API key is accepted."""

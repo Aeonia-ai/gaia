@@ -212,7 +212,7 @@ class TestV02ChatAPIErrorHandling:
                 headers=headers,
                 json={"message": "This should fail"}
             )
-            assert response.status_code in [401, 403]
+            assert response.status_code == 401
     
     async def test_v02_chat_missing_message(self, gateway_url):
         """Test v0.2 chat with missing message field."""

@@ -224,7 +224,7 @@ class TestAPIAuthentication:
                     endpoint,
                     json={"message": "This should fail"}
                 )
-                assert response.status_code in [401, 403], f"Endpoint {endpoint} should require auth"
+                assert response.status_code == 401, f"Endpoint {endpoint} should require auth (401 for missing auth)"
     
     async def test_invalid_jwt_fails(self, gateway_url, auth_manager):
         """Test that invalid JWT token fails."""
@@ -240,7 +240,7 @@ class TestAPIAuthentication:
                 headers=headers,
                 json={"message": "This should fail"}
             )
-            assert response.status_code in [401, 403], "Invalid JWT should fail"
+            assert response.status_code == 401, "Invalid JWT should return 401"
     
     async def test_valid_jwt_works(self, gateway_url, auth_manager):
         """Test that valid JWT token works."""
@@ -261,7 +261,7 @@ class TestAPIAuthentication:
                 json={"message": "Hello! This should work."}
             )
             # Should work or at least not be an auth error
-            assert response.status_code not in [401, 403], f"Valid JWT should work: {response.status_code}"
+            assert response.status_code != 401, f"Valid JWT should work: {response.status_code}"
 
 
 class TestAPICompatibility:

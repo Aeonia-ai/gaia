@@ -260,7 +260,7 @@ class TestComprehensiveSuite:
                 f"{gateway_url}/api/v1/chat",
                 json={"message": "This should fail"}
             )
-            assert response.status_code in [401, 403], "Unauthenticated requests should be rejected"
+            assert response.status_code == 401, "Unauthenticated requests should return 401"
         
         # Test with invalid API key
         bad_headers = {
@@ -274,7 +274,7 @@ class TestComprehensiveSuite:
                 headers=bad_headers,
                 json={"message": "This should fail"}
             )
-            assert response.status_code in [401, 403], "Invalid API keys should be rejected"
+            assert response.status_code == 401, "Invalid API keys should return 401"
         
         logger.info("Authentication security: working")
     

@@ -304,7 +304,7 @@ class TestV03Authentication:
                 # No auth headers
             )
             
-            assert response.status_code in [401, 403]  # Both are valid "unauthorized" responses
+            assert response.status_code == 401  # Authentication failure returns 401
 
     async def test_invalid_api_key_rejected(self, gateway_url):
         """Test that invalid API keys are rejected."""
@@ -318,7 +318,7 @@ class TestV03Authentication:
                 json={"message": "Hello"}
             )
             
-            assert response.status_code in [401, 403]  # Both are valid "unauthorized" responses
+            assert response.status_code == 401  # Authentication failure returns 401
 
 
 class TestV03BackwardCompatibility:

@@ -281,7 +281,7 @@ class TestGatewayAuthEndpoints:
             )
             
             # Should reject unauthorized request
-            assert response.status_code in [401, 403]
+            assert response.status_code == 401
             
             logger.info(f"Gateway correctly rejected unauthorized request: {response.status_code}")
     
