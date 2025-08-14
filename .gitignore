@@ -252,8 +252,7 @@ endpoint_test_results.json
 *.swo
 
 # Local development scripts
-docker-build-status.sh
-docker-build-async.sh
+# (none currently - useful scripts are tracked)
 
 cookies*.txt
 
