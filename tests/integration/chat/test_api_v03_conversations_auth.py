@@ -265,7 +265,7 @@ class TestV03APIWithRealAuth:
                 f"{gateway_url}/api/v0.3/chat",
                 json={"message": "Hello"}
             )
-            assert response.status_code in [401, 403]
+            assert response.status_code == 401
             logger.info("V0.3 API: No auth correctly rejected")
     
     @pytest.mark.asyncio
@@ -277,7 +277,7 @@ class TestV03APIWithRealAuth:
                 headers={"X-API-Key": "invalid-key-12345"},
                 json={"message": "Hello"}
             )
-            assert response.status_code in [401, 403]
+            assert response.status_code == 401
             logger.info("V0.3 API: Invalid API key correctly rejected")
     
     @pytest.mark.asyncio

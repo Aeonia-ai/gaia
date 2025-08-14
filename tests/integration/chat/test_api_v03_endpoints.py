@@ -303,7 +303,7 @@ class TestV03Authentication:
                 # No auth headers
             )
             
-            assert response.status_code in [401, 403]  # Both are valid "unauthorized" responses
+            assert response.status_code == 401  # Authentication failure returns 401
 
     async def test_invalid_api_key_rejected(self, gateway_url):
         """Test that invalid API keys are rejected."""
@@ -317,4 +317,37 @@ class TestV03Authentication:
                 json={"message": "Hello"}
             )
             
-            assert response.status_code in [401, 403]  # Both are valid "unauthorized" responses
+            assert response.status_code == 401  # Authentication failure returns 401
+
+
+class TestV03BackwardCompatibility:
+    """Test that v0.3 doesn't break existing functionality."""
+
+    async def test_v02_still_works(self, gateway_url, headers):
+        """Test that v0.2 API still works alongside v0.3."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # v0.2 should still work with old format
+            response = await client.post(
+                f"{gateway_url}/api/v0.2/chat",
+                headers=headers,
+                json={"message": "Hello"}
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            # v0.2 format (may include provider details)
+            assert "response" in data
+
+    async def test_v1_still_works(self, gateway_url, headers):
+        """Test that v1 API still works alongside v0.3."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # v1 should still work
+            response = await client.post(
+                f"{gateway_url}/api/v1/chat",
+                headers=headers,
+                json={"message": "Hello"}
+            )
+            
+            assert response.status_code == 200
+            # v1 format (whatever it currently returns)

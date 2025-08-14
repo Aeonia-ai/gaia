@@ -232,7 +232,7 @@ class TestV02CompletionsWithRealAuth:
                 headers={"X-API-Key": "invalid-key-12345"},
                 json=json_payload
             )
-            assert response.status_code in [401, 403], f"Expected auth error for invalid key, got {response.status_code}"
+            assert response.status_code == 401, f"Expected 401 for invalid key, got {response.status_code}"
             
             if response.status_code != 404:
                 logger.info("V0.2 auth validation working correctly")

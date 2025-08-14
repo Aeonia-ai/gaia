@@ -252,7 +252,7 @@ async def get_current_auth(
                     else:
                         logger.warning("Invalid API Key provided - not found in Supabase")
                         raise HTTPException(
-                            status_code=status.HTTP_403_FORBIDDEN,
+                            status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Could not validate credentials"
                         )
                 except HTTPException:
@@ -278,7 +278,7 @@ async def get_current_auth(
                 else:
                     logger.warning("Invalid API Key provided - not found in PostgreSQL")
                     raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
+                        status_code=status.HTTP_401_UNAUTHORIZED,
                         detail="Could not validate credentials"
                     )
         except HTTPException:
