@@ -115,7 +115,7 @@ class TestV03DirectiveGeneration:
                 f"{gateway_url}/api/v0.3/chat",
                 headers={"X-API-Key": api_key},
                 json={
-                    "message": "Create a magical moment with sparkles and effects",
+                    "message": "Guide me through a breathing exercise with timed pauses",
                     "stream": False
                 }
             )
@@ -127,8 +127,8 @@ class TestV03DirectiveGeneration:
             # Extract directives
             directives = self.extract_directives(response_text)
             
-            # Should contain directives for magical effects
-            assert len(directives) > 0, "No directives found for magical effects request"
+            # Should contain directives for breathing exercise with pauses
+            assert len(directives) > 0, "No directives found for breathing exercise request"
             
             # Validate each directive follows minimal JSON-RPC format
             for directive in directives:

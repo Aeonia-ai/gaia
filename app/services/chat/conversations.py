@@ -62,7 +62,7 @@ async def create_conversation(
 ):
     """Create a new conversation"""
     try:
-        user_id = auth.get("sub") or auth.get("user_id") or auth.get("key", "unknown")
+        user_id = auth.get("sub") or auth.get("user_id") or "unknown"
         conversation = chat_conversation_store.create_conversation(
             user_id=user_id,
             title=request.title
@@ -79,7 +79,7 @@ async def list_conversations(
 ):
     """List all conversations for the authenticated user"""
     try:
-        user_id = auth.get("sub") or auth.get("user_id") or auth.get("key", "unknown")
+        user_id = auth.get("sub") or auth.get("user_id") or "unknown"
         conversations = chat_conversation_store.get_conversations(user_id)
         logger.info(f"Retrieved {len(conversations)} conversations for user {user_id}")
         return ConversationsListResponse(
@@ -96,7 +96,7 @@ async def get_conversation(
 ):
     """Get a specific conversation"""
     try:
-        user_id = auth.get("sub") or auth.get("user_id") or auth.get("key", "unknown")
+        user_id = auth.get("sub") or auth.get("user_id") or "unknown"
         conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
         if not conversation:
             raise HTTPException(status_code=404, detail="Conversation not found")
@@ -117,7 +117,7 @@ async def update_conversation(
 ):
     """Update a conversation"""
     try:
-        user_id = auth.get("sub") or auth.get("user_id") or auth.get("key", "unknown")
+        user_id = auth.get("sub") or auth.get("user_id") or "unknown"
         success = chat_conversation_store.update_conversation(
             user_id=user_id,
             conversation_id=conversation_id,
@@ -145,7 +145,7 @@ async def delete_conversation(
 ):
     """Delete a conversation"""
     try:
-        user_id = auth.get("sub") or auth.get("user_id") or auth.get("key", "unknown")
+        user_id = auth.get("sub") or auth.get("user_id") or "unknown"
         success = chat_conversation_store.delete_conversation(user_id, conversation_id)
         
         if not success:
@@ -205,7 +205,7 @@ async def search_conversations(
 ):
     """Search conversations by title or content"""
     try:
-        user_id = auth.get("sub") or auth.get("user_id") or auth.get("key", "unknown")
+        user_id = auth.get("sub") or auth.get("user_id") or "unknown"
         conversations = chat_conversation_store.search_conversations(user_id, query)
         logger.info(f"Found {len(conversations)} conversations matching '{query}' for user {user_id}")
         return ConversationsListResponse(
@@ -221,7 +221,7 @@ async def get_conversation_stats(
 ):
     """Get conversation statistics for the authenticated user"""
     try:
-        user_id = auth.get("sub") or auth.get("user_id") or auth.get("key", "unknown")
+        user_id = auth.get("sub") or auth.get("user_id") or "unknown"
         stats = chat_conversation_store.get_conversation_stats(user_id)
         logger.info(f"Retrieved stats for user {user_id}: {stats}")
         return ConversationStatsResponse(**stats)
