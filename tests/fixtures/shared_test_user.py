@@ -59,7 +59,18 @@ class SharedTestUser:
                     }
                     return _SHARED_TEST_USER
             except Exception as e:
-                logger.debug(f"Login failed, will try to create user: {e}")
+                logger.debug(f"Login failed, will try to handle existing user: {e}")
+                
+                # If login failed, check if it's due to wrong password on existing user
+                if "invalid_grant" in str(e).lower() or "invalid login credentials" in str(e).lower():
+                    logger.info(f"User {_TEST_USER_EMAIL} exists but login failed - likely wrong password")
+                    # Clean up the existing user first
+                    try:
+                        factory.cleanup_user_by_email(_TEST_USER_EMAIL)
+                        logger.info(f"Cleaned up existing user with wrong credentials: {_TEST_USER_EMAIL}")
+                    except Exception as cleanup_e:
+                        logger.debug(f"Cleanup attempt failed: {cleanup_e}")
+                        # Continue to creation anyway
             
             # If login failed, try to create the user
             try:

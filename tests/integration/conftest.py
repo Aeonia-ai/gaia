@@ -21,6 +21,14 @@ def pytest_configure(config):
         "markers",
         "llm_intensive: mark test that makes heavy LLM API calls"
     )
+    config.addinivalue_line(
+        "markers",
+        "not_implemented: mark test for features not yet implemented"
+    )
+    config.addinivalue_line(
+        "markers",
+        "requires_env: mark test requiring specific environment variables or setup"
+    )
 
 def pytest_collection_modifyitems(config, items):
     """Modify test collection to handle sequential tests."""
