@@ -56,13 +56,78 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **COMMUNICATION REQUIREMENT:** Tell the user what you are planning to do before you do it and what you actually did after you accomplished the goal. This helps with transparency and ensures alignment between expectations and results. Make sure you explain your hypothesis and assumptions.
 
 ## 🤖 Claude Code Agents
-Specialized agents are available for specific tasks. Use them when working in their domains:
 
-- **[Tester Agent](docs/agents/tester.md)** - Writing tests, running tests, debugging, and distributed systems troubleshooting
+### Available Agents
+Agents are defined in `.claude/agents/` directory. Available agents:
+
+- **Tester** (`.claude/agents/tester.md`) - Writing tests, running tests, debugging, and distributed systems troubleshooting
   - Use when: Writing new tests, running tests, debugging failures, investigating issues, creating test patterns
   - Knows: All test patterns, async runners, E2E requirements, common issues, how to write proper tests
 
-More agents coming soon: Builder, Deployer, Documenter
+- **Builder** (`.claude/agents/builder.md`) - Implementing features and fixing bugs
+  - Use when: Need to implement code to make tests pass, fix bugs, refactor code
+  - Knows: GAIA architecture, code patterns, microservices structure
+
+- **Reviewer** (`.claude/agents/reviewer.md`) - Code quality and security review
+  - Use when: Need code review, security audit, performance check
+  - Knows: Security best practices, code standards, performance patterns
+
+More agents coming soon: Deployer, Documenter
+
+### When to Use Agents vs Direct Claude
+- **Use Agents for**:
+  - Modular, well-defined tasks (writing tests, implementing features)
+  - Tasks requiring specialized expertise or perspective
+  - Multi-step workflows with clear handoffs
+  - Parallel workstreams that can be isolated
+
+- **Use Direct Claude for**:
+  - Exploratory debugging and investigation
+  - One-off commands or quick fixes
+  - Interactive problem-solving
+  - Tasks requiring broad context awareness
+
+### Agent Invocation Best Practices
+1. **Be Explicit**: "Use the Tester Agent to write integration tests for the new chat endpoint"
+2. **Provide Context**: Give agents clear summaries of current state and objectives
+3. **Use Structured Handoffs**: Pass data between agents using clear formats (JSON, Markdown)
+4. **Maintain Focus**: Keep each agent session focused on its specific task
+
+### How to Invoke Agents
+For detailed invocation instructions, see [How to Invoke Agents](docs/agents/how-to-invoke-agents.md).
+
+**Quick Commands**:
+```bash
+/agents                    # List all available agents
+/agents:tester            # Switch to the Tester Agent
+/clear                    # Reset conversation context
+/compact                  # Summarize long conversations
+```
+
+### Example Multi-Agent Workflow
+```bash
+# 1. Tester Agent writes failing tests
+/agents:tester
+Write tests for the new user registration feature
+
+# 2. Builder Agent implements code (coming soon)
+/agents:builder
+Implement code that makes the registration tests pass
+
+# 3. Tester Agent validates
+/agents:tester
+Run all tests and verify they pass
+
+# 4. Reviewer Agent checks quality (coming soon)
+/agents:reviewer
+Review the implementation for security and best practices
+```
+
+### Agent Context Management
+- **Curate Working Directory**: Only include files relevant to the agent's task
+- **Separate Sessions**: Use different conversations for different agent tasks
+- **Provide Recaps**: When switching agents, summarize what's been done
+- **Limit Scope**: Don't overload agents with unnecessary context
 
 ## 🎯 Current Development Focus (July 2025)
 
@@ -151,18 +216,9 @@ AUTH_SERVICE_URL = "https://gaia-auth-dev.fly.dev"
 
 ## 🧪 Testing: Critical Requirements
 
-**🤖 USE THE TESTER AGENT**: When writing tests, working with tests, debugging test failures, or investigating issues, engage the [Tester Agent](docs/agents/tester.md). This specialized agent has comprehensive knowledge of our testing infrastructure, patterns, common issues, and knows how to write proper tests following our patterns.
+**🚨 CRITICAL PRINCIPLE: Tests Define Truth** - When tests fail, FIX THE CODE, not the test! Tests are specifications of correct behavior. Changing tests to match broken code is a critical anti-pattern.
 
-**📋 APPEND-ONLY TEST FIXES LOG**: ALWAYS update the [APPEND-ONLY-TEST-FIXES-LOG.md](APPEND-ONLY-TEST-FIXES-LOG.md) when working on test failures. This captures institutional knowledge about test patterns, fixes, and discoveries. NEVER overwrite - always append new findings.
-
-**🎯 THE ULTIMATE META LESSON ON TEST FAILURES:**
-> **Test failures are rarely about the tests themselves.** They're usually telling you about:
-> - **Missing features** (e.g., auto-scroll functionality wasn't implemented)
-> - **Configuration mismatches** (e.g., Docker pytest.ini had hidden `-n auto`)
-> - **Timing/ordering issues** (e.g., mocking APIs after navigation already started)
-> - **Environmental differences** (e.g., Docker vs local configurations)
->
-> **Listen to what tests are trying to tell you.** When you find yourself fighting to make tests pass, stop and ask: "What is this test specification telling me about what the app should do?" Often, the app is incomplete, not the test.
+**🤖 USE THE TESTER AGENT**: For ALL testing tasks, use `/agents:tester`. The Tester Agent has comprehensive knowledge of testing patterns, debugging strategies, and infrastructure details.
 
 **🚨 ALWAYS USE ASYNC TEST RUNNER**
 ```bash
@@ -175,128 +231,12 @@ pytest tests/ -v
 ```
 
 **🔐 E2E TESTS: REAL AUTHENTICATION ONLY**
-- **NO MOCKS IN E2E TESTS** - Use real Supabase authentication
+- NO MOCKS IN E2E TESTS - Use real Supabase authentication
 - Requires valid `SUPABASE_SERVICE_KEY` in `.env`
 - Use `TestUserFactory` for consistent test user creation
 - Always clean up test users after tests
 
-```bash
-# Run E2E tests with real auth
-./scripts/pytest-for-claude.sh tests/e2e/test_real_auth_e2e.py -v
-```
-
-### 🎯 Systematic Integration Test Patterns
-
-**🔧 SYSTEMATIC FIXES OVER INDIVIDUAL FIXES**
-- When multiple tests fail with similar patterns, identify the systematic root cause
-- Fix the pattern once rather than fixing each test individually
-- Look for common anti-patterns that affect multiple tests
-
-**🚨 COMMON INTEGRATION TEST PATTERNS TO FIX:**
-
-**1. Authentication/Navigation Pattern**
-```bash
-# ❌ BRITTLE PATTERN: Manual login + expect navigation
-await page.goto(f'{WEB_SERVICE_URL}/login')
-await page.fill('input[name="email"]', 'test@test.local')  # Hardcoded!
-await page.fill('input[name="password"]', 'test123')       # Hardcoded!
-await page.click('button[type="submit"]')
-await page.wait_for_url('**/chat')  # ← TIMES OUT
-
-# ✅ ROBUST PATTERN: Use shared auth helper
-await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)
-# Handles entire flow: navigation, form filling, waiting, error handling
-```
-
-**2. Route Mocking vs Real Auth Pattern**
-```bash
-# ❌ WRONG ORDER: Mocks interfere with real auth
-await page.route("**/auth/login", mock_handler)  # ← Blocks real login!
-await BrowserAuthHelper.login_with_real_user(page, creds)  # Fails
-
-# ✅ CORRECT ORDER: Real auth first, then mocks for specific functionality
-await BrowserAuthHelper.login_with_real_user(page, creds)  # Real auth works
-await page.route("**/api/v1/chat", mock_error_handler)     # Mock specific APIs
-```
-
-**3. CSS Selector Robustness Pattern**
-```bash
-# ❌ BRITTLE: Single selector, synchronous, no fallbacks
-message_input = await page.query_selector('input[name="message"]')  # ← Fails if textarea
-await message_input.fill("test")  # ← NoneType error if not found
-
-# ✅ ROBUST: Multiple selectors, async expectations, fallbacks  
-message_input = page.locator('textarea[name="message"], input[name="message"]').first
-await expect(message_input).to_be_visible()  # Wait + verify
-await message_input.fill("test")
-
-# ❌ INVALID: Mixing CSS + text selectors
-await page.wait_for_selector('[role="alert"], .error, text="error"')  # Syntax error
-
-# ✅ CORRECT: Proper Playwright locator composition
-error_locator = page.locator('[role="alert"], .error').or_(page.locator('text=error'))
-await expect(error_locator.first).to_be_visible()
-```
-
-**4. Test Method Signature Pattern**
-```bash
-# ❌ MISSING: Test uses fixture but doesn't declare it
-async def test_something_with_auth(self):
-    await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)  # ← NameError
-
-# ✅ COMPLETE: All required fixtures declared
-async def test_something_with_auth(self, test_user_credentials):
-    await BrowserAuthHelper.login_with_real_user(page, test_user_credentials)  # ✓ Works
-```
-
-**🎯 SYSTEMATIC DIAGNOSIS APPROACH:**
-1. **Identify the pattern**: Look for identical/similar failures across multiple tests
-2. **Find the root cause**: Usually authentication, timing, or CSS selector issues  
-3. **Create systematic fix**: Update the pattern once, applies to all affected tests
-4. **Validate the fix**: Run all affected tests to ensure systematic improvement
-
-**📊 SUCCESS METRICS:**
-- Multiple test failures → Single pattern fix → Multiple tests pass
-- Example: 4 navigation timeout failures → 1 auth pattern fix → 4 tests pass
-
-### 💡 Integration Test Success Story: 53 → 4 Failures
-
-**🎯 CRITICAL INSIGHT: Integration Tests Should Test Real System Behavior, Not Mocks**
-
-From August 2025 integration test fixing session that achieved **85-90% improvement**:
-
-**Started with**: 53 failing tests in `test_full_web_browser.py`  
-**Result**: 4-5 failing tests through systematic pattern fixes
-
-**Key Philosophy Shift**: User feedback: *"It's an integration test right?"*
-- **Before**: Mocking responses, making tests "flexible" (essentially testing nothing)
-- **After**: Using real auth endpoints, real credentials, testing actual system behavior
-- **Validation**: When `test_concurrent_form_submissions` was converted from mocked to real integration testing, it **passed** - proving the system works correctly
-
-**Root Insight**: When integration tests use mocks and those mocks aren't being called, it often indicates **real system issues** (like HTMX not loading properly), not test problems.
-
-**Remaining failures likely indicate actual bugs**:
-- `test_htmx_form_submission_without_page_reload` - HTMX JavaScript might not be loading
-- `test_message_auto_scroll` - Missing scroll-to-bottom implementation
-- `test_message_persistence_on_refresh` - Backend message loading not implemented
-- `test_network_error_handling` - HTMX error handling + toast system integration issues
-
-**Architecture Validation**: User observation: *"Timing has turned out to often be either parallel run resource issues or underlying bugs"* - test failures should be investigated as potential system issues, not dismissed as flaky tests.
-
-**🎯 Critical Testing Insights**:
-- **Verify Before Claiming Missing Features**: When tests fail, check if features actually exist with different selectors/structure before assuming they're missing
-- **Integration Tests Should Use Real Services**: Avoid mocking in integration tests - they should test real system behavior
-- **Differentiate Test Categories**:
-  - `@pytest.mark.skip(reason="Feature not implemented")` - for planned features
-  - `@pytest.mark.xfail(reason="Bug #123: description")` - for known bugs
-  - Broken tests should be fixed immediately, not left failing
-- **Debug First**: When a test fails looking for `.message` elements, check what's actually in the DOM (might be `#messages > div`)
-
-See:
-- **[Tester Agent](docs/agents/tester.md)** - Use this agent for ALL testing tasks!
-- [Testing Guide](docs/testing/TESTING_GUIDE.md) - Main testing documentation
-- [Testing Best Practices](docs/testing/TESTING_BEST_PRACTICES.md) - Patterns and practices
-- [Test Infrastructure](docs/testing/TEST_INFRASTRUCTURE.md) - Technical details
+See [Testing Guide](docs/testing/TESTING_GUIDE.md) for comprehensive documentation.
 
 ## 🧠 Development Philosophy & Problem-Solving Approach
 

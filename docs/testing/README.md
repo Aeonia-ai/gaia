@@ -19,30 +19,30 @@
 
 ## 📚 Documentation Structure
 
-### Core Documentation
-- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Main testing guide covering all essentials
-- **[TESTING_BEST_PRACTICES.md](TESTING_BEST_PRACTICES.md)** - Patterns and best practices for all test types
+### Core Documentation (5 Essential Files)
+- **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - **MAIN GUIDE** - Comprehensive testing documentation with patterns and best practices
+- **[CRITICAL_TESTING_PRINCIPLE_TESTS_DEFINE_TRUTH.md](CRITICAL_TESTING_PRINCIPLE_TESTS_DEFINE_TRUTH.md)** - Core testing philosophy
 - **[TEST_INFRASTRUCTURE.md](TEST_INFRASTRUCTURE.md)** - Technical details about test runners and tools
 
 ### Specialized Guides
 - **[security-testing-strategy.md](security-testing-strategy.md)** - Security-focused testing approach
 - **[mobile-testing-guide.md](mobile-testing-guide.md)** - Testing on mobile devices
-- **[e2e-real-auth-testing.md](e2e-real-auth-testing.md)** - End-to-end testing with real authentication
 
-### Related Documentation
-- **[/docs/agents/tester.md](/docs/agents/tester.md)** - Tester agent for writing and debugging tests
+### AI Assistant
+- **[Tester Agent](/.claude/agents/tester.md)** - AI assistant with comprehensive testing knowledge, patterns, and debugging expertise
+
 
 ## 🎯 Which Document Do I Need?
 
 ```mermaid
 graph TD
     A[Need to test something?] --> B{What kind?}
-    B -->|General testing| C[TESTING_GUIDE.md]
-    B -->|Best practices| D[TESTING_BEST_PRACTICES.md]
-    B -->|Security testing| E[security-testing-strategy.md]
-    B -->|Mobile testing| F[mobile-testing-guide.md]
-    B -->|E2E with auth| G[e2e-real-auth-testing.md]
-    B -->|Test infrastructure| H[TEST_INFRASTRUCTURE.md]
+    B -->|General testing, patterns, examples| C[TESTING_GUIDE.md]
+    B -->|Core testing philosophy| D[TESTS_DEFINE_TRUTH.md]
+    B -->|Technical infrastructure| E[TEST_INFRASTRUCTURE.md]
+    B -->|Security testing| F[security-testing-strategy.md]
+    B -->|Mobile testing| G[mobile-testing-guide.md]
+    B -->|AI help with tests| H[Tester Agent]
 ```
 
 ## 🗂️ Test Organization
@@ -73,8 +73,8 @@ tests/
 ## 🛠️ Common Tasks
 
 ### Writing New Tests
-1. Check [TESTING_BEST_PRACTICES.md](TESTING_BEST_PRACTICES.md) for patterns
-2. Use the [Tester Agent](/docs/agents/tester.md) for guidance
+1. Check [TESTING_GUIDE.md](TESTING_GUIDE.md) for patterns and examples
+2. Use the [Tester Agent](/.claude/agents/tester.md) for AI assistance: `/agents:tester`
 3. Follow TDD: Write failing test → Implement → Refactor
 
 ### Debugging Failed Tests
@@ -87,7 +87,7 @@ tail -f logs/tests/pytest/test-run-*.log
 ```
 
 ### Adding Test Fixtures
-See [TESTING_BEST_PRACTICES.md](TESTING_BEST_PRACTICES.md#fixtures) for fixture patterns
+See [TESTING_GUIDE.md](TESTING_GUIDE.md) for fixture patterns and the [Tester Agent](/.claude/agents/tester.md) for guidance
 
 ## 🚨 Important Notes
 

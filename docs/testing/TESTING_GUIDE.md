@@ -26,16 +26,6 @@
 docker compose up -d
 ```
 
-### 🚨 CRITICAL: Append-Only Test Fixes Log
-**When working on test failures, ALWAYS update [APPEND-ONLY-TEST-FIXES-LOG.md](../../APPEND-ONLY-TEST-FIXES-LOG.md)**
-
-This log captures institutional knowledge about:
-- Test failure patterns and root causes
-- Successful fixes and their reasoning
-- Framework-specific gotchas (FastHTML, HTMX, Playwright)
-- Testing best practices learned through experience
-
-**Format**: Append entries chronologically - NEVER overwrite existing content.
 
 ### Running Your First Tests
 ```bash
@@ -54,6 +44,20 @@ This log captures institutional knowledge about:
 **⚠️ CRITICAL**: Always use `./scripts/pytest-for-claude.sh` instead of `pytest` directly. The Bash tool in Claude Code has a 2-minute timeout, but tests can take 5-15 minutes.
 
 ## Testing Philosophy
+
+### CRITICAL: Tests Define Truth, Not Current Behavior
+
+**When a test fails, FIX THE CODE, not the test!** Tests are specifications of correct behavior. Changing tests to match broken code is a critical anti-pattern that undermines the entire purpose of testing.
+
+```python
+# ❌ WRONG: Changing test to accept incorrect behavior
+assert response.status_code in [200, 401]  # Whatever the code returns!
+
+# ✅ RIGHT: Fix the service to return correct status
+assert response.status_code == 401  # This is the specification
+```
+
+See [Tests Define Truth](CRITICAL_TESTING_PRINCIPLE_TESTS_DEFINE_TRUTH.md) for detailed guidance.
 
 ### Core Principle: Automated Tests Over Manual Scripts
 
@@ -304,6 +308,42 @@ response = await client.post("/api/v0.3/chat", json={"message": "Hello"})
 ./scripts/pytest-for-claude.sh tests/e2e -v
 ```
 
+**🚨 CRITICAL: E2E tests MUST use real authentication - NO MOCKS!**
+
+#### E2E Test Pattern with Real Auth
+```python
+from tests.fixtures.test_auth import TestUserFactory
+import uuid
+
+async def test_complete_user_journey():
+    """Test with real Supabase authentication."""
+    factory = TestUserFactory()
+    
+    # Create unique test user
+    test_email = f"e2e-{uuid.uuid4().hex[:8]}@test.local"
+    test_password = "TestPassword123!"
+    
+    try:
+        # Create verified user (no email confirmation needed)
+        user = factory.create_verified_test_user(
+            email=test_email,
+            password=test_password
+        )
+        
+        # Test real login and functionality
+        # ... test implementation ...
+            
+    finally:
+        # Always clean up test users
+        factory.cleanup()
+```
+
+#### Why Real Authentication?
+- **Integration bugs**: Mocks hide real authentication flow issues
+- **User experience**: Test what users actually experience
+- **Security validation**: Verify auth tokens work correctly
+- **Complete coverage**: Test JWT generation, validation, session management
+
 ### Browser Tests (`tests/web/`)
 - **Purpose**: Test UI behavior and interactions
 - **Speed**: Slow (10-60 seconds per test)
@@ -473,12 +513,242 @@ echo "SUPABASE_SERVICE_KEY=your-key" >> .env
    ./scripts/pytest-for-claude.sh --durations=10
    ```
 
+## Contract Testing (Coming Soon)
+
+Contract testing ensures that services can communicate correctly by validating API contracts between producers and consumers.
+
+### Why Contract Testing?
+- **Prevents Integration Failures**: Catch breaking changes before deployment
+- **Faster Than E2E Tests**: Test service contracts in isolation
+- **Clear Service Boundaries**: Documents expected API behavior
+- **Independent Development**: Teams can work without full system
+
+### Implementation Plan
+```bash
+# Future implementation
+./scripts/run-contract-tests.sh --service gateway --consumer web
+./scripts/generate-contracts.sh --from-openapi
+```
+
+### Contract Test Organization
+```
+tests/contracts/
+├── gateway/
+│   ├── chat-service.contract.json
+│   └── auth-service.contract.json
+├── web/
+│   └── gateway.contract.json
+└── shared/
+    └── contract-schemas.json
+```
+
+## Performance Testing
+
+Performance testing ensures the system meets speed and scalability requirements.
+
+### Performance Test Strategy
+
+**1. Baseline Establishment**
+```bash
+# Run baseline performance tests
+./scripts/performance/baseline.sh --service chat --endpoint /v1/chat
+
+# Expected baselines:
+# - Chat response: < 3 seconds
+# - Auth validation: < 100ms
+# - Conversation load: < 500ms
+```
+
+**2. Load Testing Setup**
+```bash
+# Create load test script
+cat > scripts/load-tests/chat-load.sh << 'EOF'
+#!/bin/bash
+# Run load tests externally to avoid Claude timeout
+echo "⚠️ Warning: This will consume API quota"
+echo "Running load test with k6..."
+
+docker run --rm -v $(pwd)/tests/load:/scripts \
+  grafana/k6 run /scripts/chat-load-test.js
+
+# Collect results
+./scripts/collect-load-results.sh
+EOF
+```
+
+**3. Performance Monitoring**
+```python
+# tests/performance/test_response_times.py
+import time
+import pytest
+
+@pytest.mark.performance
+async def test_chat_response_time(client):
+    """Ensure chat responses are under 3 seconds"""
+    start = time.time()
+    response = await client.post("/v1/chat", json={"message": "Hello"})
+    duration = time.time() - start
+    
+    assert response.status_code == 200
+    assert duration < 3.0, f"Response took {duration:.2f}s, expected < 3s"
+```
+
+**4. Regression Detection**
+- Store performance baselines in `tests/performance/baselines.json`
+- Compare current results against baselines
+- Flag regressions > 20% automatically
+- Track trends over time
+
+### External Performance Testing
+Due to Claude's 2-minute timeout, intensive performance tests should run externally:
+
+```bash
+# Trigger remote performance tests
+./scripts/trigger-remote-perf-tests.sh --env staging --suite load
+
+# Poll for results
+./scripts/check-perf-results.sh --job-id $JOB_ID
+```
+
+## Test Data Management Best Practices
+
+### Namespace Isolation
+```python
+# Use unique namespaces per test run
+import uuid
+
+class TestWithIsolation:
+    @pytest.fixture
+    def test_namespace(self):
+        return f"test-{uuid.uuid4().hex[:8]}"
+    
+    async def test_isolated_data(self, test_namespace):
+        # All test data uses namespace prefix
+        user_email = f"{test_namespace}-user@test.local"
+        conversation_id = f"{test_namespace}-conv-1"
+```
+
+### Cleanup Strategies
+```python
+# Automatic cleanup with fixtures
+@pytest.fixture
+async def test_data_cleanup(test_namespace):
+    yield
+    # Cleanup runs after test
+    await cleanup_namespace_data(test_namespace)
+```
+
+## Testing Best Practices
+
+### Naming Conventions
+```python
+# Test files: test_*.py or *_test.py
+test_chat_service.py
+
+# Test classes: Test<Component>
+class TestChatService:
+    pass
+
+# Test methods: test_<behavior>_<condition>_<expected>
+def test_send_message_with_empty_text_raises_error(self):
+    pass
+
+# Fixtures: descriptive names without "fixture" suffix
+@pytest.fixture
+def authenticated_user():  # Good
+    pass
+```
+
+### Common Antipatterns to Avoid
+
+#### 1. Testing Implementation Details
+```python
+# ❌ Bad: Testing private methods
+def test_private_method(self):
+    service = Service()
+    result = service._calculate_internal_state()  # Don't test this
+
+# ✅ Good: Test public interface
+def test_service_behavior(self):
+    service = Service()
+    result = service.process_data(input_data)
+    assert result.status == "success"
+```
+
+#### 2. Overusing Mocks
+```python
+# ❌ Bad: Mocking everything
+@patch('app.database')
+@patch('app.cache')
+@patch('app.logger')
+def test_with_too_many_mocks(mock_db, mock_cache, mock_logger):
+    # You're not testing real behavior anymore
+
+# ✅ Good: Mock only external dependencies
+def test_with_real_components(self):
+    # Use real database, mock only external APIs
+    with patch('app.external_api.call'):
+        result = service.process()
+```
+
+#### 3. Ignoring Test Failures
+```python
+# ❌ Bad: Changing test to match broken code
+assert response.status_code in [200, 201, 404]  # Too permissive!
+
+# ✅ Good: Fix the code to match test expectations
+assert response.status_code == 201  # Precise expectation
+```
+
+### Mock Usage Guidelines by Test Type
+
+#### Unit Tests - Mock External Dependencies
+```python
+@patch('app.external.openai_client')
+def test_chat_logic(mock_openai):
+    # Mock external API, test business logic
+    mock_openai.complete.return_value = "Mocked response"
+```
+
+#### Integration Tests - Use Real Internal Services
+```python
+def test_service_integration():
+    # Use real database, Redis, internal services
+    # Only mock external APIs if needed
+```
+
+#### E2E Tests - No Mocks
+```python
+async def test_full_user_journey():
+    # Everything must be real
+    # Use TestUserFactory for real users
+    # Test actual system behavior
+```
+
+### Load Testing Separation
+Load tests should be separated from regular tests to avoid:
+- API quota consumption
+- Rate limiting issues
+- Non-deterministic failures
+
+```bash
+# Load tests in separate directory
+tests/load/
+├── README.md
+├── conftest.py
+└── test_concurrent_requests.py
+
+# Run explicitly with warnings
+./scripts/run-load-tests.sh
+```
+
 ## Additional Resources
 
-- [TESTING_BEST_PRACTICES.md](TESTING_BEST_PRACTICES.md) - Detailed patterns and practices
 - [TEST_INFRASTRUCTURE.md](TEST_INFRASTRUCTURE.md) - Technical details about test runners
-- [Tester Agent](/docs/agents/tester.md) - AI assistant for writing and debugging tests
-- [E2E Real Auth Testing](e2e-real-auth-testing.md) - Details on testing with real authentication
+- [CRITICAL_TESTING_PRINCIPLE_TESTS_DEFINE_TRUTH.md](CRITICAL_TESTING_PRINCIPLE_TESTS_DEFINE_TRUTH.md) - Core testing philosophy
+- [Tester Agent](/.claude/agents/tester.md) - AI assistant for writing and debugging tests
+- [Mobile Testing Guide](mobile-testing-guide.md) - Mobile-specific testing patterns
+- [Security Testing Strategy](security-testing-strategy.md) - Security testing approaches
 
 ---
 
