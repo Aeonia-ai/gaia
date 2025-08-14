@@ -1138,19 +1138,22 @@ Current context:
 - Conversation: {context.get('conversation_id', 'new')}
 - Message count: {context.get('message_count', 0)}
 
-Knowledge Base (KB) tools are available for when users reference their personal knowledge or work context.
+IMPORTANT: Always check conversation history FIRST before using any tools.
 
-Use KB tools naturally when users indicate they want:
-- Personal knowledge: "what do I know about X", "find my notes on Y" → search_knowledge_base
-- Work continuity: "continue where we left off", "what was I working on" → load_kos_context  
-- Thread management: "show active threads", "load project context" → load_kos_context
-- Cross-domain synthesis: "how does X relate to Y", "connect A with B" → synthesize_kb_information
-
-Direct responses (NO tools needed) for general queries:
+Direct responses (NO tools needed) for:
+- Questions about information mentioned in the current conversation
+- Conversation memory: "What did I tell you about X?", "What is my lucky number?", "Remember when I said..."
 - General knowledge: "What's the capital of France?" → "Paris"
 - Math: "What is 2+2?" → "4"
 - Explanations: "How does photosynthesis work?" → Direct explanation
 - Opinions: "What do you think about AI?" → Direct discussion
+
+Knowledge Base (KB) tools should ONLY be used when:
+- Information is NOT available in conversation history AND
+- User explicitly asks for stored/archived knowledge: "find my notes on Y", "search my documents for X"
+- Work continuity: "continue where we left off", "what was I working on" → load_kos_context  
+- Thread management: "show active threads", "load project context" → load_kos_context
+- Cross-domain synthesis: "how does X relate to Y", "connect A with B" → synthesize_kb_information
 
 Respond DIRECTLY (without tools) for:
 - Greetings and casual conversation ("Hello", "How are you?", "Thank you")
