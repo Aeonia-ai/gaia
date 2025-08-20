@@ -16,10 +16,17 @@ The GAIA v0.3 API provides a clean, simplified interface for AI chat interaction
 
 ## Authentication
 
-All v0.3 API endpoints require authentication using API keys:
+The v0.3 API provides complete authentication endpoints for user management. You can either:
 
+1. **Use API keys** for service-to-service communication:
 ```http
 X-API-Key: your-api-key-here
+Content-Type: application/json
+```
+
+2. **Use JWT tokens** obtained from login:
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 Content-Type: application/json
 ```
 
@@ -27,6 +34,123 @@ Content-Type: application/json
 
 ```
 https://your-gaia-instance.com/api/v0.3
+```
+
+## Authentication Endpoints
+
+### POST `/api/v0.3/auth/login`
+
+Authenticate a user and receive access tokens.
+
+#### Request Format
+```json
+{
+  "email": "user@example.com",
+  "password": "your-password"
+}
+```
+
+#### Response Format
+```json
+{
+  "session": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expires_in": 3600,
+    "token_type": "bearer"
+  },
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "user@example.com",
+    "email_confirmed_at": "2025-08-20T01:30:00Z"
+  }
+}
+```
+
+### POST `/api/v0.3/auth/register`
+
+Create a new user account.
+
+#### Request Format
+```json
+{
+  "email": "newuser@example.com",
+  "password": "secure-password"
+}
+```
+
+#### Response Format
+```json
+{
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "email": "newuser@example.com",
+    "email_confirmed_at": null,
+    "created_at": "2025-08-20T01:30:00Z"
+  },
+  "message": "User created successfully. Please check your email for verification."
+}
+```
+
+### POST `/api/v0.3/auth/validate`
+
+Validate an access token.
+
+#### Request Format
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+#### Response Format
+```json
+{
+  "valid": true,
+  "auth_type": "jwt",
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "error": null
+}
+```
+
+### POST `/api/v0.3/auth/refresh`
+
+Refresh an expired access token using a refresh token.
+
+#### Request Format
+```json
+{
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+#### Response Format
+```json
+{
+  "session": {
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "expires_in": 3600,
+    "token_type": "bearer"
+  }
+}
+```
+
+### POST `/api/v0.3/auth/logout`
+
+Invalidate the current session.
+
+#### Request Format
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+#### Response Format
+```json
+{
+  "success": true,
+  "message": "Successfully logged out"
+}
 ```
 
 ## Chat Endpoint

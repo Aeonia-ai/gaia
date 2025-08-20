@@ -339,3 +339,183 @@ class TestGatewayAuthEndpoints:
             assert "email" in error_msg or "password" in error_msg or "invalid" in error_msg
             
             logger.info(f"Gateway properly propagated error: {data['detail']}")
+
+
+@pytest.mark.integration
+@pytest.mark.sequential
+class TestV03AuthEndpoints:
+    """Test v0.3 auth endpoints for backward compatibility with v1."""
+    
+    @pytest.fixture
+    def gateway_url(self):
+        """Gateway URL for integration tests."""
+        return os.getenv("GATEWAY_URL", "http://gateway:8000")
+    
+    @pytest.fixture
+    def temp_user_factory(self):
+        """Factory for creating temporary test users."""
+        from tests.fixtures.test_auth import TestUserFactory
+        return TestUserFactory()
+    
+    @pytest.mark.parametrize("api_version", ["v1", "v0.3"])
+    @pytest.mark.asyncio
+    async def test_login_endpoint_behavioral_identity(
+        self, 
+        gateway_url,
+        shared_test_user,
+        api_version: str
+    ):
+        """Test that v1 and v0.3 login endpoints have identical behavior."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Test successful login
+            login_data = {
+                "email": shared_test_user["email"],
+                "password": shared_test_user["password"]
+            }
+            
+            response = await client.post(
+                f"{gateway_url}/api/{api_version}/auth/login",
+                json=login_data
+            )
+            
+            # Verify response structure is identical
+            assert response.status_code == 200
+            data = response.json()
+            
+            # Both versions should return identical structure
+            assert "session" in data
+            assert "user" in data
+            assert "access_token" in data["session"]
+            assert data["user"]["email"] == shared_test_user["email"]
+            
+            # Verify token formats are identical
+            assert data["session"]["access_token"].startswith("eyJ")  # JWT format
+            
+            logger.info(f"Gateway {api_version} login successful with identical structure")
+    
+    @pytest.mark.parametrize("api_version", ["v1", "v0.3"])
+    @pytest.mark.asyncio
+    async def test_validate_endpoint_behavioral_identity(
+        self,
+        gateway_url,
+        shared_test_user,
+        api_version: str
+    ):
+        """Test that v1 and v0.3 validate endpoints have identical behavior."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Login to get token
+            login_response = await client.post(
+                f"{gateway_url}/api/{api_version}/auth/login",
+                json={
+                    "email": shared_test_user["email"],
+                    "password": shared_test_user["password"]
+                }
+            )
+            assert login_response.status_code == 200
+            tokens = login_response.json()
+            
+            # Test token validation
+            validate_response = await client.post(
+                f"{gateway_url}/api/{api_version}/auth/validate",
+                json={"token": tokens["session"]["access_token"]}
+            )
+            
+            # Verify response structure is identical
+            assert validate_response.status_code == 200
+            data = validate_response.json()
+            
+            # Both versions should return identical structure
+            assert "valid" in data
+            assert "user_id" in data
+            assert data["valid"] is True
+            
+            logger.info(f"Gateway {api_version} validate successful with identical structure")
+    
+    @pytest.mark.asyncio
+    async def test_v1_token_works_with_v03_validate(
+        self,
+        gateway_url,
+        shared_test_user
+    ):
+        """Test that tokens from v1 login work with v0.3 validate."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Login with v1
+            login_response = await client.post(
+                f"{gateway_url}/api/v1/auth/login",
+                json={
+                    "email": shared_test_user["email"],
+                    "password": shared_test_user["password"]
+                }
+            )
+            assert login_response.status_code == 200
+            v1_tokens = login_response.json()
+            
+            # Validate with v0.3
+            validate_response = await client.post(
+                f"{gateway_url}/api/v0.3/auth/validate",
+                json={"token": v1_tokens["session"]["access_token"]}
+            )
+            
+            assert validate_response.status_code == 200
+            data = validate_response.json()
+            assert data["valid"] is True
+            
+            logger.info("v1 token successfully validated by v0.3 endpoint")
+    
+    @pytest.mark.asyncio
+    async def test_v03_token_works_with_v1_validate(
+        self,
+        gateway_url,
+        shared_test_user
+    ):
+        """Test that tokens from v0.3 login work with v1 validate."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Login with v0.3
+            login_response = await client.post(
+                f"{gateway_url}/api/v0.3/auth/login",
+                json={
+                    "email": shared_test_user["email"],
+                    "password": shared_test_user["password"]
+                }
+            )
+            assert login_response.status_code == 200
+            v03_tokens = login_response.json()
+            
+            # Validate with v1
+            validate_response = await client.post(
+                f"{gateway_url}/api/v1/auth/validate",
+                json={"token": v03_tokens["session"]["access_token"]}
+            )
+            
+            assert validate_response.status_code == 200
+            data = validate_response.json()
+            assert data["valid"] is True
+            
+            logger.info("v0.3 token successfully validated by v1 endpoint")
+    
+    @pytest.mark.parametrize("api_version", ["v1", "v0.3"])
+    @pytest.mark.asyncio
+    async def test_auth_error_consistency(
+        self,
+        gateway_url,
+        api_version: str
+    ):
+        """Test that invalid login credentials return identical errors."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            invalid_login = {
+                "email": "nonexistent@example.com",
+                "password": "wrongpassword"
+            }
+            
+            response = await client.post(
+                f"{gateway_url}/api/{api_version}/auth/login",
+                json=invalid_login
+            )
+            
+            # Both versions should return identical error structure
+            # Note: Supabase returns 400 for invalid credentials, not 401
+            assert response.status_code in [400, 401]  
+            data = response.json()
+            assert "detail" in data or "error" in data or "message" in data
+            
+            logger.info(f"Gateway {api_version} properly returned 401 for invalid credentials")

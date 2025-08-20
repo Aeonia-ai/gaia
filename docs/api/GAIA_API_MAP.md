@@ -10,7 +10,7 @@ Client -> Gateway (port 8666) -> Backend Services
                                   ├── Chat Service (port 8000)
                                   ├── Asset Service (port 8000)
                                   ├── KB Service (port 8000)
-                                  └── Web Service (port 8080)
+                                  └── Web Service (port 8000, exposed as 8080)
 ```
 
 ## Gateway Service (Port 8666)
@@ -42,47 +42,10 @@ The gateway is the main entry point for all API requests and routes them to appr
 |--------|-------------|----------------|-------------|---------------|-------------|
 | POST | `/api/v1/chat` | chat | `/chat/unified` | Yes | Main chat endpoint with intelligent routing |
 | POST | `/api/v1/chat/completions` | chat | `/chat/` | Yes | OpenAI-compatible completions |
-| GET | `/api/v1/chat/status` | chat | `/chat/status` | Yes | Get chat history status |
-| DELETE | `/api/v1/chat/history` | chat | `/chat/history` | Yes | Clear chat history |
-| POST | `/api/v1/chat/reload-prompt` | chat | `/chat/reload-prompt` | Yes | Reload system prompt |
 | DELETE | `/api/v1/conversations/{id}` | chat | `/conversations/{id}` | Yes | Delete specific conversation |
 | GET | `/api/v1/chat/personas` | chat | `/personas/` | Yes | Get personas |
 | POST | `/api/v1/chat/personas` | chat | `/personas` | Yes | Create persona |
 
-### Specialized Chat Endpoints (v1)
-
-| Method | Gateway Path | Target Service | Target Path | Auth Required | Description |
-|--------|-------------|----------------|-------------|---------------|-------------|
-| POST | `/api/v1/chat/mcp-agent` | chat | `/chat/mcp-agent` | Yes | MCP-agent orchestration |
-| POST | `/api/v1/chat/direct` | chat | `/chat/direct` | Yes | Direct LLM chat (no framework) |
-| POST | `/api/v1/chat/mcp-agent-hot` | chat | `/chat/mcp-agent-hot` | Yes | Hot-loaded MCP-agent |
-| POST | `/api/v1/chat/direct-db` | chat | `/chat/direct-db` | Yes | Direct chat with DB memory |
-| POST | `/api/v1/chat/orchestrated` | chat | `/chat/orchestrated` | Yes | Orchestrated intelligent routing |
-| POST | `/api/v1/chat/ultrafast` | chat | `/chat/ultrafast` | Yes | Ultra-fast chat (<1s) |
-| POST | `/api/v1/chat/ultrafast-redis` | chat | `/chat/ultrafast-redis` | Yes | Ultra-fast with Redis |
-| POST | `/api/v1/chat/ultrafast-redis-v2` | chat | `/chat/ultrafast-redis-v2` | Yes | Optimized Redis chat |
-| POST | `/api/v1/chat/ultrafast-redis-v3` | chat | `/chat/ultrafast-redis-v3` | Yes | Parallel Redis chat |
-
-### Multiagent Chat Endpoints (v1)
-
-| Method | Gateway Path | Target Service | Target Path | Auth Required | Description |
-|--------|-------------|----------------|-------------|---------------|-------------|
-| POST | `/api/v1/chat/gamemaster` | chat | `/chat/gamemaster` | Yes | Game Master + NPCs |
-| POST | `/api/v1/chat/worldbuilding` | chat | `/chat/worldbuilding` | Yes | Collaborative world building |
-| POST | `/api/v1/chat/storytelling` | chat | `/chat/storytelling` | Yes | Multi-perspective storytelling |
-| POST | `/api/v1/chat/problemsolving` | chat | `/chat/problemsolving` | Yes | Expert team collaboration |
-
-### KB-Enhanced Chat Endpoints (v1)
-
-| Method | Gateway Path | Target Service | Target Path | Auth Required | Description |
-|--------|-------------|----------------|-------------|---------------|-------------|
-| POST | `/api/v1/chat/kb-enhanced` | kb | `/search` | Yes | KB-Enhanced multiagent chat |
-| POST | `/api/v1/chat/kb-research` | kb | `/search` | Yes | KB research chat |
-| POST | `/api/v1/chat/kb-gamemaster` | kb | `/search` | Yes | Game mastering with KB |
-| POST | `/api/v1/chat/kb-development` | kb | `/search` | Yes | Development guidance with KB |
-| POST | `/api/v1/chat/kb-search` | kb | `/search` | Yes | Direct KB search |
-| POST | `/api/v1/chat/kb-context` | kb | `/context` | Yes | KOS context loading |
-| POST | `/api/v1/chat/kb-multitask` | kb | `/multitask` | Yes | Parallel KB tasks |
 
 ### Asset Endpoints (v1)
 
@@ -107,9 +70,6 @@ The gateway is the main entry point for all API requests and routes them to appr
 | Method | Gateway Path | Target Service | Target Path | Auth Required | Description |
 |--------|-------------|----------------|-------------|---------------|-------------|
 | POST | `/api/v0.2/chat` | chat | `/api/v0.2` | Yes | Unified chat (streaming/non-streaming) |
-| GET | `/api/v0.2/chat/status` | chat | `/api/v0.2/chat/status` | Yes | Chat status |
-| DELETE | `/api/v0.2/chat/history` | chat | `/api/v0.2/chat/history` | Yes | Clear history |
-| POST | `/api/v0.2/chat/reload-prompt` | chat | `/api/v0.2/chat/reload-prompt` | Yes | Reload prompt |
 | POST | `/api/v0.2/chat/stream` | chat | `/api/v0.2` | Yes | Streaming chat (explicit) |
 
 #### v0.2 Provider & Model Endpoints

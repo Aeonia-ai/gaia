@@ -1698,6 +1698,43 @@ async def v03_create_conversation(
     return JSONResponse(status_code=201, content=clean_data)
 
 
+# v0.3 Authentication endpoints - same as v1, different paths
+@app.post("/api/v0.3/auth/login", tags=["v0.3 Authentication"])
+async def v03_auth_login(request: Request):
+    """v0.3 auth login - same as v1, different path for API consistency."""
+    return await v1_login(request)
+
+@app.post("/api/v0.3/auth/register", tags=["v0.3 Authentication"])  
+async def v03_auth_register(request: Request):
+    """v0.3 auth register - same as v1, different path for API consistency."""
+    return await v1_register(request)
+
+@app.post("/api/v0.3/auth/logout", tags=["v0.3 Authentication"])
+async def v03_auth_logout(request: Request):
+    """v0.3 auth logout - same as v1, different path for API consistency."""
+    return await v1_logout(request)
+
+@app.post("/api/v0.3/auth/validate", tags=["v0.3 Authentication"])
+async def v03_auth_validate(request: Request):
+    """v0.3 auth validate - same as v1, different path for API consistency."""
+    return await validate_auth(request)
+
+@app.post("/api/v0.3/auth/refresh", tags=["v0.3 Authentication"])
+async def v03_auth_refresh(request: Request):
+    """v0.3 auth refresh - same as v1, different path for API consistency."""
+    return await refresh_auth(request)
+
+@app.post("/api/v0.3/auth/confirm", tags=["v0.3 Authentication"])
+async def v03_auth_confirm(request: Request):
+    """v0.3 auth confirm - same as v1, different path for API consistency."""
+    return await v1_confirm(request)
+
+@app.post("/api/v0.3/auth/resend-verification", tags=["v0.3 Authentication"])
+async def v03_auth_resend_verification(request: Request):
+    """v0.3 auth resend verification - same as v1, different path for API consistency."""
+    return await v1_resend_verification(request)
+
+
 def _convert_to_clean_format(response_data):
     """
     Convert any chat response to clean v0.3 format.
