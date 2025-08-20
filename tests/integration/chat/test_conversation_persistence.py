@@ -77,8 +77,6 @@ class TestConversationPersistence:
         """Test direct chat service endpoints for conversation support."""
         endpoints_to_test = [
             ("/chat", "Basic chat endpoint"),
-            ("/chat/direct", "Direct chat endpoint"),
-            ("/chat/direct-db", "Database-backed chat"),
             ("/chat/unified", "Unified chat endpoint")
         ]
         

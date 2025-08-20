@@ -26,14 +26,10 @@ TEST_QUERIES = {
 
 # All endpoints to test
 ENDPOINTS = {
-    "chat": "/api/v1/chat",
-    "completions": "/api/v1/chat/completions", 
-    # "multi-provider": "/api/v1/chat/multi-provider",  # Not exposed in gateway
-    "direct": "/api/v1/chat/direct",
-    "direct-db": "/api/v1/chat/direct-db",
-    "mcp-agent": "/api/v1/chat/mcp-agent",
-    "mcp-agent-hot": "/api/v1/chat/mcp-agent-hot",
-    "orchestrated": "/api/v1/chat/orchestrated"
+    "v1-chat": "/api/v1/chat",  # Routes to /chat/unified
+    "v0.3-chat": "/api/v0.3/chat",  # Clean API format
+    # Note: v0.2 API and /api/v1/chat/completions have been removed for cleanup.
+    # All chat requests now go through intelligent routing.
 }
 
 
@@ -71,22 +67,11 @@ class ChatEndpointTester:
         """Test a single endpoint with a query"""
         url = f"{self.base_url}{endpoint_path}"
         
-        # Prepare request based on endpoint type
-        if endpoint_name == "completions":
-            # OpenAI-style format
-            payload = {
-                "model": "claude-3-5-sonnet-20241022",
-                "messages": [
-                    {"role": "user", "content": query}
-                ],
-                "stream": False
-            }
-        else:
-            # Standard format
-            payload = {
-                "message": query,
-                "model": "claude-3-5-sonnet-20241022"
-            }
+        # Prepare request - all endpoints now use standard format
+        payload = {
+            "message": query,
+            "model": "claude-3-5-sonnet-20241022"
+        }
         
         start_time = time.time()
         
@@ -100,11 +85,8 @@ class ChatEndpointTester:
                 response_time = time.time() - start_time
                 response_data = await response.json()
                 
-                # Extract response text based on format
-                if endpoint_name == "completions":
-                    response_text = response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                else:
-                    response_text = response_data.get("response", "")
+                # Extract response text
+                response_text = response_data.get("response", "")
                 
                 # Extract metadata if available
                 metadata = response_data.get("metadata", {})
@@ -142,25 +124,10 @@ class ChatEndpointTester:
     async def test_all_endpoints(self):
         """Test all endpoints with all query types"""
         async with aiohttp.ClientSession() as session:
-            # First, warm up mcp-agent-hot
-            print("Warming up mcp-agent-hot endpoint...")
-            await self.test_endpoint(
-                session,
-                "mcp-agent-hot",
-                ENDPOINTS["mcp-agent-hot"],
-                "warmup",
-                "Hello"
-            )
-            
             # Test each endpoint with each query type
             tasks = []
             for endpoint_name, endpoint_path in ENDPOINTS.items():
                 for query_type, query in TEST_QUERIES.items():
-                    # Skip complex queries for certain endpoints on first run
-                    if endpoint_name in ["mcp-agent", "orchestrated"] and query_type in ["complex", "multi_step"]:
-                        # Test these separately to avoid timeouts
-                        continue
-                    
                     task = self.test_endpoint(
                         session,
                         endpoint_name,
@@ -174,20 +141,6 @@ class ChatEndpointTester:
             print(f"Running {len(tasks)} tests in parallel...")
             results = await asyncio.gather(*tasks)
             self.results.extend(results)
-            
-            # Now test complex queries for slower endpoints one by one
-            print("\nTesting complex queries for slower endpoints...")
-            for endpoint_name in ["mcp-agent", "orchestrated"]:
-                for query_type in ["complex", "multi_step"]:
-                    print(f"  Testing {endpoint_name} with {query_type} query...")
-                    result = await self.test_endpoint(
-                        session,
-                        endpoint_name,
-                        ENDPOINTS[endpoint_name],
-                        query_type,
-                        TEST_QUERIES[query_type]
-                    )
-                    self.results.append(result)
     
     def print_results(self):
         """Print formatted test results"""

@@ -38,14 +38,17 @@ chat_histories: dict[str, List[Message]] = {}
 
 # Legacy function removed - now using multi-provider chat service
 
+# Legacy chat endpoint - preserved for backward compatibility
 @router.post("/", response_model=ChatResponse)
-async def chat_completion(
+async def legacy_chat_completion(
     request: ChatRequest,
     auth_principal: Dict[str, Any] = Depends(get_current_auth)
 ) -> ChatResponse:
     """
-    Process a chat completion request using the specified provider.
-    Supports both built-in and MCP tools.
+    Legacy chat completion endpoint - preserved for backward compatibility.
+    
+    Note: This endpoint is maintained for backward compatibility only.
+    New implementations should use the /unified endpoint for intelligent routing.
     """
     try:
         # Use a unique key for chat history based on auth_principal
@@ -54,7 +57,7 @@ async def chat_completion(
         if not auth_key:
             raise ValueError("Could not determine unique auth key for chat history.")
 
-        logger.debug("Processing chat completion request")
+        logger.debug("Processing legacy chat completion request")
         
         # Get or initialize chat history with system prompt
         if auth_key not in chat_histories:
@@ -597,119 +600,7 @@ async def multi_provider_chat_completion(
             raise HTTPException(status_code=500, detail=f"Chat completion failed: {str(e)}")
 
 
-@router.post("/", response_model=ChatResponse)
-async def chat_completion(
-    request: ChatRequest,
-    auth_principal: Dict[str, Any] = Depends(get_current_auth)
-) -> ChatResponse:
-    """
-    Process a chat completion request using the specified provider.
-    Supports both built-in and MCP tools.
-    """
-    try:
-        # Use a unique key for chat history based on auth_principal
-        # Handle both JWT (user_id) and API key (key) authentication
-        auth_key = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key")
-        if not auth_key:
-            raise ValueError("Could not determine unique auth key for chat history.")
-
-        logger.debug("Processing chat completion request")
-        
-        # Get or initialize chat history with system prompt
-        if auth_key not in chat_histories:
-            logger.debug("Initializing new chat history with system prompt")
-            system_prompt = await PromptManager.get_system_prompt(user_id=auth_key)
-            chat_histories[auth_key] = [
-                Message(
-                    role="system",
-                    content=system_prompt
-                )
-            ]
-
-        # Add user message to history
-        chat_histories[auth_key].append(Message(
-            role="user",
-            content=request.message
-        ))
-        logger.debug(f"Added user message to history. Total messages: {len(chat_histories[auth_key])}")
-
-        # Prepare messages for API call (filter out empty messages)
-        valid_messages = []
-        for msg in chat_histories[auth_key]:
-            if msg.content and msg.content.strip():
-                valid_messages.append(msg.model_dump())
-            else:
-                logger.debug(f"Filtering out empty message with role: {msg.role}")
-        messages = valid_messages
-
-        # Get available tools for the chat
-        logger.debug("Getting tools for chat completion")
-        tools = await ToolProvider.get_tools_for_activity("generic")
-        logger.debug(f"Retrieved {len(tools)} tools for generic activity")
-
-        # Use the multi-provider chat service for consistent model selection
-        logger.debug("Using multi-provider chat service for legacy chat endpoint")
-        
-        # Convert tools to proper format
-        formatted_tools = []
-        for tool in tools:
-            tool_dict = tool.model_dump() if hasattr(tool, 'model_dump') else tool
-            formatted_tools.append(tool_dict)
-
-        # Use multi-provider chat service with force_provider=True for consistent behavior
-        response = await chat_service.chat_completion(
-            messages=messages,
-            force_provider=True,  # Use default model selection
-            tools=formatted_tools,
-            user_id=auth_key
-        )
-        
-        result_to_say = response["response"]
-        model_used = response["model"]
-        provider_used = response["provider"]
-        
-        logger.info(f"Successfully used multi-provider system: {model_used} from {provider_used}")
-
-        if result_to_say:
-            # Add response to history
-            chat_histories[auth_key].append(Message(
-                role="assistant",
-                content=result_to_say
-            ))
-            logger.debug("Added assistant response to history")
-
-            # Trim history if it gets too long
-            if len(chat_histories[auth_key]) > 50:  # Arbitrary limit
-                logger.debug("Trimming chat history to last 50 messages")
-                # Keep system prompt and last 49 messages
-                system_msg = chat_histories[auth_key][0]
-                chat_histories[auth_key] = [system_msg] + chat_histories[auth_key][-49:]
-
-            return ChatResponse(
-                response=result_to_say,
-                provider=provider_used,
-                model=model_used
-            )
-        else:
-            raise ValueError("No response received from provider")
-
-    except Exception as e:
-        logger.error(f"Chat completion error: {str(e)}")
-        import traceback
-        logger.error(f"Full traceback: {traceback.format_exc()}")
-        
-        # Return appropriate status codes based on error type
-        if isinstance(e, ValueError):
-            status_code = 401  # Unauthorized
-        elif isinstance(e, ConnectionError):
-            status_code = 503  # Service Unavailable
-        else:
-            status_code = 500  # Internal Server Error
-            
-        raise HTTPException(
-            status_code=status_code,
-            detail=str(e)
-        )
+# Duplicate endpoint removed - functionality consolidated in legacy_chat_completion above
 
 @router.post("/reload-prompt")
 async def reload_system_prompt(
@@ -780,360 +671,30 @@ async def clear_chat_history(
             detail=str(e)
         )
 
-# Import MCP-agent chat service - working around import issues
-try:
-    # Use delayed import to avoid startup issues
-    @router.post("/mcp-agent")
-    async def mcp_agent_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """
-        Advanced multiagent chat endpoint using mcp-agent orchestration.
-        
-        Provides sophisticated agent coordination:
-        - Game Master + multiple NPCs for interactive scenes
-        - Collaborative specialist teams for complex problems
-        - Multi-perspective storytelling
-        - Automatic scenario detection and routing
-        
-        Perfect for MMOIRL's complex interaction requirements.
-        """
-        try:
-            # Import sophisticated multiagent orchestrator
-            from .multiagent_orchestrator import multiagent_orchestrator_endpoint
-            return await multiagent_orchestrator_endpoint(request, "auto", auth_principal)
-        except ImportError as ie:
-            logger.error(f"Import error in mcp-agent endpoint: {ie}")
-            # Fall back to simple response for testing
-            return {
-                "id": f"mcp-agent-fallback-{int(time.time())}",
-                "object": "chat.completion", 
-                "created": int(time.time()),
-                "model": request.model or "claude-3-5-sonnet-20241022",
-                "choices": [{
-                    "index": 0,
-                    "message": {
-                        "role": "assistant", 
-                        "content": "MCP-agent endpoint is temporarily using fallback mode due to import issues."
-                    },
-                    "finish_reason": "stop"
-                }],
-                "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25}
-            }
-        except Exception as e:
-            logger.error(f"Error in mcp-agent endpoint: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
-        
-    logger.info("✅ MCP-agent chat endpoint added with runtime import")
-    
-    # Add specific multiagent scenario endpoints
-    @router.post("/gamemaster")
-    async def gamemaster_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """Game Master orchestrating multiple NPCs for interactive scenes"""
-        from .multiagent_orchestrator import gamemaster_scenario_endpoint
-        return await gamemaster_scenario_endpoint(request, auth_principal)
-    
-    @router.post("/worldbuilding")
-    async def worldbuilding_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """Collaborative world building with specialist agents"""
-        from .multiagent_orchestrator import worldbuilding_scenario_endpoint
-        return await worldbuilding_scenario_endpoint(request, auth_principal)
-    
-    @router.post("/storytelling")
-    async def storytelling_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """Multi-perspective storytelling with different narrative viewpoints"""
-        from .multiagent_orchestrator import storytelling_scenario_endpoint
-        return await storytelling_scenario_endpoint(request, auth_principal)
-    
-    @router.post("/problemsolving")
-    async def problemsolving_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """Expert team collaboration for complex problem solving"""
-        from .multiagent_orchestrator import problemsolving_scenario_endpoint
-        return await problemsolving_scenario_endpoint(request, auth_principal)
-    
-    logger.info("✅ Advanced multiagent orchestration endpoints added")
-    
-except Exception as e:
-    logger.warning(f"⚠️ Could not create mcp-agent chat endpoint: {e}")
-    import traceback
-    logger.warning(f"⚠️ Traceback: {traceback.format_exc()}")
-
-# Import direct chat (no framework overhead)
-try:
-    from .lightweight_chat_simple import simple_lightweight_chat_endpoint
-    
-    @router.post("/direct")
-    async def direct_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """
-        Direct chat endpoint - straight to Anthropic API.
-        
-        Fastest option (~2s) - no framework overhead.
-        """
-        return await simple_lightweight_chat_endpoint(request, auth_principal)
-        
-    logger.info("✅ Direct chat endpoint added")
-    
-except Exception as e:
-    logger.warning(f"⚠️ Could not import direct chat: {e}")
-
-# Import hot-loaded MCP-agent chat (keeps mcp-agent initialized)
-try:
-    from .lightweight_chat_hot import hot_lightweight_chat_endpoint
-    
-    @router.post("/mcp-agent-hot")
-    async def mcp_agent_hot_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """
-        Hot-loaded MCP-agent chat - keeps framework initialized.
-        
-        First request: ~3-5s (initialization)
-        Subsequent requests: ~0.5-1s (reuses initialized agent)
-        """
-        return await hot_lightweight_chat_endpoint(request, auth_principal)
-        
-    logger.info("✅ Hot-loaded MCP-agent chat endpoint added")
-    
-except Exception as e:
-    logger.warning(f"⚠️ Could not import hot MCP-agent chat: {e}")
-
-# Import direct chat with database
-try:
-    from fastapi import Query
-    from .lightweight_chat_db import (
-        lightweight_chat_db_endpoint,
-        get_conversations_endpoint,
-        search_conversations_endpoint
-    )
-    logger.info("✅ Direct chat DB module imported successfully")
-except Exception as e:
-    logger.warning(f"⚠️ Could not import direct chat DB: {e}")
-
-# Import ultrafast chat
-try:
-    from .ultrafast_chat import ultrafast_chat_endpoint
-    
-    @router.post("/ultrafast")
-    async def ultrafast_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """
-        Ultra-fast chat endpoint optimized for <1s responses.
-        
-        Uses Claude 3 Haiku and minimal overhead.
-        """
-        return await ultrafast_chat_endpoint(request, auth_principal)
-        
-    logger.info("✅ Ultrafast chat endpoint added")
-    
-except Exception as e:
-    logger.warning(f"⚠️ Could not import ultrafast chat: {e}")
-
-# Import ultrafast Redis chat
-try:
-    from .ultrafast_redis_chat import ultrafast_redis_chat_endpoint
-    
-    @router.post("/ultrafast-redis")
-    async def ultrafast_redis_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """
-        Ultra-fast chat with Redis-backed history.
-        
-        Target: <1s response time with full conversation context.
-        """
-        return await ultrafast_redis_chat_endpoint(request, auth_principal)
-        
-    logger.info("✅ Ultrafast Redis chat endpoint added")
-    
-except Exception as e:
-    logger.warning(f"⚠️ Could not import ultrafast Redis chat: {e}")
-
-# Import optimized ultrafast Redis chat
-try:
-    from .ultrafast_redis_optimized import ultrafast_redis_optimized_endpoint
-    
-    @router.post("/ultrafast-redis-v2")
-    async def ultrafast_redis_v2_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """
-        Optimized ultra-fast chat with Redis history.
-        
-        - Minimal context (3 messages)
-        - Lower token limit (500)
-        - Target: <500ms consistent
-        """
-        return await ultrafast_redis_optimized_endpoint(request, auth_principal)
-        
-    logger.info("✅ Ultrafast Redis V2 chat endpoint added")
-    
-except Exception as e:
-    logger.warning(f"⚠️ Could not import ultrafast Redis V2 chat: {e}")
-
-# Import parallel ultrafast Redis chat
-try:
-    from .ultrafast_redis_parallel import ultrafast_redis_parallel_endpoint
-    
-    @router.post("/ultrafast-redis-v3")
-    async def ultrafast_redis_v3_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth),
-        background_tasks: BackgroundTasks = BackgroundTasks()
-    ):
-        """
-        Ultra-fast chat with parallel Redis operations.
-        
-        - Redis pipelining for batch operations
-        - Background storage of responses
-        - Target: <400ms consistent
-        """
-        return await ultrafast_redis_parallel_endpoint(request, auth_principal, background_tasks)
-        
-    logger.info("✅ Ultrafast Redis V3 (parallel) chat endpoint added")
-    
-except Exception as e:
-    logger.warning(f"⚠️ Could not import ultrafast Redis V3 chat: {e}")
-
-# Import orchestrated chat service
-try:
-    from .orchestrated_chat import OrchestratedChatService
-    orchestrated_chat_service = OrchestratedChatService()
-    logger.info("✅ Orchestrated chat service initialized")
-    
-    @router.post("/direct-db")
-    async def direct_chat_with_db(
-        request: ChatRequest,
-        conversation_id: Optional[str] = Query(None),
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """
-        Direct chat with database memory.
-        
-        Features:
-        - Direct Anthropic API calls (~2s)
-        - Full conversation history in PostgreSQL
-        - Compatible with existing Gaia database schema
-        """
-        return await lightweight_chat_db_endpoint(request, conversation_id, auth_principal)
-    
-    @router.get("/conversations")
-    async def get_conversations(auth_principal: Dict[str, Any] = Depends(get_current_auth)):
-        """Get all conversations for the authenticated user"""
-        return await get_conversations_endpoint(auth_principal)
-    
-    @router.get("/conversations/search")
-    async def search_conversations(
-        q: str = Query(..., description="Search query"),
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """Search conversations"""
-        return await search_conversations_endpoint(q, auth_principal)
-    
-    logger.info("✅ Direct chat with DB endpoints added")
-    
-except Exception as e:
-    logger.warning(f"⚠️ Could not import orchestrated chat: {e}")
-    import traceback
-    logger.warning(f"⚠️ Orchestrated Traceback: {traceback.format_exc()}")
-    orchestrated_chat_service = None
-
-# KB-enhanced multiagent orchestrator moved to separate KB service
-# KB endpoints are now handled by kb-service and routed through the gateway
-
-# Import intelligent chat with smart routing
-try:
-    from .intelligent_chat import intelligent_chat_endpoint, intelligent_chat_metrics_endpoint
-    
-    @router.post("/intelligent")
-    async def intelligent_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """
-        Intelligent chat with automatic routing based on message complexity.
-        
-        Features:
-        - Pattern matching for ultra-fast simple messages (<1ms classification)
-        - LLM classification for complex routing (~200ms)
-        - Routes to optimal endpoint:
-          - Simple dialog → Direct LLM (~1s)
-          - Tool usage needed → Hot MCP agent (~2-3s)
-          - Complex orchestration → Full multiagent (~3-5s)
-        """
-        return await intelligent_chat_endpoint(request, auth_principal)
-    
-    @router.post("/fast")
-    async def fast_direct_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """
-        Fast direct chat - bypasses ALL routing for guaranteed speed.
-        
-        Use this when you need the fastest possible response (~1s) and
-        know the message doesn't need tools or orchestration.
-        
-        Same as the original /chat/direct endpoint.
-        """
-        # Direct to simple endpoint, no routing overhead at all
-        from .lightweight_chat_simple import simple_lightweight_chat_endpoint
-        return await simple_lightweight_chat_endpoint(request, auth_principal)
-    
-    @router.get("/intelligent/metrics")
-    async def intelligent_metrics(auth_principal: Dict[str, Any] = Depends(get_current_auth)):
-        """Get metrics for intelligent chat routing"""
-        return await intelligent_chat_metrics_endpoint(auth_principal)
-    
-    logger.info("✅ Intelligent chat endpoints added")
-    
-except Exception as e:
-    logger.warning(f"⚠️ Could not import intelligent chat: {e}")
-
-# Add orchestrated chat endpoints if service is available
-if orchestrated_chat_service:
-    @router.post("/orchestrated")
-    async def orchestrated_chat(
-        request: ChatRequest,
-        auth_principal: Dict[str, Any] = Depends(get_current_auth)
-    ):
-        """
-        Orchestrated chat with intelligent routing and multi-agent support.
-        
-        Features:
-        - Automatic routing (direct LLM, MCP tools, multi-agent)
-        - Dynamic agent spawning for complex tasks
-        - Efficient parallel execution
-        - Performance metrics tracking
-        """
-        return await orchestrated_chat_service.process_chat(
-            request=request.model_dump(),
-            auth_principal=auth_principal
-        )
-    
-    @router.get("/orchestrated/metrics")
-    async def orchestrated_metrics(auth_principal: Dict[str, Any] = Depends(get_current_auth)):
-        """Get orchestration performance metrics"""
-        return await orchestrated_chat_service.get_metrics()
-    
-    logger.info("✅ Orchestrated chat endpoints added")
+# =============================================================================
+# EXPERIMENTAL AND UNUSED CHAT ENDPOINTS HAVE BEEN REMOVED FOR CLEANUP
+# =============================================================================
+# 
+# Previously this file contained many experimental chat endpoints that were
+# created during development but are no longer needed:
+#
+# Removed endpoints:
+# - /mcp-agent (advanced multiagent orchestration)
+# - /gamemaster, /worldbuilding, /storytelling, /problemsolving (specialized agents)
+# - /direct (direct Anthropic API calls)
+# - /mcp-agent-hot (hot-loaded MCP agent)
+# - /ultrafast, /ultrafast-redis, /ultrafast-redis-v2, /ultrafast-redis-v3 (performance experiments)
+# - /direct-db (direct chat with database)
+# - /orchestrated (orchestrated chat service)
+# - /intelligent, /fast (intelligent routing experiments)
+#
+# Current production endpoints:
+# - / (legacy endpoint for backward compatibility) 
+# - /unified (main intelligent routing endpoint)
+# - /multi-provider (comprehensive multi-provider endpoint)
+# - Core management endpoints: /status, /metrics, /reload-prompt, /history
+#
+# For specialized chat functionality, use:
+# - v1 API: /api/v1/chat -> routes to /chat/unified
+# - v0.3 API: /api/v0.3/chat -> routes to /chat/unified  
+# - v0.2 API: /api/v0.2/chat -> routes to /api/v0.2
