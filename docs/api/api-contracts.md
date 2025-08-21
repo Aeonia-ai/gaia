@@ -6,8 +6,22 @@ This document defines the API contracts for Gaia Platform services, clearly spec
 
 The GAIA Platform supports multiple API versions for backward compatibility:
 - **v0.2**: Legacy API format (still supported)
-- **v0.3**: Current API format with cleaner response structure
+- **v0.3**: ✅ Complete authentication API with behavioral identity to v1
 - **v1**: OpenAI-compatible format for chat endpoints
+
+### v0.3 Authentication Endpoints (NEW)
+
+All v0.3 auth endpoints maintain behavioral identity with v1 and support full token interoperability:
+
+| v0.3 Endpoint | v1 Equivalent | Status |
+|---------------|---------------|--------|
+| `/api/v0.3/auth/login` | `/api/v1/auth/login` | ✅ Implemented |
+| `/api/v0.3/auth/register` | `/api/v1/auth/register` | ✅ Implemented |
+| `/api/v0.3/auth/logout` | `/api/v1/auth/logout` | ✅ Implemented |
+| `/api/v0.3/auth/validate` | `/api/v1/auth/validate` | ✅ Implemented |
+| `/api/v0.3/auth/refresh` | `/api/v1/auth/refresh` | ✅ Implemented |
+| `/api/v0.3/auth/confirm` | `/api/v1/auth/confirm` | ✅ Implemented |
+| `/api/v0.3/auth/resend-verification` | `/api/v1/auth/resend-verification` | ✅ Implemented |
 
 Clients can specify their preferred format using the `X-Response-Format` header.
 
@@ -25,6 +39,10 @@ These endpoints MUST remain publicly accessible without any authentication heade
 | `/api/v1/auth/login` | POST | User login | Returns JWT token |
 | `/api/v1/auth/resend-verification` | POST | Resend email verification | For unverified accounts |
 | `/api/v1/auth/confirm` | POST | Confirm email | Validates email token |
+| `/api/v0.3/auth/register` | POST | User registration (v0.3) | ✅ Same as v1 |
+| `/api/v0.3/auth/login` | POST | User login (v0.3) | ✅ Same as v1 |
+| `/api/v0.3/auth/resend-verification` | POST | Resend verification (v0.3) | ✅ Same as v1 |
+| `/api/v0.3/auth/confirm` | POST | Confirm email (v0.3) | ✅ Same as v1 |
 
 ### Web Service
 

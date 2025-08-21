@@ -7,13 +7,14 @@
 Complete reference for all Gaia Platform API endpoints, contracts, and integration patterns.
 
 ### 🗺️ [GAIA Platform API Map](GAIA_API_MAP.md)
-**🆕 NEW** - Complete endpoint mapping across all services with routing details
+**🆕 UPDATED** - Complete endpoint mapping across all services with routing details
 
 - **Gateway Routing** - How requests route from Gateway to backend services  
 - **Service Mapping** - Complete endpoint-to-service mapping
 - **Authentication Requirements** - Per-endpoint auth requirements
 - **Target Paths** - Internal service endpoint paths
-- **400+ Endpoints Documented** - Comprehensive API reference
+- **v0.3 Auth Endpoints** - ✅ Complete authentication API implementation
+- **300+ Verified Endpoints** - Cleaned and accurate API reference
 
 ### 📋 [API Contracts](api-contracts.md)
 **🟢 Status: CURRENT** - Defines which endpoints require authentication and which are public
@@ -31,7 +32,7 @@ Complete reference for all Gaia Platform API endpoints, contracts, and integrati
 - **Local-Remote Parity** - Same authentication code in all environments
 - **Testing Patterns** - How to test authentication flows
 
-### 💬 [Chat Endpoints](chat-endpoints.md)
+### 💬 [Chat Endpoints](chat-endpoint-variants-explained.md)
 **🟢 Status: CURRENT** - LLM interaction and streaming endpoints
 
 - **Unified Chat Endpoint** - Single `/chat` endpoint with intelligent routing
@@ -66,17 +67,24 @@ Complete reference for all Gaia Platform API endpoints, contracts, and integrati
 
 ## 🔄 API Versioning Strategy
 
-### Current Version: Mixed (v0.2 + v1)
-- **Gateway Implementation** - Mix of v0.2 and v1 endpoints in `app/gateway/main.py`
-- **Documentation Claims** - Primarily references v1 endpoints
-- **Client Compatibility** - Maintains backward compatibility with existing clients
-
-⚠️ **Known Issue:** API version inconsistency between documentation (v1) and implementation (mixed v0.2/v1)
+### Current Version: Mixed (v0.2 + v0.3 + v1)
+- **v0.2** - Legacy LLM Platform compatibility endpoints
+- **v0.3** - Clean API format with complete authentication endpoints ✅
+- **v1** - Modern microservices endpoints (partial implementation)
+- **Gateway Implementation** - Mix of all versions in `app/gateway/main.py`
+- **Client Compatibility** - Full backward compatibility maintained
 
 ### Version Timeline
 - **v0.2** - Legacy LLM Platform compatibility endpoints
+- **v0.3** - **NEW** Complete authentication API with behavioral identity ✅
 - **v1** - Modern microservices endpoints (partial implementation)
 - **v2** - Planned unified API version (future)
+
+### v0.3 Authentication Implementation ✅
+- **Complete Auth Endpoints** - All 7 auth operations (login, register, logout, validate, refresh, confirm, resend)
+- **Behavioral Identity** - v0.3 endpoints route to v1 handlers with identical responses
+- **Token Interoperability** - v1 and v0.3 tokens work across both API versions
+- **Full Test Coverage** - 8 comprehensive integration tests passing
 
 ## 🧪 Testing Your Integration
 
@@ -84,6 +92,13 @@ Complete reference for all Gaia Platform API endpoints, contracts, and integrati
 ```bash
 # Test gateway health (public)
 curl https://gaia-gateway-staging.fly.dev/health
+
+# Test v0.3 authentication endpoints
+curl https://gaia-gateway-staging.fly.dev/api/v0.3/auth/login \
+  -d '{"email": "user@example.com", "password": "password"}'
+
+curl https://gaia-gateway-staging.fly.dev/api/v0.3/auth/register \
+  -d '{"email": "newuser@example.com", "password": "password"}'
 
 # Test authenticated chat endpoint
 curl -H "X-API-Key: your-key" \

@@ -2,7 +2,19 @@
 
 This document defines the expected HTTP status codes and response formats for authentication endpoints accessed through the Gateway service.
 
-## **POST /api/v1/auth/login**
+## API Versions
+
+The Gateway provides authentication endpoints in two API versions with **identical behavior**:
+- **v1**: `/api/v1/auth/*` endpoints
+- **v0.3**: `/api/v0.3/auth/*` endpoints ✅
+
+✅ **Token Interoperability**: Tokens from v1 login work with v0.3 validate and vice versa.
+
+✅ **Behavioral Identity**: All v0.3 auth endpoints route to the same v1 handlers, ensuring identical responses.
+
+## **POST /api/v1/auth/login** • **POST /api/v0.3/auth/login**
+
+✅ **Both endpoints have identical behavior and responses**
 
 ### **✅ Successful Login**
 **HTTP Status:** `200 OK`  
@@ -66,7 +78,9 @@ This document defines the expected HTTP status codes and response formats for au
 
 ---
 
-## **POST /api/v1/auth/register**
+## **POST /api/v1/auth/register** • **POST /api/v0.3/auth/register**
+
+✅ **Both endpoints have identical behavior and responses**
 
 ### **✅ Successful Registration**
 **HTTP Status:** `200 OK`  
@@ -112,7 +126,11 @@ This document defines the expected HTTP status codes and response formats for au
 
 ---
 
-## **POST /api/v1/auth/validate**
+## **POST /api/v1/auth/validate** • **POST /api/v0.3/auth/validate**
+
+✅ **Both endpoints have identical behavior and responses**
+
+✅ **Cross-version token validation**: v1 tokens work with v0.3 validate, v0.3 tokens work with v1 validate
 
 ### **✅ Valid JWT Token**
 **HTTP Status:** `200 OK`  
@@ -140,7 +158,9 @@ This document defines the expected HTTP status codes and response formats for au
 
 ---
 
-## **POST /api/v1/auth/refresh**
+## **POST /api/v1/auth/refresh** • **POST /api/v0.3/auth/refresh**
+
+✅ **Both endpoints have identical behavior and responses**
 
 ### **✅ Successful Token Refresh**
 **HTTP Status:** `200 OK`  
@@ -171,8 +191,9 @@ This document defines the expected HTTP status codes and response formats for au
 
 ### **Error Handling:**
 ```javascript
+// Works with both v1 and v0.3 endpoints
 try {
-  const response = await fetch('/api/v1/auth/login', {
+  const response = await fetch('/api/v1/auth/login', { // or '/api/v0.3/auth/login'
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password })

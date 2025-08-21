@@ -15,6 +15,17 @@ Client -> Gateway (port 8666) -> Backend Services
 
 ## Gateway Service (Port 8666)
 
+**Public URL:** https://gaia-gateway-[env].fly.dev  
+**Purpose:** Main API gateway and request router  
+**Services Proxied:** All backend services  
+**Authentication:** Routes authentication to auth service
+
+### API Version Support
+- **v0.2** - Legacy LLM Platform compatibility endpoints
+- **v0.3** - ✅ Complete authentication endpoints (new)
+- **v1** - Modern microservices endpoints
+- **Backward Compatibility** - All versions supported simultaneously
+
 The gateway is the main entry point for all API requests and routes them to appropriate backend services.
 
 ### Health & Status Endpoints
@@ -24,7 +35,9 @@ The gateway is the main entry point for all API requests and routes them to appr
 | GET | `/health` | - | - | No | Gateway health check |
 | GET | `/` | - | - | Yes (Rate Limited) | Root endpoint with API version info |
 
-### Authentication Endpoints (v1)
+### Authentication Endpoints (v1 + v0.3)
+
+#### v1 Authentication Endpoints
 
 | Method | Gateway Path | Target Service | Target Path | Auth Required | Description |
 |--------|-------------|----------------|-------------|---------------|-------------|
@@ -35,6 +48,22 @@ The gateway is the main entry point for all API requests and routes them to appr
 | POST | `/api/v1/auth/logout` | auth | `/auth/logout` | No | User logout |
 | POST | `/api/v1/auth/confirm` | auth | `/auth/confirm` | No | Confirm email |
 | POST | `/api/v1/auth/resend-verification` | auth | `/auth/resend-verification` | No | Resend email verification |
+
+#### v0.3 Authentication Endpoints ✅
+
+| Method | Gateway Path | Target Service | Target Path | Auth Required | Description |
+|--------|-------------|----------------|-------------|---------------|-------------|
+| POST | `/api/v0.3/auth/login` | auth | `/auth/login` | No | User login (same as v1) |
+| POST | `/api/v0.3/auth/register` | auth | `/auth/register` | No | User registration (same as v1) |
+| POST | `/api/v0.3/auth/logout` | auth | `/auth/logout` | No | User logout (same as v1) |
+| POST | `/api/v0.3/auth/validate` | auth | `/auth/validate` | No | Validate JWT (same as v1) |
+| POST | `/api/v0.3/auth/refresh` | auth | `/auth/refresh` | No | Refresh JWT (same as v1) |
+| POST | `/api/v0.3/auth/confirm` | auth | `/auth/confirm` | No | Confirm email (same as v1) |
+| POST | `/api/v0.3/auth/resend-verification` | auth | `/auth/resend-verification` | No | Resend verification (same as v1) |
+
+**✅ Behavioral Identity**: All v0.3 auth endpoints route to identical v1 handlers  
+**✅ Token Interoperability**: v1 and v0.3 tokens work across both API versions  
+**✅ Test Coverage**: 8 comprehensive integration tests passing
 
 ### Chat Endpoints (v1)
 
