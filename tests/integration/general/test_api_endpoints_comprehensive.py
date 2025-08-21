@@ -1,7 +1,7 @@
 """
 Comprehensive API endpoint tests for Gaia Platform.
 Migrated from manual test scripts for automated testing.
-Tests both v0.2 and v1 API endpoints for compatibility.
+Tests both v0.3 and v1 API endpoints for compatibility.
 """
 
 import pytest
@@ -47,9 +47,6 @@ class TestComprehensiveAPIEndpoints:
             # Health checks and version info (these work)
             ("GET", f"{gateway_url}/health", None, "Gateway health"),
             ("GET", f"{gateway_url}/", None, "Root endpoint (version info)"),
-            
-            # v0.2 API tests (working endpoints only)
-            ("POST", f"{gateway_url}/api/v0.2/chat", {"message": "Hello v0.2! Test message"}, "v0.2 chat completion"),
             
             # v1 API tests (working endpoints)
             ("GET", f"{gateway_url}/api/v1/chat/status", None, "v1 chat status"),
@@ -117,18 +114,6 @@ class TestComprehensiveAPIEndpoints:
     
     async def test_chat_endpoints_functional(self, gateway_url, headers):
         """Test that chat endpoints actually work and return reasonable responses."""
-        # Test v0.2 endpoint (simple response format)
-        success, status_code, response_data = await self.make_request(
-            "POST", f"{gateway_url}/api/v0.2/chat", headers, {"message": "Hello! How are you? Please respond briefly."}
-        )
-        
-        if success:
-            # v0.2 should have a "response" field
-            assert "response" in response_data, f"No response field in v0.2 chat response: {response_data}"
-            assert isinstance(response_data["response"], str), "v0.2 response should be a string"
-            assert len(response_data["response"]) > 0, "v0.2 response should not be empty"
-            logger.info(f"v0.2 chat response preview: {response_data['response'][:100]}...")
-        
         # Test v1 endpoint (OpenAI-compatible format)
         success, status_code, response_data = await self.make_request(
             "POST", f"{gateway_url}/api/v1/chat", headers, {"message": "Hello v1! Please respond briefly."}
@@ -149,8 +134,8 @@ class TestComprehensiveAPIEndpoints:
     async def test_provider_and_model_endpoints(self, gateway_url, headers):
         """Test provider and model listing endpoints."""
         endpoint_tests = [
-            ("GET", f"{gateway_url}/api/v0.2/providers", "providers"),
-            ("GET", f"{gateway_url}/api/v0.2/models", "models"),
+            ("GET", f"{gateway_url}/api/v1/providers", "providers"),
+            ("GET", f"{gateway_url}/api/v1/models", "models"),
         ]
         
         for method, url, expected_field in endpoint_tests:
@@ -171,7 +156,7 @@ class TestComprehensiveAPIEndpoints:
         """Test chat history creation and clearing."""
         # Send a message to create history
         success, status_code, response_data = await self.make_request(
-            "POST", f"{gateway_url}/api/v0.2/chat", headers, 
+            "POST", f"{gateway_url}/api/v1/chat", headers, 
             {"message": "Remember my name is TestUser"}
         )
         
@@ -180,7 +165,7 @@ class TestComprehensiveAPIEndpoints:
             
             # Check status shows history
             success, status_code, status_data = await self.make_request(
-                "GET", f"{gateway_url}/api/v0.2/chat/status", headers
+                "GET", f"{gateway_url}/api/v1/chat/status", headers
             )
             
             if success and "has_history" in status_data:
@@ -188,7 +173,7 @@ class TestComprehensiveAPIEndpoints:
             
             # Clear history
             success, status_code, clear_data = await self.make_request(
-                "DELETE", f"{gateway_url}/api/v0.2/chat/history", headers
+                "DELETE", f"{gateway_url}/api/v1/chat/history", headers
             )
             
             if success:
@@ -236,7 +221,7 @@ class TestAPIAuthentication:
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
+                f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={"message": "This should fail"}
             )
@@ -256,7 +241,7 @@ class TestAPIAuthentication:
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
+                f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={"message": "Hello! This should work."}
             )
@@ -289,14 +274,14 @@ class TestAPICompatibility:
             "Content-Type": "application/json"
         }
     
-    async def test_v1_v02_response_compatibility(self, gateway_url, headers):
-        """Test that v1 and v0.2 APIs return expected response formats."""
+    async def test_v1_v03_response_compatibility(self, gateway_url, headers):
+        """Test that v1 and v0.3 APIs return expected response formats."""
         test_message = "What is 2+2? Answer briefly."
         
-        # Test v0.2 format
+        # Test v0.3 format
         async with httpx.AsyncClient(timeout=30.0) as client:
             v02_response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
+                f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={"message": test_message}
             )
@@ -308,13 +293,13 @@ class TestAPICompatibility:
             )
         
         # Both should succeed
-        assert v02_response.status_code == 200, f"v0.2 failed: {v02_response.status_code}"
+        assert v02_response.status_code == 200, f"v0.3 failed: {v02_response.status_code}"
         assert v1_response.status_code == 200, f"v1 failed: {v1_response.status_code}"
         
-        # Check v0.2 format (simple response)
-        v02_data = v02_response.json()
-        assert "response" in v02_data, "v0.2 should have response field"
-        assert isinstance(v02_data["response"], str), "v0.2 response should be string"
+        # Check v0.3 format (simple response)
+        v03_data = v02_response.json()
+        assert "response" in v03_data, "v0.3 should have response field"
+        assert isinstance(v03_data["response"], str), "v0.3 response should be string"
         
         # Check v1 format (OpenAI-compatible)
         v1_data = v1_response.json()
@@ -323,7 +308,7 @@ class TestAPICompatibility:
         assert "message" in v1_data["choices"][0], "v1 choice should have message"
         assert "content" in v1_data["choices"][0]["message"], "v1 message should have content"
         
-        logger.info(f"Both APIs returned expected formats - v0.2: response field, v1: choices/message/content fields")
+        logger.info(f"Both APIs returned expected formats - v0.3: response field, v1: choices/message/content fields")
 
 
 if __name__ == "__main__":

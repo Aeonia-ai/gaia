@@ -1,6 +1,6 @@
 """
 Tests for API version backward compatibility.
-Ensures that v0.3 doesn't break existing v0.2 and v1 functionality.
+Ensures that v0.3 doesn't break existing v1 functionality.
 This is a legitimate cross-version test file.
 """
 
@@ -33,25 +33,6 @@ def headers(api_key):
 
 class TestAPIVersionCompatibility:
     """Test that all API versions work alongside each other."""
-
-    @pytest.mark.asyncio
-    async def test_v02_still_works_with_v03(self, gateway_url, headers):
-        """Test that v0.2 API still works alongside v0.3."""
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # v0.2 should still work with old format
-            response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
-                headers=headers,
-                json={"message": "Hello from v0.2"}
-            )
-            
-            assert response.status_code == 200
-            data = response.json()
-            
-            # v0.2 format includes provider details
-            assert "response" in data
-            assert "provider" in data
-            assert "model" in data
 
     @pytest.mark.asyncio
     async def test_v1_still_works_with_v03(self, gateway_url, headers):

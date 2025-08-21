@@ -323,22 +323,6 @@ class TestV03Authentication:
 class TestV03BackwardCompatibility:
     """Test that v0.3 doesn't break existing functionality."""
 
-    async def test_v02_still_works(self, gateway_url, headers):
-        """Test that v0.2 API still works alongside v0.3."""
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # v0.2 should still work with old format
-            response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
-                headers=headers,
-                json={"message": "Hello"}
-            )
-            
-            assert response.status_code == 200
-            data = response.json()
-            
-            # v0.2 format (may include provider details)
-            assert "response" in data
-
     async def test_v1_still_works(self, gateway_url, headers):
         """Test that v1 API still works alongside v0.3."""
         async with httpx.AsyncClient(timeout=30.0) as client:

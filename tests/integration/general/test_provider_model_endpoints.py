@@ -1,6 +1,10 @@
 """
 Automated tests for provider and model endpoints.
 Migrated from manual test script provider-related functionality.
+
+NOTE: These tests are currently skipped as v0.2 provider/model endpoints
+have been removed from the gateway. These endpoints may be reimplemented
+in v0.3 or v1 API in the future.
 """
 
 import pytest
@@ -13,6 +17,7 @@ from tests.fixtures.test_auth import TestAuthManager
 logger = setup_service_logger("test_provider_model")
 
 
+@pytest.mark.skip(reason="v0.2 provider/model endpoints have been removed from the gateway")
 class TestProviderEndpoints:
     """Test provider-related endpoints."""
     
@@ -139,6 +144,7 @@ class TestProviderEndpoints:
                     logger.info(f"{provider} health: {data}")
 
 
+@pytest.mark.skip(reason="v0.2 provider/model endpoints have been removed from the gateway")
 class TestModelEndpoints:
     """Test model-related endpoints."""
     

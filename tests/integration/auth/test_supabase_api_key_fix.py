@@ -72,7 +72,7 @@ class TestSupabaseAPIKeyValidation:
             # Then use it for an actual API call
             headers = {"X-API-Key": api_key}
             chat_response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
+                f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={
                     "message": "Test after validation fix",

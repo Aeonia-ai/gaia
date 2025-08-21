@@ -32,7 +32,6 @@ class TestAPIAuthenticationComprehensive:
     def protected_endpoints(self, gateway_url):
         """List of protected endpoints across all API versions."""
         return [
-            f"{gateway_url}/api/v0.2/chat",
             f"{gateway_url}/api/v0.3/chat",
             f"{gateway_url}/api/v1/chat",
         ]
@@ -107,7 +106,6 @@ class TestAPIAuthenticationComprehensive:
         
         # Test different API versions with same auth
         api_tests = [
-            (f"{gateway_url}/api/v0.2/chat", {"message": "v0.2 auth test"}),
             (f"{gateway_url}/api/v0.3/chat", {"message": "v0.3 auth test"}),
             (f"{gateway_url}/api/v1/chat", {"message": "v1 auth test"}),
         ]
@@ -185,7 +183,6 @@ class TestAPICompatibilityAuth:
         
         # Same auth should work for all versions
         version_tests = [
-            ("v0.2", f"{gateway_url}/api/v0.2/chat", {"message": test_message}),
             ("v0.3", f"{gateway_url}/api/v0.3/chat", {"message": test_message}),
             ("v1", f"{gateway_url}/api/v1/chat", {"message": test_message}),
         ]
