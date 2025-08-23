@@ -124,16 +124,18 @@ auth_container = soup.find('div', id='auth-form-container')
 
 ### 7. Browser Test Authentication Fix
 **Problem**: Browser tests were using dev@gaia.local which required debug mode
-**Solution**: Updated to use admin@aeonia.ai with TestPassword123!
+**Solution**: Updated to use test user from environment variables
 
 ```python
 # ❌ Before (required debug mode)
 await page.fill('input[name="email"]', 'dev@gaia.local')
 await page.fill('input[name="password"]', 'testtest')
 
-# ✅ After (works with existing test user)  
-await page.fill('input[name="email"]', 'admin@aeonia.ai')
-await page.fill('input[name="password"]', 'TestPassword123!')
+# ✅ After (uses environment variables)
+test_email = os.getenv('GAIA_TEST_EMAIL', 'pytest@aeonia.ai')
+test_password = os.getenv('GAIA_TEST_PASSWORD')
+await page.fill('input[name="email"]', test_email)
+await page.fill('input[name="password"]', test_password)
 ```
 
 ### 8. Import Path Fixes
@@ -290,7 +292,7 @@ docker compose run test curl -s http://web-service:8000/health
 
 ### Browser Test Fixes
 Successfully fixed all Playwright browser automation tests by:
-- Using correct test user credentials (admin@aeonia.ai / TestPassword123!)
+- Using test user credentials from environment variables (GAIA_TEST_EMAIL / GAIA_TEST_PASSWORD)
 - Fixing viewport size API usage
 - Updating CSS selectors to match actual implementation
 - Improving mobile sidebar visibility checks
