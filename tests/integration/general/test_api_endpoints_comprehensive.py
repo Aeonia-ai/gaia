@@ -199,8 +199,8 @@ class TestAPIAuthentication:
     async def test_no_auth_fails(self, gateway_url):
         """Test that protected endpoints fail without authentication."""
         protected_endpoints = [
-            f"{gateway_url}/api/v0.2/chat",
             f"{gateway_url}/api/v1/chat",
+            f"{gateway_url}/api/v0.3/chat",
         ]
         
         async with httpx.AsyncClient() as client:
@@ -280,7 +280,7 @@ class TestAPICompatibility:
         
         # Test v0.3 format
         async with httpx.AsyncClient(timeout=30.0) as client:
-            v02_response = await client.post(
+            v03_response = await client.post(
                 f"{gateway_url}/api/v0.3/chat",
                 headers=headers,
                 json={"message": test_message}
@@ -293,11 +293,11 @@ class TestAPICompatibility:
             )
         
         # Both should succeed
-        assert v02_response.status_code == 200, f"v0.3 failed: {v02_response.status_code}"
+        assert v03_response.status_code == 200, f"v0.3 failed: {v03_response.status_code}"
         assert v1_response.status_code == 200, f"v1 failed: {v1_response.status_code}"
         
         # Check v0.3 format (simple response)
-        v03_data = v02_response.json()
+        v03_data = v03_response.json()
         assert "response" in v03_data, "v0.3 should have response field"
         assert isinstance(v03_data["response"], str), "v0.3 response should be string"
         

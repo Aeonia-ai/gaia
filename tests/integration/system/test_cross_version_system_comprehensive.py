@@ -127,7 +127,7 @@ class TestComprehensiveSuite:
         """Test different chat endpoint variants."""
         test_message = "What is 2+2?"
         endpoints_to_test = [
-            ("v0.2", f"{gateway_url}/api/v0.2/chat", "response"),
+            ("v0.3", f"{gateway_url}/api/v0.3/chat", "response"),
             ("v1", f"{gateway_url}/api/v1/chat", "choices"),
         ]
         
@@ -168,7 +168,7 @@ class TestComprehensiveSuite:
         kb_responses = 0
         for query in kb_test_queries:
             status_code, data = await self.make_request(
-                "POST", f"{gateway_url}/api/v0.2/kb/search", headers,
+                "POST", f"{gateway_url}/api/v1/kb/search", headers,
                 {"message": query}, timeout=30.0
             )
             
@@ -206,12 +206,12 @@ class TestComprehensiveSuite:
         """Test provider and model endpoints if available."""
         # Test providers endpoint
         providers_status, providers_data = await self.make_request(
-            "GET", f"{gateway_url}/api/v0.2/providers", headers
+            "GET", f"{gateway_url}/api/v1/providers", headers
         )
         
         # Test models endpoint  
         models_status, models_data = await self.make_request(
-            "GET", f"{gateway_url}/api/v0.2/models", headers
+            "GET", f"{gateway_url}/api/v1/models", headers
         )
         
         if providers_status == 200:

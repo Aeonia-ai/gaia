@@ -127,7 +127,7 @@ class TestKBSearchOperations:
         for query in search_queries:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{gateway_url}/api/v0.2/kb/search",
+                    f"{gateway_url}/api/v1/kb/search",
                     headers=headers,
                     json={"message": query}
                 )
@@ -165,7 +165,7 @@ class TestKBSearchOperations:
         for context in contexts_to_test:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{gateway_url}/api/v0.2/kb/context",
+                    f"{gateway_url}/api/v1/kb/context",
                     headers=headers,
                     json={"message": context}
                 )
@@ -194,7 +194,7 @@ class TestKBSearchOperations:
         for query in multitask_queries:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    f"{gateway_url}/api/v0.2/kb/multitask",
+                    f"{gateway_url}/api/v1/kb/multitask",
                     headers=headers,
                     json={"message": query}
                 )
@@ -259,7 +259,7 @@ class TestKBIntegratedChat:
                 if response.status_code == 200:
                     data = response.json()
                     
-                    # KB endpoints return v0.2 format (even under v1 path)
+                    # KB endpoints may return different format
                     assert "response" in data
                     assert "status" in data
                     assert data["status"] == "success"
@@ -301,7 +301,7 @@ class TestKBIntegratedChat:
                 if response.status_code == 200:
                     data = response.json()
                     
-                    # KB endpoints return v0.2 format (even under v1 path)
+                    # KB endpoints may return different format
                     assert "response" in data
                     assert "status" in data
                     assert data["status"] == "success"

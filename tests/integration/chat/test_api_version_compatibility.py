@@ -1,7 +1,7 @@
 """
-Tests for API version backward compatibility.
-Ensures that v0.3 doesn't break existing v1 functionality.
-This is a legitimate cross-version test file.
+Tests for API version compatibility between v1 and v0.3.
+Ensures that both API versions work correctly alongside each other.
+Note: v0.2 API has been removed from the platform.
 """
 
 import pytest
@@ -71,22 +71,11 @@ class TestAPIVersionCompatibility:
             assert "model" not in data
 
     @pytest.mark.asyncio
-    async def test_all_versions_with_same_message(self, gateway_url, headers):
-        """Test that all API versions handle the same message."""
+    async def test_both_versions_with_same_message(self, gateway_url, headers):
+        """Test that v1 and v0.3 API versions handle the same message."""
         test_message = "What is 2+2?"
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # Test v0.2
-            v02_response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
-                headers=headers,
-                json={"message": test_message}
-            )
-            assert v02_response.status_code == 200
-            v02_data = v02_response.json()
-            assert "response" in v02_data
-            assert "4" in v02_data["response"] or "four" in v02_data["response"].lower()
-            
             # Test v1
             v1_response = await client.post(
                 f"{gateway_url}/api/v1/chat",
@@ -114,58 +103,6 @@ class TestAPIVersionCompatibility:
             assert "4" in v03_data["response"] or "four" in v03_data["response"].lower()
             
             # Verify format differences
-            assert "provider" in v02_data  # v0.2 exposes internals
             assert "provider" not in v03_data  # v0.3 hides internals
             assert len(v03_data) == 2  # v0.3 only has response and conversation_id
 
-    @pytest.mark.asyncio
-    async def test_v03_vs_v02_directive_difference(self, gateway_url, headers):
-        """Test that v0.3 has directives while v0.2 does not."""
-        import re
-        
-        def extract_directives(response_text: str) -> list:
-            """Extract JSON-RPC directives from response text."""
-            directive_pattern = r'\{"m":"[^"]+","p":\{[^}]*\}\}'
-            matches = re.findall(directive_pattern, response_text)
-            directives = []
-            for match in matches:
-                try:
-                    directive = json.loads(match)
-                    directives.append(directive)
-                except json.JSONDecodeError:
-                    continue
-            return directives
-        
-        message = "Guide me through a calming meditation"
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Test v0.2 (should not have directives)
-            v02_response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
-                headers=headers,
-                json={"message": message, "stream": False}
-            )
-            
-            # Test v0.3 (should have directives)
-            v03_response = await client.post(
-                f"{gateway_url}/api/v0.3/chat",
-                headers=headers,
-                json={"message": message, "stream": False}
-            )
-            
-            assert v02_response.status_code == 200
-            assert v03_response.status_code == 200
-            
-            v02_data = v02_response.json()
-            v03_data = v03_response.json()
-            
-            # Extract directives from both responses
-            v02_directives = extract_directives(v02_data.get("response", ""))
-            v03_directives = extract_directives(v03_data.get("response", ""))
-            
-            # v0.2 should have no directives (or very few)
-            # v0.3 should have directives
-            assert len(v03_directives) > len(v02_directives), (
-                f"v0.3 should have more directives than v0.2. "
-                f"v0.2: {len(v02_directives)}, v0.3: {len(v03_directives)}"
-            )

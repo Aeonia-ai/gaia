@@ -58,25 +58,6 @@ class TestWorkingEndpoints:
             assert "message" in data or "version" in data
             logger.info(f"Root endpoint response: {data}")
     
-    async def test_v02_chat_completion(self, gateway_url, headers):
-        """Test v0.2 chat completion - core functionality."""
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
-                headers=headers,
-                json={"message": "Hello! This is a test. Please respond briefly."}
-            )
-            assert response.status_code == 200
-            data = response.json()
-            
-            # Check response structure
-            assert "response" in data
-            assert isinstance(data["response"], str)
-            assert len(data["response"]) > 0
-            
-            # Should contain actual response content (not just echo)
-            assert data["response"] != "Hello! This is a test. Please respond briefly."
-            logger.info(f"v0.2 chat response length: {len(data['response'])} chars")
     
     async def test_v1_chat_completion(self, gateway_url, headers):
         """Test v1 chat completion - legacy support."""
@@ -127,34 +108,45 @@ class TestWorkingEndpoints:
     async def test_conversation_flow(self, gateway_url, headers):
         """Test complete conversation flow with context preservation."""
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # Clear history first (use v1 which works)
+            # Clear history first
             await client.delete(f"{gateway_url}/api/v1/chat/history", headers=headers)
             
             # Send first message with context
             response1 = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
+                f"{gateway_url}/api/v1/chat",
                 headers=headers,
                 json={"message": "My favorite color is blue. Please remember this."}
             )
             assert response1.status_code == 200
             data1 = response1.json()
-            assert "response" in data1
+            # Extract conversation_id from metadata if available
+            conversation_id = None
+            if "_metadata" in data1 and "conversation_id" in data1["_metadata"]:
+                conversation_id = data1["_metadata"]["conversation_id"]
             
             # Send follow-up that requires context
+            request_data = {"message": "What is my favorite color?"}
+            if conversation_id:
+                request_data["conversation_id"] = conversation_id
+                
             response2 = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
+                f"{gateway_url}/api/v1/chat",
                 headers=headers,
-                json={"message": "What is my favorite color?"}
+                json=request_data
             )
             assert response2.status_code == 200
             data2 = response2.json()
-            assert "response" in data2
+            
+            # Extract response text from v1 format
+            if "choices" in data2:
+                response_text = data2["choices"][0]["message"]["content"].lower()
+            else:
+                response_text = data2.get("response", "").lower()
             
             # Response should reference blue (context preserved)
-            response_text = data2["response"].lower()
             assert "blue" in response_text
             
-            logger.info(f"Context preservation test passed: {data2['response'][:100]}...")
+            logger.info(f"Context preservation test passed: {response_text[:100]}...")
 
 
 class TestAuthenticationMethods:
@@ -168,7 +160,7 @@ class TestAuthenticationMethods:
         """Test that requests without auth are rejected."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
+                f"{gateway_url}/api/v1/chat",
                 json={"message": "This should fail"}
             )
             assert response.status_code == 401
@@ -182,7 +174,7 @@ class TestAuthenticationMethods:
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
+                f"{gateway_url}/api/v1/chat",
                 headers=headers,
                 json={"message": "This should fail"}
             )
@@ -197,13 +189,13 @@ class TestAuthenticationMethods:
         
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
+                f"{gateway_url}/api/v1/chat",
                 headers=headers,
                 json={"message": "This should work"}
             )
             assert response.status_code == 200
             data = response.json()
-            assert "response" in data
+            assert "choices" in data or "response" in data
 
 
 class TestAPICompatibility:
@@ -220,33 +212,28 @@ class TestAPICompatibility:
             "Content-Type": "application/json"
         }
     
-    async def test_v02_v1_response_formats(self, gateway_url, headers):
-        """Test that v0.2 and v1 return expected response formats."""
+    async def test_v1_v03_response_formats(self, gateway_url, headers):
+        """Test that v1 and v0.3 return expected response formats."""
         test_message = "What is 2+2? Answer briefly."
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # Test v0.2 format
-            v02_response = await client.post(
-                f"{gateway_url}/api/v0.2/chat",
-                headers=headers,
-                json={"message": test_message}
-            )
-            
             # Test v1 format  
             v1_response = await client.post(
                 f"{gateway_url}/api/v1/chat",
                 headers=headers,
                 json={"message": test_message}
             )
+            
+            # Test v0.3 format
+            v03_response = await client.post(
+                f"{gateway_url}/api/v0.3/chat",
+                headers=headers,
+                json={"message": test_message}
+            )
         
         # Both should succeed
-        assert v02_response.status_code == 200
         assert v1_response.status_code == 200
-        
-        # Check v0.2 format
-        v02_data = v02_response.json()
-        assert "response" in v02_data
-        assert isinstance(v02_data["response"], str)
+        assert v03_response.status_code == 200
         
         # Check v1 format (OpenAI-compatible)
         v1_data = v1_response.json()
@@ -254,7 +241,13 @@ class TestAPICompatibility:
         assert "message" in v1_data["choices"][0]
         assert "content" in v1_data["choices"][0]["message"]
         
-        logger.info("Both v0.2 and v1 APIs return correct response formats")
+        # Check v0.3 format (clean)
+        v03_data = v03_response.json()
+        assert "response" in v03_data
+        assert isinstance(v03_data["response"], str)
+        assert "provider" not in v03_data  # v0.3 hides internals
+        
+        logger.info("Both v1 and v0.3 APIs return correct response formats")
 
 
 if __name__ == "__main__":

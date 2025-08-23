@@ -14,6 +14,7 @@
 7. [Development Workflow](#development-workflow)
 8. [CI/CD Integration](#cicd-integration)
 9. [Troubleshooting](#troubleshooting)
+10. [Test Consolidation](#test-consolidation)
 
 ## Quick Start
 
@@ -90,9 +91,18 @@ tests/
 │   ├── test_auth_utils.py
 │   └── test_conversation_store.py
 ├── integration/             # Service interaction tests
-│   ├── test_chat_api.py
-│   ├── test_personas_api.py
-│   └── test_kb_endpoints.py
+│   ├── chat/
+│   │   ├── test_intelligent_routing.py  # NEW: Routing logic tests
+│   │   ├── test_unified_streaming_format.py
+│   │   └── test_mcp_agent_hot_loading.py  # NEW: Hot loading tests
+│   ├── gateway/
+│   │   └── test_gateway_auth_endpoints.py
+│   ├── kb/
+│   │   └── test_kb_endpoints.py
+│   └── compatibility/
+│       └── test_llm_platform.py  # NEW: Legacy API tests
+├── performance/             # Performance benchmarks
+│   └── test_kb_storage_performance.py  # NEW: Storage perf tests
 ├── e2e/                     # End-to-end user flows
 │   ├── test_real_auth_e2e.py
 │   └── test_chat_flow_e2e.py
@@ -742,10 +752,61 @@ tests/load/
 ./scripts/run-load-tests.sh
 ```
 
+## Test Consolidation
+
+### All Tests Are Now in the pytest Suite
+
+**🎯 Important**: We have consolidated all testing into the automated pytest suite. Individual test scripts in `scripts/` have been deprecated.
+
+### Deprecated Test Scripts
+
+The following test scripts have been migrated to pytest:
+
+| Old Script | New Location | Description |
+|------------|--------------|-------------|
+| `test-gateway-endpoints.sh` | `tests/integration/gateway/test_gateway_auth_endpoints.py` | Gateway endpoint testing |
+| `test_streaming_endpoint.py` | `tests/integration/chat/test_unified_streaming_format.py` | Streaming response tests |
+| `test-intelligent-routing.sh` | `tests/integration/chat/test_intelligent_routing.py` | Routing logic tests |
+| `test-mcp-agent-hot-loading.sh` | `tests/integration/chat/test_mcp_agent_hot_loading.py` | Hot loading performance |
+| `test-kb-storage-performance.py` | `tests/performance/test_kb_storage_performance.py` | KB performance benchmarks |
+| `test_llm_platform_compatibility.sh` | `tests/integration/compatibility/test_llm_platform.py` | Legacy API compatibility |
+
+### Running Specific Test Categories
+
+```bash
+# Authentication tests
+./scripts/pytest-for-claude.sh tests/integration/gateway/test_gateway_auth_endpoints.py -v
+
+# Chat and streaming tests
+./scripts/pytest-for-claude.sh tests/integration/chat/ -v
+
+# Intelligent routing tests
+./scripts/pytest-for-claude.sh tests/integration/chat/test_intelligent_routing.py -v
+
+# Performance tests
+./scripts/pytest-for-claude.sh tests/performance/ -v
+
+# Compatibility tests
+./scripts/pytest-for-claude.sh tests/integration/compatibility/ -v
+```
+
+### Why Consolidation?
+
+1. **Single Source of Truth**: All tests in one place (`tests/` directory)
+2. **Consistent Authentication**: All tests use the same auth fixtures
+3. **Better CI/CD**: One command runs all tests
+4. **Unified Coverage**: Single test coverage report
+5. **Easier Maintenance**: One testing framework to maintain
+
+### For Developers
+
+If you're looking for a test script that used to be in `scripts/`, check the table above for its new location. All test functionality has been preserved or enhanced in the pytest suite.
+
 ## Additional Resources
 
 - [TEST_INFRASTRUCTURE.md](TEST_INFRASTRUCTURE.md) - Technical details about test runners
 - [CRITICAL_TESTING_PRINCIPLE_TESTS_DEFINE_TRUTH.md](CRITICAL_TESTING_PRINCIPLE_TESTS_DEFINE_TRUTH.md) - Core testing philosophy
+- [TEST_CONSOLIDATION_PLAN.md](TEST_CONSOLIDATION_PLAN.md) - Details about test consolidation
 - [Tester Agent](/.claude/agents/tester.md) - AI assistant for writing and debugging tests
 - [Mobile Testing Guide](mobile-testing-guide.md) - Mobile-specific testing patterns
 - [Security Testing Strategy](security-testing-strategy.md) - Security testing approaches
