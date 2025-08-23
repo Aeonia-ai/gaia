@@ -11,7 +11,7 @@ import sys
 import json
 import argparse
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import httpx
@@ -125,8 +125,12 @@ class GaiaAuthManager:
         self.base_url = base_url
         self._token = None
         self._refresh_token = None
+        self._token_expires_at = None
         self._api_key = None
         self._user_email = None
+        
+        # Try to load saved tokens on init
+        self._load_saved_tokens()
     
     def get_api_key(self) -> Optional[str]:
         """Get API key from environment or keyring."""
@@ -155,6 +159,65 @@ class GaiaAuthManager:
         
         return api_key
     
+    def _load_saved_tokens(self):
+        """Load saved JWT tokens from keyring."""
+        try:
+            import keyring
+            # Load access token
+            self._token = keyring.get_password(self.service_name, "access_token")
+            self._refresh_token = keyring.get_password(self.service_name, "refresh_token")
+            self._user_email = keyring.get_password(self.service_name, "user_email")
+            
+            # Load and parse expiry time
+            expiry_str = keyring.get_password(self.service_name, "token_expires_at")
+            if expiry_str:
+                self._token_expires_at = datetime.fromisoformat(expiry_str)
+                
+                # Check if token is expired
+                if self._token and datetime.now() > self._token_expires_at:
+                    print("⚠️ Saved token has expired")
+                    self._clear_saved_tokens()
+                elif self._token:
+                    print(f"✅ Loaded saved session for: {self._user_email}")
+        except Exception as e:
+            # Silently fail if keyring is not available
+            pass
+    
+    def _save_tokens(self, access_token: str, refresh_token: str, expires_in: int, email: str):
+        """Save JWT tokens to keyring."""
+        try:
+            import keyring
+            keyring.set_password(self.service_name, "access_token", access_token)
+            keyring.set_password(self.service_name, "refresh_token", refresh_token)
+            keyring.set_password(self.service_name, "user_email", email)
+            
+            # Calculate and save expiry time
+            expires_at = datetime.now() + timedelta(seconds=expires_in)
+            keyring.set_password(self.service_name, "token_expires_at", expires_at.isoformat())
+            
+            self._token = access_token
+            self._refresh_token = refresh_token
+            self._user_email = email
+            self._token_expires_at = expires_at
+        except Exception as e:
+            print(f"⚠️ Could not save tokens to keyring: {e}")
+    
+    def _clear_saved_tokens(self):
+        """Clear saved JWT tokens from keyring."""
+        try:
+            import keyring
+            keyring.delete_password(self.service_name, "access_token")
+            keyring.delete_password(self.service_name, "refresh_token")
+            keyring.delete_password(self.service_name, "user_email")
+            keyring.delete_password(self.service_name, "token_expires_at")
+        except Exception:
+            pass
+        
+        self._token = None
+        self._refresh_token = None
+        self._user_email = None
+        self._token_expires_at = None
+    
     async def login(self, email: str, password: str) -> bool:
         """Login with email and password to get JWT tokens."""
         try:
@@ -168,12 +231,20 @@ class GaiaAuthManager:
                 
                 # Store tokens
                 session = data.get("session", {})
-                self._token = session.get("access_token")
-                self._refresh_token = session.get("refresh_token")
-                self._user_email = data.get("user", {}).get("email", email)
+                access_token = session.get("access_token")
+                refresh_token = session.get("refresh_token")
+                expires_in = session.get("expires_in", 3600)  # Default 1 hour
+                user_email = data.get("user", {}).get("email", email)
                 
-                print(f"✅ Logged in as: {self._user_email}")
-                return True
+                # Save tokens to keyring
+                if access_token and refresh_token:
+                    self._save_tokens(access_token, refresh_token, expires_in, user_email)
+                    print(f"✅ Logged in as: {user_email}")
+                    print(f"💾 Session saved (expires in {expires_in//60} minutes)")
+                    return True
+                else:
+                    print("⚠️ Login succeeded but no tokens received")
+                    return False
                 
         except httpx.HTTPStatusError as e:
             print(f"❌ Login failed: {e.response.status_code} - {e.response.text}")
@@ -211,6 +282,51 @@ class GaiaAuthManager:
         except Exception as e:
             print(f"❌ Registration error: {e}")
             return False
+    
+    async def refresh_tokens(self) -> bool:
+        """Refresh JWT tokens using refresh token."""
+        if not self._refresh_token:
+            return False
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v0.3/auth/refresh",
+                    json={"refresh_token": self._refresh_token}
+                )
+                response.raise_for_status()
+                data = response.json()
+                
+                # Store new tokens
+                session = data.get("session", {})
+                access_token = session.get("access_token")
+                refresh_token = session.get("refresh_token", self._refresh_token)
+                expires_in = session.get("expires_in", 3600)
+                
+                if access_token:
+                    self._save_tokens(access_token, refresh_token, expires_in, self._user_email)
+                    print("🔄 Token refreshed successfully")
+                    return True
+                    
+        except Exception as e:
+            print(f"⚠️ Token refresh failed: {e}")
+            self._clear_saved_tokens()
+        
+        return False
+    
+    async def ensure_valid_token(self) -> bool:
+        """Ensure we have a valid token, refreshing if needed."""
+        # Check if token exists and is not expired
+        if self._token and self._token_expires_at:
+            # Refresh if less than 5 minutes remaining
+            if datetime.now() < self._token_expires_at - timedelta(minutes=5):
+                return True
+            
+            # Try to refresh
+            if await self.refresh_tokens():
+                return True
+        
+        return False
     
     def get_headers(self) -> Dict[str, str]:
         """Get authentication headers."""
@@ -517,16 +633,14 @@ class ChatCommands:
     
     async def logout(self, args: str = "") -> str:
         """Logout current session."""
-        self.auth._token = None
-        self.auth._refresh_token = None
-        self.auth._user_email = None
-        return "✅ Logged out"
+        self.auth._clear_saved_tokens()
+        return "✅ Logged out (session cleared)"
     
     async def whoami(self, args: str = "") -> str:
         """Show current user."""
         if self.auth._user_email:
             return f"👤 Logged in as: {self.auth._user_email} (JWT)"
-        elif self.auth._api_key:
+        elif self.auth._api_key or os.getenv('GAIA_API_KEY') or os.getenv('API_KEY'):
             return f"🔑 Using API key authentication"
         else:
             return "❌ Not authenticated"

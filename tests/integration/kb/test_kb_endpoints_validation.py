@@ -115,6 +115,7 @@ class TestKBSearchOperations:
             "Content-Type": "application/json"
         }
     
+    @pytest.mark.skip(reason="v0.2 KB endpoints have been removed")
     async def test_kb_search_basic(self, gateway_url, headers):
         """Test basic KB search functionality."""
         search_queries = [
@@ -153,6 +154,7 @@ class TestKBSearchOperations:
                     if response.status_code == 404:
                         break  # No need to test other queries if endpoint doesn't exist
     
+    @pytest.mark.skip(reason="v0.2 KB endpoints have been removed")
     async def test_kb_context_loading(self, gateway_url, headers):
         """Test KB context loading functionality."""
         contexts_to_test = [
@@ -183,6 +185,7 @@ class TestKBSearchOperations:
                 else:
                     logger.info(f"Context '{context}': returned {response.status_code}")
     
+    @pytest.mark.skip(reason="v0.2 KB endpoints have been removed")
     async def test_kb_multitask(self, gateway_url, headers):
         """Test KB multitask functionality."""
         multitask_queries = [
