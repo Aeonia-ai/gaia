@@ -141,6 +141,41 @@ fly secrets set -a gaia-web-production WEB_SERVICE_BASE_URL=https://gaia-web-pro
 ./scripts/test.sh --prod auth "test-email@example.com"
 ```
 
+## Handling Long Deployments in Claude Code
+
+**⚠️ CRITICAL: Claude Code has a 2-minute Bash timeout**
+
+For deployments that take longer than 2 minutes (which is most multi-service deployments), use background execution:
+
+```bash
+# ❌ This will timeout in Claude Code after 2 minutes:
+./scripts/deploy.sh --env dev --services all
+
+# ✅ Correct approach - run in background with logging:
+nohup ./scripts/deploy.sh --env dev --services all --remote-only > deploy.log 2>&1 &
+
+# Monitor progress
+tail -f deploy.log
+
+# Check deployment status (in new command)
+./scripts/manage.sh status dev
+
+# When deployment is complete, verify health
+./scripts/test.sh --dev health
+```
+
+**Background Deployment Pattern:**
+1. **`nohup ... &`** - Runs command in background, survives terminal close
+2. **`--remote-only`** - Uses Fly.io remote builders (faster, more reliable) 
+3. **`> deploy.log 2>&1`** - Captures all output to log file
+4. **`tail -f deploy.log`** - Monitor progress in real-time
+5. **Separate status checks** - Use manage.sh and test.sh to verify completion
+
+**Typical Deployment Times:**
+- Single service: 3-5 minutes
+- All services: 15-20 minutes
+- With remote building: 20-30% faster
+
 ## Cloud Deployment Lessons Learned
 
 **Database Co-location:**

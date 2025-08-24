@@ -435,10 +435,69 @@ docker compose up
 # → Full KB config details in docs/kb-git-sync-guide.md
 ```
 
-### Docker Container Building
+### Long-Running Operations (Docker Builds & Deployments)
 
-**⚠️ CRITICAL: Docker builds WILL timeout in Claude Code!**
-The Bash tool has a 2-minute timeout. Full builds take 5-10 minutes. Here's the correct approach:
+**⚠️ CRITICAL: All long operations WILL timeout in Claude Code after 2 minutes!**
+
+This includes:
+- Docker builds (5-10 minutes)
+- Multi-service deployments (15-20 minutes) 
+- Large test suites (10+ minutes)
+
+**Universal Pattern for Long Operations:**
+
+```bash
+# TEMPLATE: Replace {COMMAND} with your actual command
+nohup {COMMAND} > operation.log 2>&1 &
+
+# Monitor progress
+tail -f operation.log
+
+# Check status (use appropriate status command)
+{STATUS_CHECK_COMMAND}
+```
+
+**Examples:**
+
+**Docker Builds:**
+```bash
+# Run build in background
+nohup docker compose build --no-cache > docker-build.log 2>&1 &
+
+# Monitor
+tail -f docker-build.log
+
+# Check status
+docker compose ps
+```
+
+**Deployments:**
+```bash
+# Deploy all services to dev
+nohup ./scripts/deploy.sh --env dev --services all --remote-only > deploy.log 2>&1 &
+
+# Monitor progress
+tail -f deploy.log
+
+# Check deployment status
+./scripts/manage.sh status dev
+```
+
+**Large Test Suites:**
+```bash
+# Run tests in background
+nohup ./scripts/pytest-for-claude.sh tests/e2e -v > test-results.log 2>&1 &
+
+# Monitor progress
+tail -f test-results.log
+
+# Check if tests are still running
+ps aux | grep pytest
+```
+
+### Docker Container Building (Legacy Documentation)
+
+**Note: Use the universal pattern above instead of this Docker-specific script**
 
 ```bash
 # Step 1: Create the async build script (one time setup)

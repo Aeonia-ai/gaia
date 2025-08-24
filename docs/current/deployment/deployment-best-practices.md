@@ -40,13 +40,27 @@ cp .env.example .env
 ```
 
 ### 2. Deploy a Service
+
+**For Claude Code users (2-minute Bash timeout):**
+```bash
+# Deploy with background execution to avoid timeouts
+nohup ./scripts/deploy-service.sh gateway dev --remote-only > deploy-gateway.log 2>&1 &
+
+# Monitor progress
+tail -f deploy-gateway.log
+
+# Verify deployment
+./scripts/manage.sh status dev
+```
+
+**Standard deployment:**
 ```bash
 # Deploy with automatic secret sync and verification
-./scripts/deploy-service.sh gateway dev
+./scripts/deploy-service.sh gateway dev --remote-only
 ```
 
 This script:
-- Deploys the service
+- Deploys the service using Fly.io remote builders
 - Syncs secrets from local .env
 - Waits for health check
 - Runs verification tests
