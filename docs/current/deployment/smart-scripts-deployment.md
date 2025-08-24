@@ -154,6 +154,9 @@ For deployments that take longer than 2 minutes (which is most multi-service dep
 # ✅ Correct approach - run in background with logging:
 nohup ./scripts/deploy.sh --env dev --services all --remote-only > deploy.log 2>&1 &
 
+# ⚠️ IMPORTANT: If you've made code changes, add --rebuild:
+nohup ./scripts/deploy.sh --env dev --services all --remote-only --rebuild > deploy.log 2>&1 &
+
 # Monitor progress
 tail -f deploy.log
 
@@ -175,6 +178,33 @@ tail -f deploy.log
 - Single service: 3-5 minutes
 - All services: 15-20 minutes
 - With remote building: 20-30% faster
+- With --rebuild flag: Add 5-10 minutes
+
+## ⚠️ Critical Gotcha: Cached Images
+
+**Fly.io caches Docker images!** If you deploy without `--rebuild`, it may use OLD cached images:
+
+```bash
+# ❌ WRONG: May deploy old code from cached images
+./scripts/deploy.sh --env dev --services all
+
+# ✅ CORRECT: Forces rebuild with latest code
+./scripts/deploy.sh --env dev --services all --rebuild
+```
+
+**When to use --rebuild:**
+- After pulling new code changes
+- After making local code changes
+- When deployment doesn't reflect recent commits
+- When endpoints are missing or behavior is outdated
+
+**How to verify:**
+```bash
+# Check what's actually deployed
+curl https://gaia-gateway-dev.fly.dev/health | jq .version
+
+# If version/behavior doesn't match expectations, redeploy with --rebuild
+```
 
 ## Cloud Deployment Lessons Learned
 

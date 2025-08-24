@@ -46,6 +46,9 @@ cp .env.example .env
 # Deploy with background execution to avoid timeouts
 nohup ./scripts/deploy-service.sh gateway dev --remote-only > deploy-gateway.log 2>&1 &
 
+# If you've made code changes, ALWAYS add --rebuild:
+nohup ./scripts/deploy-service.sh gateway dev --remote-only --rebuild > deploy-gateway.log 2>&1 &
+
 # Monitor progress
 tail -f deploy-gateway.log
 

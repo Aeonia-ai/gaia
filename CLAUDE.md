@@ -473,14 +473,20 @@ docker compose ps
 
 **Deployments:**
 ```bash
-# Deploy all services to dev
+# Deploy all services to dev (no code changes)
 nohup ./scripts/deploy.sh --env dev --services all --remote-only > deploy.log 2>&1 &
+
+# Deploy with code changes (ALWAYS use --rebuild!)
+nohup ./scripts/deploy.sh --env dev --services all --remote-only --rebuild > deploy.log 2>&1 &
 
 # Monitor progress
 tail -f deploy.log
 
 # Check deployment status
 ./scripts/manage.sh status dev
+
+# Verify deployment has latest code
+curl https://gaia-gateway-dev.fly.dev/health | jq
 ```
 
 **Large Test Suites:**
