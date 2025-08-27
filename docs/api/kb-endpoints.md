@@ -234,29 +234,44 @@ Get KB service health status.
 }
 ```
 
-## 🤖 **AI-Enhanced Chat Endpoints**
+## 🤖 **AI-Enhanced Chat Integration**
 
-### KB-Enhanced Chat
-#### `POST /api/v1/chat/kb-enhanced`
-Chat with direct KB access via MCP tools.
+The KB service is **automatically integrated** with the intelligent chat routing system. Users don't need to call KB endpoints directly - they can use natural language with the unified chat endpoint:
 
-#### `POST /api/v1/chat/kb-research` 
-Research-focused chat with specialized knowledge agents.
+### **Automatic KB Integration via Chat**
 
-#### `POST /api/v1/chat/kb-gamemaster`
-Game mastering with KB-powered world knowledge.
+#### `POST /api/v1/chat` (Recommended)
+**Unified chat endpoint with automatic KB integration**
 
-#### `POST /api/v1/chat/kb-development`
-Development guidance using KB codebase knowledge.
+```bash
+# KB search via natural language
+curl -X POST https://gaia-gateway-dev.fly.dev/api/v1/chat \
+  -H "Authorization: Bearer $JWT" \
+  -d '{"message": "Search my notes about GAIA architecture"}'
 
-#### `POST /api/v1/chat/kb-search`
-Direct KB search interface with AI interpretation.
+# Context loading
+curl -X POST https://gaia-gateway-dev.fly.dev/api/v1/chat \
+  -H "Authorization: Bearer $JWT" \
+  -d '{"message": "Continue where we left off"}'
 
-#### `POST /api/v1/chat/kb-context`
-KOS context loading interface.
+# File reading  
+curl -X POST https://gaia-gateway-dev.fly.dev/api/v1/chat \
+  -H "Authorization: Bearer $JWT" \
+  -d '{"message": "Show me the contents of docs/architecture.md"}'
+```
 
-#### `POST /api/v1/chat/kb-multitask`
-Parallel KB task execution.
+**How it works:**
+1. Intelligent router detects KB-related requests
+2. Automatically provides KB tools to LLM
+3. LLM calls appropriate KB functions
+4. Results formatted into natural response
+
+### **KB Tools Available to Chat**
+- `search_knowledge_base` - Full-text search
+- `load_kos_context` - KOS context loading  
+- `read_kb_file` - File reading
+- `list_kb_directory` - Directory listing
+- `synthesize_kb_information` - Cross-domain synthesis
 
 ## 🔐 **Authentication**
 

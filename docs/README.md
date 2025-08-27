@@ -13,8 +13,12 @@ Deploy to production with Fly.io, database setup, and smart scripts.
 ### 🏗️ **For Architects** → [`current/architecture/`](current/architecture/)
 Understand the microservices architecture, scaling patterns, and database design.
 
+**🎯 KEY**: [**Chat Routing & KB Architecture**](current/architecture/chat-routing-and-kb-architecture.md) - Complete guide to how intelligent chat routing and Knowledge Base integration work
+
 ### 🗄️ **For Knowledge Base** → [`current/kb/`](current/kb/)
 Access and manage the Knowledge Base service with Git sync and RBAC.
+
+**💡 TIP**: KB is auto-integrated with chat! Use `POST /api/v1/chat` with natural language like "search my notes on X" instead of direct KB endpoints.
 
 ### 🌐 **For Web UI** → [`current/web-ui/`](current/web-ui/)
 FastHTML frontend development, HTMX patterns, and debugging guides.
@@ -28,6 +32,7 @@ See what's coming next and current development status.
 docs/
 ├── 🟢 current/          ← IMPLEMENTED & WORKING (main branch)
 │   ├── architecture/    ← Microservices design & scaling
+│   │   └── chat-routing-and-kb-architecture.md ← 🎯 COMPREHENSIVE CHAT & KB GUIDE
 │   ├── authentication/ ← API keys, JWTs, mTLS setup
 │   ├── deployment/      ← Production deployment guides
 │   ├── development/     ← Local dev, testing, commands
