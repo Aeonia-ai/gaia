@@ -193,16 +193,13 @@ async def forward_request_to_service(
             if "text/event-stream" in content_type:
                 logger.service(f"Forwarding SSE stream from {service_name}")
                 
-                # Stream the response directly without consuming it here
+                # Stream the response directly without any modification
                 async def stream_generator():
                     try:
-                        # Use response.aiter_lines() for SSE which are line-based
-                        async for line in response.aiter_lines():
-                            if line:
-                                yield f"{line}\n".encode('utf-8')
-                            else:
-                                # Empty lines are significant in SSE
-                                yield b"\n"
+                        # Use aiter_bytes() for raw pass-through to preserve SSE event boundaries
+                        # This ensures tokens are never split and SSE format remains intact
+                        async for chunk in response.aiter_bytes():
+                            yield chunk
                     except httpx.StreamClosed:
                         logger.warning(f"Stream from {service_name} closed unexpectedly")
                     finally:
