@@ -719,52 +719,77 @@ def _convert_to_clean_format(response_data):
 
 async def _convert_to_clean_streaming_format(streaming_response):
     """
-    Convert streaming response to clean v0.3 format.
+    Convert streaming response to clean v0.3 format while preserving SSE boundaries.
     """
     from fastapi.responses import StreamingResponse
     import json
     
     async def clean_stream_generator():
-        """Generate clean v0.3 streaming format."""
+        """Generate clean v0.3 streaming format with proper SSE handling."""
         if hasattr(streaming_response, 'body_iterator'):
-            # Handle StreamingResponse
+            # Handle StreamingResponse - accumulate until we have complete SSE events
+            buffer = ""
+            
             async for chunk in streaming_response.body_iterator:
                 if isinstance(chunk, bytes):
                     chunk = chunk.decode('utf-8')
                 
-                # Parse streaming chunk
-                if chunk.startswith("data: "):
-                    data_str = chunk[6:].strip()
+                buffer += chunk
+                
+                # Process complete SSE events (separated by double newlines)
+                while "\n\n" in buffer:
+                    event, buffer = buffer.split("\n\n", 1)
                     
-                    if data_str == "[DONE]":
-                        # Send clean done message
-                        yield f"data: {json.dumps({'type': 'done'})}\n\n"
-                        break
-                    
-                    try:
-                        # Parse the chunk
-                        chunk_data = json.loads(data_str)
-                        
-                        # Convert to clean format
-                        if chunk_data.get("object") == "chat.completion.chunk":
-                            # OpenAI format - extract content
-                            choices = chunk_data.get("choices", [])
-                            if choices and len(choices) > 0:
-                                delta = choices[0].get("delta", {})
-                                content = delta.get("content", "")
-                                if content:
-                                    clean_chunk = {"type": "content", "content": content}
-                                    yield f"data: {json.dumps(clean_chunk)}\n\n"
-                        elif "content" in chunk_data:
-                            # Already in simple format, just add type
-                            clean_chunk = {"type": "content", "content": chunk_data["content"]}
-                            yield f"data: {json.dumps(clean_chunk)}\n\n"
-                    except json.JSONDecodeError:
-                        # Skip malformed chunks
+                    if not event.strip():
                         continue
-                else:
-                    # Pass through non-data chunks (like heartbeats)
-                    yield chunk
+                    
+                    # Parse the SSE event
+                    if event.startswith("data: "):
+                        data_str = event[6:].strip()
+                        
+                        if data_str == "[DONE]":
+                            # Send clean done message
+                            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+                            break
+                        
+                        try:
+                            # Parse the chunk
+                            chunk_data = json.loads(data_str)
+                            
+                            # Convert to clean format based on content type
+                            if chunk_data.get("type") == "content":
+                                # Already in our format, pass through
+                                clean_chunk = {"type": "content", "content": chunk_data.get("content", "")}
+                                yield f"data: {json.dumps(clean_chunk)}\n\n"
+                            elif chunk_data.get("object") == "chat.completion.chunk":
+                                # OpenAI format - extract content
+                                choices = chunk_data.get("choices", [])
+                                if choices and len(choices) > 0:
+                                    delta = choices[0].get("delta", {})
+                                    content = delta.get("content", "")
+                                    if content:
+                                        clean_chunk = {"type": "content", "content": content}
+                                        yield f"data: {json.dumps(clean_chunk)}\n\n"
+                            elif "content" in chunk_data:
+                                # Generic format with content field
+                                clean_chunk = {"type": "content", "content": chunk_data["content"]}
+                                yield f"data: {json.dumps(clean_chunk)}\n\n"
+                            elif chunk_data.get("type") in ["model_selection", "metadata", "error"]:
+                                # Pass through other event types
+                                yield f"data: {json.dumps(chunk_data)}\n\n"
+                        except json.JSONDecodeError:
+                            # Skip malformed chunks
+                            logger.warning(f"Malformed SSE data: {data_str[:100]}")
+                            continue
+                    else:
+                        # Non-data event (like comments), pass through
+                        yield f"{event}\n\n"
+            
+            # Process any remaining buffer content
+            if buffer.strip() and buffer.startswith("data: "):
+                data_str = buffer[6:].strip()
+                if data_str == "[DONE]":
+                    yield f"data: {json.dumps({'type': 'done'})}\n\n"
         else:
             # Fallback - return error message
             error_chunk = {"type": "content", "content": "Streaming not available"}
