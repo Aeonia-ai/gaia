@@ -32,6 +32,84 @@ class RouteType(str, Enum):
     MULTIAGENT = "multiagent"
 
 
+def split_on_word_boundaries(text: str, target_chunk_size: int = 50) -> List[str]:
+    """
+    Split text into chunks on word boundaries, respecting token integrity and JSON blocks.
+    
+    Args:
+        text: The text to split
+        target_chunk_size: Target size for chunks (will split at nearest word boundary)
+    
+    Returns:
+        List of text chunks split on word boundaries
+    """
+    if not text:
+        return []
+    
+    import re
+    
+    chunks = []
+    current_chunk = ""
+    
+    # Pattern to match JSON objects including nested ones
+    # This uses a simple approach - for production, consider using json.loads to validate
+    json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+    
+    # Split text preserving JSON blocks as single units
+    parts = []
+    last_end = 0
+    
+    for match in re.finditer(json_pattern, text):
+        # Add text before JSON
+        if match.start() > last_end:
+            before_text = text[last_end:match.start()]
+            # Split non-JSON text into words
+            parts.extend(before_text.split())
+        # Add entire JSON block as one "word"
+        parts.append(match.group())
+        last_end = match.end()
+    
+    # Add remaining text after last JSON
+    if last_end < len(text):
+        remaining = text[last_end:]
+        parts.extend(remaining.split())
+    
+    # If no JSON found, just split normally
+    if not parts:
+        parts = text.split()
+    
+    # Now chunk the parts respecting boundaries
+    for part in parts:
+        # Check if adding this part would exceed target size
+        if current_chunk and len(current_chunk) + len(part) + 1 > target_chunk_size:
+            # Don't split if current chunk is empty or very small
+            if len(current_chunk) > 10:  # Minimum chunk size
+                chunks.append(current_chunk)
+                current_chunk = part
+            else:
+                # Add to current chunk even if it exceeds target
+                if current_chunk:
+                    current_chunk += " " + part
+                else:
+                    current_chunk = part
+        else:
+            # Add part to current chunk
+            if current_chunk:
+                # Check if we need a space separator
+                if current_chunk.endswith('}') or part.startswith('{'):
+                    current_chunk += part  # No space between/around JSON
+                else:
+                    current_chunk += " " + part
+            else:
+                current_chunk = part
+    
+    # Add final chunk if any
+    if current_chunk:
+        chunks.append(current_chunk)
+    
+    return chunks
+
+
 class UnifiedChatHandler:
     """
     Handles all chat requests with intelligent routing via LLM tool-calling.
@@ -649,9 +727,9 @@ class UnifiedChatHandler:
                         }]
                     }
                     
-                    # Stream content in chunks
-                    chunk_size = 100
-                    for i in range(0, len(content), chunk_size):
+                    # Stream content in chunks on word boundaries
+                    chunks = split_on_word_boundaries(content, target_chunk_size=100)
+                    for chunk_text in chunks:
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -659,7 +737,7 @@ class UnifiedChatHandler:
                             "model": model,
                             "choices": [{
                                 "index": 0,
-                                "delta": {"content": content[i:i + chunk_size]},
+                                "delta": {"content": chunk_text},
                                 "finish_reason": None
                             }]
                         }
@@ -723,9 +801,9 @@ class UnifiedChatHandler:
                         }]
                     }
                     
-                    # Stream content chunks
-                    for i in range(0, len(content), chunk_size):
-                        chunk_text = content[i:i + chunk_size]
+                    # Stream content chunks on word boundaries
+                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
+                    for chunk_text in chunks:
                         
                         yield {
                             "id": request_id,
@@ -798,7 +876,8 @@ class UnifiedChatHandler:
                     
                     # Stream KB results in chunks
                     chunk_size = 100  # Larger chunks for KB results
-                    for i in range(0, len(content), chunk_size):
+                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
+                    for chunk_text in chunks:
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -806,7 +885,7 @@ class UnifiedChatHandler:
                             "model": model,
                             "choices": [{
                                 "index": 0,
-                                "delta": {"content": content[i:i + chunk_size]},
+                                "delta": {"content": chunk_text},
                                 "finish_reason": None
                             }]
                         }
@@ -870,7 +949,8 @@ class UnifiedChatHandler:
                     
                     # Stream the actual response
                     chunk_size = 80
-                    for i in range(0, len(content), chunk_size):
+                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
+                    for chunk_text in chunks:
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -878,7 +958,7 @@ class UnifiedChatHandler:
                             "model": model,
                             "choices": [{
                                 "index": 0,
-                                "delta": {"content": content[i:i + chunk_size]},
+                                "delta": {"content": chunk_text},
                                 "finish_reason": None
                             }]
                         }
@@ -940,7 +1020,8 @@ class UnifiedChatHandler:
                     
                     # Stream response
                     chunk_size = 60
-                    for i in range(0, len(content), chunk_size):
+                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
+                    for chunk_text in chunks:
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -948,7 +1029,7 @@ class UnifiedChatHandler:
                             "model": model,
                             "choices": [{
                                 "index": 0,
-                                "delta": {"content": content[i:i + chunk_size]},
+                                "delta": {"content": chunk_text},
                                 "finish_reason": None
                             }]
                         }
@@ -1007,7 +1088,8 @@ class UnifiedChatHandler:
                     }
                     
                     chunk_size = 50
-                    for i in range(0, len(content), chunk_size):
+                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
+                    for chunk_text in chunks:
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -1015,7 +1097,7 @@ class UnifiedChatHandler:
                             "model": model,
                             "choices": [{
                                 "index": 0,
-                                "delta": {"content": content[i:i + chunk_size]},
+                                "delta": {"content": chunk_text},
                                 "finish_reason": None
                             }]
                         }
@@ -1055,8 +1137,8 @@ class UnifiedChatHandler:
                 # Stream it in chunks for better UX
                 chunk_size = 20  # Characters per chunk
                 
-                for i in range(0, len(content), chunk_size):
-                    chunk_text = content[i:i + chunk_size]
+                chunks = split_on_word_boundaries(content, target_chunk_size=50)
+                for chunk_text in chunks:
                     
                     yield {
                         "id": request_id,
