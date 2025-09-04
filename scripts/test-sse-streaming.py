@@ -124,9 +124,10 @@ async def test_streaming_endpoint(url: str, api_key: str, endpoint: str = "/api/
 
 async def main():
     """Run streaming tests."""
+    import os
     # Configuration
     gateway_url = "http://localhost:8666"
-    api_key = "test-api-key"  # Replace with actual key
+    api_key = os.getenv("API_KEY", "test-api-key")  # Get from environment
     
     print("SSE Streaming Token Boundary Test")
     print("=================================")
