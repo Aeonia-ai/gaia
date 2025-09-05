@@ -5,7 +5,7 @@ This document defines the API contracts for Gaia Platform services, clearly spec
 ## API Versioning
 
 The GAIA Platform supports multiple API versions for backward compatibility:
-- **v0.2**: Legacy API format (still supported)
+- **v0.2**: ❌ **REMOVED** - Legacy API deprecated and removed (use v1 or v0.3 instead)
 - **v0.3**: ✅ Complete authentication API with behavioral identity to v1
 - **v1**: OpenAI-compatible format for chat endpoints
 
@@ -79,7 +79,7 @@ All other endpoints require either:
 - `/api/v1/conversations/*` - Conversation management
 - `/api/v1/assets/*` - Asset generation
 - `/api/v1/models/*` - Model listing
-- `/api/v0.2/chat/*` - v0.2 chat endpoints
+- `/api/v0.3/chat/*` - v0.3 chat endpoints
 - `/chat` - Web UI chat interface
 - `/settings` - User settings
 

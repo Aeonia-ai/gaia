@@ -51,7 +51,7 @@ Each service uses the **same database** with proper URL conversion:
   SERVICE_NAME = "{service}"
 ```
 
-**Critical:** Database URL conversion in `app/shared/database.py`:
+**Critical:** Database URL conversion in `app/shared/database_compat.py`:
 ```python
 # Convert postgres:// to postgresql:// for SQLAlchemy compatibility
 raw_database_url = os.getenv("DATABASE_URL", "postgresql://...")
@@ -144,7 +144,7 @@ echo "SELECT u.email, ak.name FROM users u JOIN api_keys ak ON u.id = ak.user_id
 
 ### Issue: "sqlalchemy.exc.NoSuchModuleError: postgres"
 **Cause**: SQLAlchemy expects `postgresql://` but Fly.io provides `postgres://`
-**Solution**: URL conversion in `database.py` (see configuration above)
+**Solution**: URL conversion in `database_compat.py` (see configuration above)
 
 ### Issue: "ImportError: cannot import name 'get_api_key'"
 **Cause**: Removed function still referenced in imports

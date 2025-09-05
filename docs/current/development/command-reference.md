@@ -230,7 +230,7 @@ netstat -an | grep 8000  # May not exist on all systems
 
 ## 🚨 Critical Rules
 
-1. **ALWAYS** use `docker compose` (space) not `docker compose` (hyphen)
+1. **ALWAYS** use `docker compose` (space) not `docker-compose` (hyphen)
 2. **ALWAYS** use `fly postgres` or `fly mpg`, never `fly pg`
 3. **ALWAYS** use test scripts instead of raw curl for API testing
 4. **ALWAYS** specify organization for Fly.io database operations

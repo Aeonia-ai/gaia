@@ -380,7 +380,7 @@ DATABASE_URL = "postgresql://postgres@gaia-db-dev.internal:5432/postgres"
 
 **Solution**: Automatic URL conversion in shared database code:
 ```python
-# app/shared/database.py
+# app/shared/database_compat.py
 raw_database_url = os.getenv("DATABASE_URL", "postgresql://...")
 DATABASE_URL = raw_database_url.replace("postgres://", "postgresql://", 1) if raw_database_url.startswith("postgres://") else raw_database_url
 ```
