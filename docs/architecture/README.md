@@ -4,6 +4,40 @@
 
 The GAIA Platform is a distributed microservices system providing enterprise-grade AI capabilities with a focus on scalability, reliability, and developer experience. This documentation covers the current implementation and architectural patterns.
 
+## 📁 Documentation Structure
+
+### [Design Patterns](patterns/)
+Reusable patterns and solutions used across services
+- [Service Discovery Pattern](patterns/service-discovery-pattern.md) - How services find each other
+- [Service Registry Pattern](patterns/service-registry-pattern.md) - Service registration system
+- [Service Initialization Pattern](patterns/service-initialization-pattern.md) - Service startup patterns
+- [Service Discovery Implementation](patterns/service-discovery-implementation.md) - Implementation details
+- [Service Creation Automation](patterns/service-creation-automation.md) - Automated service setup
+- [Deferred Initialization](patterns/deferred-initialization-pattern.md) - Non-blocking startup pattern
+
+### [Services & Microservices](services/)
+Service architecture and scaling strategies
+- [Adding New Microservice](services/adding-new-microservice.md) - Step-by-step guide
+- [Microservice Quick Reference](services/microservice-quick-reference.md) - Quick lookup guide
+- [Microservices Communication](services/microservices-communication-solution.md) - Inter-service communication
+- [Microservices Scaling](services/microservices-scaling.md) - Scaling strategies
+- [Scaling Architecture](services/scaling-architecture.md) - Overall scaling approach
+
+### [Database Architecture](database/)
+Database design and portability
+- [Database Architecture](database/database-architecture.md) - Current database design
+- [Portable Database Architecture](database/portable-database-architecture.md) - Cross-platform database strategy
+- [PostgreSQL Simplicity Lessons](database/postgresql-simplicity-lessons.md) - Lessons learned
+
+### [Chat System Architecture](chat/)
+Chat service implementation and routing
+- [Request Response Flow](chat/chat-request-response-flow.md) - How requests flow through the system
+- [Chat Routing & KB](chat/chat-routing-and-kb-architecture.md) - Routing and knowledge base integration
+- [Clean Architecture v2](chat/chat-v2-clean-architecture.md) - Improved chat architecture
+- [Chat Persistence](chat/unified-chat-persistence.md) - Conversation persistence
+- [Web UI Chat Flow](chat/web-ui-chat-flow.md) - Frontend chat integration
+- [Tool Routing](chat/tool-routing-improvement-spec.md) - Tool routing improvements
+
 ## Core Architecture Principles
 
 1. **Microservices First**: Independent services with clear responsibilities
