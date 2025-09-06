@@ -2,21 +2,45 @@
 
 📍 **Location:** [Home](../README.md) → API
 
-## 🎯 API Documentation
+## 🎯 API Documentation Structure
 
 Complete reference for all Gaia Platform API endpoints, contracts, and integration patterns.
 
-### 🗺️ [GAIA Platform API Map](GAIA_API_MAP.md)
-**🆕 UPDATED** - Complete endpoint mapping across all services with routing details
+### 📁 Documentation Organization
 
-- **Gateway Routing** - How requests route from Gateway to backend services  
-- **Service Mapping** - Complete endpoint-to-service mapping
-- **Authentication Requirements** - Per-endpoint auth requirements
-- **Target Paths** - Internal service endpoint paths
-- **v0.3 Auth Endpoints** - ✅ Complete authentication API implementation
-- **300+ Verified Endpoints** - Cleaned and accurate API reference
+#### [Reference Documentation](reference/)
+Complete API references and endpoint mappings
+- [GAIA API Reference](reference/GAIA_API_REFERENCE.md) - Full API specification
+- [GAIA API Map](reference/GAIA_API_MAP.md) - Endpoint routing and service mapping
+- [Client API Reference](reference/CLIENT_API_REFERENCE.md) - Client-specific API documentation
 
-### 📋 [API Contracts](api-contracts.md)
+#### [Authentication](authentication/)
+Authentication and authorization documentation
+- [API Authentication Guide](authentication/api-authentication-guide.md) - Complete auth patterns
+- [Gateway Auth Contract](authentication/gateway-auth-api-contract.md) - Gateway authentication spec
+- [OAuth 2.0 Extension](authentication/oauth-2-extension-spec.md) - OAuth implementation spec
+
+#### [Chat API](chat/)
+Chat service endpoints and routing
+- [Chat Endpoint Variants](chat/chat-endpoint-variants-explained.md) - Different chat endpoint types
+- [Chat Execution Paths](chat/chat-endpoint-execution-paths.md) - Request flow through chat
+- [Intelligent Routing](chat/intelligent-chat-routing.md) - Smart routing implementation
+- [Unified Chat Implementation](chat/unified-chat-implementation.md) - Unified chat interface
+- [Unified Intelligent Spec](chat/unified-intelligent-chat-spec.md) - Intelligent chat specification
+
+#### [Client Libraries](clients/)
+Client SDKs and usage guides
+- [Client Usage Guide](clients/client-usage-guide.md) - How to use client libraries
+- [GAIA CLI Client](clients/GAIA_CLI_CLIENT.md) - Command-line interface client
+
+#### [v0.3 API](v03/)
+Version 0.3 specific documentation
+- [v0.3 API Documentation](v03/v03-api-documentation.md) - v0.3 API reference
+- [v0.3 Client Specification](v03/v03-client-specification.md) - v0.3 client requirements
+
+### 📋 Cross-Cutting Documentation
+
+#### [API Contracts](api-contracts.md)
 **🟢 Status: CURRENT** - Defines which endpoints require authentication and which are public
 
 - **Public Endpoints** - No authentication required (health checks, registration, login)
@@ -24,10 +48,8 @@ Complete reference for all Gaia Platform API endpoints, contracts, and integrati
 - **Service Communication** - Internal endpoint specifications
 - **Contract Testing** - Automated validation of API behavior
 
-### 🔐 [API Authentication Guide](api-authentication-guide.md)  
-**🟢 Status: CURRENT** - Complete authentication implementation patterns
-
-- **Database-First Validation** - All API keys validated through PostgreSQL
+#### [KB Endpoints](kb-endpoints.md)
+Knowledge Base API endpoints and operations
 - **Shared Configuration** - Unified authentication across all services
 - **Local-Remote Parity** - Same authentication code in all environments
 - **Testing Patterns** - How to test authentication flows
