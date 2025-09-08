@@ -1,5 +1,11 @@
 # GAIA Platform API Reference
 
+**Audience**: Platform developers building on advanced features  
+**Focus**: Complete API including personas, assets, and OpenAI compatibility  
+
+> **Quick Start?** See [CLIENT_API_REFERENCE.md](CLIENT_API_REFERENCE.md) for client SDK examples  
+> **Service Architecture?** See [GAIA_API_MAP.md](GAIA_API_MAP.md) for internal routing
+
 **Version:** 1.0  
 **Base URL:** `https://gaia-gateway-{environment}.fly.dev`  
 **Environments:** `dev`, `staging`, `prod`

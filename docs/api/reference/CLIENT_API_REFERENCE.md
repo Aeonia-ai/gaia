@@ -1,5 +1,11 @@
 # GAIA v0.3 API Reference
 
+**Audience**: External developers integrating with GAIA  
+**Focus**: Client SDKs, code examples, practical implementation  
+
+> **Need Advanced Features?** See [GAIA_API_REFERENCE.md](GAIA_API_REFERENCE.md) for personas and asset management  
+> **System Architecture?** See [GAIA_API_MAP.md](GAIA_API_MAP.md) for complete service mapping
+
 **Base URL:** `https://gaia-gateway-{env}.fly.dev`  
 **Environments:** `dev`, `staging`, `prod`  
 **API Version:** v0.3
