@@ -4,53 +4,54 @@ Welcome to the Gaia Platform documentation! This directory contains comprehensiv
 
 ## 🚦 Quick Start by Role
 
-### 👩‍💻 **For Developers** → [`current/development/`](current/development/)
+### 👩‍💻 **For Developers** → [`development/`](development/)
 Get started with local development, testing, and command reference.
 
-### 🚀 **For DevOps** → [`current/deployment/`](current/deployment/)  
+### 🚀 **For DevOps** → [`deployment/`](deployment/)  
 Deploy to production with Fly.io, database setup, and smart scripts.
 
-### 🏗️ **For Architects** → [`current/architecture/`](current/architecture/)
+### 🏗️ **For Architects** → [`architecture/`](architecture/)
 Understand the microservices architecture, scaling patterns, and database design.
 
-**🎯 KEY**: [**Chat Routing & KB Architecture**](current/architecture/chat-routing-and-kb-architecture.md) - Complete guide to how intelligent chat routing and Knowledge Base integration work
+**🎯 KEY**: [**Chat Routing & KB Architecture**](architecture/chat/chat-routing-and-kb-architecture.md) - Complete guide to how intelligent chat routing and Knowledge Base integration work
 
-### 🗄️ **For Knowledge Base** → [`current/kb/`](current/kb/)
+### 🗄️ **For Knowledge Base** → [`kb/`](kb/)
 Access and manage the Knowledge Base service with Git sync and RBAC.
 
 **💡 TIP**: KB is auto-integrated with chat! Use `POST /api/v1/chat` with natural language like "search my notes on X" instead of direct KB endpoints.
 
-### 🌐 **For Web UI** → [`current/web-ui/`](current/web-ui/)
+### 🌐 **For Web UI** → [`web-ui/`](web-ui/)
 FastHTML frontend development, HTMX patterns, and debugging guides.
 
-### 🔮 **For Roadmap** → [`future/roadmap/`](future/roadmap/)
+### 🔮 **For Roadmap** → [`roadmap/`](roadmap/)
 See what's coming next and current development status.
 
 ## 📋 Complete Documentation Map
 
 ```
 docs/
-├── 🟢 current/          ← IMPLEMENTED & WORKING (main branch)
-│   ├── architecture/    ← Microservices design & scaling
-│   │   └── chat-routing-and-kb-architecture.md ← 🎯 COMPREHENSIVE CHAT & KB GUIDE
-│   ├── authentication/ ← API keys, JWTs, mTLS setup
-│   ├── deployment/      ← Production deployment guides
-│   ├── development/     ← Local dev, testing, commands
-│   ├── kb/              ← Knowledge Base service (OPERATIONAL)
-│   ├── web-ui/          ← FastHTML frontend guides
-│   └── troubleshooting/ ← Fix common issues
-├── 🟡 future/           ← PLANNED & IN-DEVELOPMENT  
-│   ├── roadmap/         ← Feature timeline & status
-│   └── research/        ← Experimental features
 ├── 📚 api/              ← API REFERENCE & CONTRACTS
-├── 🧪 testing/          ← TESTING GUIDES & PATTERNS
-│   ├── TESTING_GUIDE.md ← Main testing documentation
-│   └── agents/          ← Specialized test agents
-├── 🗄️ archive/          ← HISTORICAL & DEPRECATED
-│   ├── phase-reports/   ← Implementation phases
-│   └── deprecated/      ← Outdated documentation
-├── 🔧 web-service-standardization-spec.md  ← NEW: Web UI standards
-└── 🎯 web-testing-strategy-post-standardization.md ← NEW: Testing transformation
+│   ├── reference/       ← Complete API references
+│   ├── chat/           ← Chat endpoint documentation
+│   └── authentication/ ← Auth patterns and endpoints
+├── 🏗️ architecture/    ← SYSTEM DESIGN & PATTERNS
+│   ├── patterns/       ← Service discovery, initialization
+│   ├── chat/          ← Chat routing architecture
+│   ├── database/      ← Database design
+│   └── services/      ← Service specifications
+├── 🔐 authentication/  ← SECURITY & AUTH
+├── 🚀 deployment/      ← PRODUCTION DEPLOYMENT
+├── 💻 development/     ← LOCAL DEVELOPMENT
+├── 🗄️ kb/             ← KNOWLEDGE BASE (OPERATIONAL)
+│   ├── guides/        ← User guides and setup
+│   ├── developer/     ← Technical documentation
+│   ├── reference/     ← API reference
+│   └── troubleshooting/ ← Problem solving
+├── 🌐 web-ui/         ← FASTHTML FRONTEND
+├── 🧪 testing/        ← TESTING GUIDES
+│   └── TESTING_GUIDE.md ← Main testing documentation
+├── 🔮 roadmap/        ← FUTURE PLANS
+└── 📦 _archive/       ← HISTORICAL DOCS
 ```
 
 ## 🆕 **Latest Documentation (August 2025)**
@@ -86,7 +87,7 @@ cat ../CLAUDE.md
 ### For DevOps/SRE
 ```bash
 # Complete deployment pipeline
-cat current/deployment/deployment-best-practices.md
+cat deployment/deployment-best-practices.md
 
 # Environment-specific deployments
 ./scripts/deploy.sh --env dev --services all         # Dev: Full microservices

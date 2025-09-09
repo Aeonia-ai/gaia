@@ -6,7 +6,13 @@
 
 ## 🏗️ High-Level Architecture
 
-The GAIA platform implements a sophisticated **intelligent chat routing system** that automatically determines the best approach for handling user queries through a multi-layered architecture:
+The GAIA platform implements a sophisticated **intelligent chat routing system** that automatically determines the best approach for handling user queries through a multi-layered architecture.
+
+### API Version Compatibility
+- **Both `/api/v1/chat` and `/api/v0.3/chat` use the same routing** to `/chat/unified`
+- **v0.3** provides cleaner responses (no provider details exposed)
+- **v1** maintains backward compatibility with original format
+- **Both versions** support all features: streaming, KB tools, intelligent routing
 
 ```mermaid
 graph TD
@@ -153,11 +159,17 @@ sequenceDiagram
 
 ### **KB Storage & Performance**
 
-#### **Git-Synchronized Repository**
+#### **Current Production Storage**
+- **Default**: Git-only storage via `kb_mcp_server.py`
 - **Initialization**: Background cloning to prevent startup delays
 - **Volume Mount**: `/kb` directory with hot-reloaded content
 - **Git Integration**: Automatic sync with configured repository
 - **File System Access**: Direct file operations with ripgrep indexing
+
+#### **Available Storage Backends (Not Enabled by Default)**
+- **Database Storage**: Implemented (`KB_STORAGE_MODE=database`)
+- **Hybrid Storage**: Implemented (`KB_STORAGE_MODE=hybrid`)
+- **Storage Manager**: Automatically selects backend based on configuration
 
 #### **Performance Characteristics**
 - **Search Speed**: ~14ms average (using ripgrep)

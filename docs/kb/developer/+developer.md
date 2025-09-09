@@ -1,0 +1,16 @@
+# developer
+
+KB technical implementation documentation.
+
+## Files
+
+- `kb-architecture-guide.md` - Storage architecture design
+- `kb-feature-discovery.md` - Feature discovery for agents
+- `kb-container-storage-migration.md` - Container storage patterns
+- `kb-git-clone-learnings.md` - Git operations details
+- `kb-git-sync-learnings.md` - Production sync learnings
+- `kb-web-ui-integration.md` - Web UI implementation
+- `kb-wiki-interface-design.md` - Wiki interface specs
+
+## Parent
+[../+kb.md](../+kb.md)

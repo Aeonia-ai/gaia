@@ -6,6 +6,18 @@
 > **Quick Start?** See [CLIENT_API_REFERENCE.md](CLIENT_API_REFERENCE.md) for client SDK examples  
 > **Service Architecture?** See [GAIA_API_MAP.md](GAIA_API_MAP.md) for internal routing
 
+## API Versions
+
+The platform supports two API versions that use the **same underlying intelligent routing**:
+- **v1**: Full feature set with provider metadata (OpenAI-compatible)
+- **v0.3**: Simplified responses without provider details (recommended for new apps)
+
+Both versions support:
+- Intelligent chat routing (ultra-fast, simple, KB-enabled, multi-agent)
+- Streaming responses
+- Knowledge Base integration
+- Persona system
+
 **Version:** 1.0  
 **Base URL:** `https://gaia-gateway-{environment}.fly.dev`  
 **Environments:** `dev`, `staging`, `prod`

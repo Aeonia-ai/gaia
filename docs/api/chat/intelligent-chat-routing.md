@@ -4,6 +4,16 @@
 
 The intelligent chat routing system automatically routes messages to the optimal endpoint based on complexity, eliminating the need for users to choose between different chat endpoints. This is **currently implemented** and operational in the GAIA platform.
 
+## API Version Note
+
+**Both `/api/v1/chat` and `/api/v0.3/chat` use the SAME intelligent routing system.**
+
+The only differences are:
+- **v0.3**: Cleaner response format without provider details
+- **v1**: Maintains backward compatibility with original format
+- **Both**: Route to `/chat/unified` endpoint internally
+- **Both**: Support streaming, KB tools, and all routing features
+
 ## Architecture
 
 ### Single LLM Call Approach

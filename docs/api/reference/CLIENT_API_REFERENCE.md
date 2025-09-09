@@ -2,9 +2,17 @@
 
 **Audience**: External developers integrating with GAIA  
 **Focus**: Client SDKs, code examples, practical implementation  
+**Recommended Version**: v0.3 for new integrations (cleaner responses)
 
 > **Need Advanced Features?** See [GAIA_API_REFERENCE.md](GAIA_API_REFERENCE.md) for personas and asset management  
 > **System Architecture?** See [GAIA_API_MAP.md](GAIA_API_MAP.md) for complete service mapping
+
+## Important: v0.3 vs v1 API
+
+Both API versions use the **same intelligent routing system** internally:
+- **v0.3** (Recommended): Clean responses without provider/model details
+- **v1**: Backward compatibility, includes provider metadata
+- **Both**: Same features, KB access, streaming support
 
 **Base URL:** `https://gaia-gateway-{env}.fly.dev`  
 **Environments:** `dev`, `staging`, `prod`  

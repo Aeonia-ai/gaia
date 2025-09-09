@@ -239,28 +239,48 @@ class KBPermission(Base):
 3. **Real-time Collaboration** - WebSocket notifications of changes
 4. **Merge Strategies** - Automatic merging for non-conflicting changes
 
-## Migration Path
+## Implementation Status
 
-### Phase 1: Current State (Git-Only)
-- ✅ Single Git repository
-- ✅ Local development friendly
-- ✅ Basic CRUD operations
+### Current Production Configuration
+- **Default Mode**: Git-only storage (via `kb_mcp_server.py`)
+- **Configuration**: `KB_STORAGE_MODE=git` (default)
+- **Multi-user**: Disabled by default (`KB_MULTI_USER_ENABLED=false`)
 
-### Phase 2: Database Cache (In Progress)
-- Add PostgreSQL for active documents
-- Keep Git as source of truth
-- Cache frequently accessed content
+### Available But Not Enabled
+The following features are **fully implemented in code** but require configuration to activate:
 
-### Phase 3: Database Primary
-- PostgreSQL becomes primary storage
-- Git becomes optional archive
-- Full multi-user support
+#### Database Storage (`kb_database_storage.py`)
+- **Status**: ✅ Implemented, ⚠️ Not enabled by default
+- **Enable**: Set `KB_STORAGE_MODE=database`
+- **Features**: PostgreSQL storage, optimistic locking, full-text search
+- **Use Case**: Multi-user environments needing real-time updates
 
-### Phase 4: Advanced Features
-- Real-time collaboration
-- CRDT-based conflict resolution
-- Cross-device sync
-- Offline support
+#### Hybrid Storage (`kb_hybrid_storage.py`)
+- **Status**: ✅ Implemented, ⚠️ Not enabled by default
+- **Enable**: Set `KB_STORAGE_MODE=hybrid`
+- **Features**: PostgreSQL primary, Git backup, best of both worlds
+- **Use Case**: Production environments needing reliability + version control
+
+#### RBAC Support (`kb_rbac_integration.py`)
+- **Status**: ✅ Implemented, ⚠️ Not enabled by default
+- **Enable**: Set `KB_MULTI_USER_ENABLED=true`
+- **Features**: User isolation, permission management, email-based identification
+- **Use Case**: Team environments with access control needs
+
+### Storage Manager (`kb_storage_manager.py`)
+The storage manager automatically selects the backend based on `KB_STORAGE_MODE`:
+```python
+# Environment variable controls storage backend
+KB_STORAGE_MODE=git       # Default - Git-only via MCP server
+KB_STORAGE_MODE=database  # PostgreSQL storage
+KB_STORAGE_MODE=hybrid    # PostgreSQL + Git backup
+```
+
+### Migration Path
+1. **Current (Phase 1)**: Git-only in production ✅
+2. **Next (Phase 2)**: Enable hybrid mode for testing
+3. **Future (Phase 3)**: Switch to database primary
+4. **Long-term (Phase 4)**: Real-time collaboration features
 
 ## Implementation Decisions
 
