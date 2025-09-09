@@ -29,6 +29,10 @@ GAIA platform documentation root.
 - `api/chat/intelligent-chat-routing.md` - Routing system documentation
 
 ### Architecture
+- `architecture/chat/chat-service-implementation.md` - Complete chat service architecture
+- `architecture/chat/intelligent-tool-routing.md` - Tool routing with 70-80% optimization
+- `architecture/chat/directive-system-vr-ar.md` - VR/AR directive system for immersive experiences
+- `architecture/services/persona-system-guide.md` - AI persona system architecture
 - `architecture/chat/chat-routing-and-kb-architecture.md` - Complete routing and KB integration
 - `architecture/patterns/service-discovery-guide.md` - Service discovery implementation
 - `architecture/database/database-architecture.md` - Hybrid database design
@@ -44,13 +48,17 @@ GAIA platform documentation root.
 
 ## Status
 
-- **Production**: Gateway, Auth, Chat, KB (Git mode)
+- **Production**: Gateway, Auth, Chat (with personas & directives), KB (Git mode)
+- **Implemented**: Persona system (Mu default), Tool routing intelligence, VR/AR directives
 - **Available**: Database storage, Hybrid storage, RBAC
 - **Development**: Web UI improvements, Advanced features
 
 ## Implementation
 
-- **~180 files** - Organized documentation
+- **~185 files** - Organized documentation (4 new chat architecture docs)
 - **7 microservices** - Gateway, Auth, Chat, KB, Asset, Web, Database
-- **2 API versions** - v0.3 (clean), v1 (full metadata)
+- **2 API versions** - v0.3 (clean + directives), v1 (full metadata)
 - **3 storage modes** - Git (default), Database, Hybrid
+- **Persona system** - Mu (default cheerful robot) + custom personas
+- **9 tools** - 6 KB tools + 3 routing tools with intelligent instructions
+- **Directives** - JSON-RPC commands for VR/AR timing control

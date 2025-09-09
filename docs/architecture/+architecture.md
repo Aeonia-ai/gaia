@@ -24,6 +24,9 @@ System architecture and design patterns.
 ### chat/
 - `chat-routing-and-kb-architecture.md` - Routing system with KB integration
 - `chat-request-response-flow.md` - Request lifecycle
+- `chat-service-implementation.md` - Complete service implementation
+- `intelligent-tool-routing.md` - Tool routing intelligence
+- `directive-system-vr-ar.md` - VR/AR directive system
 - `web-ui-chat-flow.md` - Frontend to backend flow
 - `unified-chat-persistence.md` - Conversation persistence
 - `chat-v2-clean-architecture.md` - Clean architecture design
@@ -35,12 +38,16 @@ System architecture and design patterns.
 ### services/
 - `asset-service.md` - Media management service
 - `llm-service.md` - Language model integration
+- `persona-system-guide.md` - Persona system architecture
 - `microservices-scaling.md` - Scaling strategies
 
 ## Key Patterns
 
 - **Service Discovery**: Dynamic endpoint discovery
-- **Intelligent Routing**: Single LLM call optimization
+- **Intelligent Routing**: Single LLM call optimization with tool instructions
+- **Persona System**: Customizable AI personalities with system prompts
+- **Directive System**: JSON-RPC commands for VR/AR experiences
+- **Tool Intelligence**: 70-80% reduction in unnecessary tool usage
 - **Storage Backends**: Git/Database/Hybrid flexibility
 - **Database Philosophy**: PostgreSQL + Redis hybrid
 
