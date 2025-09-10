@@ -7,7 +7,6 @@ Historical documentation.
 - `deprecated/` - Deprecated documentation
 - `phase-reports/` - Development phase reports
 - `session-states/` - Session state archives
-- `test-reports/` - Historical test reports
 
 ## Files
 

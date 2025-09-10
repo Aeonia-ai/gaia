@@ -10,7 +10,7 @@ import threading
 import time
 from typing import Dict, Optional
 from tests.fixtures.test_auth import TestUserFactory
-from gotrue.errors import AuthApiError
+from supabase_auth.errors import AuthApiError
 
 logger = logging.getLogger(__name__)
 

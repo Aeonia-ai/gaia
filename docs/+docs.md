@@ -4,17 +4,27 @@ GAIA platform documentation root.
 
 ## Subdirectories
 
+- `adr/` - Architecture Decision Records
+- `agents/` - Claude Code agent documentation  
 - `api/` - API reference and contracts
 - `architecture/` - System design and patterns
 - `authentication/` - Security and auth documentation
 - `deployment/` - Production deployment guides
 - `development/` - Local development guides
 - `kb/` - Knowledge Base documentation
+- `roadmap/` - Future plans and status
+- `security/` - Security documentation and guides
+- `services/` - Service-specific documentation
+- `shared/` - Shared components and utilities
 - `testing/` - Testing guides and patterns
 - `troubleshooting/` - Problem-solving guides
 - `web-ui/` - FastHTML frontend documentation
-- `roadmap/` - Future plans and status
 - `_archive/` - Historical documentation
+- `_debugging-guides/` - Debug procedures and guides
+- `_future/` - Future planning documents
+- `_postmortems/` - Incident analysis and learnings
+- `_reports/` - Status reports and analysis
+- `_research/` - Research documents and findings
 
 ## Files
 
@@ -55,7 +65,7 @@ GAIA platform documentation root.
 
 ## Implementation
 
-- **~185 files** - Organized documentation (4 new chat architecture docs)
+- **~231 files** - Organized documentation with comprehensive indexing
 - **7 microservices** - Gateway, Auth, Chat, KB, Asset, Web, Database
 - **2 API versions** - v0.3 (clean + directives), v1 (full metadata)
 - **3 storage modes** - Git (default), Database, Hybrid
