@@ -92,6 +92,7 @@ Content-Type: application/json
 ```bash
 POST /api/v0.3/chat
 Content-Type: application/json
+X-API-Key: YOUR_API_KEY
 
 {
   "message": "Write a story about a robot",
@@ -99,13 +100,21 @@ Content-Type: application/json
 }
 ```
 
-**Response:** Server-Sent Events stream
+**Response:** Server-Sent Events (SSE) stream with `text/event-stream` content type
 ```
+data: {"type": "start", "timestamp": "2025-01-01T00:00:00Z"}
+
 data: {"type": "content", "content": "Once upon a time"}
+
 data: {"type": "content", "content": " there was a robot"}
+
 data: {"type": "done", "finish_reason": "stop"}
+
 data: [DONE]
 ```
+
+**Note**: Streaming works identically for both `/api/v0.3/chat` and `/api/v1/chat` endpoints.
+The `stream: true` parameter triggers SSE responses. See [Streaming API Guide](../streaming/streaming-api-guide.md) for implementation details.
 
 #### OpenAI-Compatible Chat (v1)
 ```bash

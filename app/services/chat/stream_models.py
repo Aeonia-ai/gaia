@@ -3,6 +3,18 @@ Streaming Model Selection Endpoints
 
 Advanced model selection specifically optimized for streaming performance,
 VR/AR applications, and real-time responses.
+
+TODO: REMOVABLE MODULE - This entire module is not used in production.
+These endpoints are not exposed through the gateway and streaming model
+selection is handled by the /chat/unified endpoint's intelligent routing.
+
+All endpoints in this file can be removed:
+- GET /stream/models - List streaming-capable models
+- GET /stream/models/recommend - Get model recommendations
+- GET /stream/models/vr-recommendation - VR-specific recommendations
+- GET /stream/models/performance - Model performance metrics
+- POST /stream/models/user-preference - Set user preferences
+- GET /stream/models/user-preference - Get user preferences
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 import logging

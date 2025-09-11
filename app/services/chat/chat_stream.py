@@ -1,6 +1,19 @@
 """
 Streaming chat endpoint for reduced latency
 Adapted from LLM Platform for Gaia Platform architecture
+
+TODO: REMOVABLE MODULE - This entire module is not used in production.
+Streaming is handled by /chat/unified with stream=true parameter.
+The gateway routes /api/v0.3/chat and /api/v1/chat with stream=true to /chat/unified.
+
+All endpoints in this file can be removed:
+- POST /stream - Main streaming endpoint (unused)
+- POST /stream/cache/invalidate - Cache management (unused)
+- GET /stream/cache/status - Cache status (unused)
+- GET /stream/status - Stream status (unused)
+- DELETE /stream/history - History management (unused)
+- GET /stream/models - Model listing (unused)
+- GET /stream/models/performance - Performance metrics (unused)
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -175,13 +188,20 @@ async def stream_multi_provider_response(
         yield f"data: {json.dumps(event_data)}\n\n"
 
 
+# TODO: REMOVABLE - This endpoint is not used. Streaming is handled by /chat/unified with stream=true
+# The gateway routes /api/v0.3/chat and /api/v1/chat with stream=true to /chat/unified
+# which handles both streaming and non-streaming responses. This endpoint can be removed.
 @router.post("/stream")
 async def stream_chat(
     request: ChatRequest,
     auth_data: dict = Depends(get_current_auth)
 ):
     """
-    Stream chat responses for reduced latency
+    [DEPRECATED - REMOVABLE] Stream chat responses for reduced latency
+    
+    This endpoint is not used in production. Streaming is handled by:
+    - /api/v0.3/chat with stream=true -> /chat/unified
+    - /api/v1/chat with stream=true -> /chat/unified
     
     Returns Server-Sent Events (SSE) stream with:
     - Progressive response tokens

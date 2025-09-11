@@ -99,7 +99,6 @@ The gateway is the main entry point for all API requests and routes them to appr
 | Method | Gateway Path | Target Service | Target Path | Auth Required | Description |
 |--------|-------------|----------------|-------------|---------------|-------------|
 | POST | `/api/v0.2/chat` | chat | `/api/v0.2` | Yes | Unified chat (streaming/non-streaming) |
-| POST | `/api/v0.2/chat/stream` | chat | `/api/v0.2` | Yes | Streaming chat (explicit) |
 
 #### v0.2 Provider & Model Endpoints
 
@@ -292,7 +291,6 @@ The gateway is the main entry point for all API requests and routes them to appr
 | GET | `/auth/confirm` | Email confirmation | From Supabase link |
 | POST | `/auth/resend-verification` | Resend verification | Rate limited |
 | POST | `/api/chat/send` | Send chat message | Creates conversation |
-| GET | `/api/chat/stream` | Stream response | Server-Sent Events |
 | GET | `/api/chat/response` | Get chat response | Non-streaming fallback |
 | GET | `/api/conversations` | Get conversation list | For sidebar |
 | DELETE | `/api/conversations/{id}` | Delete conversation | Updates list |
