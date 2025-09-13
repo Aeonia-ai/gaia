@@ -4,6 +4,7 @@ Streaming formatter for OpenAI-compatible responses
 import json
 import time
 from typing import AsyncGenerator, Dict, Any
+from .streaming_buffer import create_buffered_stream
 
 async def create_openai_compatible_stream(
     chunk_generator: AsyncGenerator[Dict[str, Any], None],
@@ -50,3 +51,33 @@ async def create_openai_compatible_stream(
     }
     yield f"data: {json.dumps(final_chunk)}\n\n"
     yield "data: [DONE]\n\n"
+
+
+async def create_smart_openai_stream(
+    chunk_generator: AsyncGenerator[Dict[str, Any], None],
+    model: str,
+    preserve_boundaries: bool = True,
+    preserve_json: bool = True
+) -> AsyncGenerator[str, None]:
+    """
+    Create an OpenAI-compatible SSE stream with smart buffering.
+    
+    Args:
+        chunk_generator: Original stream of chunks
+        model: Model name for the response
+        preserve_boundaries: Whether to preserve word boundaries
+        preserve_json: Whether to buffer JSON directives
+        
+    Yields:
+        SSE-formatted events with preserved boundaries
+    """
+    # First apply smart buffering
+    buffered_stream = create_buffered_stream(
+        chunk_generator,
+        preserve_boundaries=preserve_boundaries,
+        preserve_json=preserve_json
+    )
+    
+    # Then format as OpenAI-compatible SSE
+    async for event in create_openai_compatible_stream(buffered_stream, model):
+        yield event

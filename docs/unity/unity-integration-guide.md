@@ -70,6 +70,145 @@ data: {"type": "content", "content": " ancient and magical"}
 data: [DONE]
 ```
 
+### C# Streaming Implementation with Best.HTTP
+
+**Important**: EventSource class cannot be used here because it only supports GET requests. GAIA's streaming API requires a POST request with JSON body, so we must use the `OnStreamingData` callback approach.
+
+```csharp
+using BestHTTP;
+using System;
+using UnityEngine;
+
+public class ChatStreamingClient : MonoBehaviour
+{
+    private string apiKey = "YOUR_API_KEY";
+    private StringBuilder fullMessage = new StringBuilder();
+    
+    public void SendMessage(string message, bool stream = false)
+    {
+        var request = new HTTPRequest(
+            new Uri("https://gaia-gateway-dev.fly.dev/api/v0.3/chat"),
+            HTTPMethods.Post
+        );
+        
+        request.SetHeader("X-API-Key", apiKey);
+        request.SetHeader("Content-Type", "application/json");
+        request.SetHeader("Accept", "text/event-stream");
+        
+        // Create streaming request payload
+        var payload = new
+        {
+            message = message,
+            stream = true
+        };
+        
+        request.RawData = System.Text.Encoding.UTF8.GetBytes(
+            JsonUtility.ToJson(payload)
+        );
+        
+        // Enable streaming
+        request.OnStreamingData += OnStreamingData;
+        request.DisableCache = true;
+        
+        request.Send();
+    }
+    
+    private bool OnStreamingData(HTTPRequest req, HTTPResponse resp, 
+                                 byte[] dataFragment, int dataFragmentLength)
+    {
+        string chunk = System.Text.Encoding.UTF8.GetString(
+            dataFragment, 0, dataFragmentLength
+        );
+        
+        // Parse SSE events line by line
+        var lines = chunk.Split('\n');
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("data: "))
+            {
+                ProcessSSEData(line.Substring(6));
+            }
+        }
+        
+        return true; // Continue streaming
+    }
+    
+    private void ProcessSSEData(string data)
+    {
+        if (data == "[DONE]")
+        {
+            Debug.Log("Stream complete");
+            OnChatComplete(fullMessage.ToString());
+            return;
+        }
+        
+        try
+        {
+            var evt = JsonUtility.FromJson<SSEEvent>(data);
+            
+            switch (evt.type)
+            {
+                case "content":
+                    fullMessage.Append(evt.content);
+                    // Update UI progressively
+                    UpdateChatBubble(evt.content);
+                    break;
+                    
+                case "start":
+                    Debug.Log($"Stream started: {evt.timestamp}");
+                    break;
+                    
+                case "done":
+                    Debug.Log($"Finished: {evt.finish_reason}");
+                    break;
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"Could not parse SSE data: {e.Message}");
+        }
+    }
+    
+    private void UpdateChatBubble(string textChunk)
+    {
+        // Append text to UI as it arrives
+        // Your UI update code here
+    }
+    
+    private void OnChatComplete(string fullResponse)
+    {
+        // Extract and process directives
+        ParseDirectives(fullResponse);
+    }
+    
+    private void ParseDirectives(string response)
+    {
+        var pattern = @"\{""m"":""([^""]+)"",""p"":\{([^}]+)\}\}";
+        var matches = System.Text.RegularExpressions.Regex.Matches(response, pattern);
+        
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            ProcessDirective(match.Value);
+        }
+    }
+    
+    private void ProcessDirective(string directiveJson)
+    {
+        // Parse and execute directive
+        Debug.Log($"Directive: {directiveJson}");
+    }
+}
+
+[System.Serializable]
+public class SSEEvent
+{
+    public string type;
+    public string content;
+    public string timestamp;
+    public string finish_reason;
+}
+```
+
 ## Directive Format
 
 Directives are embedded in chat responses as JSON:

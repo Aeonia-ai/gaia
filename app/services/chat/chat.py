@@ -24,6 +24,7 @@ from app.services.llm import LLMProvider, ModelCapability
 from app.services.llm.multi_provider_selector import ContextType, ModelPriority
 from app.shared.instrumentation import instrument_request, record_stage, instrumentation
 from app.services.streaming_formatter import create_openai_compatible_stream
+from app.services.streaming_formatter_v03 import create_smart_v03_stream
 
 async def async_generator_from_dict(data: Dict[str, Any]) -> AsyncGenerator[Dict[str, Any], None]:
     """Convert a single dictionary to an async generator"""
@@ -491,12 +492,25 @@ async def multi_provider_chat_completion(
                             if chunk_data.get("type") == "content":
                                 response_content += chunk_data.get("content", "")
                             
-                            # Convert to OpenAI-compatible format
-                            async for formatted_chunk in create_openai_compatible_stream(
-                                async_generator_from_dict(chunk_data),
-                                model_used or request.model or "unknown"
-                            ):
-                                yield formatted_chunk
+                            # Check if we should use v0.3 format (simpler) or OpenAI format
+                            use_v03_format = getattr(request, 'use_v03_format', True)  # Default to v0.3
+                            preserve_boundaries = getattr(request, 'preserve_boundaries', True)
+                            
+                            if use_v03_format:
+                                # Use v0.3 format with smart buffering
+                                async for formatted_chunk in create_smart_v03_stream(
+                                    async_generator_from_dict(chunk_data),
+                                    preserve_boundaries=preserve_boundaries,
+                                    preserve_json=True  # Always preserve JSON directives
+                                ):
+                                    yield formatted_chunk
+                            else:
+                                # Use OpenAI format (for compatibility with existing clients)
+                                async for formatted_chunk in create_openai_compatible_stream(
+                                    async_generator_from_dict(chunk_data),
+                                    model_used or request.model or "unknown"
+                                ):
+                                    yield formatted_chunk
                         
                         # Add response to history
                         if response_content.strip():
