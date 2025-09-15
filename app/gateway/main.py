@@ -392,11 +392,23 @@ async def chat(
     Main chat endpoint used by all clients - now with unified intelligent routing.
     
     Accepts:
-    - message: The chat message
+    - message: The chat message (string)
+    - messages: Array of message objects (OpenAI format)
     - conversation_id: Optional conversation ID for context continuity
     - stream: Whether to stream the response
     """
     body = await request.json()
+    
+    # Convert OpenAI format to unified format if needed
+    if "messages" in body and isinstance(body["messages"], list):
+        # Extract the last user message
+        last_message = ""
+        for msg in reversed(body["messages"]):
+            if msg.get("role") == "user":
+                last_message = msg.get("content", "")
+                break
+        body["message"] = last_message
+        # Keep messages for context but unified chat expects 'message'
     
     # Add authentication info to request
     body["_auth"] = auth
@@ -466,6 +478,94 @@ async def create_persona(
         path="/personas",
         method="POST",
         json_data=body,
+        headers=dict(request.headers)
+    )
+
+# ========================================================================================
+# v1 Conversation Management
+# ========================================================================================
+
+@app.post("/api/v1/conversations", tags=["Conversations"], status_code=201)
+async def create_conversation_v1(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Create a new conversation."""
+    body = await request.json() if request.body else {}
+    
+    # Add authentication info to request
+    body["_auth"] = auth
+    
+    # Remove content-length header since we modified the body
+    headers = dict(request.headers)
+    headers.pop("content-length", None)
+    headers.pop("Content-Length", None)
+    
+    # Proxy to chat service conversation endpoint
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/conversations",
+        method="POST",
+        json_data=body,
+        headers=headers
+    )
+
+@app.get("/api/v1/conversations/{conversation_id}", tags=["Conversations"])
+async def get_conversation_v1(
+    conversation_id: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get a specific conversation."""
+    # Proxy to chat service conversation endpoint
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/conversations/{conversation_id}",
+        method="GET",
+        headers=dict(request.headers)
+    )
+
+@app.get("/api/v1/conversations", tags=["Conversations"])
+async def list_conversations_v1(
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """List user's conversations."""
+    # Proxy to chat service conversation endpoint
+    return await forward_request_to_service(
+        service_name="chat",
+        path="/conversations",
+        method="GET",
+        headers=dict(request.headers)
+    )
+
+@app.get("/api/v1/conversations/{conversation_id}/messages", tags=["Conversations"])
+async def get_messages_v1(
+    conversation_id: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Get messages for a conversation."""
+    # Proxy to chat service conversation endpoint
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/conversations/{conversation_id}/messages",
+        method="GET",
+        headers=dict(request.headers)
+    )
+
+@app.delete("/api/v1/conversations/{conversation_id}", tags=["Conversations"])
+async def delete_conversation_v1(
+    conversation_id: str,
+    request: Request,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Delete a conversation."""
+    # Proxy to chat service conversation endpoint
+    return await forward_request_to_service(
+        service_name="chat",
+        path=f"/conversations/{conversation_id}",
+        method="DELETE",
         headers=dict(request.headers)
     )
 

@@ -2,7 +2,7 @@
 Conversation management endpoints for the chat service.
 Provides REST API for conversation CRUD operations.
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from app.shared.security import get_current_auth_legacy
@@ -57,15 +57,28 @@ class ConversationStatsResponse(BaseModel):
 # Endpoints
 @router.post("/conversations", response_model=ConversationResponse, status_code=201)
 async def create_conversation(
-    request: ConversationCreateRequest,
+    http_request: Request,
     auth: dict = Depends(get_current_auth_legacy)
 ):
     """Create a new conversation"""
     try:
+        # Parse request body to handle both direct and gateway requests
+        body = await http_request.json()
+        
+        # Handle both gateway format (_auth in body) and direct format
+        if "_auth" in body:
+            # Gateway format - use auth from body
+            auth = body.get("_auth", {})
+            title = body.get("title", "New Conversation")
+        else:
+            # Direct format - use auth from dependency injection
+            title = body.get("title", "New Conversation")
+            # auth already populated from Depends(get_current_auth_legacy)
+        
         user_id = auth.get("sub") or auth.get("user_id") or "unknown"
         conversation = chat_conversation_store.create_conversation(
             user_id=user_id,
-            title=request.title
+            title=title
         )
         logger.info(f"Created conversation {conversation['id']} for user {user_id}")
         return ConversationResponse(**conversation)
