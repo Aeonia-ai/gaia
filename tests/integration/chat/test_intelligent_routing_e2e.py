@@ -15,6 +15,7 @@ import httpx
 import asyncio
 import time
 import json
+import os
 from typing import Dict, Any, List, Tuple
 
 from app.shared.logging import setup_service_logger
@@ -35,24 +36,17 @@ class TestIntelligentRoutingE2E:
     @pytest.fixture
     async def authenticated_client(self, gateway_url, shared_test_user):
         """Create authenticated HTTP client."""
+        auth_url = "http://auth-service:8000"
         async with httpx.AsyncClient(timeout=30.0) as client:
-            # Login
+            # Login using auth service with API key exchange pattern
             login_response = await client.post(
-                f"{gateway_url}/auth/login",
-                json={
-                    "email": shared_test_user["email"],
-                    "password": shared_test_user["password"]
-                }
+                f"{auth_url}/auth/api-key-login",
+                headers={"X-API-Key": os.getenv("API_KEY", "test-key-123")}
             )
             assert login_response.status_code == 200
             auth_data = login_response.json()
-            # Handle different response formats
-            if "session" in auth_data and "access_token" in auth_data["session"]:
-                jwt_token = auth_data["session"]["access_token"]
-            elif "access_token" in auth_data:
-                jwt_token = auth_data["access_token"]
-            else:
-                jwt_token = auth_data.get("jwt_token", auth_data.get("token", ""))
+            # API key exchange returns OAuth2-compatible format
+            jwt_token = auth_data["access_token"]
             
             client.headers.update({
                 "Authorization": f"Bearer {jwt_token}",
@@ -76,7 +70,7 @@ class TestIntelligentRoutingE2E:
             request_body["conversation_id"] = conversation_id
         
         response = await client.post(
-            f"{gateway_url}/api/v1/chat/completions",
+            f"{gateway_url}/api/v1/chat",
             json=request_body
         )
         
@@ -204,7 +198,7 @@ class TestIntelligentRoutingE2E:
             }
             
             response = await authenticated_client.post(
-                f"{gateway_url}/api/v1/chat/completions",
+                f"{gateway_url}/api/v1/chat",
                 json=request_body
             )
             
