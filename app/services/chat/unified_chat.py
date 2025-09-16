@@ -207,24 +207,32 @@ class UnifiedChatHandler:
     async def process(self, message: str, auth: dict, context: Optional[dict] = None) -> dict:
         """
         Process message with intelligent routing.
-        
+
         Returns a standardized response format regardless of routing path.
         """
         start_time = time.time()
         request_id = f"chat-{uuid.uuid4()}"
-        
+
         print(f"DEBUG: Starting unified chat process for message: {message[:50]}...")
         print(f"[AUTH DEBUG] Auth dict: {auth}")
         logger.info(f"[AUTH DEBUG] Auth dict: {auth}")
-        
+
         # Update metrics
         self._routing_metrics["total_requests"] += 1
-        
+
+        # Pre-create conversation_id for unified behavior (matches streaming)
+        conversation_id = await self._get_or_create_conversation_id(message, context, auth)
+
+        # Update context with the conversation_id for any future operations
+        if context is None:
+            context = {}
+        context["conversation_id"] = conversation_id
+
         # Build context (user info, conversation history, etc.)
         full_context = await self.build_context(auth, context)
         print(f"[CONTEXT DEBUG] Full context user_id: {full_context.get('user_id')}")
         logger.info(f"[CONTEXT DEBUG] Full context: {full_context}")
-        
+
         # Single LLM call with routing capability - but no "routing overhead"
         llm_start = time.time()
         
@@ -367,12 +375,11 @@ class UnifiedChatHandler:
                     if final_response.get("choices"):
                         response_content = final_response["choices"][0].get("message", {}).get("content", "")
                     
-                    # Save conversation
-                    conversation_id = await self._save_conversation(
+                    # Save conversation messages (conversation_id already created)
+                    await self._save_conversation_messages(
+                        conversation_id=conversation_id,
                         message=message,
-                        response=response_content,
-                        context=context,
-                        auth=auth
+                        response=response_content
                     )
                     
                     return {
@@ -430,14 +437,13 @@ class UnifiedChatHandler:
                         "request_id": request_id
                     }
                     
-                    # Save conversation
-                    conversation_id = await self._save_conversation(
+                    # Save conversation messages (conversation_id already created)
+                    await self._save_conversation_messages(
+                        conversation_id=conversation_id,
                         message=message,
-                        response=result.get("response", ""),
-                        context=context,
-                        auth=auth
+                        response=result.get("response", "")
                     )
-                    
+
                     # Add conversation_id to metadata
                     result["_metadata"]["conversation_id"] = conversation_id
                     
@@ -563,12 +569,11 @@ class UnifiedChatHandler:
                 # Update routing metrics - no routing overhead for direct responses
                 self._update_timing_metrics(0, (time.time() - start_time) * 1000)
                 
-                # Save conversation
-                conversation_id = await self._save_conversation(
+                # Save conversation messages (conversation_id already created)
+                await self._save_conversation_messages(
+                    conversation_id=conversation_id,
                     message=message,
-                    response=content,
-                    context=context,
-                    auth=auth
+                    response=content
                 )
                 
                 return {
@@ -606,12 +611,11 @@ class UnifiedChatHandler:
                 auth_principal=auth
             )
             
-            # Save conversation even on error fallback
-            conversation_id = await self._save_conversation(
+            # Save conversation messages even on error fallback (conversation_id already created)
+            await self._save_conversation_messages(
+                conversation_id=conversation_id,
                 message=message,
-                response=result.get("response", ""),
-                context=context,
-                auth=auth
+                response=result.get("response", "")
             )
             
             result["_metadata"] = {
@@ -643,7 +647,23 @@ class UnifiedChatHandler:
         
         # Build context
         full_context = await self.build_context(auth, context)
-        
+
+        # Pre-create conversation_id for streaming
+        conversation_id = await self._get_or_create_conversation_id(message, context, auth)
+
+        # Update context with the conversation_id for any future operations
+        if context is None:
+            context = {}
+        context["conversation_id"] = conversation_id
+
+        # Emit conversation metadata as first event for V0.3 streaming
+        yield {
+            "type": "metadata",
+            "conversation_id": conversation_id,
+            "model": "unified-chat",
+            "timestamp": int(time.time())
+        }
+
         # Make routing decision
         llm_start = time.time()
         
@@ -1436,17 +1456,20 @@ Guidelines:
         
         return context
     
-    async def _save_conversation(self, message: str, response: str, context: Optional[dict], auth: dict) -> str:
-        """Save user message and AI response to conversation history.
-        
-        Returns the conversation_id (creates one if needed).
+    async def _get_or_create_conversation_id(self, message: str, context: Optional[dict], auth: dict) -> str:
+        """Get existing conversation_id or create a new conversation.
+
+        This method handles the conversation creation logic for streaming responses
+        where we need the conversation_id early in the stream.
+
+        Returns the conversation_id.
         """
         conversation_id = context.get("conversation_id") if context else None
         user_id = auth.get("user_id") or auth.get("sub") or "unknown"
-        
+
         try:
             from .conversation_store import chat_conversation_store
-            
+
             # Create conversation if needed
             if not conversation_id or conversation_id == "new":
                 conv = chat_conversation_store.create_conversation(
@@ -1467,30 +1490,60 @@ Guidelines:
                     )
                     conversation_id = conv["id"]  # Use the new ID
                     logger.info(f"Created new conversation: {conversation_id} (requested ID was not found)")
-            
+
+            return conversation_id
+
+        except Exception as e:
+            logger.error(f"Error getting/creating conversation: {e}")
+            # Fallback to user-based conversation ID
+            return f"{user_id}_fallback_{int(time.time())}"
+
+    async def _save_conversation_messages(self, conversation_id: str, message: str, response: str) -> None:
+        """Save user message and AI response to an existing conversation.
+
+        This method assumes the conversation already exists and just adds the messages.
+        """
+        try:
+            from .conversation_store import chat_conversation_store
+
             # Save user message first
             await asyncio.create_task(asyncio.to_thread(
                 chat_conversation_store.add_message,
                 conversation_id, "user", message
             ))
-            
+
             # Save AI response
             await asyncio.create_task(asyncio.to_thread(
                 chat_conversation_store.add_message,
                 conversation_id, "assistant", response
             ))
-            
-            # Update conversation preview
-            await asyncio.create_task(asyncio.to_thread(
-                chat_conversation_store.update_conversation,
-                user_id, conversation_id,
-                title=message[:50] + "..." if len(message) > 50 else message,
-                preview=response[:100] + "..." if len(response) > 100 else response
-            ))
-            
+
+            logger.info(f"Saved messages to conversation {conversation_id}")
+
+        except Exception as e:
+            logger.error(f"Error saving conversation messages: {e}")
+            # Don't fail the whole request if conversation saving fails
+
+    async def _save_conversation(self, message: str, response: str, context: Optional[dict], auth: dict) -> str:
+        """Save user message and AI response to conversation history.
+
+        Returns the conversation_id (creates one if needed).
+
+        NOTE: This method is kept for backwards compatibility and streaming use.
+        Non-streaming should use _save_conversation_messages() after pre-creating conversation_id.
+        """
+        try:
+            from .conversation_store import chat_conversation_store
+
+            # Get or create conversation_id using the shared method
+            conversation_id = await self._get_or_create_conversation_id(message, context, auth)
+
+            # Save messages using the new method
+            await self._save_conversation_messages(conversation_id, message, response)
+
             logger.info(f"Saved conversation for {conversation_id}")
             return conversation_id
-            
+
         except Exception as e:
             logger.error(f"Error saving conversation: {e}")
             # Don't fail the whole request if conversation saving fails

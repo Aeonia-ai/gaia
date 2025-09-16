@@ -182,23 +182,25 @@ async def unified_chat_endpoint(
         if response_format not in ["openai", "v0.3"]:
             response_format = "openai"  # Default to OpenAI format
         
-        # Validate conversation_id if provided
+        # Validate conversation_id if provided (with graceful handling for streaming)
         conversation_id = body.get("conversation_id")
-        if conversation_id:
-            # Check if the conversation actually exists
+        if conversation_id and conversation_id != "new":
+            # Only validate existing conversations, allow "new" and invalid IDs to pass through
+            # The unified chat handler will handle conversation creation gracefully
             try:
                 from .conversation_store import chat_conversation_store
                 user_id = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key", "unknown")
                 conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
-                
+
                 if conversation is None:
-                    # Conversation doesn't exist - return 404
+                    # For both streaming and non-streaming, return 404 for invalid conversation_id
+                    # This provides unified, REST-compliant behavior
                     raise HTTPException(
-                        status_code=404, 
+                        status_code=404,
                         detail=f"Conversation {conversation_id} not found"
                     )
             except HTTPException:
-                # Re-raise HTTP exceptions
+                # Re-raise HTTP exceptions for both streaming and non-streaming (unified behavior)
                 raise
             except Exception as e:
                 logger.error(f"Error validating conversation {conversation_id}: {e}")
