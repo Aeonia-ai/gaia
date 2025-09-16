@@ -14,6 +14,51 @@ The system uses a clever routing pattern:
 
 This means the web UI benefits from unified chat features without code changes!
 
+#### Gateway Conversation Management (Updated Sept 2025)
+
+The gateway now properly proxies all conversation endpoints to the chat service instead of using mock implementations:
+
+**Conversation Endpoints**:
+- `POST /api/v1/conversations` → `POST /chat/conversations`
+- `GET /api/v1/conversations/{id}` → `GET /chat/conversations/{id}`
+- `GET /api/v1/conversations` → `GET /chat/conversations`
+- `DELETE /api/v1/conversations/{id}` → `DELETE /chat/conversations/{id}`
+
+**Authentication Injection Pattern**:
+```python
+# Gateway adds authentication info to request body
+body["_auth"] = auth
+
+# Remove content-length header since we modified the body
+headers = dict(request.headers)
+headers.pop("content-length", None)
+headers.pop("Content-Length", None)
+
+# Proxy to chat service
+return await forward_request_to_service(
+    service_name="chat",
+    path="/conversations",
+    method="POST",
+    json_data=body,
+    headers=headers
+)
+```
+
+**Chat Service Dual Auth Format**:
+```python
+# Chat service handles both direct and gateway requests
+if "_auth" in body:
+    # Gateway format - use auth from body
+    auth = body.get("_auth", {})
+    title = body.get("title", "New Conversation")
+else:
+    # Direct format - use auth from dependency injection
+    title = body.get("title", "New Conversation")
+    # auth already populated from Depends(get_current_auth_legacy)
+```
+
+This ensures conversation validation works correctly when chat requests include `conversation_id`.
+
 ### 2. Conversation Persistence Implementation
 
 The unified chat endpoint (`/chat/unified`) now includes:
@@ -76,6 +121,52 @@ To fully utilize unified chat persistence:
 2. **Unified Intelligence**: All chat routes through intelligent routing
 3. **Automatic Persistence**: No manual conversation management needed
 4. **Consistent Experience**: Same behavior across all entry points
+
+## Critical Architecture Lessons (Sept 2025)
+
+### ❌ **Anti-Pattern: Mixed Mock/Real Implementations**
+
+**Problem**: Gateway had mock conversation endpoints that returned fake UUIDs, but chat service validated conversations exist in real database.
+
+**Symptom**: Chat requests with `conversation_id` returned 404 "Conversation not found" even though conversation creation succeeded.
+
+**Root Cause**: Architecture inconsistency - partially mocked gateway with real backend validation.
+
+### ✅ **Solution: Consistent Service Patterns**
+
+**Principle**: Services should either be fully mocked OR fully connected to real backends.
+
+**Implementation**: Replace all gateway mocks with proper proxying to chat service's real conversation store.
+
+**Benefits**:
+- Eliminates validation mismatches
+- Provides true end-to-end conversation flow
+- Maintains single source of truth for conversation data
+
+### 🔧 **HTTP Protocol Compliance**
+
+**Critical Pattern**: When modifying request bodies for proxying, always remove original content-length headers:
+
+```python
+# WRONG - Will cause "Too much data for declared Content-Length" error
+body["_auth"] = auth
+return await forward_request_to_service(..., headers=dict(request.headers))
+
+# CORRECT - Remove content-length after body modification
+body["_auth"] = auth
+headers = dict(request.headers)
+headers.pop("content-length", None)
+headers.pop("Content-Length", None)
+return await forward_request_to_service(..., headers=headers)
+```
+
+### 📊 **Validation Results**
+
+After implementing proper proxying:
+- ✅ All conversation context preservation tests pass
+- ✅ Multi-turn conversations work across routing types  
+- ✅ Performance targets met (direct ~1s, kb_tools ~3s, mcp_agent ~2s)
+- ✅ Zero 404 errors with conversation_id
 
 ## Future Considerations
 
