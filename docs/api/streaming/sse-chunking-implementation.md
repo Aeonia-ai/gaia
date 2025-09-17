@@ -227,12 +227,29 @@ The `[DONE]` signal is critical:
 - No artificial batching - send chunks as they arrive
 - This provides the best perceived performance
 
-### Word and JSON Boundary Behavior
+### Word, Sentence, and JSON Boundary Behavior
 
-**UPDATED (v3)**: GAIA now implements intelligent streaming buffer that preserves boundaries while minimizing overhead.
+**UPDATED (v3.1)**: GAIA now implements intelligent streaming buffer with configurable boundary modes for different client needs.
 
-#### Word Boundaries - ✅ Preserved in v3
-The v3 StreamBuffer ensures word boundaries are never split:
+#### Streaming Modes Available
+
+**1. Sentence Mode (Default)** - Optimized for readability
+- Only sends complete sentences (`.`, `!`, `?`)
+- Buffers all content until sentence completion
+- Best for applications that display complete thoughts
+
+**2. Phrase Mode** - Optimized for minimal latency
+- Sends complete phrases/clauses at punctuation (`.`, `!`, `?`, `:`, `;`, `\n`)
+- Falls back to word boundaries if no phrase endings found
+- Best for real-time chat experiences
+
+**3. Pass-through Mode** - No buffering
+- Sends chunks exactly as received from LLM
+- Minimal processing overhead
+- Best for custom client-side processing
+
+#### Word Boundaries - ✅ Preserved in v3+
+The v3+ StreamBuffer ensures word boundaries are never split:
 
 ```python
 # What LLMs send (may split words):
@@ -262,19 +279,64 @@ JSON directives are now kept intact through intelligent detection:
 "I'll spawn a fairy! ", "{\"m\":\"spawn_character\",\"p\":{\"type\":\"fairy\"}}"
 ```
 
-**Client Benefits with v3**:
+**Client Benefits with v3+**:
 1. **Simplified parsing** - JSON directives arrive complete
 2. **Real-time extraction** - Can parse directives as they arrive
 3. **No accumulation needed** - Each chunk is self-contained
 4. **Reduced complexity** - No need to handle split words/JSON
+5. **Configurable boundaries** - Choose phrase vs sentence mode based on UI needs
 
 ```python
-# With v3 - Parse directives immediately from each chunk
+# With v3+ - Parse directives immediately from each chunk
 async for chunk in stream:
     if chunk["type"] == "content":
         # Safe to parse - JSON will be complete if present
         directives = extract_json_directives(chunk["content"])
         display_text = remove_directives(chunk["content"])
+```
+
+#### Choosing the Right Mode
+
+**Use Sentence Mode when (Default):**
+- Building educational or documentation applications
+- Content is primarily prose/narrative
+- UI displays complete thoughts for better readability
+- Users read rather than scan content
+
+**Use Phrase Mode when:**
+- Building real-time chat interfaces
+- Users expect immediate response visibility
+- Minimizing perceived latency is critical
+- Content includes lists, explanations with colons/semicolons
+
+**Use Pass-through Mode when:**
+- Implementing custom client-side streaming logic
+- Building specialized processing pipelines
+- Maximum performance is required
+- Full control over chunk boundaries is needed
+
+#### Configuration Examples
+
+```python
+# Educational content (default)
+stream = create_smart_v03_stream(
+    chunks,
+    preserve_boundaries=True,
+    sentence_mode=True  # Sentence mode (default)
+)
+
+# Real-time chat
+stream = create_smart_v03_stream(
+    chunks,
+    preserve_boundaries=True,
+    sentence_mode=False  # Phrase mode
+)
+
+# Custom processing
+stream = create_smart_v03_stream(
+    chunks,
+    preserve_boundaries=False  # Pass-through mode
+)
 ```
 
 #### Implementation Details

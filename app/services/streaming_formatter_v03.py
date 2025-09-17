@@ -38,16 +38,18 @@ async def create_v03_stream(
 async def create_smart_v03_stream(
     chunk_generator: AsyncGenerator[Dict[str, Any], None],
     preserve_boundaries: bool = True,
-    preserve_json: bool = True
+    preserve_json: bool = True,
+    sentence_mode: bool = True
 ) -> AsyncGenerator[str, None]:
     """
     Create a v0.3 SSE stream with smart buffering for word/JSON boundaries.
-    
+
     Args:
         chunk_generator: Original stream of chunks
         preserve_boundaries: Whether to preserve word boundaries
         preserve_json: Whether to buffer JSON directives
-        
+        sentence_mode: If True, only sends complete sentences (. ! ?) - DEFAULT
+
     Yields:
         SSE-formatted events in v0.3 format with preserved boundaries
     """
@@ -55,9 +57,10 @@ async def create_smart_v03_stream(
     buffered_stream = create_buffered_stream(
         chunk_generator,
         preserve_boundaries=preserve_boundaries,
-        preserve_json=preserve_json
+        preserve_json=preserve_json,
+        sentence_mode=sentence_mode
     )
-    
+
     # Then format as v0.3 SSE
     async for event in create_v03_stream(buffered_stream):
         yield event

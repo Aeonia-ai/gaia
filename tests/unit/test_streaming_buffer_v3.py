@@ -7,7 +7,7 @@ from app.services.streaming_buffer import StreamBuffer, create_buffered_stream
 
 
 class TestStreamBufferV3:
-    """Test the v3 StreamBuffer with optimized phrase batching"""
+    """Test the v3 StreamBuffer with optimized phrase batching and sentence mode"""
     
     @pytest.mark.asyncio
     async def test_complete_sentence_batching(self):
@@ -264,6 +264,73 @@ class TestStreamBufferV3:
         assert results[0]["provider"] == "openai"
         assert results[1]["content"] == "world!"  # Punctuation = complete
         assert results[1]["provider"] == "openai"
+
+    @pytest.mark.asyncio
+    async def test_sentence_mode_default_behavior(self):
+        """Test that sentence mode is the default and behaves correctly"""
+        # Test that default constructor uses sentence mode
+        buffer = StreamBuffer()
+        assert buffer.sentence_mode == True, "StreamBuffer should default to sentence_mode=True"
+
+        # Test sentence mode behavior vs phrase mode behavior
+        test_content = "Hello there! How are you: doing today; thanks."
+
+        # Default (sentence mode) behavior
+        sentence_chunks = []
+        async for chunk in buffer.process(test_content):
+            sentence_chunks.append(chunk)
+
+        # Explicit phrase mode behavior
+        phrase_buffer = StreamBuffer(sentence_mode=False)
+        phrase_chunks = []
+        async for chunk in phrase_buffer.process(test_content):
+            phrase_chunks.append(chunk)
+
+        # Sentence mode should produce fewer chunks (only at . ! ?)
+        # Phrase mode should produce more chunks (at : ; as well)
+        assert len(sentence_chunks) < len(phrase_chunks), "Sentence mode should produce fewer chunks than phrase mode"
+
+        # Verify the actual chunking behavior
+        # Sentence mode: should split only at "!" and "."
+        expected_sentence = ["Hello there! ", "How are you: doing today; thanks."]
+        assert sentence_chunks == expected_sentence, f"Expected {expected_sentence}, got {sentence_chunks}"
+
+        # Phrase mode: should split at "!", ":", and ";"
+        expected_phrase = ["Hello there! ", "How are you: ", "doing today; ", "thanks."]
+        assert phrase_chunks == expected_phrase, f"Expected {expected_phrase}, got {phrase_chunks}"
+
+    @pytest.mark.asyncio
+    async def test_create_buffered_stream_sentence_default(self):
+        """Test that create_buffered_stream also defaults to sentence mode"""
+        chunks = [
+            {"type": "content", "content": "First sentence. Second: clause; here."}
+        ]
+
+        async def async_gen(items):
+            for item in items:
+                yield item
+
+        # Test with default parameters (should be sentence mode)
+        results_default = []
+        async for chunk in create_buffered_stream(async_gen(chunks)):
+            results_default.append(chunk)
+
+        # Test with explicit sentence_mode=False (phrase mode)
+        results_phrase = []
+        async for chunk in create_buffered_stream(async_gen(chunks), sentence_mode=False):
+            results_phrase.append(chunk)
+
+        # Default should behave like sentence mode (fewer chunks)
+        # Sentence mode: "First sentence. Second: clause; here."
+        assert len(results_default) == 1
+        assert results_default[0]["content"] == "First sentence. Second: clause; here."
+
+        # Phrase mode: "First sentence. " + "Second: " + "clause; " + "here."
+        assert len(results_phrase) == 4
+        assert results_phrase[0]["content"] == "First sentence. "
+        assert results_phrase[1]["content"] == "Second: "
+        assert results_phrase[2]["content"] == "clause; "
+        assert results_phrase[3]["content"] == "here."
 
 
 if __name__ == "__main__":
