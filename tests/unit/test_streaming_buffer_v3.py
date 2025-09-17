@@ -280,10 +280,18 @@ class TestStreamBufferV3:
         async for chunk in buffer.process(test_content):
             sentence_chunks.append(chunk)
 
+        # Flush any remaining content
+        async for chunk in buffer.flush():
+            sentence_chunks.append(chunk)
+
         # Explicit phrase mode behavior
         phrase_buffer = StreamBuffer(sentence_mode=False)
         phrase_chunks = []
         async for chunk in phrase_buffer.process(test_content):
+            phrase_chunks.append(chunk)
+
+        # Flush any remaining content
+        async for chunk in phrase_buffer.flush():
             phrase_chunks.append(chunk)
 
         # Sentence mode should produce fewer chunks (only at . ! ?)
@@ -291,12 +299,12 @@ class TestStreamBufferV3:
         assert len(sentence_chunks) < len(phrase_chunks), "Sentence mode should produce fewer chunks than phrase mode"
 
         # Verify the actual chunking behavior
-        # Sentence mode: should split only at "."
-        expected_sentence = ["First statement. "]
+        # Sentence mode: should split only at "." (fewer chunks)
+        expected_sentence = ["First statement. ", "Second: here we go; and more ", "text"]
         assert sentence_chunks == expected_sentence, f"Expected {expected_sentence}, got {sentence_chunks}"
 
-        # Phrase mode: should split at ".", ":", and ";"
-        expected_phrase = ["First statement. ", "Second: ", "here we go; "]
+        # Phrase mode: should split at ".", ":", and ";" (more chunks)
+        expected_phrase = ["First statement. ", "Second: ", "here we go; ", "and more ", "text"]
         assert phrase_chunks == expected_phrase, f"Expected {expected_phrase}, got {phrase_chunks}"
 
     @pytest.mark.asyncio
@@ -321,11 +329,12 @@ class TestStreamBufferV3:
             results_phrase.append(chunk)
 
         # Default should behave like sentence mode (fewer chunks)
-        # Sentence mode: "First sentence. Second: clause; here."
-        assert len(results_default) == 1
-        assert results_default[0]["content"] == "First sentence. Second: clause; here."
+        # Sentence mode: splits only at sentence endings (.)
+        assert len(results_default) == 2
+        assert results_default[0]["content"] == "First sentence. "
+        assert results_default[1]["content"] == "Second: clause; here."
 
-        # Phrase mode: "First sentence. " + "Second: " + "clause; " + "here."
+        # Phrase mode: splits at sentence endings (.) and phrase endings (: ;)
         assert len(results_phrase) == 4
         assert results_phrase[0]["content"] == "First sentence. "
         assert results_phrase[1]["content"] == "Second: "

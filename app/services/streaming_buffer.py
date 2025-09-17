@@ -159,94 +159,86 @@ class StreamBuffer:
         # Determine which endings to use based on mode
         preferred_endings = self.sentence_endings if self.sentence_mode else self.phrase_endings
 
-        # Case 1: Text ends with preferred ending - send it all
+        # Case 1: Text ends with preferred ending
+        # But first check if there are multiple endings inside that we should split on
         if text and text[-1] in preferred_endings:
-            yield text
-            return
+            # Count how many preferred endings we have
+            ending_count = sum(text.count(ending) for ending in preferred_endings)
+            if ending_count == 1:
+                # Only one ending and it's at the end - send it all
+                yield text
+                return
+            # If multiple endings, fall through to Case 3 to split properly
         
-        # Case 2: In sentence mode, don't send on whitespace unless we have sentences
-        if not self.sentence_mode and text and text[-1] in (' ', '\t', '\n'):
+        # Case 2: Text ends with whitespace - all words are complete
+        if text and text[-1] in (' ', '\t', '\n'):
             yield text
             return
 
         # Case 3: Check if we have a good breaking point
-        # Look for preferred endings first (sentences or phrases based on mode)
-        best_break = -1
+        # Find the first occurrence of any preferred ending to create proper chunking
+        first_break = len(text)
         for ending in preferred_endings:
-            pos = text.rfind(ending)
-            if pos > best_break:
-                best_break = pos
-        
+            pos = text.find(ending)
+            if pos != -1 and pos < first_break:
+                first_break = pos
+
         # If we found a preferred ending, send everything up to there
-        if best_break >= 0:
+        if first_break < len(text):
             # Include the punctuation
-            complete_part = text[:best_break + 1]
+            complete_part = text[:first_break + 1]
 
             # Check if there's content after the punctuation
-            remainder = text[best_break + 1:]
-            
+            remainder = text[first_break + 1:]
+
             # If remainder starts with space, include it in the complete part
             if remainder and remainder[0] in (' ', '\t', '\n'):
                 # Find where the next word starts
                 i = 0
                 while i < len(remainder) and remainder[i] in (' ', '\t', '\n'):
                     i += 1
-                
+
                 # Include the whitespace in the complete part
                 if i > 0:
                     complete_part += remainder[:i]
                     remainder = remainder[i:]
-            
+
             # Send the complete phrase
             if complete_part:
                 yield complete_part
-            
+
             # Process the remainder
             if remainder:
-                # If remainder has more complete content, process it
-                if any(boundary in remainder for boundary in (' ', '\t', '\n')):
-                    async for chunk in self._process_text(remainder, final):
-                        yield chunk
-                else:
-                    # Remainder is an incomplete word, buffer it
-                    self.incomplete_buffer = remainder
+                # If remainder has more complete content, process it recursively
+                async for chunk in self._process_text(remainder, final):
+                    yield chunk
             return
         
-        # Case 4: No preferred endings found
-        if self.sentence_mode:
-            # In sentence mode, buffer everything until we get a sentence ending
-            # Only send word boundaries as last resort or if final flush
+        # Case 4: No preferred endings found - fall back to word boundaries
+        # Both sentence and phrase mode should send complete words
+        last_space = -1
+        for boundary in (' ', '\t', '\n', ','):
+            pos = text.rfind(boundary)
+            if pos > last_space:
+                last_space = pos
+
+        if last_space >= 0:
+            # Send complete words
+            complete_part = text[:last_space + 1]
+            yield complete_part
+
+            # Buffer the incomplete word
+            remainder = text[last_space + 1:]
+            if remainder and not final:
+                self.incomplete_buffer = remainder
+            elif remainder and final:
+                yield remainder
+        else:
+            # No boundaries at all - single incomplete word
             if final:
-                # Final flush - send everything even if incomplete sentence
                 yield text
             else:
-                # Buffer everything - wait for sentence completion
                 self.incomplete_buffer = text
-        else:
-            # Phrase mode: look for word boundaries as fallback
-            last_space = -1
-            for boundary in (' ', '\t', '\n', ','):
-                pos = text.rfind(boundary)
-                if pos > last_space:
-                    last_space = pos
-
-            if last_space >= 0:
-                # Send complete words
-                complete_part = text[:last_space + 1]
-                yield complete_part
-
-                # Buffer the incomplete word
-                remainder = text[last_space + 1:]
-                if remainder and not final:
-                    self.incomplete_buffer = remainder
-                elif remainder and final:
-                    yield remainder
-            else:
-                # No boundaries at all - single incomplete word
-                if final:
-                    yield text
-                else:
-                    self.incomplete_buffer = text
     
     async def flush(self) -> AsyncGenerator[str, None]:
         """
