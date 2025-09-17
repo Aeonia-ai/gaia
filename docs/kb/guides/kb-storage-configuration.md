@@ -7,6 +7,55 @@
 
 The KB service supports multiple storage backends that can be selected via environment variables. While Git storage is the default for simplicity, database and hybrid modes are fully implemented and available for production use.
 
+## Verified Working Configurations
+
+### Simple Configuration (Recommended for Getting Started)
+
+**Last Verified**: September 2025
+**Status**: ✅ Fully Working with Search
+
+This configuration has been thoroughly tested and provides reliable KB search functionality:
+
+```bash
+# Storage Configuration
+KB_STORAGE_MODE=git              # Use pure Git storage (not hybrid)
+KB_PATH=/kb                      # Container path for KB files
+
+# Multi-User Features (DISABLED)
+KB_MULTI_USER_ENABLED=false      # Critical: Must be false for Git mode
+KB_USER_ISOLATION=none           # No user isolation
+KB_DEFAULT_VISIBILITY=public     # All content is public
+KB_SHARING_ENABLED=false         # No sharing features
+KB_WORKSPACE_ENABLED=false       # No workspaces
+KB_TEAM_ENABLED=false           # No teams
+
+# Git Configuration (for backup/sync)
+KB_GIT_AUTO_SYNC=true
+KB_GIT_AUTO_CLONE=true
+KB_GIT_REPO_URL=https://github.com/your-org/knowledge-base
+KB_GIT_AUTH_TOKEN=your_github_token  # For private repos
+KB_GIT_BRANCH=main
+```
+
+**What This Provides:**
+- ✅ Full-text search using ripgrep (fast and reliable)
+- ✅ File-based KB operations
+- ✅ Git synchronization for backup
+- ✅ No database dependencies for search
+- ✅ No Redis caching issues
+
+**Known Issues Fixed by This Configuration:**
+- Resolves "relation kb_search_index does not exist" errors
+- Eliminates Redis async/await compatibility issues
+- Bypasses RBAC UUID validation problems
+- Ensures ripgrep-based search works correctly
+
+**When to Use:**
+- Initial setup and testing
+- Single-user or small team deployments
+- When troubleshooting search issues
+- As a fallback when complex configurations fail
+
 ## Storage Modes
 
 ### Git Storage (Default)
@@ -215,6 +264,63 @@ KB_GIT_AUTH_TOKEN=token
 | Hybrid | ~5ms (DB primary) | Fast (<10ms) | ✅ | Automatic |
 
 ## Troubleshooting
+
+### KB Search Returns No Results
+
+**Common Causes and Solutions:**
+
+1. **RBAC/Multi-User Issues**
+   - Error: "relation kb_search_index does not exist"
+   - Solution: Disable multi-user mode and switch to Git storage
+   ```bash
+   KB_MULTI_USER_ENABLED=false
+   KB_STORAGE_MODE=git
+   ```
+
+2. **Redis Cache Async/Await Errors**
+   - Error: "object NoneType can't be used in 'await' expression"
+   - Solution: Temporarily disable cache in kb_cache.py or fix async calls
+   ```python
+   # In kb_cache.py, change:
+   self.enabled = False  # Temporary fix
+   ```
+
+3. **Hybrid Mode Database Issues**
+   - Error: Search returns 0 results despite content existing
+   - Solution: Switch to pure Git mode for reliable ripgrep search
+   ```bash
+   KB_STORAGE_MODE=git  # Not "hybrid"
+   ```
+
+4. **Environment Variables Not Reloading**
+   - Issue: Changes to .env not taking effect after restart
+   - Solution: Recreate containers, not just restart
+   ```bash
+   docker compose up -d --force-recreate kb-service
+   ```
+
+### Verifying KB Search is Working
+
+1. **Test ripgrep directly in container:**
+   ```bash
+   docker exec gaia-kb-service-1 rg "search-term" /kb --type md
+   ```
+
+2. **Test KB service endpoint:**
+   ```bash
+   docker exec gaia-kb-service-1 curl -X POST "http://localhost:8000/search" \
+     -H "X-API-Key: $API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"message": "test"}'
+   ```
+
+3. **Check via chat API:**
+   ```bash
+   curl -X POST "http://localhost:8666/api/v1/chat" \
+     -H "X-API-Key: $API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"message": "Search the knowledge base for test", "stream": false}'
+   ```
 
 ### Storage Mode Not Switching
 

@@ -29,7 +29,8 @@ class KBCache:
     
     def __init__(self, ttl: int = 3600, enabled: bool = True):
         self.ttl = ttl  # Default 1 hour
-        self.enabled = enabled and redis_client.is_connected()
+        # Temporarily disable cache to debug search issues
+        self.enabled = False  # was: enabled and redis_client.is_connected()
         self.prefix = "kb:cache:"
         
         if not self.enabled:
@@ -53,7 +54,7 @@ class KBCache:
             cache_id = f"{query}:{','.join(contexts or [])}"
             key = self._make_key("search", self._hash_query(cache_id))
             
-            data = await redis_client.get(key)
+            data = redis_client.get(key)
             if data:
                 logger.debug(f"Cache hit for search: {query}")
                 return json.loads(data)
@@ -74,7 +75,7 @@ class KBCache:
             # Add cache metadata
             results["_cached_at"] = datetime.now().isoformat()
             
-            await redis_client.set(
+            redis_client.set(
                 key, 
                 json.dumps(results),
                 ex=self.ttl
@@ -90,7 +91,7 @@ class KBCache:
             
         try:
             key = self._make_key("file", file_path.replace("/", "_"))
-            data = await redis_client.get(key)
+            data = redis_client.get(key)
             
             if data:
                 logger.debug(f"Cache hit for file: {file_path}")
@@ -114,7 +115,7 @@ class KBCache:
                 "_cached_at": datetime.now().isoformat()
             }
             
-            await redis_client.set(
+            redis_client.set(
                 key,
                 json.dumps(cache_data),
                 ex=self.ttl
@@ -130,7 +131,7 @@ class KBCache:
             
         try:
             key = self._make_key("context", context_name)
-            data = await redis_client.get(key)
+            data = redis_client.get(key)
             
             if data:
                 logger.debug(f"Cache hit for context: {context_name}")
@@ -151,7 +152,7 @@ class KBCache:
             # Add cache metadata
             context_data["_cached_at"] = datetime.now().isoformat()
             
-            await redis_client.set(
+            redis_client.set(
                 key,
                 json.dumps(context_data),
                 ex=self.ttl * 2  # Contexts are more stable, cache longer
@@ -168,7 +169,7 @@ class KBCache:
         try:
             cache_id = f"{start_path}:depth{max_depth}"
             key = self._make_key("nav", self._hash_query(cache_id))
-            data = await redis_client.get(key)
+            data = redis_client.get(key)
             
             if data:
                 logger.debug(f"Cache hit for navigation: {start_path}")
@@ -190,7 +191,7 @@ class KBCache:
             # Add cache metadata
             nav_data["_cached_at"] = datetime.now().isoformat()
             
-            await redis_client.set(
+            redis_client.set(
                 key,
                 json.dumps(nav_data),
                 ex=self.ttl * 4  # Navigation is very stable, cache longer
