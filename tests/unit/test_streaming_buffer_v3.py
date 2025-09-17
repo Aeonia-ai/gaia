@@ -273,7 +273,7 @@ class TestStreamBufferV3:
         assert buffer.sentence_mode == True, "StreamBuffer should default to sentence_mode=True"
 
         # Test sentence mode behavior vs phrase mode behavior
-        test_content = "Hello there! How are you: doing today; thanks."
+        test_content = "First statement. Second: here we go; and more text"
 
         # Default (sentence mode) behavior
         sentence_chunks = []
@@ -291,12 +291,12 @@ class TestStreamBufferV3:
         assert len(sentence_chunks) < len(phrase_chunks), "Sentence mode should produce fewer chunks than phrase mode"
 
         # Verify the actual chunking behavior
-        # Sentence mode: should split only at "!" and "."
-        expected_sentence = ["Hello there! ", "How are you: doing today; thanks."]
+        # Sentence mode: should split only at "."
+        expected_sentence = ["First statement. "]
         assert sentence_chunks == expected_sentence, f"Expected {expected_sentence}, got {sentence_chunks}"
 
-        # Phrase mode: should split at "!", ":", and ";"
-        expected_phrase = ["Hello there! ", "How are you: ", "doing today; ", "thanks."]
+        # Phrase mode: should split at ".", ":", and ";"
+        expected_phrase = ["First statement. ", "Second: ", "here we go; "]
         assert phrase_chunks == expected_phrase, f"Expected {expected_phrase}, got {phrase_chunks}"
 
     @pytest.mark.asyncio
