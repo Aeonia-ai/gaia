@@ -35,9 +35,12 @@ from .kb_service import (
     kb_synthesize_contexts_endpoint,
     kb_get_threads_endpoint,
     kb_read_file_endpoint,
-    kb_list_directory_endpoint
+    kb_list_directory_endpoint,
+    claude_code_execute_endpoint
 )
 from .kb_editor import kb_editor
+from .agent_endpoints import router as agent_router
+from .kb_agent import kb_agent
 from app.models.kb import WriteRequest, DeleteRequest, MoveRequest
 
 # Configure logging
@@ -97,7 +100,14 @@ async def lifespan(app: FastAPI):
         
     except Exception as e:
         logger.warning(f"Git sync manager not available: {e}")
-    
+
+    # Initialize KB Intelligent Agent
+    try:
+        await kb_agent.initialize(kb_storage)
+        logger.info("KB Intelligent Agent initialized and ready")
+    except Exception as e:
+        logger.error(f"Failed to initialize KB Agent: {e}")
+
     yield
     
     # Shutdown
@@ -298,10 +308,27 @@ async def kb_list_directory(
 ) -> dict:
     """
     List files in a KB directory.
-    
+
     The message field contains the directory path.
     """
     return await kb_list_directory_endpoint(request, auth)
+
+@app.post("/claude-code")
+async def claude_code_execute(
+    request: ChatRequest,
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Execute Claude Code commands via subprocess and return results.
+
+    The message field contains the Claude Code command to execute.
+    Example commands:
+    - "search for authentication patterns"
+    - "read app/models/user.py"
+    - "help"
+    - "analyze codebase structure"
+    """
+    return await claude_code_execute_endpoint(request, auth)
 
 # Cache management endpoints
 @app.get("/cache/stats")
@@ -555,6 +582,10 @@ logger.info("✅ v0.2 API router included for KB service")
 if kb_rbac_router:
     app.include_router(kb_rbac_router, prefix="/api/v1")
     logger.info("✅ RBAC endpoints added for multi-user KB")
+
+# Add KB Agent router
+app.include_router(agent_router)
+logger.info("✅ KB Agent endpoints added")
 
 from datetime import datetime
 
