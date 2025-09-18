@@ -82,8 +82,30 @@ class HotLoadedChatService:
             # Initialize agent
             await agent.__aenter__()
             
-            # Attach LLM (reused across requests)
-            llm = await agent.attach_llm(AnthropicAugmentedLLM)
+            # TEMPORARY FIX: Bypass MCP agent due to authentication issues
+            # Use direct Anthropic client instead of AnthropicAugmentedLLM
+            import os
+            import anthropic
+
+            class DirectAnthropicLLM:
+                def __init__(self, agent):
+                    self.agent = agent
+                    self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+                async def generate_str(self, message, request_params=None):
+                    try:
+                        response = self.client.messages.create(
+                            model=request_params.model if request_params and hasattr(request_params, 'model') else "claude-3-5-sonnet-20241022",
+                            max_tokens=request_params.maxTokens if request_params and hasattr(request_params, 'maxTokens') else 2000,
+                            temperature=request_params.temperature if request_params and hasattr(request_params, 'temperature') else 0.7,
+                            messages=[{"role": "user", "content": message}]
+                        )
+                        return response.content[0].text
+                    except Exception as e:
+                        logger.error(f"Direct Anthropic LLM error: {e}")
+                        return f"[Agent {self.agent.name}] Error processing request"
+
+            llm = DirectAnthropicLLM(agent)
             
             # Store both agent and LLM reference
             self._agents[agent_key] = (agent, llm)

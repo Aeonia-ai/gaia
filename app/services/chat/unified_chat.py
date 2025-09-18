@@ -99,23 +99,6 @@ class UnifiedChatHandler:
             {
                 "type": "function",
                 "function": {
-                    "name": "use_mcp_agent",
-                    "description": "Use this ONLY when the user explicitly asks to: read/write files outside KB, run system commands, search the web, make API calls, or perform system operations. Do NOT use for general questions or KB operations.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "reasoning": {
-                                "type": "string",
-                                "description": "Brief explanation of why MCP agent is needed"
-                            }
-                        },
-                        "required": ["reasoning"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
                     "name": "use_asset_service", 
                     "description": "Use this ONLY when the user explicitly asks to generate/create an image, 3D model, audio file, or video. Must explicitly mention visual/audio asset types like 'image', 'picture', 'photo', '3D model', 'audio', 'sound', 'video'. Do NOT use for text content, missions, stories, or game content.",
                     "parameters": {
@@ -378,47 +361,7 @@ class UnifiedChatHandler:
                 else:
                     tool_args = tool_args_raw
                 
-                if tool_name == "use_mcp_agent":
-                    # Route to MCP agent for tool use
-                    route_type = RouteType.MCP_AGENT
-                    self._routing_metrics[route_type] += 1
-                    
-                    logger.info(
-                        f"[{request_id}] Routing to MCP agent - {tool_args.get('reasoning', 'No reason provided')}"
-                    )
-                    
-                    # Use the hot-loaded MCP service
-                    from app.models.chat import ChatRequest
-                    chat_request = ChatRequest(message=message)
-                    
-                    result = await self.mcp_hot_service.process_chat(
-                        request=chat_request,
-                        auth_principal=auth
-                    )
-                    
-                    # Add routing metadata
-                    routing_overhead = llm_time  # Time to decide routing
-                    result["_metadata"] = {
-                        "route_type": route_type,
-                        "routing_time_ms": int(routing_overhead),
-                        "total_time_ms": int((time.time() - start_time) * 1000),
-                        "reasoning": tool_args.get("reasoning"),
-                        "request_id": request_id
-                    }
-                    
-                    # Save conversation messages (conversation_id already created)
-                    await self._save_conversation_messages(
-                        conversation_id=conversation_id,
-                        message=message,
-                        response=result.get("response", "")
-                    )
-
-                    # Add conversation_id to metadata
-                    result["_metadata"]["conversation_id"] = conversation_id
-                    
-                    return result
-                
-                elif tool_name == "use_asset_service":
+                if tool_name == "use_asset_service":
                     # Route to Asset service
                     route_type = RouteType.MCP_AGENT  # For now, use MCP agent for assets
                     self._routing_metrics[route_type] += 1
@@ -839,82 +782,6 @@ class UnifiedChatHandler:
                     return
                 
                 # Tool-routed responses - simulate streaming for better UX
-                elif tool_name == "use_mcp_agent":
-                    route_type = RouteType.MCP_AGENT
-                    self._routing_metrics[route_type] += 1
-                    
-                    logger.info(f"[{request_id}] Routing to MCP agent with simulated streaming")
-                    
-                    from app.models.chat import ChatRequest
-                    chat_request = ChatRequest(message=message)
-                    
-                    # Get the full response from MCP agent
-                    result = await self.mcp_hot_service.process_chat(
-                        request=chat_request,
-                        auth_principal=auth
-                    )
-                    
-                    # Extract the content
-                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    model = result.get("model", "unknown")
-                    
-                    # Stream the content in chunks for better perceived performance
-                    # Use larger chunks for tool responses since they often contain structured data
-                    chunk_size = 50  # Characters per chunk
-                    
-                    # First chunk with role
-                    yield {
-                        "id": request_id,
-                        "object": "chat.completion.chunk",
-                        "created": int(time.time()),
-                        "model": model,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {"role": "assistant"},
-                            "finish_reason": None
-                        }]
-                    }
-                    
-                    # Stream content chunks on word boundaries
-                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
-                    for chunk_text in chunks:
-                        
-                        yield {
-                            "id": request_id,
-                            "object": "chat.completion.chunk",
-                            "created": int(time.time()),
-                            "model": model,
-                            "choices": [{
-                                "index": 0,
-                                "delta": {"content": chunk_text},
-                                "finish_reason": None
-                            }]
-                        }
-                        
-                        # Small delay to simulate streaming (shorter than direct responses)
-                        await asyncio.sleep(0.005)
-                    
-                    # Final chunk with metadata
-                    yield {
-                        "id": request_id,
-                        "object": "chat.completion.chunk",
-                        "created": int(time.time()),
-                        "model": model,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {},
-                            "finish_reason": "stop"
-                        }],
-                        "_metadata": {
-                            "route_type": route_type.value,
-                            "routing_time_ms": int(llm_time),
-                            "total_time_ms": int((time.time() - start_time) * 1000),
-                            "reasoning": tool_args.get("reasoning"),
-                            "request_id": request_id,
-                            "mcp_response_time_ms": result.get("_response_time_ms", 0)
-                        }
-                    }
-                
                 elif tool_name == "use_kb_service":
                     # KB service streaming
                     route_type = RouteType.MCP_AGENT  # Using MCP for now
@@ -1336,15 +1203,9 @@ Respond DIRECTLY (without tools) for:
 - Hypotheticals and theoretical questions ("What if...", "Imagine...")
 
 Use tools ONLY when the user explicitly asks for:
-- File system operations: "read file X", "create file Y", "list files in directory Z", "what files are in..."
-  → use_mcp_agent
 - Knowledge base operations are handled directly with KB tools (search_knowledge_base, read_kb_file, etc.)
 - Asset generation: "generate an image of...", "create a 3D model of...", "make audio of..."
   → use_asset_service
-- Web searches: "search the web for...", "find online information about...", "what's the latest news on..."
-  → use_mcp_agent
-- System commands: "run command X", "execute script Y", "what's the current time/date"
-  → use_mcp_agent
 - Complex analysis requiring multiple perspectives: "analyze this from technical, business, and legal angles"
   → use_multiagent_orchestration
 
@@ -1430,7 +1291,6 @@ Guidelines:
         
         # Check routing tools
         routing_tool_map = {
-            'use_mcp_agent': 'mcp_agent',
             'use_asset_service': 'asset_service',
             'use_kb_service': 'kb_service',
             'use_multiagent_orchestration': 'multiagent'
