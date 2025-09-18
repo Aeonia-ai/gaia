@@ -527,21 +527,59 @@ def setup_routes(app):
             try {{
                 const data = JSON.parse(event.data);
                 
-                if (data.type === 'content') {{
-                    // First content chunk - replace loading indicator
+                if (data.type === 'metadata' && data.phase) {{
+                    // Handle progressive phases
+                    if (data.phase === 'immediate') {{
+                        // Replace loading with immediate acknowledgment
+                        const immediateContent = data.data.content || '🤖 Coordinating technical, knowledge_management agents...';
+                        loadingEl.outerHTML = `<div id="response-{message_id}" class="flex justify-start mb-4 animate-slideInLeft">
+                            <div class="bg-slate-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg hover:shadow-xl transition-all duration-300">
+                                <div id="response-content-{message_id}" class="whitespace-pre-wrap break-words">${{immediateContent}}</div>
+                                <div class="flex items-center justify-between mt-2 text-xs opacity-70">
+                                    <span>Gaia KB Agent</span>
+                                    <span class="text-blue-400">Initializing...</span>
+                                </div>
+                            </div>
+                        </div>`;
+                    }} else if (data.phase === 'analysis') {{
+                        // Update with analysis status
+                        const contentEl = document.getElementById('response-content-{message_id}');
+                        if (contentEl) {{
+                            const analysisContent = data.data.content || '📊 Analyzing knowledge base content and making intelligent decisions...';
+                            contentEl.textContent = analysisContent;
+                            // Update status
+                            const statusEl = contentEl.parentElement.querySelector('.text-blue-400');
+                            if (statusEl) statusEl.textContent = 'Analyzing...';
+                        }}
+                    }} else if (data.phase === 'complete') {{
+                        // Update final status
+                        const statusEl = document.getElementById('response-{message_id}').querySelector('.text-blue-400');
+                        if (statusEl) {{
+                            const totalTime = data.data.total_time || 'unknown';
+                            statusEl.textContent = `Completed in ${{totalTime}}ms`;
+                            statusEl.classList.remove('text-blue-400');
+                            statusEl.classList.add('text-green-400');
+                        }}
+                    }}
+                }}
+                else if (data.type === 'content') {{
+                    // Progressive content - append to existing content
                     if (!responseStarted) {{
                         responseStarted = true;
                         clearTimeout(timeoutId);
                         const timestamp = new Date().toLocaleTimeString('en-US', {{ hour: 'numeric', minute: '2-digit' }});
-                        loadingEl.outerHTML = `<div id="response-{message_id}" class="flex justify-start mb-4 animate-slideInLeft">
-                            <div class="bg-slate-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg hover:shadow-xl transition-all duration-300">
-                                <div id="response-content-{message_id}" class="whitespace-pre-wrap break-words"></div>
-                                <div class="flex items-center justify-between mt-2 text-xs opacity-70">
-                                    <span>Gaia</span>
-                                    <span>${{timestamp}}</span>
+                        // Initialize response if not already done by metadata
+                        if (!document.getElementById('response-{message_id}')) {{
+                            loadingEl.outerHTML = `<div id="response-{message_id}" class="flex justify-start mb-4 animate-slideInLeft">
+                                <div class="bg-slate-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg hover:shadow-xl transition-all duration-300">
+                                    <div id="response-content-{message_id}" class="whitespace-pre-wrap break-words"></div>
+                                    <div class="flex items-center justify-between mt-2 text-xs opacity-70">
+                                        <span>Gaia</span>
+                                        <span>${{timestamp}}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>`;
+                            </div>`;
+                        }}
                     }}
                     
                     // Append content to response
@@ -640,6 +678,7 @@ def setup_routes(app):
         logger.info(f"Stream response - message: {message}, conv: {conversation_id}, has_jwt: {bool(jwt_token)}, user_id: {user_id}")
         
         async def event_generator():
+            import json  # Import json for error handling
             logger.info(f"Starting SSE generator for conversation {conversation_id}")
             try:
                 # Get conversation history from chat service
@@ -686,22 +725,29 @@ def setup_routes(app):
                                         response_content += content
                                         # Send the content chunk in our format
                                         yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
-                                    
-                                    # Check for finish reason
-                                    finish_reason = choices[0].get("finish_reason")
-                                    if finish_reason == "stop":
-                                        # Save BEFORE sending [DONE] to ensure it completes
-                                        if conversation_id and response_content:
-                                            logger.info(f"Saving AI response (finish stop): conversation_id={conversation_id}, content_length={len(response_content)}")
-                                            try:
-                                                await chat_service_client.add_message(conversation_id, "assistant", response_content, jwt_token=jwt_token)
-                                                logger.info(f"Successfully saved AI response to conversation {conversation_id}")
-                                                await chat_service_client.update_conversation(user_id, conversation_id, preview=response_content, jwt_token=jwt_token)
-                                                logger.info(f"Successfully updated conversation preview")
-                                            except Exception as e:
-                                                logger.error(f"Failed to save AI response: {e}", exc_info=True)
-                                        yield f"data: [DONE]\n\n"
-                                        break
+
+                                # Handle progressive metadata events
+                                if chunk_data.get("_metadata"):
+                                    metadata = chunk_data["_metadata"]
+                                    # Send progressive metadata events for client-side UI updates
+                                    if metadata.get("phase"):
+                                        yield f"data: {json.dumps({'type': 'metadata', 'phase': metadata['phase'], 'data': metadata})}\n\n"
+
+                                # Check for finish reason
+                                finish_reason = choices[0].get("finish_reason") if choices else None
+                                if finish_reason == "stop":
+                                    # Save BEFORE sending [DONE] to ensure it completes
+                                    if conversation_id and response_content:
+                                        logger.info(f"Saving AI response (finish stop): conversation_id={conversation_id}, content_length={len(response_content)}")
+                                        try:
+                                            await chat_service_client.add_message(conversation_id, "assistant", response_content, jwt_token=jwt_token)
+                                            logger.info(f"Successfully saved AI response to conversation {conversation_id}")
+                                            await chat_service_client.update_conversation(user_id, conversation_id, preview=response_content, jwt_token=jwt_token)
+                                            logger.info(f"Successfully updated conversation preview")
+                                        except Exception as e:
+                                            logger.error(f"Failed to save AI response: {e}", exc_info=True)
+                                    yield f"data: [DONE]\n\n"
+                                    break
                             elif chunk_data.get("error"):
                                 # Handle error responses
                                 yield f"data: {json.dumps({'type': 'error', 'error': chunk_data['error'].get('message', 'Unknown error')})}\n\n"
@@ -959,17 +1005,22 @@ def setup_routes(app):
         jwt_token = request.session.get("jwt_token")
         user = request.session.get("user")
         if not user or not jwt_token:
-            # FastHTML best practice: return 401 with HTML fragment for HTMX endpoints
-            response = HTMLResponse(
-                content=str(gaia_error_message("Please log in to view conversations")),
-                status_code=401
-            )
-            return response
-        
+            return gaia_error_message("Please log in to view conversations")
+
         user_id = user.get("id", "dev-user-id")
-        
-        # Pass JWT token to chat service for authentication
-        conversations = await chat_service_client.get_conversations(user_id, jwt_token=jwt_token)
+
+        try:
+            # Pass JWT token to chat service for authentication
+            conversations = await chat_service_client.get_conversations(user_id, jwt_token=jwt_token)
+        except Exception as e:
+            # If JWT token is expired or invalid, redirect to login
+            if "401" in str(e) or "expired" in str(e).lower() or "unauthorized" in str(e).lower():
+                # Clear expired session
+                request.session.clear()
+                return gaia_error_message("Your session has expired. Please log in again.")
+            else:
+                logger.error(f"Error getting conversations: {e}")
+                return gaia_error_message("Failed to load conversations")
         
         # Return updated conversation list with smooth animations
         conversation_items = [gaia_conversation_item(conv) for conv in conversations]

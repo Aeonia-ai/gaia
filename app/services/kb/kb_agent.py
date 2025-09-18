@@ -230,6 +230,55 @@ class KBIntelligentAgent:
                     subdir_files = await self._load_context(dir_info["path"])
                     files.update(subdir_files)
 
+            # ENHANCEMENT: If we're looking at root, always enhance with full filesystem search
+            # This ensures we find content in deeper directories like /experiences/
+            logger.warning(f"KB Agent _load_context: path={context_path}, found {len(files)} files")
+            if context_path == "/":
+                try:
+                    logger.warning(f"KB Agent enhancement: using direct filesystem search for all markdown files")
+                    # ENHANCED: Use direct filesystem search instead of claude-code endpoint
+                    import subprocess
+                    from pathlib import Path
+
+                    # Direct filesystem search for all markdown files
+                    kb_path = Path("/kb")
+                    try:
+                        result = subprocess.run(
+                            ["find", ".", "-name", "*.md", "-type", "f"],
+                            cwd=str(kb_path),
+                            capture_output=True,
+                            text=True,
+                            timeout=10
+                        )
+
+                        if result.returncode == 0:
+                            file_paths = [line.strip()[2:] for line in result.stdout.split("\n")
+                                        if line.strip() and line.startswith("./") and line.endswith(".md")]
+
+                            logger.warning(f"KB Agent enhancement: found {len(file_paths)} markdown files via find")
+
+                            for file_path in file_paths:
+                                if file_path not in files:  # Don't duplicate existing files
+                                    try:
+                                        file_result = await kb_server.read_kb_file(file_path)
+                                        if file_result.get("success"):
+                                            files[file_path] = file_result["content"]
+                                            logger.warning(f"KB Agent found additional file: {file_path}")
+                                    except Exception as e:
+                                        logger.warning(f"Could not read additional file {file_path}: {e}")
+
+                            logger.warning(f"KB Agent enhanced context loading: found {len(files)} total files")
+                        else:
+                            logger.warning(f"Find command failed: {result.stderr}")
+
+                    except subprocess.TimeoutExpired:
+                        logger.warning("Find command timed out")
+                    except Exception as e:
+                        logger.warning(f"Subprocess find failed: {e}")
+
+                except Exception as e:
+                    logger.warning(f"Enhanced context loading failed: {e}")
+
             return files
         except Exception as e:
             logger.error(f"Failed to load context from {context_path}: {e}")

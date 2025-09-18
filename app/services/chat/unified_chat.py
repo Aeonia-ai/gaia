@@ -34,79 +34,48 @@ class RouteType(str, Enum):
 
 def split_on_word_boundaries(text: str, target_chunk_size: int = 50) -> List[str]:
     """
-    Split text into chunks on word boundaries, respecting token integrity and JSON blocks.
-    
+    Split text into chunks on word boundaries, preserving original spacing.
+
     Args:
         text: The text to split
         target_chunk_size: Target size for chunks (will split at nearest word boundary)
-    
+
     Returns:
-        List of text chunks split on word boundaries
+        List of text chunks split on word boundaries with preserved spacing
     """
     if not text:
         return []
-    
+
     import re
-    
+
     chunks = []
     current_chunk = ""
-    
-    # Pattern to match JSON objects including nested ones
-    # This uses a simple approach - for production, consider using json.loads to validate
-    json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
-    
-    # Split text preserving JSON blocks as single units
-    parts = []
-    last_end = 0
-    
-    for match in re.finditer(json_pattern, text):
-        # Add text before JSON
-        if match.start() > last_end:
-            before_text = text[last_end:match.start()]
-            # Split non-JSON text into words
-            parts.extend(before_text.split())
-        # Add entire JSON block as one "word"
-        parts.append(match.group())
-        last_end = match.end()
-    
-    # Add remaining text after last JSON
-    if last_end < len(text):
-        remaining = text[last_end:]
-        parts.extend(remaining.split())
-    
-    # If no JSON found, just split normally
-    if not parts:
-        parts = text.split()
-    
-    # Now chunk the parts respecting boundaries
-    for part in parts:
-        # Check if adding this part would exceed target size
-        if current_chunk and len(current_chunk) + len(part) + 1 > target_chunk_size:
-            # Don't split if current chunk is empty or very small
-            if len(current_chunk) > 10:  # Minimum chunk size
-                chunks.append(current_chunk)
-                current_chunk = part
+
+    # Split on word boundaries while preserving spacing
+    # This regex captures both words and the spaces between them
+    word_pattern = r'(\S+|\s+)'
+    tokens = re.findall(word_pattern, text)
+
+    for token in tokens:
+        # Check if adding this token would exceed target size
+        if current_chunk and len(current_chunk) + len(token) > target_chunk_size:
+            # Only split if we have substantial content
+            if len(current_chunk.strip()) > 10:  # Minimum meaningful chunk size
+                # Save current chunk (keep trailing space if it exists)
+                if current_chunk:
+                    chunks.append(current_chunk)
+                current_chunk = token
             else:
                 # Add to current chunk even if it exceeds target
-                if current_chunk:
-                    current_chunk += " " + part
-                else:
-                    current_chunk = part
+                current_chunk += token
         else:
-            # Add part to current chunk
-            if current_chunk:
-                # Check if we need a space separator
-                if current_chunk.endswith('}') or part.startswith('{'):
-                    current_chunk += part  # No space between/around JSON
-                else:
-                    current_chunk += " " + part
-            else:
-                current_chunk = part
-    
+            # Add token to current chunk
+            current_chunk += token
+
     # Add final chunk if any
     if current_chunk:
         chunks.append(current_chunk)
-    
+
     return chunks
 
 
@@ -295,7 +264,7 @@ class UnifiedChatHandler:
                 if kb_calls:
                     print(f"DEBUG: Found {len(kb_calls)} KB tool calls")
                     # Execute KB tools
-                    tool_results = await self._execute_kb_tools(kb_calls, auth, request_id)
+                    tool_results = await self._execute_kb_tools(kb_calls, auth, request_id, conversation_id)
                     
                     # Make another LLM call with the tool results to generate final response
                     # For Anthropic, tool results are included as user messages
@@ -718,13 +687,89 @@ class UnifiedChatHandler:
                 if is_kb_tool:
                     route_type = RouteType.DIRECT  # KB tools are direct responses
                     self._routing_metrics[route_type] += 1
-                    
+
                     logger.info(f"[{request_id}] Executing KB tool in streaming mode: {tool_name}")
-                    
-                    # Execute KB tool
-                    kb_executor = KBToolExecutor(auth)
-                    kb_result = await kb_executor.execute_tool(tool_name, tool_args)
-                    
+
+                    # Check if this is a progressive-capable tool
+                    if tool_name == "interpret_knowledge":
+                        # Use progressive delivery for KB Agent interpretation
+                        from app.services.kb_progressive_integration import progressive_interpret_knowledge
+
+                        # Debug: Log what arguments the LLM provided
+                        logger.warning(f"[UNIFIED_CHAT] interpret_knowledge tool_args: {tool_args}")
+
+                        # Fix: Handle parameter name mismatch - LLM uses various parameter names
+                        query = (tool_args.get("query") or
+                                tool_args.get("knowledge_request") or
+                                tool_args.get("analysis_request") or
+                                tool_args.get("request") or
+                                list(tool_args.values())[0] if tool_args.values() else None)
+                        logger.warning(f"[UNIFIED_CHAT] extracted query: '{query}'")
+
+                        async for progressive_event in progressive_interpret_knowledge(
+                            query=query,
+                            context_path=tool_args.get("context_path", "/"),
+                            operation_mode=tool_args.get("mode", "decision"),
+                            conversation_id=conversation_id,
+                            auth_header=auth.get("key") or settings.API_KEY
+                        ):
+                            # Convert progressive events to streaming format
+                            if progressive_event.get("type") == "content":
+                                yield {
+                                    "id": request_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": int(time.time()),
+                                    "model": "kb-agent-progressive",
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {"content": progressive_event["content"]},
+                                        "finish_reason": None
+                                    }]
+                                }
+                            elif progressive_event.get("type") == "metadata":
+                                # Handle metadata events for progressive phases
+                                yield {
+                                    "id": request_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": int(time.time()),
+                                    "model": "kb-agent-progressive",
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {},
+                                        "finish_reason": None
+                                    }],
+                                    "_metadata": progressive_event
+                                }
+
+                        # Final chunk for progressive KB tool
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": "kb-agent-progressive",
+                            "choices": [{
+                                "index": 0,
+                                "delta": {},
+                                "finish_reason": "stop"
+                            }],
+                            "_metadata": {
+                                "route_type": route_type.value,
+                                "kb_tool": tool_name,
+                                "progressive_delivery": True,
+                                "routing_time_ms": int(llm_time),
+                                "total_time_ms": int((time.time() - start_time) * 1000),
+                                "request_id": request_id
+                            }
+                        }
+                        return
+
+                    # Fallback to regular KB tool execution for other tools
+                    kb_executor = KBToolExecutor(auth, progressive_mode=True, conversation_id=conversation_id)
+                    # execute_tool is now an async generator, collect all results
+                    kb_result = None
+                    async for result in kb_executor.execute_tool(tool_name, tool_args):
+                        kb_result = result  # For non-progressive tools, there's only one result
+
                     # Format the response
                     if kb_result.get('success') and kb_result.get('content'):
                         content = kb_result['content']
@@ -1250,12 +1295,26 @@ Direct responses (NO tools needed) for:
 - Explanations: "How does photosynthesis work?" → Direct explanation
 - Opinions: "What do you think about AI?" → Direct discussion
 
-Knowledge Base (KB) tools should ONLY be used when:
-- Information is NOT available in conversation history AND
-- User explicitly asks for stored/archived knowledge: "find my notes on Y", "search my documents for X"
-- Work continuity: "continue where we left off", "what was I working on" → load_kos_context  
-- Thread management: "show active threads", "load project context" → load_kos_context
-- Cross-domain synthesis: "how does X relate to Y", "connect A with B" → synthesize_kb_information
+Knowledge Base (KB) Coordinator Pattern:
+You are primarily a coordinator that delegates intelligence to the KB system, like a Zork interpreter.
+
+Use interpret_knowledge for ANY request involving:
+- Knowledge analysis: "analyze my knowledge base about X", "what do I know about Y"
+- Decision making: "help me decide...", "what should I do..."
+- Game logic: "let's play X", "continue the game", "what are the rules"
+- Complex interactions: anything requiring rules, context, or intelligent behavior
+- Workflow execution: "follow my process for X", "execute my methodology"
+
+The KB system contains game engines, rule sets, and intelligent agents that handle:
+- Game state management and rule interpretation
+- Decision trees and logic flows
+- Context-aware responses based on stored knowledge
+- Multi-step workflows and procedures
+
+Use other KB tools only for simple data retrieval:
+- search_knowledge_base: Simple searches for specific information
+- load_kos_context: Load specific work contexts and threads
+- read_kb_file: Read specific files when you know the exact path
 
 Respond DIRECTLY (without tools) for:
 - Greetings and casual conversation ("Hello", "How are you?", "Thank you")
@@ -1380,9 +1439,9 @@ Guidelines:
             return json.loads(tool_args_raw)
         return tool_args_raw
     
-    async def _execute_kb_tools(self, kb_calls: list, auth: dict, request_id: str) -> list:
+    async def _execute_kb_tools(self, kb_calls: list, auth: dict, request_id: str, conversation_id: Optional[str] = None) -> list:
         """Execute KB tool calls and return results."""
-        kb_executor = KBToolExecutor(auth)
+        kb_executor = KBToolExecutor(auth, progressive_mode=True, conversation_id=conversation_id)
         tool_results = []
         
         for tool_call in kb_calls:
@@ -1390,7 +1449,10 @@ Guidelines:
             tool_args = self._parse_tool_arguments(tool_call)
             
             logger.info(f"[{request_id}] Executing KB tool: {tool_name} with args: {tool_args}")
-            result = await kb_executor.execute_tool(tool_name, tool_args)
+            # execute_tool is now an async generator, collect all results
+            result = None
+            async for tool_result in kb_executor.execute_tool(tool_name, tool_args):
+                result = tool_result  # For non-progressive tools, there's only one result
             tool_results.append({
                 "tool": tool_name,
                 "result": result

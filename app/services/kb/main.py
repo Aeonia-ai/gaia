@@ -218,14 +218,32 @@ async def trigger_clone():
 
 # KB Endpoints
 @app.post("/search")
-async def kb_search(
+async def kb_search_primary(
     request: ChatRequest,
     auth: dict = Depends(get_current_auth)
 ) -> dict:
     """
-    Search KB using ripgrep for fast full-text search.
-    
+    Primary search endpoint using ripgrep for fast full-text search.
+
     The message field contains the search query.
+
+    This is the main search method that finds content in real-time,
+    especially useful for recently added files that may not be indexed yet.
+    """
+    return await claude_code_execute_endpoint(request, auth)
+
+@app.post("/search-index")
+async def kb_search_indexed(
+    request: ChatRequest,
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Indexed search using MCP-based pre-built index.
+
+    The message field contains the search query.
+
+    This method uses a pre-built index for fast searching of stable content.
+    May not include very recent additions until the index is refreshed.
     """
     return await kb_search_endpoint(request, auth)
 
@@ -321,9 +339,12 @@ async def claude_code_execute(
     """
     Execute Claude Code commands via subprocess and return results.
 
+    DEPRECATED: Use /search endpoint instead for search queries.
+    This endpoint is maintained for backward compatibility.
+
     The message field contains the Claude Code command to execute.
     Example commands:
-    - "search for authentication patterns"
+    - "search for authentication patterns" -> Use /search instead
     - "read app/models/user.py"
     - "help"
     - "analyze codebase structure"

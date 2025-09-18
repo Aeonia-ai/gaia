@@ -23,7 +23,7 @@ KB_TOOLS = [
         "type": "function",
         "function": {
             "name": "search_knowledge_base",
-            "description": "Search the user's knowledge base when they ask about their personal knowledge, past work, notes, or specific information they've stored. Use when queries include: 'what do I know about', 'find my notes on', 'show my work on', 'search my KB for'.",
+            "description": "FIRST CHOICE for KB queries: Real-time search of user's personal knowledge base for their stored information, notes, documents, and past work. Finds all content including recently added files. Use when user asks: 'what do I know about', 'find my notes on', 'search my knowledge', 'what's in my KB', 'analyze my knowledge base content', or references their personal knowledge/information.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -141,6 +141,82 @@ KB_TOOLS = [
                 "required": ["sources"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "interpret_knowledge",
+            "description": "PRIORITY TOOL: Use when user explicitly mentions 'KB Agent', 'analyze my knowledge base', 'intelligent decisions', 'understand my knowledge', 'interpret my content', or asks for analysis/guidance based on their personal knowledge base. This tool uses advanced AI to interpret and analyze knowledge base content intelligently.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The question, decision request, or topic to analyze"
+                    },
+                    "context_path": {
+                        "type": "string",
+                        "description": "KB path to focus the analysis on (default: all KB content)",
+                        "default": "/"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["decision", "synthesis", "validation"],
+                        "description": "Type of interpretation: decision (make choices), synthesis (combine info), validation (check against rules)",
+                        "default": "decision"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_knowledge_workflow",
+            "description": "Execute a workflow or procedure defined in the knowledge base. Use when user wants to run a specific process, follow documented procedures, or execute step-by-step workflows.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "workflow_path": {
+                        "type": "string",
+                        "description": "Path to the workflow markdown file in the KB"
+                    },
+                    "parameters": {
+                        "type": "object",
+                        "description": "Parameters to pass to the workflow execution",
+                        "default": {}
+                    }
+                },
+                "required": ["workflow_path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "validate_against_rules",
+            "description": "Validate an action, decision, or proposal against rules and guidelines defined in the knowledge base. Use when user wants to check compliance, verify if something is allowed, or ensure adherence to established policies.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "description": "The action, decision, or proposal to validate"
+                    },
+                    "rules_path": {
+                        "type": "string",
+                        "description": "Path to the rules/guidelines in the KB to validate against"
+                    },
+                    "context": {
+                        "type": "object",
+                        "description": "Additional context information for the validation",
+                        "default": {}
+                    }
+                },
+                "required": ["action", "rules_path"]
+            }
+        }
     }
 ]
 
@@ -148,8 +224,10 @@ KB_TOOLS = [
 class KBToolExecutor:
     """Executes KB tool calls by making HTTP requests to the KB service."""
 
-    def __init__(self, auth_principal: Dict[str, Any]):
+    def __init__(self, auth_principal: Dict[str, Any], progressive_mode: bool = False, conversation_id: Optional[str] = None):
         self.auth_principal = auth_principal
+        self.progressive_mode = progressive_mode
+        self.conversation_id = conversation_id
 
         # For inter-service communication, we need to use the system API key
         # When auth_type is 'jwt', the auth_principal won't have a 'key' field
@@ -165,27 +243,85 @@ class KBToolExecutor:
             "X-API-Key": api_key
         }
     
-    async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a KB tool and return the result."""
-        
+    async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]):
+        """Execute a KB tool and return the result or yield progressive events."""
+
+        # Debug: Always log what we receive
+        logger.warning(f"[EXECUTE_TOOL] Called with tool_name='{tool_name}', progressive_mode={getattr(self, 'progressive_mode', False)}")
+        logger.warning(f"[EXECUTE_TOOL] Arguments received: {arguments}")
+
+        # Handle special progressive case for interpret_knowledge
+        if tool_name == "interpret_knowledge" and hasattr(self, 'progressive_mode') and self.progressive_mode:
+            # Import progressive response system
+            from app.services.kb_progressive_integration import progressive_interpret_knowledge
+
+            # Debug: Log the arguments being passed
+            query = arguments.get("query")
+            logger.warning(f"[DEBUG] interpret_knowledge called with arguments: {arguments}")
+            logger.warning(f"[DEBUG] extracted query: '{query}'")
+
+            # If query is None or empty, use a fallback
+            if not query:
+                logger.warning(f"[DEBUG] No query provided, using fallback")
+                query = "general knowledge base analysis"
+
+            # Yield progressive events
+            async for event in progressive_interpret_knowledge(
+                query=query,
+                context_path=arguments.get("context_path", "/"),
+                operation_mode=arguments.get("mode", "decision"),
+                conversation_id=getattr(self, 'conversation_id', None),
+                auth_header=self.headers.get("X-API-Key")
+            ):
+                yield event
+            return  # End generator without value
+
+        # For all other cases, delegate to synchronous execution
+        result = await self._execute_tool_sync(tool_name, arguments)
+        yield result
+
+    async def _execute_tool_sync(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a KB tool synchronously and return the result."""
+
         if tool_name == "search_knowledge_base":
             return await self._search_kb(arguments.get("query"), arguments.get("limit", 10))
-        
+
         elif tool_name == "load_kos_context":
             return await self._load_kos_context(arguments.get("context_type"), arguments.get("project"))
-        
+
         elif tool_name == "read_kb_file":
             return await self._read_file(arguments.get("path"))
-        
+
         elif tool_name == "list_kb_directory":
             return await self._list_directory(arguments.get("path", "/"))
-        
+
         elif tool_name == "load_kb_context":
             return await self._load_context(arguments.get("topic"), arguments.get("depth", 2))
-        
+
         elif tool_name == "synthesize_kb_information":
             return await self._synthesize(arguments.get("sources"), arguments.get("focus"))
-        
+
+        elif tool_name == "interpret_knowledge":
+            # Fallback to synchronous delivery
+            return await self._interpret_knowledge(
+                arguments.get("query"),
+                arguments.get("context_path", "/"),
+                arguments.get("mode", "decision")
+            )
+
+        elif tool_name == "execute_knowledge_workflow":
+            return await self._execute_workflow(
+                arguments.get("workflow_path"),
+                arguments.get("parameters", {})
+            )
+
+        elif tool_name == "validate_against_rules":
+            return await self._validate_rules(
+                arguments.get("action"),
+                arguments.get("rules_path"),
+                arguments.get("context", {})
+            )
+
         else:
             return {"error": f"Unknown KB tool: {tool_name}"}
     
@@ -354,4 +490,120 @@ class KBToolExecutor:
                     
         except Exception as e:
             logger.error(f"KOS context load error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _interpret_knowledge(self, query: str, context_path: str, mode: str) -> Dict[str, Any]:
+        """Use KB Agent to interpret knowledge and make intelligent decisions."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{KB_SERVICE_URL}/agent/interpret",
+                    json={
+                        "query": query,
+                        "context_path": context_path,
+                        "mode": mode
+                    },
+                    headers=self.headers,
+                    timeout=30.0
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("status") == "success":
+                        agent_result = result.get("result", {})
+                        interpretation = agent_result.get("interpretation", "No interpretation available")
+                        model_used = agent_result.get("model_used", "unknown")
+                        context_files = agent_result.get("context_files", 0)
+
+                        return {
+                            "success": True,
+                            "content": f"KB Agent Analysis ({mode} mode, {context_files} files, {model_used}):\n\n{interpretation}",
+                            "mode": mode,
+                            "model_used": model_used,
+                            "context_files": context_files
+                        }
+                    else:
+                        return {"success": False, "error": result.get("detail", "Unknown error")}
+                else:
+                    return {"success": False, "error": f"HTTP {response.status_code}: {response.text}"}
+
+        except Exception as e:
+            logger.error(f"KB Agent interpret error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _execute_workflow(self, workflow_path: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a workflow defined in the knowledge base using KB Agent."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{KB_SERVICE_URL}/agent/workflow",
+                    json={
+                        "workflow_path": workflow_path,
+                        "parameters": parameters
+                    },
+                    headers=self.headers,
+                    timeout=60.0  # Workflows might take longer
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("status") == "success":
+                        agent_result = result.get("result", {})
+                        execution_result = agent_result.get("execution_result", "No result available")
+                        model_used = agent_result.get("model_used", "unknown")
+
+                        return {
+                            "success": True,
+                            "content": f"Workflow Execution Result ({model_used}):\n\n{execution_result}",
+                            "workflow_path": workflow_path,
+                            "parameters": parameters,
+                            "model_used": model_used
+                        }
+                    else:
+                        return {"success": False, "error": result.get("detail", "Unknown error")}
+                else:
+                    return {"success": False, "error": f"HTTP {response.status_code}: {response.text}"}
+
+        except Exception as e:
+            logger.error(f"KB Agent workflow error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _validate_rules(self, action: str, rules_path: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate an action against rules using KB Agent."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{KB_SERVICE_URL}/agent/validate",
+                    json={
+                        "action": action,
+                        "rules_path": rules_path,
+                        "context": context
+                    },
+                    headers=self.headers,
+                    timeout=30.0
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("status") == "success":
+                        agent_result = result.get("result", {})
+                        validation_result = agent_result.get("validation_result", "No validation result")
+                        rules_checked = agent_result.get("rules_checked", 0)
+                        model_used = agent_result.get("model_used", "unknown")
+
+                        return {
+                            "success": True,
+                            "content": f"Rule Validation ({rules_checked} rules checked, {model_used}):\n\n{validation_result}",
+                            "action": action,
+                            "rules_path": rules_path,
+                            "validation_result": validation_result,
+                            "model_used": model_used
+                        }
+                    else:
+                        return {"success": False, "error": result.get("detail", "Unknown error")}
+                else:
+                    return {"success": False, "error": f"HTTP {response.status_code}: {response.text}"}
+
+        except Exception as e:
+            logger.error(f"KB Agent validation error: {e}")
             return {"success": False, "error": str(e)}
