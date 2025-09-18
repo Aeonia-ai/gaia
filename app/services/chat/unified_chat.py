@@ -1310,23 +1310,81 @@ Guidelines:
     
     async def _execute_kb_tools(self, kb_calls: list, auth: dict, request_id: str, conversation_id: Optional[str] = None) -> list:
         """Execute KB tool calls and return results."""
+        from app.services.chat.game_state_handler import game_state_handler
+
         kb_executor = KBToolExecutor(auth, progressive_mode=True, conversation_id=conversation_id)
         tool_results = []
-        
+
         for tool_call in kb_calls:
             tool_name = tool_call["function"]["name"]
             tool_args = self._parse_tool_arguments(tool_call)
-            
+
+            # Check if this is a game-related KB call
+            if tool_name == "interpret_knowledge" and conversation_id:
+                query = tool_args.get("query", "")
+
+                # Parse for game commands
+                command_type, params = game_state_handler.parse_game_command(query)
+
+                if command_type != "game_command" or "zork" in query.lower() or "game" in query.lower():
+                    # This looks like a game command
+                    logger.info(f"[{request_id}] Detected game command: {command_type} with params: {params}")
+
+                    # Get conversation history to extract game state
+                    messages = []
+                    if conversation_id and self.conversation_store:
+                        try:
+                            messages = self.conversation_store.get_messages(conversation_id)
+                        except Exception as e:
+                            logger.warning(f"Could not load conversation: {e}")
+
+                    # Extract current game state from conversation
+                    current_state = game_state_handler.extract_game_state(messages)
+
+                    # Format query for KB Agent with game context
+                    formatted_query = game_state_handler.format_kb_game_query(
+                        command_type, params, current_state
+                    )
+
+                    # Update tool args with formatted query
+                    tool_args["query"] = formatted_query
+                    tool_args["context_path"] = "/experiences/west-of-house"
+                    tool_args["mode"] = "workflow"  # Use workflow mode for game execution
+
+                    logger.info(f"[{request_id}] Formatted game query: {formatted_query}")
+
             logger.info(f"[{request_id}] Executing KB tool: {tool_name} with args: {tool_args}")
             # execute_tool is now an async generator, collect all results
             result = None
             async for tool_result in kb_executor.execute_tool(tool_name, tool_args):
                 result = tool_result  # For non-progressive tools, there's only one result
+
+            # Process game state updates if this was a game command
+            if tool_name == "interpret_knowledge" and command_type != "game_command":
+                if result and result.get("success"):
+                    kb_response = result.get("content", "")
+
+                    # Parse KB response for state changes
+                    new_state = game_state_handler.parse_kb_response_for_state(
+                        kb_response, current_state
+                    )
+
+                    # Create formatted game response with embedded state
+                    game_response = game_state_handler.create_game_response(
+                        kb_response, new_state
+                    )
+
+                    # Update result with game-formatted response
+                    result["content"] = game_response
+                    result["game_state"] = new_state
+
+                    logger.info(f"[{request_id}] Updated game state: room={new_state.get('room')}, moves={new_state.get('moves')}")
+
             tool_results.append({
                 "tool": tool_name,
                 "result": result
             })
-        
+
         return tool_results
     
     async def build_context(self, auth: dict, additional_context: Optional[dict] = None) -> dict:
