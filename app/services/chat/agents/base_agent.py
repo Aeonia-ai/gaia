@@ -129,13 +129,20 @@ class MCPEnabledAgent(BaseAgent):
         if not self._mcp_agent:
             raise RuntimeError("MCP agent not initialized. Use async context manager.")
             
-        # Use mcp-agent for processing
-        from mcp_agent.workflows.llm.augmented_llm_anthropic import AnthropicAugmentedLLM
-        
-        llm = await self._mcp_agent.attach_llm(AnthropicAugmentedLLM)
-        response = await llm.generate_str(message=message)
-        
-        return response
+        # TEMPORARY FIX: Bypass MCP agent due to authentication issues
+        # Use direct Anthropic client instead
+        import os
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+        response = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=2000,
+            messages=[{"role": "user", "content": message}]
+        )
+
+        return response.content[0].text
 
 
 class HybridAgent(BaseAgent):
