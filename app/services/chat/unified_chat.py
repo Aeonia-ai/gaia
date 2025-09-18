@@ -625,7 +625,16 @@ class UnifiedChatHandler:
             context = {}
         context["conversation_id"] = conversation_id
 
-        # Emit conversation metadata as first event for V0.3 streaming
+        # V0.3 Progressive Response: Emit immediate acknowledgment first
+        if full_context.get("response_format") == "v0.3":
+            yield {
+                "type": "content",
+                "content": "🤖 Coordinating technical, knowledge_management agents..."
+            }
+            # Small delay to show the immediate acknowledgment
+            await asyncio.sleep(0.1)
+
+        # Emit conversation metadata for V0.3 streaming
         yield {
             "type": "metadata",
             "conversation_id": conversation_id,
