@@ -256,6 +256,35 @@ The KB Agent receives the formatted query and:
 
 ## Testing Your Game
 
+### Testing with CLI Client
+
+The fastest way to test your game is using the GAIA CLI:
+
+```bash
+# Quick test - single command
+python3 scripts/gaia_client.py --env local --batch "play space adventure"
+
+# Full interactive testing
+python3 scripts/gaia_client.py --env local --log space_test_1
+
+👤 You: play space adventure
+🤖 Assistant: [Game initializes with your starting room]
+
+👤 You: look around
+🤖 Assistant: [Description based on your markdown files]
+
+👤 You: take keycard
+🤖 Assistant: [State updates, inventory changes]
+```
+
+**Key Testing Features:**
+- `--log` flag saves entire session for analysis
+- Conversation ID maintained automatically
+- State persists between commands
+- JSON blocks show exact state changes
+
+See [CLI Game Interaction Guide](cli-game-interaction-guide.md) for detailed testing workflows.
+
 ### Unit Testing
 
 Create `tests/test_space_adventure.py`:
