@@ -17,11 +17,20 @@ Gaia Platform is a microservices-based backend that replaces the LLM Platform mo
 ## 🏗️ Architecture
 
 ```
-External Clients → FastAPI Gateway → 3 Core Services
+External Clients → FastAPI Gateway → Core Services + Revolutionary Game System
 Unity/Unreal/Web → (Port 8666)    → ├─ Auth Service (Supabase JWT + API keys)
                                     ├─ Asset Service (Universal Asset Server)
-                                    └─ Chat Service (MCP-agent workflows)
+                                    ├─ Chat Service (MCP-agent workflows + Game State)
+                                    └─ KB Agent (Executable Documentation Engine)
 ```
+
+### 🎮 Revolutionary Discovery: Games from Documentation
+
+We've discovered that games can run directly from markdown documentation without traditional game engines:
+- **KB Agent interprets markdown as game logic** - Documentation IS the code
+- **JSON blocks embed state in conversations** - No separate state database needed
+- **Any chat client can play games** - CLI, web, mobile all work unchanged
+- See [`docs/`](docs/) for the complete game development documentation
 
 ### Services
 

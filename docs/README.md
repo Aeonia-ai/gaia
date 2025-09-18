@@ -20,6 +20,15 @@ Access and manage the Knowledge Base service with Git sync and RBAC.
 
 **💡 TIP**: KB is auto-integrated with chat! Use `POST /api/v1/chat` with natural language like "search my notes on X" instead of direct KB endpoints.
 
+### 🎮 **For Game Development** → New Revolutionary System!
+Build games using only markdown documentation - no code required!
+
+**🚀 BREAKTHROUGH**: Games run directly from documentation through AI interpretation:
+- [**Game State JSON Blocks**](game-state-json-blocks.md) - Technical specification
+- [**Executable Documentation Pattern**](executable-documentation-pattern.md) - The paradigm shift
+- [**Game Implementation Guide**](game-system-implementation-guide.md) - How to build games
+- [**CLI Game Interaction**](cli-game-interaction-guide.md) - Playing games via terminal
+
 ### 🌐 **For Web UI** → [`web-ui/`](web-ui/)
 FastHTML frontend development, HTMX patterns, and debugging guides.
 

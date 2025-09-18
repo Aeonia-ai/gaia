@@ -258,7 +258,29 @@ for message in reversed(messages):
 
 ## Usage Examples
 
-### Starting a New Game
+### Playing via CLI Client
+
+The easiest way to play games is through the GAIA CLI client:
+
+```bash
+# Start interactive session
+python3 scripts/gaia_client.py --env local
+
+# Play a game
+👤 You: play zork
+🤖 Assistant: [Game starts with embedded state]
+
+# Continue playing
+👤 You: go north
+👤 You: take lamp
+👤 You: inventory
+```
+
+See [CLI Game Interaction Guide](cli-game-interaction-guide.md) for detailed CLI usage.
+
+### API Level Examples
+
+#### Starting a New Game
 
 ```python
 # User message
@@ -274,7 +296,7 @@ for message in reversed(messages):
 }
 ```
 
-### Continuing a Game
+#### Continuing a Game
 
 ```python
 # User message
@@ -290,7 +312,7 @@ for message in reversed(messages):
 }
 ```
 
-### Checking Game State
+#### Checking Game State
 
 ```python
 # User message
@@ -308,6 +330,18 @@ inventory = current_state["inventory"]  # ["leaflet"]
   "response": "You are carrying:\n- A leaflet\n\nThat's all you have right now.\n\n```json:game_state\n{...current_state}\n```"
 }
 ```
+
+### Client Compatibility
+
+The JSON blocks approach works with **any client**:
+
+| Client Type | Compatibility | Notes |
+|-------------|--------------|-------|
+| CLI (`gaia_client.py`) | ✅ Perfect | No modifications needed |
+| Web UI | ✅ Perfect | State visible in responses |
+| Mobile Apps | ✅ Perfect | Parse JSON if desired |
+| API Direct | ✅ Perfect | Standard HTTP/JSON |
+| Third-party | ✅ Perfect | Just text + JSON blocks |
 
 ## Future Enhancements
 
