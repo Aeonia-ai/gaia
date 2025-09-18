@@ -81,6 +81,44 @@ def gaia_input(name, placeholder="", type="text", **kwargs):
     )
 
 
+def gaia_toggle(name, label, checked=False, description=None, **kwargs):
+    """Styled toggle switch component for v0.3 format selection"""
+    toggle_id = kwargs.pop("id", f"toggle-{name}")
+
+    toggle_switch = Div(
+        Input(
+            type="checkbox",
+            id=toggle_id,
+            name=name,
+            checked=checked,
+            cls="sr-only peer",
+            **kwargs
+        ),
+        Div(
+            cls="relative w-11 h-6 bg-slate-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-purple-600 peer-checked:to-pink-600"
+        ),
+        cls="flex items-center"
+    )
+
+    content = [
+        Div(
+            Span(label, cls="text-sm font-medium text-white"),
+            toggle_switch,
+            cls="flex items-center justify-between w-full"
+        )
+    ]
+
+    if description:
+        content.append(
+            P(description, cls="text-xs text-slate-400 mt-1")
+        )
+
+    return Div(
+        *content,
+        cls="mb-4 p-3 bg-slate-800/30 rounded-lg border border-slate-700/50"
+    )
+
+
 def gaia_card(content, title=None):
     """Card component with optional title"""
     children = []
@@ -291,46 +329,65 @@ def gaia_auth_form(is_login=True):
 
 def gaia_chat_input(conversation_id=None):
     """Compact chat input component matching modern interfaces with mobile responsiveness"""
-    return Form(
-        Div(
-            # Input wrapper with better mobile sizing
-            Div(
-                Input(
-                    name="message",
-                    type="text",
-                    placeholder="Message Gaia...",
-                    cls="w-full bg-slate-800 border border-slate-600 text-white placeholder-slate-500 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 transition-all duration-300 resize-none",
-                    autofocus=True,
-                    required=True,
-                    id="chat-message-input",
-                    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));}"
-                ),
-                cls="flex-1 min-w-0"  # min-w-0 allows input to shrink properly
-            ),
-            # Hidden input for conversation ID (always include it)
-            Input(
-                type="hidden",
-                name="conversation_id",
-                value=conversation_id or "",
-                id="conversation-id-input"
-            ),
-            # Send button with mobile-friendly sizing
-            Button(
-                Span("Send", cls="hidden sm:inline"),  # Hide text on very small screens
-                Span("→", cls="sm:hidden text-lg"),  # Show arrow on mobile
-                type="submit",
-                cls="ml-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-2.5 px-3 sm:px-4 rounded-lg transition-all duration-300 hover:shadow-md active:scale-95 flex items-center justify-center min-w-[44px]",
-                id="chat-send-button",
-                title="Send message"
-            ),
-            cls="flex items-end gap-2 md:gap-3"
+    return Div(
+        # v0.3 Progressive Response Toggle
+        gaia_toggle(
+            name="use_v03_format",
+            label="Progressive Responses",
+            checked=False,  # Default to standard format for stability
+            description="Enable real-time, progressive AI responses with immediate acknowledgment and streaming analysis",
+            id="v03-toggle",
+            onchange="window.gaiaV03Mode = this.checked; document.getElementById('v03-format-input').value = this.checked ? 'true' : 'false'; console.log('v0.3 mode:', window.gaiaV03Mode);"
         ),
-        cls="p-3 md:p-4 border-t border-slate-700/50 backdrop-blur-sm safe-area-padding-bottom",
-        id="chat-form",
-        hx_post="/api/chat/send",
-        hx_target="#messages",
-        hx_swap="beforeend",
-        hx_disabled_elt="#chat-send-button, #chat-message-input"
+        Form(
+            Div(
+                # Input wrapper with better mobile sizing
+                Div(
+                    Input(
+                        name="message",
+                        type="text",
+                        placeholder="Message Gaia...",
+                        cls="w-full bg-slate-800 border border-slate-600 text-white placeholder-slate-500 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 transition-all duration-300 resize-none",
+                        autofocus=True,
+                        required=True,
+                        id="chat-message-input",
+                        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));}"
+                    ),
+                    cls="flex-1 min-w-0"  # min-w-0 allows input to shrink properly
+                ),
+                # Hidden input for conversation ID (always include it)
+                Input(
+                    type="hidden",
+                    name="conversation_id",
+                    value=conversation_id or "",
+                    id="conversation-id-input"
+                ),
+                # Hidden input for v0.3 format preference
+                Input(
+                    type="hidden",
+                    name="use_v03_format",
+                    value="false",
+                    id="v03-format-input"
+                ),
+                # Send button with mobile-friendly sizing
+                Button(
+                    Span("Send", cls="hidden sm:inline"),  # Hide text on very small screens
+                    Span("→", cls="sm:hidden text-lg"),  # Show arrow on mobile
+                    type="submit",
+                    cls="ml-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-medium py-2.5 px-3 sm:px-4 rounded-lg transition-all duration-300 hover:shadow-md active:scale-95 flex items-center justify-center min-w-[44px]",
+                    id="chat-send-button",
+                    title="Send message"
+                ),
+                cls="flex items-end gap-2 md:gap-3"
+            ),
+            cls="p-3 md:p-4 border-t border-slate-700/50 backdrop-blur-sm safe-area-padding-bottom",
+            id="chat-form",
+            hx_post="/api/chat/send",
+            hx_target="#messages",
+            hx_swap="beforeend",
+            hx_disabled_elt="#chat-send-button, #chat-message-input"
+        ),
+        cls="chat-input-container"
     )
 
 

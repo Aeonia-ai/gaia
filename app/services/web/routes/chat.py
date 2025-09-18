@@ -6,7 +6,7 @@ from fasthtml.core import Script, NotStr
 from starlette.responses import HTMLResponse, JSONResponse
 from app.services.web.components.gaia_ui import (
     gaia_layout, gaia_conversation_item, gaia_message_bubble,
-    gaia_chat_input, gaia_loading_spinner, gaia_error_message, gaia_toast_script, gaia_mobile_styles
+    gaia_chat_input, gaia_loading_spinner, gaia_error_message, gaia_toast_script, gaia_mobile_styles, gaia_toggle
 )
 from app.services.web.utils.gateway_client import GaiaAPIClient
 from app.services.web.utils.chat_service_client import chat_service_client
@@ -396,8 +396,9 @@ def setup_routes(app):
             form_data = await request.form()
             message = form_data.get("message")
             conversation_id = form_data.get("conversation_id")
-            
-            logger.info(f"Received message: {message}, conversation: {conversation_id}")
+            use_v03_format = form_data.get("use_v03_format", "false").lower() == "true"
+
+            logger.info(f"Received message: {message}, conversation: {conversation_id}, v0.3 format: {use_v03_format}")
             
             if not message:
                 return gaia_error_message("Please enter a message")
@@ -495,8 +496,9 @@ def setup_routes(app):
         let responseContent = '';
         let responseStarted = false;
         
-        // Create EventSource for streaming
-        const eventSource = new EventSource('/api/chat/stream?message={encoded_message}&conversation_id={conversation_id}');
+        // Create EventSource for streaming with v0.3 format preference
+        const v03Format = document.getElementById('v03-format-input')?.value === 'true' ? 'true' : 'false';
+        const eventSource = new EventSource('/api/chat/stream?message={encoded_message}&conversation_id={conversation_id}&use_v03_format=' + v03Format);
         
         // Set a timeout for the response
         const timeoutId = setTimeout(() => {{
@@ -674,8 +676,9 @@ def setup_routes(app):
         
         message = request.query_params.get("message")
         conversation_id = request.query_params.get("conversation_id")
-        
-        logger.info(f"Stream response - message: {message}, conv: {conversation_id}, has_jwt: {bool(jwt_token)}, user_id: {user_id}")
+        use_v03_format = request.query_params.get("use_v03_format", "false").lower() == "true"
+
+        logger.info(f"Stream response - message: {message}, conv: {conversation_id}, v0.3 format: {use_v03_format}, has_jwt: {bool(jwt_token)}, user_id: {user_id}")
         
         async def event_generator():
             import json  # Import json for error handling
@@ -692,10 +695,11 @@ def setup_routes(app):
                 else:
                     messages = [{"role": "user", "content": message}]
                 
-                # Start streaming from gateway
+                # Start streaming from gateway with selected format
                 response_content = ""
+                response_format = "v0.3" if use_v03_format else "openai"
                 async with GaiaAPIClient() as client:
-                    async for chunk in client.chat_completion_stream(messages, jwt_token):
+                    async for chunk in client.chat_completion_stream(messages, jwt_token, response_format=response_format):
                         try:
                             # Parse the chunk
                             import json
@@ -811,9 +815,10 @@ def setup_routes(app):
             else:
                 messages = [{"role": "user", "content": message}]
             
-            # Get response from gateway
+            # Get response from gateway (fallback non-streaming mode)
+            response_format = "v0.3" if use_v03_format else "openai"
             async with GaiaAPIClient() as client:
-                response = await client.chat_completion(messages, jwt_token)
+                response = await client.chat_completion(messages, jwt_token, response_format=response_format)
                 logger.info(f"Gateway response: {response}")
             
             # v0.2 format returns response directly
