@@ -236,7 +236,7 @@ class KBIntelligentAgent:
             if context_path == "/":
                 try:
                     logger.warning(f"KB Agent enhancement: using direct filesystem search for all markdown files")
-                    # ENHANCED: Use direct filesystem search instead of claude-code endpoint
+                    # ENHANCED: Use direct filesystem search with ripgrep
                     import subprocess
                     from pathlib import Path
 

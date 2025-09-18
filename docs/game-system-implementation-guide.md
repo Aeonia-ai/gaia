@@ -4,6 +4,8 @@
 
 This guide explains how to implement and extend the game system where markdown documentation directly executes as game logic through the KB Agent.
 
+**🚀 Want to test immediately?** See the [Game POC Practical Testing Guide](game-poc-testing-guide.md) for working command-line examples that demonstrate the revolutionary executable documentation pattern.
+
 ## Table of Contents
 
 1. [System Components](#system-components)
@@ -314,23 +316,35 @@ def test_keycard_pickup():
 
 ### Integration Testing
 
-Test with the live system:
+Test with the live system using the **working CLI client commands**:
 
 ```bash
-# Start a new game
-curl -X POST http://localhost:8666/v0.3/unified/chat \
-  -H "X-API-Key: $API_KEY" \
+# Start a new game (server creates conversation ID automatically)
+python3 scripts/gaia_client.py --env local --batch "Start space adventure game. Show starting location and embed game state as JSON block."
+
+# Get the conversation ID from logs
+CONV_ID=$(docker compose logs chat-service | grep "Created conversation" | tail -1 | grep -o '[a-f0-9-]\{36\}')
+echo "Conversation ID: $CONV_ID"
+
+# Continue with game commands using the conversation ID
+python3 scripts/gaia_client.py --env local --conversation $CONV_ID --batch "take keycard"
+
+# Test another action
+python3 scripts/gaia_client.py --env local --conversation $CONV_ID --batch "examine keycard"
+```
+
+**Alternative: Direct API Testing** (if you need curl):
+```bash
+# Start a new game - correct endpoint path
+curl -X POST http://localhost:8666/api/v0.3/chat \
+  -H "X-API-Key: gaia-local-key" \
+  -H "Content-Type: application/json" \
   -d '{
-    "message": "play space adventure"
+    "message": "play space adventure",
+    "stream": false
   }'
 
-# Continue with commands
-curl -X POST http://localhost:8666/v0.3/unified/chat \
-  -H "X-API-Key: $API_KEY" \
-  -d '{
-    "message": "take keycard",
-    "conversation_id": "conv-123"
-  }'
+# Note: Extract conversation_id from response and use UUID format for subsequent calls
 ```
 
 ### Manual Testing Checklist

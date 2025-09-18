@@ -35,8 +35,7 @@ from .kb_service import (
     kb_synthesize_contexts_endpoint,
     kb_get_threads_endpoint,
     kb_read_file_endpoint,
-    kb_list_directory_endpoint,
-    claude_code_execute_endpoint
+    kb_list_directory_endpoint
 )
 from .kb_editor import kb_editor
 from .agent_endpoints import router as agent_router
@@ -230,7 +229,7 @@ async def kb_search_primary(
     This is the main search method that finds content in real-time,
     especially useful for recently added files that may not be indexed yet.
     """
-    return await claude_code_execute_endpoint(request, auth)
+    return await kb_search_endpoint(request, auth)
 
 @app.post("/search-index")
 async def kb_search_indexed(
@@ -331,25 +330,6 @@ async def kb_list_directory(
     """
     return await kb_list_directory_endpoint(request, auth)
 
-@app.post("/claude-code")
-async def claude_code_execute(
-    request: ChatRequest,
-    auth: dict = Depends(get_current_auth)
-) -> dict:
-    """
-    Execute Claude Code commands via subprocess and return results.
-
-    DEPRECATED: Use /search endpoint instead for search queries.
-    This endpoint is maintained for backward compatibility.
-
-    The message field contains the Claude Code command to execute.
-    Example commands:
-    - "search for authentication patterns" -> Use /search instead
-    - "read app/models/user.py"
-    - "help"
-    - "analyze codebase structure"
-    """
-    return await claude_code_execute_endpoint(request, auth)
 
 # Cache management endpoints
 @app.get("/cache/stats")
