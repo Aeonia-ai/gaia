@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Conversation Deduplication</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .test-button { margin: 10px; padding: 10px 20px; background: #007cba; color: white; border: none; cursor: pointer; }
+        .test-result { margin: 20px 0; padding: 20px; border: 1px solid #ccc; background: #f9f9f9; }
+        .log { margin: 10px 0; padding: 10px; background: #eee; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>Conversation Deduplication Test</h1>
+
+    <p>This tests our ConversationListManager's deduplication logic.</p>
+
+    <!-- Simulate rapid clicking -->
+    <button class="test-button" onclick="testRapidClicks()">Test Rapid Clicks (10 requests)</button>
+    <button class="test-button" onclick="testDebouncing()">Test Debouncing (5 rapid + 1 delayed)</button>
+    <button class="test-button" onclick="clearLog()">Clear Log</button>
+
+    <div id="test-results" class="test-result">
+        <h3>Test Results:</h3>
+        <div id="request-log" class="log">No tests run yet...</div>
+    </div>
+
+    <script>
+        // Mock ConversationListManager for testing
+        window.ConversationListManager = (function() {
+            let updateInProgress = false;
+            let updateQueued = false;
+            let debounceTimer = null;
+            let requestCount = 0;
+            let actualUpdates = 0;
+
+            function updateConversationList(immediate = false) {
+                requestCount++;
+                log(`[${requestCount}] Update requested, immediate: ${immediate}`);
+
+                if (immediate) {
+                    clearTimeout(debounceTimer);
+                    performUpdate();
+                    return;
+                }
+
+                // Debounce updates - only update after 200ms of no new requests
+                if (debounceTimer) {
+                    clearTimeout(debounceTimer);
+                    log(`[${requestCount}] Debounce timer cleared`);
+                }
+                debounceTimer = setTimeout(() => {
+                    performUpdate();
+                }, 200);
+            }
+
+            function performUpdate() {
+                if (updateInProgress) {
+                    updateQueued = true;
+                    log(`[${requestCount}] Update already in progress, queued`);
+                    return;
+                }
+
+                updateInProgress = true;
+                actualUpdates++;
+                log(`[ACTUAL UPDATE #${actualUpdates}] Performing update...`);
+
+                // Simulate async operation
+                setTimeout(() => {
+                    updateInProgress = false;
+                    log(`[ACTUAL UPDATE #${actualUpdates}] Update completed`);
+
+                    if (updateQueued) {
+                        updateQueued = false;
+                        log(`[QUEUED] Processing queued update`);
+                        performUpdate();
+                    }
+                }, 100);
+            }
+
+            return {
+                update: updateConversationList,
+                getStats: () => ({ requests: requestCount, actualUpdates: actualUpdates }),
+                reset: () => { requestCount = 0; actualUpdates = 0; }
+            };
+        })();
+
+        function log(message) {
+            const logDiv = document.getElementById('request-log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `${timestamp}: ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('request-log').innerHTML = 'Log cleared...<br>';
+            window.ConversationListManager.reset();
+        }
+
+        function testRapidClicks() {
+            log('=== STARTING RAPID CLICKS TEST ===');
+            // Simulate 10 rapid requests
+            for (let i = 0; i < 10; i++) {
+                setTimeout(() => {
+                    window.ConversationListManager.update();
+                }, i * 10); // 10ms apart
+            }
+
+            // Check results after debounce period
+            setTimeout(() => {
+                const stats = window.ConversationListManager.getStats();
+                log(`=== RAPID CLICKS RESULT: ${stats.requests} requests, ${stats.actualUpdates} actual updates ===`);
+            }, 1000);
+        }
+
+        function testDebouncing() {
+            log('=== STARTING DEBOUNCING TEST ===');
+            // 5 rapid requests
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    window.ConversationListManager.update();
+                }, i * 50);
+            }
+
+            // 1 delayed request (should trigger separate update)
+            setTimeout(() => {
+                window.ConversationListManager.update();
+
+                // Check results
+                setTimeout(() => {
+                    const stats = window.ConversationListManager.getStats();
+                    log(`=== DEBOUNCING RESULT: ${stats.requests} requests, ${stats.actualUpdates} actual updates ===`);
+                }, 500);
+            }, 500);
+        }
+
+        log('ConversationListManager test page loaded');
+    </script>
+</body>
+</html>

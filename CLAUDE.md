@@ -26,14 +26,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Development Workflow:**
 1. Make code changes in your editor
-2. Changes are automatically detected and services reload
-3. Test immediately - no Docker restart needed
+2. Changes are automatically detected and services reload (watch for "WatchFiles detected changes")
+3. Test immediately - **NO DOCKER RESTART NEEDED**
+
+**🚨 IMPORTANT: DO NOT restart containers for code changes!**
 
 **Only restart containers when:**
 - Adding new dependencies to requirements.txt
-- Changing Dockerfile configuration  
+- Changing Dockerfile configuration
 - Modifying docker compose.yml settings
 - Environment variable changes requiring container restart
+- Installing new Python packages
+
+**✅ Code changes that DO NOT require restart:**
+- Python file modifications (.py files)
+- HTML template changes
+- JavaScript/CSS changes
+- Configuration file updates (within existing structure)
+- Route handler modifications
+- Database model changes (without migrations)
 
 **Quick Test After Changes:**
 ```bash
@@ -404,6 +415,12 @@ See [Command Reference](docs/command-reference.md) for complete list.
 1. **DON'T** deploy without checking service health first
 2. **DON'T** ignore deployment timeouts - check if it succeeded anyway
 3. **DON'T** forget to set Fly.io secrets for new environment variables
+
+### Development Mistakes
+1. **DON'T** restart containers for code changes - hot reloading handles this automatically
+2. **DON'T** rebuild containers after Python file edits - volume mounts enable live reloading
+3. **DON'T** assume changes require container restart - check for "WatchFiles detected changes" in logs
+4. **DON'T** manually restart services unless adding dependencies or changing Docker configuration
 
 ### Testing Mistakes
 1. **DON'T** use direct `curl` - use test scripts that capture the knowledge

@@ -71,28 +71,82 @@ def setup_routes(app):
             htmx.config.logger = function(elt, event, data) {
                 console.debug("[HTMX]", event, elt, data);
             };
-            
+
+            // CONVERSATION LIST UPDATE MANAGER - Prevents duplicate requests
+            window.ConversationListManager = (function() {
+                let updateInProgress = false;
+                let updateQueued = false;
+                let debounceTimer = null;
+
+                function updateConversationList(immediate = false) {
+                    console.log('[ConversationList] Update requested, immediate:', immediate);
+
+                    if (immediate) {
+                        clearTimeout(debounceTimer);
+                        performUpdate();
+                        return;
+                    }
+
+                    // Debounce updates - only update after 200ms of no new requests
+                    if (debounceTimer) {
+                        clearTimeout(debounceTimer);
+                    }
+
+                    debounceTimer = setTimeout(() => {
+                        performUpdate();
+                    }, 200);
+                }
+
+                function performUpdate() {
+                    if (updateInProgress) {
+                        updateQueued = true;
+                        console.log('[ConversationList] Update already in progress, queued');
+                        return;
+                    }
+
+                    updateInProgress = true;
+                    console.log('[ConversationList] Performing update...');
+
+                    htmx.ajax('GET', '/api/conversations', {
+                        target: '#conversation-list',
+                        swap: 'innerHTML',
+                        callback: function() {
+                            updateInProgress = false;
+                            console.log('[ConversationList] Update completed');
+
+                            // If another update was queued while we were updating
+                            if (updateQueued) {
+                                updateQueued = false;
+                                setTimeout(performUpdate, 100); // Small delay to prevent thrashing
+                            }
+                        }
+                    });
+                }
+
+                return { update: updateConversationList };
+            })();
+
             // Add comprehensive HTMX event listeners
             document.body.addEventListener('htmx:beforeRequest', function(evt) {
                 console.log('[HTMX] Before Request:', evt.detail);
             });
-            
+
             document.body.addEventListener('htmx:afterRequest', function(evt) {
                 console.log('[HTMX] After Request:', evt.detail);
             });
-            
+
             document.body.addEventListener('htmx:responseError', function(evt) {
                 console.error('[HTMX] Response Error:', evt.detail);
             });
-            
+
             document.body.addEventListener('htmx:xhr:loadstart', function(evt) {
                 console.log('[HTMX] XHR Load Start:', evt.detail);
             });
-            
+
             document.body.addEventListener('htmx:xhr:loadend', function(evt) {
                 console.log('[HTMX] XHR Load End:', evt.detail);
             });
-            
+
             // Check if HTMX is loaded
             console.log('[HTMX] Loaded:', typeof htmx);
             
@@ -154,8 +208,8 @@ def setup_routes(app):
                                 welcome.style.display = 'none';
                             }
                             
-                            // Update conversation list
-                            htmx.ajax('GET', '/api/conversations', {target: '#conversation-list', swap: 'innerHTML'});
+                            // Update conversation list via manager
+                            window.ConversationListManager.update();
                             
                             // Update conversation ID if it was created
                             (function() {
@@ -346,8 +400,8 @@ def setup_routes(app):
                 if (convInput) {{
                     convInput.value = '{conversation['id']}';
                 }}
-                // Update conversation list
-                htmx.ajax('GET', '/api/conversations', {{target: '#conversation-list', swap: 'innerHTML'}});
+                // Update conversation list via manager
+                window.ConversationListManager.update(true);
                 // Show success toast
                 if (window.GaiaToast) {{
                     GaiaToast.success('New conversation created!');
@@ -402,11 +456,31 @@ def setup_routes(app):
             if not message:
                 return gaia_error_message("Please enter a message")
             
-            # Create new conversation if none exists
+            # Create new conversation if none exists - with race condition protection
             if not conversation_id:
-                conversation = await chat_service_client.create_conversation(user_id, jwt_token=jwt_token)
-                conversation_id = conversation['id']
-                logger.info(f"Created new conversation: {conversation_id}")
+                # Check if we already have a pending conversation in session (race condition protection)
+                pending_conversation_id = request.session.get("pending_conversation_id")
+                if pending_conversation_id:
+                    # Verify it exists and is accessible
+                    try:
+                        existing_conv = await chat_service_client.get_conversation(user_id, pending_conversation_id, jwt_token=jwt_token)
+                        if existing_conv:
+                            conversation_id = pending_conversation_id
+                            logger.info(f"Using pending conversation: {conversation_id}")
+                        else:
+                            # Pending conversation doesn't exist, clear it and create new
+                            request.session.pop("pending_conversation_id", None)
+                    except Exception as e:
+                        logger.warning(f"Error checking pending conversation: {e}")
+                        request.session.pop("pending_conversation_id", None)
+
+                # Create new conversation if we still don't have one
+                if not conversation_id:
+                    conversation = await chat_service_client.create_conversation(user_id, jwt_token=jwt_token)
+                    conversation_id = conversation['id']
+                    # Store in session to prevent race conditions on subsequent rapid requests
+                    request.session["pending_conversation_id"] = conversation_id
+                    logger.info(f"Created new conversation: {conversation_id}")
             
             # Store the user message BEFORE sending response
             user_msg = await chat_service_client.add_message(conversation_id, "user", message, jwt_token=jwt_token)
@@ -475,8 +549,8 @@ def setup_routes(app):
         }}
     }})()
     
-    // Update conversation list
-    htmx.ajax('GET', '/api/conversations', {{target: '#conversation-list', swap: 'innerHTML'}});
+    // Update conversation list via manager
+    window.ConversationListManager.update(true);
     
     // Show success notification
     if (window.GaiaToast) {{
