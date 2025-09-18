@@ -117,7 +117,7 @@ class UnifiedChatHandler:
                 "type": "function",
                 "function": {
                     "name": "use_asset_service", 
-                    "description": "Use this ONLY when the user explicitly asks to generate/create an image, 3D model, audio file, or video. Keywords: 'generate', 'create', 'make' + asset type",
+                    "description": "Use this ONLY when the user explicitly asks to generate/create an image, 3D model, audio file, or video. Must explicitly mention visual/audio asset types like 'image', 'picture', 'photo', '3D model', 'audio', 'sound', 'video'. Do NOT use for text content, missions, stories, or game content.",
                     "parameters": {
                         "type": "object",
                         "properties": {
