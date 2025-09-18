@@ -438,4 +438,127 @@ python3 gaia_client.py --env local --batch "read my notes on deployment"
 4. **AI-Powered Organization**: Automatic content categorization
 5. **Version Control Integration**: Git-based change tracking
 
+## Practical Usage Examples: Accessing KB Content
+
+### Mission Generation
+
+The KB Agent has built-in mission generation capabilities that work immediately:
+
+```bash
+# Generate missions via CLI client
+python3 scripts/gaia_client.py --env local --batch "generate a mission for me"
+```
+
+**Example Output:**
+```
+Mission: Operation Red Mirage
+Objective: Extract a high-value defector from a luxury desert resort...
+Location: Five-star resort complex in Dubai, UAE
+[Full detailed mission with complications and objectives]
+```
+
+### Interactive Adventure Game Content
+
+The KB contains a complete Zork-inspired text adventure system located at `experiences/west-of-house/`:
+
+#### File Structure
+```
+/kb/experiences/west-of-house/
+├── GAME.md                    # Main game execution instructions
+├── +game.md                   # Game entry point
+├── world/
+│   ├── rooms/
+│   │   ├── west-of-house.md   # Starting location (classic Zork opening)
+│   │   ├── cellar.md          # Underground areas
+│   │   ├── forest.md          # Outdoor exploration
+│   │   └── house.md           # Building interior
+│   └── creatures/
+│       ├── grue.md            # The legendary grue creature
+│       └── +creatures.md      # Creature mechanics
+└── mechanics/                 # Game rules and parser logic
+```
+
+#### Accessing Game Content
+
+**1. Read Game Instructions:**
+```bash
+python3 scripts/gaia_client.py --env local --batch "read the file experiences/west-of-house/GAME.md"
+```
+
+**2. Start Adventure Game:**
+```bash
+python3 scripts/gaia_client.py --env local --batch "You are west of house. Look around."
+```
+
+**3. Load Specific Game Components:**
+```bash
+python3 scripts/gaia_client.py --env local --batch "KB Agent: Load the west-of-house game from experiences/west-of-house/+game.md and start playing"
+```
+
+#### Content Reference Patterns
+
+| Content Type | Reference Pattern | Example |
+|--------------|------------------|---------|
+| **Zork Game Files** | `experiences/west-of-house/[path]` | `experiences/west-of-house/world/rooms/west-of-house.md` |
+| **Mission Generation** | Direct request to KB Agent | `"generate a mission for me"` |
+| **Game Locations** | Full path from experiences root | `experiences/west-of-house/world/rooms/cellar.md` |
+| **Game Creatures** | Creature directory path | `experiences/west-of-house/world/creatures/grue.md` |
+
+### Understanding the AI-Interpreted Game System
+
+**★ Insight ─────────────────────────────────────**
+This isn't traditional game code - it's an **AI-interpreted knowledge base**! Instead of hardcoded game logic, the system uses structured markdown files that the KB Agent reads and interprets dynamically. This allows for natural language interactions with a game world defined entirely in documentation.
+**─────────────────────────────────────────────────**
+
+#### How It Works
+1. **Structured Knowledge**: Game world defined in markdown with frontmatter metadata
+2. **AI Interpretation**: KB Agent reads game files and responds contextually
+3. **Dynamic Responses**: No hardcoded parser - AI understands game mechanics naturally
+4. **State Management**: KB system maintains game state through document context
+
+#### Example Game Interaction
+```bash
+# Player command via KB system
+"You are west of house. Look around."
+
+# AI-generated response based on west-of-house.md
+"As you stand west of the house, you take a moment to survey your surroundings.
+The area is open, with a gentle slope leading up to the house..."
+```
+
+### Troubleshooting KB Content Access
+
+#### Content Not Found Issues
+
+**Problem**: Search returns general knowledge instead of specific KB files
+```bash
+# ❌ This finds general knowledge about "zork"
+python3 scripts/gaia_client.py --env local --batch "search my knowledge for zork"
+```
+
+**Solution**: Use specific file paths
+```bash
+# ✅ This accesses actual game files
+python3 scripts/gaia_client.py --env local --batch "read the file experiences/west-of-house/GAME.md"
+```
+
+#### Path Discovery
+
+To find available content:
+```bash
+# Check KB directory structure
+docker exec gaia-kb-service-1 find /kb -name "*.md" | head -20
+
+# List specific directories
+docker exec gaia-kb-service-1 ls -la /kb/experiences/
+```
+
+#### Search vs Direct Access
+
+| Method | Use Case | Pattern |
+|--------|----------|---------|
+| **Search** | General knowledge queries | `"search my knowledge for [topic]"` |
+| **Direct Read** | Specific file access | `"read the file [path/file.md]"` |
+| **KB Agent** | Complex interpretation | `"KB Agent: [detailed request]"` |
+
 This comprehensive guide provides everything needed to understand and work with the KB endpoints and chat integration system.
