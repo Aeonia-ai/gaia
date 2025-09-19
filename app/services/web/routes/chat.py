@@ -59,7 +59,7 @@ def setup_routes(app):
         
         # Build simple sidebar content
         sidebar_content = Div(
-            *[gaia_conversation_item(conv) for conv in conversations[:5]],  # Limit to 5 for debugging
+            *[gaia_conversation_item(conv) for conv in conversations],
             cls="space-y-2",
             id="conversation-list"
         )
@@ -335,9 +335,9 @@ def setup_routes(app):
                 id="messages",
                 cls="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar"
             )
-            
-            # Return inner content for innerHTML swap
-            return Div(
+
+            # Main content for the conversation
+            main_content = Div(
                 messages_container,
                 gaia_chat_input(conversation_id=conversation_id),
                 # Add script to update active conversation in sidebar
@@ -354,7 +354,7 @@ def setup_routes(app):
                     }}
                     // Update browser URL without reload
                     history.pushState(null, '', '/chat/{conversation_id}');
-                    
+
                     // Auto-scroll to bottom when loading conversation with messages
                     setTimeout(() => {{
                         const messagesContainer = document.getElementById('messages');
@@ -366,6 +366,32 @@ def setup_routes(app):
                 cls="flex flex-col h-full",
                 data_conversation_id=conversation_id,
                 id="main-content"
+            )
+
+            # For HTMX requests, return just the main content
+            if request.headers.get('hx-request'):
+                return main_content
+
+            # For direct navigation, get user's conversations for sidebar and return full layout
+            try:
+                conversations = await chat_service_client.get_conversations(user_id, jwt_token)
+                logger.info(f"Retrieved {len(conversations)} conversations for sidebar on direct navigation")
+            except Exception as e:
+                logger.error(f"Error getting conversations for sidebar: {e}")
+                conversations = []
+
+            # Build sidebar content for full page load
+            sidebar_content = Div(
+                *[gaia_conversation_item(conv) for conv in conversations],
+                cls="space-y-2",
+                id="conversation-list"
+            )
+
+            # Return full page layout for direct navigation
+            return gaia_layout(
+                sidebar_content=sidebar_content,
+                main_content=main_content,
+                user=user
             )
             
         except Exception as e:
@@ -385,20 +411,16 @@ def setup_routes(app):
         user_id = user.get("id", "dev-user-id")
         
         logger.info(f"New chat requested for user {user_id}")
-        
-        # Create a new conversation using chat service
-        conversation = await chat_service_client.create_conversation(user_id, jwt_token=jwt_token)
-        logger.info(f"Created new conversation: {conversation['id']}")
-        
-        # Return fresh chat interface with conversation ID
-        # Add script to update conversation list
+
+        # No need to create conversation here - unified chat will handle it when user sends first message
+        # Return fresh chat interface without conversation ID
         from fasthtml.core import Script, NotStr
         update_script = Script(NotStr(f'''
             (function() {{
-                // Update conversation ID input
+                // Clear conversation ID input for new chat
                 const convInput = document.getElementById('conversation-id-input');
                 if (convInput) {{
-                    convInput.value = '{conversation['id']}';
+                    convInput.value = '';
                 }}
                 // Update conversation list via manager
                 window.ConversationListManager.update(true);
@@ -425,10 +447,10 @@ def setup_routes(app):
                 id="messages",
                 cls="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar"
             ),
-            gaia_chat_input(conversation_id=conversation['id']),
+            gaia_chat_input(conversation_id=""),
             update_script,
             cls="flex flex-col h-full",
-            data_conversation_id=conversation['id'],
+            data_conversation_id="",
             id="main-content"
         )
     
@@ -456,40 +478,10 @@ def setup_routes(app):
             if not message:
                 return gaia_error_message("Please enter a message")
             
-            # Create new conversation if none exists - with race condition protection
+            # Use "new" as conversation_id if none provided - let unified chat handle conversation creation
             if not conversation_id:
-                # Check if we already have a pending conversation in session (race condition protection)
-                pending_conversation_id = request.session.get("pending_conversation_id")
-                if pending_conversation_id:
-                    # Verify it exists and is accessible
-                    try:
-                        existing_conv = await chat_service_client.get_conversation(user_id, pending_conversation_id, jwt_token=jwt_token)
-                        if existing_conv:
-                            conversation_id = pending_conversation_id
-                            logger.info(f"Using pending conversation: {conversation_id}")
-                        else:
-                            # Pending conversation doesn't exist, clear it and create new
-                            request.session.pop("pending_conversation_id", None)
-                    except Exception as e:
-                        logger.warning(f"Error checking pending conversation: {e}")
-                        request.session.pop("pending_conversation_id", None)
-
-                # Create new conversation if we still don't have one
-                if not conversation_id:
-                    conversation = await chat_service_client.create_conversation(user_id, jwt_token=jwt_token)
-                    conversation_id = conversation['id']
-                    # Store in session to prevent race conditions on subsequent rapid requests
-                    request.session["pending_conversation_id"] = conversation_id
-                    logger.info(f"Created new conversation: {conversation_id}")
-            
-            # Store the user message BEFORE sending response
-            user_msg = await chat_service_client.add_message(conversation_id, "user", message, jwt_token=jwt_token)
-            logger.info(f"Stored user message: {user_msg}")
-            
-            # Update conversation preview with first message
-            await chat_service_client.update_conversation(user_id, conversation_id, 
-                                                 title=message[:50] + "..." if len(message) > 50 else message,
-                                                 preview=message, jwt_token=jwt_token)
+                conversation_id = "new"
+                logger.info(f"No conversation_id provided, using 'new' - unified chat will handle creation")
             
             # For now, use a simple ID
             import uuid
@@ -541,11 +533,11 @@ def setup_routes(app):
         welcome.style.display = 'none';
     }}
     
-    // Update conversation ID if it was just created
+    // Update conversation ID if it was just created (will be updated from streaming metadata)
     (function() {{
         const convInput = document.getElementById('conversation-id-input');
-        if (convInput && !convInput.value) {{
-            convInput.value = '{conversation_id}';
+        if (convInput && (!convInput.value || convInput.value === 'new')) {{
+            convInput.value = '{conversation_id}';  // Will be "new" initially, updated by metadata
         }}
     }})()
     
@@ -600,7 +592,16 @@ def setup_routes(app):
             
             try {{
                 const data = JSON.parse(event.data);
-                
+
+                // Handle conversation metadata (conversation_id from unified chat)
+                if (data.type === 'metadata' && data.conversation_id) {{
+                    const convInput = document.getElementById('conversation-id-input');
+                    if (convInput && (convInput.value === 'new' || !convInput.value)) {{
+                        convInput.value = data.conversation_id;
+                        console.log('Updated conversation_id from metadata:', data.conversation_id);
+                    }}
+                }}
+
                 if (data.type === 'metadata' && data.phase) {{
                     // Handle progressive phases
                     if (data.phase === 'immediate') {{
@@ -752,18 +753,21 @@ def setup_routes(app):
         logger.info(f"Stream response - message: {message}, conv: {conversation_id} (using v0.3 format), has_jwt: {bool(jwt_token)}, user_id: {user_id}")
         
         async def event_generator():
+            nonlocal conversation_id  # Allow modification of outer scope variable
             import json  # Import json for error handling
+            response_content = ""  # Initialize response content
             logger.info(f"Starting SSE generator for conversation {conversation_id}")
             try:
                 # Get conversation history from chat service
-                if conversation_id:
+                if conversation_id and conversation_id != "new":
                     messages_history = await chat_service_client.get_messages(conversation_id, jwt_token)
                     messages = [
-                        {"role": m["role"], "content": m["content"]} 
-                        for m in messages_history 
+                        {"role": m["role"], "content": m["content"]}
+                        for m in messages_history
                         if m.get("content", "").strip()
                     ]
                 else:
+                    # For new conversations, just send the current message
                     messages = [{"role": "user", "content": message}]
                 
                 # Start streaming from gateway with v0.3 format
@@ -831,6 +835,14 @@ def setup_routes(app):
                                     content = chunk_data.get("content", "")
                                     response_content += content
                                     yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+                                elif chunk_data.get("type") == "metadata":
+                                    # Handle metadata including conversation_id
+                                    if chunk_data.get("conversation_id"):
+                                        # Update conversation_id from unified chat response
+                                        conversation_id = chunk_data["conversation_id"]
+                                        logger.info(f"Updated conversation_id from metadata: {conversation_id}")
+                                    # Forward metadata to client
+                                    yield f"data: {json.dumps(chunk_data)}\n\n"
                                 elif chunk_data.get("type") == "error":
                                     yield f"data: {json.dumps({'type': 'error', 'error': chunk_data.get('error')})}\n\n"
                                 
@@ -1098,7 +1110,7 @@ def setup_routes(app):
         
         # Return updated conversation list with smooth animations
         conversation_items = [gaia_conversation_item(conv) for conv in conversations]
-        
+
         return Div(
             *conversation_items,
             cls="space-y-2 stagger-children animate-fadeIn",

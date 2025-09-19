@@ -18,6 +18,7 @@ from tests.fixtures.screenshot_cleanup import (
     screenshot_cleanup,
     screenshot_on_failure
 )
+from tests.fixtures.conversation_cleanup import conversation_cleanup_session
 
 # Configure pytest for async tests
 @pytest.fixture(scope="session")
@@ -76,9 +77,16 @@ def shared_test_user():
         # Provide a mock user for tests that don't need real Supabase
         yield {
             "user_id": "mock-user-id",
-            "email": "mock@test.local", 
+            "email": "mock@test.local",
             "password": "mock-password"
         }
+
+# Conversation cleanup for all tests
+@pytest.fixture(scope="session", autouse=True)
+async def auto_conversation_cleanup(conversation_cleanup_session):
+    """Automatically clean up test conversations after test session"""
+    yield
+    # Cleanup happens automatically in conversation_cleanup_session fixture
 
 # Markers for test categorization
 def pytest_configure(config):
