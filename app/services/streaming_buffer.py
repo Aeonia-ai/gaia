@@ -15,27 +15,34 @@ class StreamBuffer:
     1. Forwards complete phrases/sentences when possible
     2. Only splits at word boundaries when necessary
     3. Preserves complete JSON directives
+    4. Optional sentence-only mode for complete sentence delivery
     """
-    
-    def __init__(self, preserve_json: bool = True):
+
+    def __init__(self, preserve_json: bool = True, sentence_mode: bool = True):
         """
         Initialize the stream buffer.
-        
+
         Args:
             preserve_json: Whether to detect and buffer JSON directives
+            sentence_mode: If True, only sends complete sentences (periods, !, ?) - DEFAULT
+                          If False, uses phrase-first strategy (includes : ; etc)
         """
         self.incomplete_buffer = ""  # Buffer for incomplete content
         self.json_buffer = ""        # Buffer for JSON directive
         self.json_depth = 0          # Track brace nesting
         self.in_json = False         # Are we currently buffering JSON?
         self.preserve_json = preserve_json
-        
+        self.sentence_mode = sentence_mode
+
         # Pattern to detect game directives
         self.directive_pattern = re.compile(r'\{"m"\s*:\s*"')
-        
-        # Natural phrase endings (where we prefer to send)
+
+        # Sentence endings (strict sentence boundaries)
+        self.sentence_endings = {'.', '!', '?'}
+
+        # Natural phrase endings (where we prefer to send in phrase mode)
         self.phrase_endings = {'.', '!', '?', ':', ';', '\n'}
-        
+
         # Word boundaries (where we can split if needed)
         self.word_boundaries = {' ', '\t', ',', '-', ')', ']', '}', '"', "'"}
     
@@ -74,29 +81,56 @@ class StreamBuffer:
                 self.json_depth = 0
             return
         
-        # Check for JSON directive start
+        # Check for JSON directive start (process before sentence/phrase logic)
         if self.preserve_json:
             match = self.directive_pattern.search(text)
             if match:
                 json_start = match.start()
-                
+
                 # Send everything before the JSON
                 if json_start > 0:
                     pre_json = text[:json_start]
                     async for chunk in self._process_text(pre_json, final=False):
                         yield chunk
-                
-                # Start buffering JSON
-                self.in_json = True
-                self.json_buffer = text[json_start:]
-                self.json_depth = self.json_buffer.count('{') - self.json_buffer.count('}')
-                
-                # If JSON completes immediately
-                if self.json_depth <= 0:
-                    yield self.json_buffer
-                    self.in_json = False
-                    self.json_buffer = ""
-                    self.json_depth = 0
+
+                # Find where the JSON ends by counting braces
+                json_content = text[json_start:]
+                brace_depth = 0
+                json_end = -1
+
+                for i, char in enumerate(json_content):
+                    if char == '{':
+                        brace_depth += 1
+                    elif char == '}':
+                        brace_depth -= 1
+                        if brace_depth == 0:
+                            json_end = i + 1
+                            break
+
+                if json_end > 0:
+                    # JSON is complete in this chunk
+                    json_part = json_content[:json_end]
+                    remaining_text = json_content[json_end:]
+
+                    yield json_part
+
+                    # Process any remaining text after the JSON (might contain more JSON)
+                    # Use _process_text to maintain sentence/phrase logic but detect JSON first
+                    if remaining_text:
+                        # Check if remaining text has more JSON first
+                        if self.directive_pattern.search(remaining_text):
+                            # More JSON detected, recursively process to handle it properly
+                            async for chunk in self.process(remaining_text):
+                                yield chunk
+                        else:
+                            # No more JSON, use normal text processing
+                            async for chunk in self._process_text(remaining_text, final=False):
+                                yield chunk
+                else:
+                    # JSON is incomplete, start buffering
+                    self.in_json = True
+                    self.json_buffer = json_content
+                    self.json_depth = json_content.count('{') - json_content.count('}')
                 return
         
         # Process normal text
@@ -105,89 +139,94 @@ class StreamBuffer:
     
     async def _process_text(self, text: str, final: bool = False) -> AsyncGenerator[str, None]:
         """
-        Process text to send complete phrases when possible.
-        
+        Process text to send complete phrases or sentences when possible.
+
         Optimization strategy:
-        1. If text ends with phrase ending (. ! ? etc), send everything
-        2. If text ends with whitespace, send everything  
-        3. If text ends mid-word, send complete part and buffer the rest
-        4. Batch as much as possible to reduce overhead
-        
+        - Sentence mode: Only send when we have complete sentences (. ! ?)
+        - Phrase mode: Send complete phrases including colons, semicolons, etc.
+        - Always fall back to word boundaries if no sentence/phrase endings
+
         Args:
             text: Text to process
             final: Whether this is the final flush
-            
+
         Yields:
-            Complete phrases or words
+            Complete sentences/phrases or words based on mode
         """
         if not text:
             return
+
+        # Determine which endings to use based on mode
+        preferred_endings = self.sentence_endings if self.sentence_mode else self.phrase_endings
+
+        # Case 1: Text ends with preferred ending
+        # But first check if there are multiple endings inside that we should split on
+        if text and text[-1] in preferred_endings:
+            # Count how many preferred endings we have
+            ending_count = sum(text.count(ending) for ending in preferred_endings)
+            if ending_count == 1:
+                # Only one ending and it's at the end - send it all
+                yield text
+                return
+            # If multiple endings, fall through to Case 3 to split properly
         
-        # Case 1: Text ends with phrase ending - send it all
-        if text and text[-1] in self.phrase_endings:
-            yield text
-            return
-        
-        # Case 2: Text ends with whitespace - everything is complete
+        # Case 2: Text ends with whitespace - all words are complete
         if text and text[-1] in (' ', '\t', '\n'):
             yield text
             return
-        
+
         # Case 3: Check if we have a good breaking point
-        # Look for phrase endings first (optimal for batching)
-        best_break = -1
-        for ending in self.phrase_endings:
-            pos = text.rfind(ending)
-            if pos > best_break:
-                best_break = pos
-        
-        # If we found a phrase ending, send everything up to there
-        if best_break >= 0:
+        # Find the first occurrence of any preferred ending to create proper chunking
+        first_break = len(text)
+        for ending in preferred_endings:
+            pos = text.find(ending)
+            if pos != -1 and pos < first_break:
+                first_break = pos
+
+        # If we found a preferred ending, send everything up to there
+        if first_break < len(text):
             # Include the punctuation
-            complete_part = text[:best_break + 1]
-            
+            complete_part = text[:first_break + 1]
+
             # Check if there's content after the punctuation
-            remainder = text[best_break + 1:]
-            
+            remainder = text[first_break + 1:]
+
             # If remainder starts with space, include it in the complete part
             if remainder and remainder[0] in (' ', '\t', '\n'):
                 # Find where the next word starts
                 i = 0
                 while i < len(remainder) and remainder[i] in (' ', '\t', '\n'):
                     i += 1
-                
+
                 # Include the whitespace in the complete part
                 if i > 0:
                     complete_part += remainder[:i]
                     remainder = remainder[i:]
-            
+
             # Send the complete phrase
             if complete_part:
                 yield complete_part
-            
+
             # Process the remainder
             if remainder:
-                # If remainder has more complete content, process it
-                if any(boundary in remainder for boundary in (' ', '\t', '\n')):
-                    async for chunk in self._process_text(remainder, final):
-                        yield chunk
-                else:
-                    # Remainder is an incomplete word, buffer it
-                    self.incomplete_buffer = remainder
+                # If remainder has more complete content, process it recursively
+                async for chunk in self._process_text(remainder, final):
+                    yield chunk
             return
         
-        # Case 4: No phrase endings, look for word boundaries
+        # Case 4: No preferred endings found - fall back to word boundaries
+        # Both sentence and phrase mode should send complete words
         last_space = -1
         for boundary in (' ', '\t', '\n', ','):
             pos = text.rfind(boundary)
             if pos > last_space:
                 last_space = pos
-        
+
         if last_space >= 0:
             # Send complete words
             complete_part = text[:last_space + 1]
             yield complete_part
-            
+
             # Buffer the incomplete word
             remainder = text[last_space + 1:]
             if remainder and not final:
@@ -226,16 +265,18 @@ class StreamBuffer:
 async def create_buffered_stream(
     chunk_generator: AsyncGenerator[dict, None],
     preserve_boundaries: bool = True,
-    preserve_json: bool = True
+    preserve_json: bool = True,
+    sentence_mode: bool = True
 ) -> AsyncGenerator[dict, None]:
     """
     Wrap a stream with smart buffering optimized for minimal overhead.
-    
+
     Args:
         chunk_generator: Original stream of chunks
         preserve_boundaries: Whether to preserve word boundaries
         preserve_json: Whether to buffer JSON directives
-        
+        sentence_mode: If True, only sends complete sentences (. ! ?) - DEFAULT
+
     Yields:
         Optimally batched chunks with preserved boundaries
     """
@@ -244,8 +285,8 @@ async def create_buffered_stream(
         async for chunk in chunk_generator:
             yield chunk
         return
-    
-    buffer = StreamBuffer(preserve_json=preserve_json)
+
+    buffer = StreamBuffer(preserve_json=preserve_json, sentence_mode=sentence_mode)
     
     async for chunk in chunk_generator:
         if chunk.get("type") == "content":

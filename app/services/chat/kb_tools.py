@@ -6,6 +6,7 @@ These tools make HTTP calls to the KB service endpoints.
 """
 
 import httpx
+import json
 import logging
 from typing import Dict, Any, List, Optional
 from app.shared.config import settings
@@ -146,12 +147,22 @@ KB_TOOLS = [
 
 class KBToolExecutor:
     """Executes KB tool calls by making HTTP requests to the KB service."""
-    
+
     def __init__(self, auth_principal: Dict[str, Any]):
         self.auth_principal = auth_principal
+
+        # For inter-service communication, we need to use the system API key
+        # When auth_type is 'jwt', the auth_principal won't have a 'key' field
+        api_key = auth_principal.get("key", "")
+
+        # If no API key in auth_principal (JWT auth), use system API key from settings
+        if not api_key and auth_principal.get("auth_type") == "jwt":
+            api_key = settings.API_KEY  # Use the system's API_KEY for inter-service calls
+            logger.info(f"Using system API_KEY for KB service call (JWT auth detected)")
+
         self.headers = {
             "Content-Type": "application/json",
-            "X-API-Key": auth_principal.get("key", "")
+            "X-API-Key": api_key
         }
     
     async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -192,6 +203,7 @@ class KBToolExecutor:
                 if response.status_code == 200:
                     result = response.json()
                     # KB service returns {status, response, metadata} format
+                    logger.info(f"KB search response for '{query}': status={result.get('status')}, has_response={bool(result.get('response'))}, metadata={result.get('metadata')}")
                     if result.get("status") == "success":
                         content = result.get("response", "No results found")
                         return {"success": True, "content": content}
