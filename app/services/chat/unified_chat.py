@@ -16,6 +16,7 @@ from typing import Dict, Any, Optional, List, AsyncGenerator
 from enum import Enum
 
 from app.services.llm.chat_service import chat_service
+from app.services.streaming_buffer import StreamBuffer
 from app.services.chat.lightweight_chat_hot import hot_chat_service
 from app.services.llm import LLMProvider
 import httpx
@@ -747,9 +748,26 @@ class UnifiedChatHandler:
                         }]
                     }
                     
-                    # Stream content in chunks on word boundaries
-                    chunks = split_on_word_boundaries(content, target_chunk_size=100)
-                    for chunk_text in chunks:
+                    # Use StreamBuffer for sentence-aware chunking
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+
+                    # Process content through buffer
+                    async for chunk_text in buffer.process(content):
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": chunk_text},
+                                "finish_reason": None
+                            }]
+                        }
+                        await asyncio.sleep(0.003)
+
+                    # Flush any remaining content
+                    async for chunk_text in buffer.flush():
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -821,10 +839,11 @@ class UnifiedChatHandler:
                         }]
                     }
                     
-                    # Stream content chunks on word boundaries
-                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
-                    for chunk_text in chunks:
-                        
+                    # Use StreamBuffer for sentence-aware chunking
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+
+                    # Process content through buffer
+                    async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -836,8 +855,22 @@ class UnifiedChatHandler:
                                 "finish_reason": None
                             }]
                         }
-                        
                         # Small delay to simulate streaming (shorter than direct responses)
+                        await asyncio.sleep(0.005)
+
+                    # Flush any remaining content
+                    async for chunk_text in buffer.flush():
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": chunk_text},
+                                "finish_reason": None
+                            }]
+                        }
                         await asyncio.sleep(0.005)
                     
                     # Final chunk with metadata
@@ -894,10 +927,9 @@ class UnifiedChatHandler:
                         }]
                     }
                     
-                    # Stream KB results in chunks
-                    chunk_size = 100  # Larger chunks for KB results
-                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
-                    for chunk_text in chunks:
+                    # Use StreamBuffer for sentence-aware chunking (KB results)
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                    async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -910,7 +942,22 @@ class UnifiedChatHandler:
                             }]
                         }
                         await asyncio.sleep(0.003)
-                    
+
+                    # Flush any remaining content
+                    async for chunk_text in buffer.flush():
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": chunk_text},
+                                "finish_reason": None
+                            }]
+                        }
+                        await asyncio.sleep(0.003)
+
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
@@ -968,9 +1015,9 @@ class UnifiedChatHandler:
                     }
                     
                     # Stream the actual response
-                    chunk_size = 80
-                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
-                    for chunk_text in chunks:
+                    # Use StreamBuffer for sentence-aware chunking (asset response)
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                    async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -983,7 +1030,22 @@ class UnifiedChatHandler:
                             }]
                         }
                         await asyncio.sleep(0.005)
-                    
+
+                    # Flush any remaining content
+                    async for chunk_text in buffer.flush():
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": chunk_text},
+                                "finish_reason": None
+                            }]
+                        }
+                        await asyncio.sleep(0.005)
+
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
@@ -1039,9 +1101,9 @@ class UnifiedChatHandler:
                     }
                     
                     # Stream response
-                    chunk_size = 60
-                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
-                    for chunk_text in chunks:
+                    # Use StreamBuffer for sentence-aware chunking (multi-agent response)
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                    async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -1054,7 +1116,22 @@ class UnifiedChatHandler:
                             }]
                         }
                         await asyncio.sleep(0.008)  # Slightly slower for multi-agent
-                    
+
+                    # Flush any remaining content
+                    async for chunk_text in buffer.flush():
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": chunk_text},
+                                "finish_reason": None
+                            }]
+                        }
+                        await asyncio.sleep(0.008)
+
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
@@ -1107,9 +1184,9 @@ class UnifiedChatHandler:
                         }]
                     }
                     
-                    chunk_size = 50
-                    chunks = split_on_word_boundaries(content, target_chunk_size=chunk_size)
-                    for chunk_text in chunks:
+                    # Use StreamBuffer for sentence-aware chunking
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                    async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -1122,7 +1199,22 @@ class UnifiedChatHandler:
                             }]
                         }
                         await asyncio.sleep(0.01)
-                    
+
+                    # Flush any remaining content
+                    async for chunk_text in buffer.flush():
+                        yield {
+                            "id": request_id,
+                            "object": "chat.completion.chunk",
+                            "created": int(time.time()),
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"content": chunk_text},
+                                "finish_reason": None
+                            }]
+                        }
+                        await asyncio.sleep(0.01)
+
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
@@ -1157,9 +1249,9 @@ class UnifiedChatHandler:
                 # Stream it in chunks for better UX
                 chunk_size = 20  # Characters per chunk
                 
-                chunks = split_on_word_boundaries(content, target_chunk_size=50)
-                for chunk_text in chunks:
-                    
+                # Use StreamBuffer for sentence-aware chunking (error case)
+                buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                async for chunk_text in buffer.process(content):
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
@@ -1171,8 +1263,20 @@ class UnifiedChatHandler:
                             "finish_reason": None
                         }]
                     }
-                    
                     # Small delay to simulate streaming
+                    await asyncio.sleep(0.01)
+                async for chunk_text in buffer.flush():
+                    yield {
+                        "id": request_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [{
+                            "index": 0,
+                            "delta": {"content": chunk_text},
+                            "finish_reason": None
+                        }]
+                    }
                     await asyncio.sleep(0.01)
                 
                 # Final chunk with metadata
