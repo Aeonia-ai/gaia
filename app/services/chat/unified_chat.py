@@ -749,7 +749,7 @@ class UnifiedChatHandler:
                     }
                     
                     # Use StreamBuffer for sentence-aware chunking
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
 
                     # Process content through buffer
                     async for chunk_text in buffer.process(content):
@@ -840,7 +840,7 @@ class UnifiedChatHandler:
                     }
                     
                     # Use StreamBuffer for sentence-aware chunking
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
 
                     # Process content through buffer
                     async for chunk_text in buffer.process(content):
@@ -928,7 +928,7 @@ class UnifiedChatHandler:
                     }
                     
                     # Use StreamBuffer for sentence-aware chunking (KB results)
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
                     async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
@@ -1016,7 +1016,7 @@ class UnifiedChatHandler:
                     
                     # Stream the actual response
                     # Use StreamBuffer for sentence-aware chunking (asset response)
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
                     async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
@@ -1102,7 +1102,7 @@ class UnifiedChatHandler:
                     
                     # Stream response
                     # Use StreamBuffer for sentence-aware chunking (multi-agent response)
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
                     async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
@@ -1185,7 +1185,7 @@ class UnifiedChatHandler:
                     }
                     
                     # Use StreamBuffer for sentence-aware chunking
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
                     async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
@@ -1250,7 +1250,7 @@ class UnifiedChatHandler:
                 chunk_size = 20  # Characters per chunk
                 
                 # Use StreamBuffer for sentence-aware chunking (error case)
-                buffer = StreamBuffer(preserve_json=True, sentence_mode=True)
+                buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
                 async for chunk_text in buffer.process(content):
                     yield {
                         "id": request_id,
