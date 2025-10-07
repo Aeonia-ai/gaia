@@ -193,6 +193,55 @@ Content-Type: application/json
 }
 ```
 
+### AR/Location Endpoints
+
+#### Get Nearby Locations (v0.3)
+```bash
+GET /api/v0.3/locations/nearby?gps=37.906,-122.547&radius=1000&experience=wylding-woods
+```
+
+**Query Parameters:**
+- `gps` (required): GPS coordinates as "latitude,longitude"
+- `radius` (optional): Search radius in meters (default: 1000)
+- `experience` (optional): Experience name (default: "wylding-woods")
+
+**Response:**
+```json
+{
+  "locations": [
+    {
+      "id": "8_inter_gravity_car",
+      "name": "#8 INTER  Gravity Car",
+      "gps": [37.905696, -122.547701],
+      "waypoint_type": "vps",
+      "media": {
+        "audio": "8-gravity-car-sounds.wav",
+        "visual_fx": "spark_jump",
+        "interaction": "wheel_rotation",
+        "image_ref": "6-gravity-car.jpg",
+        "display_text": "The historic Gravity Car awaits your touch."
+      },
+      "asset_bundle_url": "https://cdn.aeonia.ai/assets/8_inter_gravity_car.unity3d"
+    }
+  ],
+  "count": 37
+}
+```
+
+**Use Cases:**
+- AR game waypoint loading
+- Location-based content delivery
+- Dynamic POI (Points of Interest) discovery
+- Server-driven AR experiences
+
+**Implementation Notes:**
+- Waypoints loaded from KB markdown files (server-authoritative)
+- GPS filtering uses Haversine formula
+- Supports multiple experiences at same coordinates
+- Mission ordering to be added in future updates
+
+---
+
 ### Authentication Endpoints
 
 #### Login

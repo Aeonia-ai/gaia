@@ -527,6 +527,79 @@ All of this happens transparently - you just send messages and get responses.
 - **Support**: support@gaia-platform.com
 - **Status**: https://status.gaia-platform.com
 
+## AR/Location Endpoints
+
+### GET `/api/v0.3/locations/nearby`
+
+Get AR waypoints near a GPS location for location-based AR experiences.
+
+#### Request Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `gps` | string | Yes | GPS coordinates as "latitude,longitude" (e.g., "37.906,-122.547") |
+| `radius` | integer | No | Search radius in meters (default: 1000) |
+| `experience` | string | No | Experience name (default: "wylding-woods") |
+
+#### Request Example
+
+```bash
+curl -X GET "https://your-gaia-instance.com/api/v0.3/locations/nearby?gps=37.906,-122.547&radius=1000" \
+  -H "X-API-Key: your-api-key"
+```
+
+#### Response Format
+
+```json
+{
+  "locations": [
+    {
+      "id": "8_inter_gravity_car",
+      "name": "#8 INTER  Gravity Car",
+      "gps": [37.905696, -122.547701],
+      "waypoint_type": "vps",
+      "media": {
+        "audio": "8-gravity-car-sounds.wav",
+        "visual_fx": "spark_jump",
+        "interaction": "wheel_rotation",
+        "image_ref": "6-gravity-car.jpg",
+        "display_text": "The historic Gravity Car awaits your touch."
+      },
+      "asset_bundle_url": "https://cdn.aeonia.ai/assets/8_inter_gravity_car.unity3d"
+    }
+  ],
+  "count": 37
+}
+```
+
+#### Response Fields
+
+- `locations` (array): Array of waypoint objects near the specified GPS coordinates
+  - `id` (string): Unique waypoint identifier
+  - `name` (string): Display name for the waypoint
+  - `gps` (array): GPS coordinates as [latitude, longitude]
+  - `waypoint_type` (string): Type of waypoint (e.g., "vps", "gps", "pathway")
+  - `media` (object): Media assets and interaction configuration
+  - `asset_bundle_url` (string): CDN URL for Unity asset bundle
+- `count` (integer): Total number of waypoints returned
+
+#### Use Cases
+
+- **AR Games**: Load dynamic waypoints for location-based AR experiences
+- **Map Applications**: Display nearby points of interest
+- **Navigation**: Find destinations within a specific radius
+- **Experience Management**: Filter waypoints by experience/theme
+
+#### Notes
+
+- Waypoints are loaded from server-side KB markdown files (not hardcoded)
+- Supports multiple experiences at the same physical location
+- GPS filtering uses Haversine formula for accurate distance calculation
+- Returns waypoints within specified radius, unfiltered by mission state
+- Array order is not guaranteed (mission ordering to be added in future)
+
+---
+
 ## Changelog
 
 ### v0.3.0 (Current)
@@ -535,6 +608,7 @@ All of this happens transparently - you just send messages and get responses.
 - Streaming support with simple format
 - Hidden provider complexity
 - Sub-second response times for simple queries
+- AR waypoint endpoint for location-based experiences
 
 ---
 

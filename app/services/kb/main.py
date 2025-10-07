@@ -40,6 +40,7 @@ from .kb_service import (
 )
 from .kb_editor import kb_editor
 from .agent_endpoints import router as agent_router
+from .waypoints_api import router as waypoints_router
 from .kb_agent import kb_agent
 from app.models.kb import WriteRequest, DeleteRequest, MoveRequest
 
@@ -585,6 +586,7 @@ if kb_rbac_router:
 
 # Add KB Agent router
 app.include_router(agent_router)
+app.include_router(waypoints_router)
 logger.info("✅ KB Agent endpoints added")
 
 from datetime import datetime

@@ -129,7 +129,7 @@ Review the implementation for security and best practices
 - **Provide Recaps**: When switching agents, summarize what's been done
 - **Limit Scope**: Don't overload agents with unnecessary context
 
-## 🎯 Current Development Focus (July 2025)
+## 🎯 Current Development Focus (October 2025)
 
 **Completed Systems**:
 - ✅ Supabase Authentication (no PostgreSQL fallback when AUTH_BACKEND=supabase)
@@ -138,6 +138,16 @@ Review the implementation for security and best practices
 - ✅ Intelligent chat routing (simple: ~1s, complex: ~3s)
 - ✅ mTLS + JWT infrastructure (Phases 1-2, 100% backward compatible)
 - ✅ Redis caching (97% performance improvement)
+- ✅ AR Waypoints System - `/api/v0.3/locations/nearby` endpoint (AEO-10 partial)
+
+**AR Waypoints Implementation** (AEO-10):
+- ✅ 37 waypoints loaded from KB markdown files (`/kb/experiences/wylding-woods/waypoints/`)
+- ✅ GPS-based filtering (Haversine distance calculation)
+- ✅ Unity JSON format transformation
+- ✅ TDD implementation (5/5 tests passing)
+- ⏸️ Mission parameters (deferred - to be added with full mission system)
+- ⏸️ Mission-based waypoint ordering (Unity expects array order)
+- ⚠️ Technical debt: Logic in Gateway (should be separate Locations service)
 
 **Active Development**:
 - 🔧 Getting Supabase service role key for full remote functionality
@@ -748,7 +758,7 @@ All documentation is in the `docs/` directory. Key resources for removed content
 ### Documentation by Category
 - **Architecture**: Overview, patterns, microservices design
 - **Authentication**: API keys, Supabase, mTLS, RBAC
-- **Deployment**: Scripts, best practices, platform guides
+- **Deployment**: [Guide](docs/deployment/deployment-guide.md) | [Quick Reference](docs/deployment/deployment-reference.md) | [Fly.io](docs/deployment/flyio-setup.md) | [Supabase](docs/deployment/supabase-setup.md)
 - **Knowledge Base**: Git sync, multi-user, deployment
 - **Troubleshooting**: Common issues and solutions
 - **Development**: Testing, optimization, UI guidelines
