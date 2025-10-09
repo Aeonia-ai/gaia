@@ -1062,7 +1062,7 @@ async def calculator_add(request: Request):
 
 from app.services.locations.waypoint_reader import waypoint_reader
 from app.services.locations.waypoint_transformer import transform_to_unity_format
-from app.services.locations.distance_utils import is_within_radius
+from app.services.locations.distance_utils import is_within_radius, calculate_distance
 
 @app.get("/api/v0.3/locations/nearby", tags=["AR Locations"])
 async def get_nearby_locations(
@@ -1111,19 +1111,28 @@ async def get_nearby_locations(
         # Load all waypoints for this experience from KB
         waypoints = await waypoint_reader.get_waypoints_for_experience(experience)
 
-        # Filter waypoints by distance
-        nearby_waypoints = []
+        # Filter waypoints by distance and calculate distances for sorting
+        nearby_waypoints_with_distance = []
         for waypoint in waypoints:
             # Check if waypoint has GPS coordinates
             if waypoint.get("location") and waypoint["location"]:
                 wp_lat = waypoint["location"]["lat"]
                 wp_lng = waypoint["location"]["lng"]
 
+                # Calculate distance
+                distance = calculate_distance(center_lat, center_lng, wp_lat, wp_lng)
+
                 # Check if within radius
-                if is_within_radius(center_lat, center_lng, wp_lat, wp_lng, radius):
-                    nearby_waypoints.append(waypoint)
+                if distance <= radius:
+                    nearby_waypoints_with_distance.append((waypoint, distance))
             # Note: Pathway waypoints (no GPS) are excluded from GPS-based queries
             # They should only be included when part of an active mission context
+
+        # Sort by distance (closest first)
+        nearby_waypoints_with_distance.sort(key=lambda x: x[1])
+
+        # Extract waypoints (without distance)
+        nearby_waypoints = [wp for wp, _ in nearby_waypoints_with_distance]
 
         # Transform to Unity format
         unity_locations = [
