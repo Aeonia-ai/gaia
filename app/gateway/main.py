@@ -1122,9 +1122,8 @@ async def get_nearby_locations(
                 # Check if within radius
                 if is_within_radius(center_lat, center_lng, wp_lat, wp_lng, radius):
                     nearby_waypoints.append(waypoint)
-            else:
-                # Pathway waypoints (no GPS) - include them
-                nearby_waypoints.append(waypoint)
+            # Note: Pathway waypoints (no GPS) are excluded from GPS-based queries
+            # They should only be included when part of an active mission context
 
         # Transform to Unity format
         unity_locations = [
