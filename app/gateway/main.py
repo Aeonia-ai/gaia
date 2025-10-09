@@ -45,6 +45,7 @@ from app.shared import (
 )
 from app.shared.redis_client import redis_client, CacheManager
 from app.gateway.cache_middleware import CacheMiddleware
+from app.services.gateway.routes.locations_endpoints import router as locations_router
 
 # Configure logging for gateway service
 logger = configure_logging_for_service("gateway")
@@ -102,6 +103,9 @@ app.add_middleware(
 # Add rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Register modular routers
+app.include_router(locations_router)
 
 # Service URL configuration
 SERVICE_URLS = {
