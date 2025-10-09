@@ -4,12 +4,15 @@ AR Locations API endpoints.
 Provides waypoint and location data for AR experiences.
 """
 from fastapi import APIRouter, HTTPException, Query
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 from app.services.locations.waypoint_reader import waypoint_reader
 from app.services.locations.waypoint_transformer import transform_to_unity_format
-from app.services.locations.distance_utils import is_within_radius
+from app.services.locations.distance_utils import (
+    is_within_radius,
+    calculate_distance
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,26 +69,63 @@ async def get_nearby_locations(
         # Load all waypoints for this experience from KB
         waypoints = await waypoint_reader.get_waypoints_for_experience(experience)
 
-        # Filter waypoints by distance
-        nearby_waypoints = []
-        for waypoint in waypoints:
-            # Check if waypoint has GPS coordinates
-            if waypoint.get("location") and waypoint["location"]:
-                wp_lat = waypoint["location"]["lat"]
-                wp_lng = waypoint["location"]["lng"]
+        # Filter waypoints by distance and calculate distances for sorting
+        nearby_waypoints: List[Tuple[Dict[str, Any], float]] = []
+        non_gps_waypoints: List[Dict[str, Any]] = []
 
-                # Check if within radius
-                if is_within_radius(center_lat, center_lng, wp_lat, wp_lng, radius):
-                    nearby_waypoints.append(waypoint)
+        for index, waypoint in enumerate(waypoints):
+            if not isinstance(waypoint, dict):
+                logger.warning(
+                    "Skipping waypoint at index %s: expected dict but got %s",
+                    index,
+                    type(waypoint)
+                )
+                continue
+
+            location = waypoint.get("location")
+            if isinstance(location, dict):
+                lat = location.get("lat")
+                lng = location.get("lng")
+
+                if isinstance(lat, (int, float)) and isinstance(lng, (int, float)):
+                    try:
+                        if is_within_radius(center_lat, center_lng, lat, lng, radius):
+                            distance = calculate_distance(center_lat, center_lng, lat, lng)
+                            nearby_waypoints.append((waypoint, distance))
+                    except Exception as distance_error:
+                        logger.warning(
+                            "Skipping waypoint %s due to distance calculation error: %s",
+                            waypoint.get("id", "<unknown>"),
+                            distance_error
+                        )
+                else:
+                    logger.debug(
+                        "Waypoint %s has non-numeric GPS coordinates: %s",
+                        waypoint.get("id", "<unknown>"),
+                        location
+                    )
+                    non_gps_waypoints.append(waypoint)
             else:
-                # Pathway waypoints (no GPS) - include them in results
-                # Unity will handle rendering based on previous waypoint completion
-                nearby_waypoints.append(waypoint)
+                # Pathway waypoints (no GPS) - include separately after GPS-filtered entries
+                non_gps_waypoints.append(waypoint)
 
-        # Transform to Unity format
-        unity_locations = [
-            transform_to_unity_format(wp) for wp in nearby_waypoints
-        ]
+        # Sort GPS-based waypoints by distance (closest first)
+        # Note: Pathway waypoints (non-GPS) are excluded from GPS-based queries
+        # They should only be included when part of an active mission context
+        nearby_waypoints.sort(key=lambda item: item[1])
+        ordered_waypoints = [waypoint for waypoint, _ in nearby_waypoints]
+
+        unity_locations: List[Dict[str, Any]] = []
+        for waypoint in ordered_waypoints:
+            try:
+                unity_locations.append(transform_to_unity_format(waypoint))
+            except Exception as transform_error:
+                logger.warning(
+                    "Skipping waypoint %s due to transform error: %s",
+                    waypoint.get("id", "<unknown>"),
+                    transform_error,
+                    exc_info=True
+                )
 
         logger.info(
             f"Found {len(unity_locations)} waypoints near "
