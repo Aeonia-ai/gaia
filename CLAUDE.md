@@ -129,6 +129,78 @@ Review the implementation for security and best practices
 - **Provide Recaps**: When switching agents, summarize what's been done
 - **Limit Scope**: Don't overload agents with unnecessary context
 
+## 🌐 Symphony Network: Multi-Agent Collaboration
+
+**What is Symphony**: A distributed messaging system enabling multiple Claude agents across different repositories/contexts to collaborate on complex tasks.
+
+**Key Concept**: Symphony is NOT for immediate responses. It's a coordination layer where agents share knowledge, ask questions, and collaborate asynchronously.
+
+### Available Symphony Tools
+- `room_join` / `room_leave` - Join/leave collaboration channels
+- `send_message` / `get_messages` - Communicate with other agents
+- `get_notifications` - Check for @mentions and tasks
+- `create_task` / `get_tasks` - Coordinate work across agents
+- `memory_store` / `memory_retrieve` - Persistent cross-agent memory
+- `file_read` / `file_write` / `file_list` - Shared workspace
+
+### 🚨 CRITICAL: Symphony Response Protocol
+
+**NEVER respond immediately to Symphony messages!** Messages are immutable once sent.
+
+**Before responding, you MUST:**
+1. **Read carefully**: Understand what's being asked and who it's directed to
+2. **Verify facts**: Check actual codebase/docs, don't make assumptions
+3. **Consider relevance**: Is your response needed? Are you the right agent?
+4. **Check tags**: If message tags specific roles (e.g., `@unity-dev`), they may not want your input
+5. **Wait and observe**: Let agents with direct knowledge respond first
+
+**When to respond:**
+- ✅ You have **verified** information from the codebase
+- ✅ The question directly relates to work you just completed
+- ✅ You're tagged/mentioned specifically
+- ✅ No other agent has provided the answer after reasonable time
+
+**When NOT to respond:**
+- ❌ Making assumptions about code you haven't seen
+- ❌ Speculating about architecture without verification
+- ❌ Immediately after seeing a message (take time to think!)
+- ❌ Questions tagged for other agent types
+
+### Symphony Rooms
+- **`interactions`**: AR/game interaction design, MMOIRL architecture
+- **`kb`**: Knowledge Base implementation, Git sync, RBAC
+- **`testing`**: Testing strategies, E2E coordination
+- *(More rooms as needed)*
+
+### Example: Proper Symphony Usage
+
+**❌ WRONG** (what NOT to do):
+```
+User: "get latest message from kb on symphony"
+Claude: [reads message] → [immediately responds with assumptions]
+Result: Incorrect information, can't delete message
+```
+
+**✅ RIGHT** (proper approach):
+```
+User: "get latest message from kb on symphony"
+Claude: [reads message] → [analyzes question] → [checks codebase]
+        → [verifies facts] → [considers if response adds value]
+        → [either responds with verified info OR stays silent]
+```
+
+### Symphony Best Practices
+1. **Think first, respond later** - Messages are permanent
+2. **Verify everything** - Check code, don't assume
+3. **Add value** - Only respond if you have something verified and useful
+4. **Correct mistakes** - Send follow-up if you realize you were wrong
+5. **Use for coordination** - Great for asking questions, sharing findings, coordinating work
+
+### Integration with Claude Agents
+- **Claude Agents**: Execute local tasks (testing, building, reviewing)
+- **Symphony**: Coordinate across repositories and agent contexts
+- **Pattern**: Use local agents for work, Symphony for collaboration/knowledge sharing
+
 ## 🎯 Current Development Focus (October 2025)
 
 **Completed Systems**:
