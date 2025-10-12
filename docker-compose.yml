@@ -152,6 +152,9 @@ services:
       - KB_PATH=/kb
       - KB_MCP_ENABLED=true
       - KB_MODE=local
+      - KB_MULTI_USER_ENABLED=false  # Disable for semantic search testing
+    ports:
+      - "8001:8000"  # Expose KB service for testing (avoid conflict with local services)
     depends_on:
       - db
       - nats

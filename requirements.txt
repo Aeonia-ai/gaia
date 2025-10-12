@@ -40,3 +40,8 @@ mcp-agent>=0.1.0
 # KB integration dependencies
 python-frontmatter>=1.1.0
 asyncpg>=0.29.0
+
+# Semantic search dependencies
+aifs>=0.0.16
+chromadb>=0.4.22  # Required by aifs but not declared as dependency
+unstructured[all-docs]>=0.10.0

@@ -1,0 +1,32 @@
+--- search.py.orig	2024-10-12 02:00:00.000000000 +0000
++++ search.py	2024-10-12 02:10:00.000000000 +0000
+@@ -103,10 +103,15 @@
+       log(f"Couldn't read `{file_path}`. Continuing.")
+       log(e)
+       chunks = [f"There is a file at `{file_path}`."]
+ 
+     embeddings = embed(chunks)
++    # Convert numpy arrays to lists for JSON serialization
++    if embeddings and hasattr(embeddings[0], 'tolist'):
++        embeddings = [emb.tolist() for emb in embeddings]
++    
+     last_modified = os.path.getmtime(file_path)
+ 
+     return {
+         "chunks": chunks,
+         "embeddings": embeddings,
+@@ -143,10 +148,14 @@
+         representations = [e['content'] for e in parsed_content if 'content' in e]
+     except Exception as e:
+         representations = [f"There is a file at `{file_path}`."]
+ 
+     embeddings = embed(representations) if representations else []
++    # Convert numpy arrays to lists for JSON serialization
++    if embeddings and hasattr(embeddings[0], 'tolist'):
++        embeddings = [emb.tolist() for emb in embeddings]
++    
+     last_modified = os.path.getmtime(file_path)
+ 
+     return {
+         "chunks": representations,
+         "embeddings": embeddings,

@@ -120,6 +120,10 @@ class GaiaSettings(BaseSettings):
     KB_GIT_AUTH_TOKEN: Optional[str] = os.getenv("KB_GIT_AUTH_TOKEN")  # GitHub token for private repos
     KB_GIT_AUTO_CLONE: bool = os.getenv("KB_GIT_AUTO_CLONE", "true").lower() == "true"
     
+    # KB Semantic Search Configuration
+    KB_SEMANTIC_SEARCH_ENABLED: bool = os.getenv("KB_SEMANTIC_SEARCH_ENABLED", "false").lower() == "true"
+    KB_SEMANTIC_CACHE_TTL: int = int(os.getenv("KB_SEMANTIC_CACHE_TTL", "3600"))  # 1 hour
+    
     # Multi-User KB Configuration
     KB_MULTI_USER_ENABLED: bool = os.getenv("KB_MULTI_USER_ENABLED", "false").lower() == "true"
     KB_USER_ISOLATION: str = os.getenv("KB_USER_ISOLATION", "strict")  # "strict" or "permissive"

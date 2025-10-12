@@ -1,23 +1,27 @@
-# KB Service Dockerfile
+# KB Service Dockerfile - Full Document Support Edition
+# This version includes ALL document parsing capabilities including Office documents
+# Warning: Results in a larger image size (~2GB vs ~500MB for standard version)
+
 FROM python:3.11-slim
 
-# Install system dependencies including ripgrep for fast search and git for version control
-# Additional dependencies for unstructured[all-docs] document parsing:
-# - poppler-utils: PDF parsing and rendering
-# - tesseract-ocr: OCR for scanned documents and images
-# - libmagic-dev: File type detection
-# - qpdf: Advanced PDF manipulation
-# Note: LibreOffice and pandoc excluded to keep image size manageable
+# Install ALL system dependencies for complete document parsing support
+# This includes heavy packages like LibreOffice and pandoc for Office documents
 RUN apt-get update && apt-get install -y \
+    # Core dependencies
     curl \
     ripgrep \
     git \
+    # PDF and image processing
     poppler-utils \
     tesseract-ocr \
     tesseract-ocr-eng \
     libmagic-dev \
     libmagic1 \
     qpdf \
+    # Office document support (adds ~1GB to image)
+    libreoffice \
+    # Advanced document conversion
+    pandoc \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

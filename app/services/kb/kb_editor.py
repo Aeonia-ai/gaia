@@ -212,6 +212,15 @@ class KBEditor:
             # Invalidate cache for this file
             await kb_cache.invalidate_pattern(f"*{path}*")
             
+            # Trigger semantic reindexing for this file
+            try:
+                from .kb_semantic_search import semantic_indexer
+                if semantic_indexer.enabled:
+                    await semantic_indexer.reindex_changed_files([str(path)])
+                    logger.info(f"Queued semantic reindexing for: {path}")
+            except Exception as e:
+                logger.warning(f"Could not trigger semantic reindexing: {e}")
+            
             return {
                 "success": True,
                 "action": action.lower(),
@@ -274,6 +283,24 @@ class KBEditor:
             
             # Invalidate cache
             await kb_cache.invalidate_pattern(f"*{path}*")
+            
+            # Trigger semantic reindexing for namespace (file deleted)
+            try:
+                from .kb_semantic_search import semantic_indexer
+                if semantic_indexer.enabled:
+                    # For deletions, we need to reindex the namespace
+                    # Extract namespace from path
+                    path_parts = Path(path).parts
+                    if path_parts and path_parts[0] == "users" and len(path_parts) > 1:
+                        namespace = f"users/{path_parts[1]}"
+                    elif path_parts and path_parts[0] == "teams" and len(path_parts) > 1:
+                        namespace = f"teams/{path_parts[1]}"
+                    else:
+                        namespace = "root"
+                    await semantic_indexer.reindex_namespace(namespace)
+                    logger.info(f"Queued semantic reindexing for namespace after deletion: {namespace}")
+            except Exception as e:
+                logger.warning(f"Could not trigger semantic reindexing: {e}")
             
             return {
                 "success": True,
@@ -350,6 +377,16 @@ class KBEditor:
             # Invalidate cache for both paths
             await kb_cache.invalidate_pattern(f"*{old_path}*")
             await kb_cache.invalidate_pattern(f"*{new_path}*")
+            
+            # Trigger semantic reindexing for affected files
+            try:
+                from .kb_semantic_search import semantic_indexer
+                if semantic_indexer.enabled:
+                    # Reindex both old and new paths
+                    await semantic_indexer.reindex_changed_files([str(old_path), str(new_path)])
+                    logger.info(f"Queued semantic reindexing for moved file: {old_path} -> {new_path}")
+            except Exception as e:
+                logger.warning(f"Could not trigger semantic reindexing: {e}")
             
             return {
                 "success": True,

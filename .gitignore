@@ -247,6 +247,11 @@ gaia-mcp-env/
 manual_*.py
 endpoint_test_results.json
 
+# Semantic search indexes (aifs)
+_.aifs
+**/*.aifs
+.aifs/
+
 # Editor specific
 *.swp
 *.swo

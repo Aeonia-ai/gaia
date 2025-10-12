@@ -43,6 +43,12 @@ from .agent_endpoints import router as agent_router
 from .waypoints_api import router as waypoints_router
 from .kb_agent import kb_agent
 from app.models.kb import WriteRequest, DeleteRequest, MoveRequest
+from .kb_semantic_search import semantic_indexer
+from .kb_semantic_endpoints import (
+    kb_search_semantic_endpoint,
+    kb_reindex_semantic_endpoint,
+    kb_semantic_stats_endpoint
+)
 
 # Configure logging
 logger = configure_logging_for_service("kb")
@@ -108,11 +114,25 @@ async def lifespan(app: FastAPI):
         logger.info("KB Intelligent Agent initialized and ready")
     except Exception as e:
         logger.error(f"Failed to initialize KB Agent: {e}")
+    
+    # Initialize Semantic Search Indexer (deferred, non-blocking)
+    try:
+        await semantic_indexer.initialize_indexes()
+        logger.info("Semantic search indexer started (background indexing)")
+    except Exception as e:
+        logger.warning(f"Semantic search initialization failed: {e}")
 
     yield
     
     # Shutdown
     log_service_shutdown("kb")
+    
+    # Shutdown Semantic Indexer
+    try:
+        await semantic_indexer.shutdown()
+        logger.info("Semantic search indexer shutdown")
+    except Exception as e:
+        logger.warning(f"Error shutting down semantic indexer: {e}")
     
     # Shutdown Git sync manager
     try:
@@ -313,6 +333,74 @@ async def kb_list_directory(
     The message field contains the directory path.
     """
     return await kb_list_directory_endpoint(request, auth)
+
+@app.post("/search/semantic")
+async def kb_search_semantic(
+    request: ChatRequest,
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Semantic search using natural language queries.
+    
+    Uses AI embeddings to find conceptually similar content,
+    not just keyword matches.
+    
+    The message field contains the natural language query.
+    Example: "how do users log in?" finds authentication docs.
+    """
+    return await kb_search_semantic_endpoint(request, auth)
+
+@app.post("/search/semantic/reindex")
+async def kb_reindex_semantic(
+    namespace: str = None,
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Manually trigger semantic reindexing for a namespace.
+    
+    Use this after adding many new files or if search results
+    seem outdated. Reindexing happens automatically but this
+    forces immediate reindexing.
+    
+    Args:
+        namespace: Optional namespace to reindex (admin only)
+                  Regular users can only reindex their own namespace
+    """
+    return await kb_reindex_semantic_endpoint(auth, namespace)
+
+@app.get("/search/semantic/stats")
+async def kb_semantic_stats(
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Get semantic search statistics and indexing status.
+    
+    Shows whether your namespace is indexed, queue status,
+    and other diagnostic information.
+    """
+    return await kb_semantic_stats_endpoint(auth)
+
+
+@app.get("/search/semantic/progress/{namespace}")
+async def kb_indexing_progress(
+    namespace: str,
+    auth: dict = Depends(get_current_auth)
+) -> dict:
+    """
+    Get detailed indexing progress for a namespace.
+    
+    Returns real-time progress information including:
+    - Current status (not_indexed, indexing, ready)
+    - Number of files being indexed
+    - Time elapsed
+    - Estimated time per file
+    - Index size once completed
+    
+    Example: GET /search/semantic/progress/root
+    """
+    from .kb_semantic_search import semantic_indexer
+    return await semantic_indexer.get_indexing_status(namespace)
+
 
 @app.post("/claude-code")
 async def claude_code_execute(

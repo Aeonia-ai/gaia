@@ -152,6 +152,16 @@ class KBGitSync:
             # 6. Update sync tracking
             await self._update_last_sync_commit(current_commit)
             
+            # 7. Trigger semantic reindexing for changed files
+            if changed_files:
+                try:
+                    from .kb_semantic_search import semantic_indexer
+                    if semantic_indexer.enabled:
+                        await semantic_indexer.reindex_changed_files(changed_files)
+                        logger.info(f"Queued semantic reindexing for {len(changed_files)} changed files")
+                except Exception as e:
+                    logger.warning(f"Could not trigger semantic reindexing: {e}")
+            
             duration = (datetime.now() - start_time).total_seconds()
             
             result = {

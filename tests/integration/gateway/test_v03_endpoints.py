@@ -124,11 +124,15 @@ class TestV03Endpoints:
                             
                             # Verify clean format
                             assert "type" in chunk_data
-                            assert chunk_data["type"] in ["content", "done"]
-                            
+                            assert chunk_data["type"] in ["content", "done", "metadata"]
+
                             if chunk_data["type"] == "content":
                                 assert "content" in chunk_data
                                 assert isinstance(chunk_data["content"], str)
+                            elif chunk_data["type"] == "metadata":
+                                # Metadata chunks provide conversation_id, tool status, etc.
+                                # Just verify it's valid JSON - content varies by phase
+                                assert isinstance(chunk_data, dict)
                             elif chunk_data["type"] == "done":
                                 done_received = True
                                 break

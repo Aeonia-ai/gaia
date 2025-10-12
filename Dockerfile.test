@@ -31,6 +31,11 @@ RUN pip install --no-cache-dir \
     "websockets>=12.0" \
     "python-multipart>=0.0.6"
 
+# Install KB semantic search dependencies for testing
+RUN pip install --no-cache-dir \
+    aifs \
+    chromadb
+
 # Install ONLY Chromium (not Firefox/WebKit) to reduce image size
 # This saves significant space compared to installing all browsers
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
