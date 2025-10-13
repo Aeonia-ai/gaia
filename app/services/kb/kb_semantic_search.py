@@ -19,13 +19,9 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 
-try:
-    from aifs import search as aifs_search
-    AIFS_AVAILABLE = True
-    logging.info("aifs library imported successfully")
-except ImportError as e:
-    AIFS_AVAILABLE = False
-    logging.warning(f"aifs library not available - semantic search disabled. Error: {e}")
+# Remove AIFS dependency - using ChromaDB directly
+CHROMADB_AVAILABLE = True
+logging.info("Using ChromaDB directly for semantic search")
 
 from app.shared.config import settings
 from app.shared.redis_client import redis_client
@@ -39,8 +35,8 @@ class SemanticIndexer:
     """
     Manages semantic search indexing and querying for KB namespaces.
     
-    Each namespace gets its own _.aifs index file for isolation.
-    Indexes are stored in the namespace directory and Git-ignored.
+    Each namespace gets its own ChromaDB collection for isolation.
+    Collections are managed in-memory with ChromaDB.
     """
     
     def __init__(self):
@@ -52,13 +48,13 @@ class SemanticIndexer:
         # Check configuration
         config_enabled = getattr(settings, 'KB_SEMANTIC_SEARCH_ENABLED', False)
         logger.info(f"KB_SEMANTIC_SEARCH_ENABLED from settings: {config_enabled}")
-        logger.info(f"AIFS_AVAILABLE: {AIFS_AVAILABLE}")
+        logger.info(f"CHROMADB_AVAILABLE: {CHROMADB_AVAILABLE}")
         
-        self.enabled = AIFS_AVAILABLE and config_enabled
+        self.enabled = CHROMADB_AVAILABLE and config_enabled
         
         if not self.enabled:
-            if not AIFS_AVAILABLE:
-                logger.info("Semantic search disabled - aifs not available")
+            if not CHROMADB_AVAILABLE:
+                logger.info("Semantic search disabled - ChromaDB not available")
             elif not config_enabled:
                 logger.info("Semantic search disabled - not enabled in config")
         else:
@@ -162,22 +158,22 @@ class SemanticIndexer:
                 logger.warning(f"Namespace path does not exist: {path}")
                 path.mkdir(parents=True, exist_ok=True)
             
-            # Run aifs indexing in executor to avoid blocking
+            # Run ChromaDB indexing in executor to avoid blocking
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, self._run_aifs_index, path)
+            await loop.run_in_executor(None, self._run_chromadb_index, path, namespace)
             
             logger.info(f"Successfully indexed namespace: {namespace}")
             
         except Exception as e:
             logger.error(f"Failed to index namespace {namespace}: {e}", exc_info=True)
     
-    def _run_aifs_index(self, path: Path):
-        """Run aifs indexing (blocking operation)."""
-        if not AIFS_AVAILABLE:
-            logger.warning("aifs not available, skipping indexing")
+    def _run_chromadb_index(self, path: Path, namespace: str):
+        """Run ChromaDB indexing (blocking operation)."""
+        if not CHROMADB_AVAILABLE:
+            logger.warning("ChromaDB not available, skipping indexing")
             return
             
-        logger.info(f"Starting aifs indexing for path: {path}")
+        logger.info(f"Starting ChromaDB indexing for path: {path}")
         
         # Track indexing progress
         import time
@@ -196,14 +192,63 @@ class SemanticIndexer:
             "status": "indexing"
         }
         
-        # This will create/update the _.aifs file in the directory
-        # Just run a dummy search to trigger indexing
+        # Index files directly using ChromaDB
         try:
-            result = aifs_search("", path=str(path))
+            collection = chromadb_manager.get_or_create_collection(namespace)
+            if not collection:
+                raise Exception("Failed to create ChromaDB collection")
             
-            elapsed = time.time() - start_time
-            logger.info(f"aifs indexing completed for {path} in {elapsed:.1f} seconds")
-            logger.info(f"Indexed {total_files} files, result type: {type(result)}")
+            # Clear existing data - delete all documents
+            try:
+                # Get all document IDs and delete them
+                existing_docs = collection.get()
+                if existing_docs['ids']:
+                    collection.delete(ids=existing_docs['ids'])
+                    logger.info(f"Cleared {len(existing_docs['ids'])} existing documents")
+            except Exception as e:
+                logger.warning(f"Failed to clear existing collection: {e}")
+            
+            # Process all markdown files
+            documents = []
+            metadatas = []
+            ids = []
+            id_counter = 0
+            
+            for md_file in path.rglob("*.md"):
+                try:
+                    content = md_file.read_text(encoding='utf-8')
+                    # Simple chunking - split by double newlines (paragraphs)
+                    chunks = [chunk.strip() for chunk in content.split('\n\n') if chunk.strip()]
+                    
+                    for chunk in chunks:
+                        if len(chunk) > 50:  # Skip very short chunks
+                            documents.append(chunk)
+                            metadatas.append({
+                                "file": str(md_file.relative_to(path)),
+                                "source_path": str(md_file)
+                            })
+                            ids.append(f"{namespace}_{id_counter}")
+                            id_counter += 1
+                            
+                except Exception as e:
+                    logger.warning(f"Failed to process {md_file}: {e}")
+            
+            # Add documents to ChromaDB in batches
+            if documents:
+                batch_size = 100
+                for i in range(0, len(documents), batch_size):
+                    batch_end = min(i + batch_size, len(documents))
+                    collection.add(
+                        documents=documents[i:batch_end],
+                        metadatas=metadatas[i:batch_end],
+                        ids=ids[i:batch_end]
+                    )
+                
+                elapsed = time.time() - start_time
+                logger.info(f"ChromaDB indexing completed for {path} in {elapsed:.1f} seconds")
+                logger.info(f"Indexed {len(documents)} chunks from {total_files} files")
+            else:
+                logger.warning("No documents found to index")
             
             # Update progress
             self.indexing_progress["status"] = "completed"
@@ -211,7 +256,7 @@ class SemanticIndexer:
             self.indexing_progress["completed_time"] = time.time()
             
         except Exception as e:
-            logger.error(f"aifs indexing failed: {e}", exc_info=True)
+            logger.error(f"ChromaDB indexing failed: {e}", exc_info=True)
             self.indexing_progress["status"] = "failed"
             self.indexing_progress["error"] = str(e)
     
@@ -317,10 +362,10 @@ class SemanticIndexer:
                 logger.info(f"Semantic search cache hit for: {query}")
                 return cached_result
             
-            # Check if index exists before attempting search
-            aifs_file = search_path / "_.aifs"
-            if not aifs_file.exists():
-                logger.info(f"No index found for {namespace}, queuing background indexing")
+            # Check if ChromaDB collection exists and has data
+            collection = chromadb_manager.get_or_create_collection(namespace)
+            if not collection or collection.count() == 0:
+                logger.info(f"No ChromaDB index found for {namespace}, queuing background indexing")
                 # Queue indexing but DON'T wait for it
                 await self.indexing_queue.put({
                     "action": "index",
@@ -335,43 +380,34 @@ class SemanticIndexer:
                     "message": "Building search index for this namespace. This happens once and may take a few minutes. Please try again shortly."
                 }
             
-            # Index exists, perform search
-            loop = asyncio.get_event_loop()
+            # Use ChromaDB for search
             try:
-                # Now aifs will just load the existing index, not create one
-                search_results = await loop.run_in_executor(
-                    None,
-                    aifs_search,
-                    query,
-                    str(search_path),
-                    None,  # file_paths
-                    limit,  # max_results
-                    False,  # verbose
-                    False   # python_docstrings_only
+                collection = chromadb_manager.get_or_create_collection(namespace)
+                if not collection:
+                    raise Exception("ChromaDB collection not available")
+                
+                search_results = chromadb_manager.search(
+                    query=query,
+                    collection=collection,
+                    limit=limit
                 )
-                logger.info(f"aifs search returned {len(search_results) if search_results else 0} results")
+                logger.info(f"ChromaDB search returned {len(search_results)} results")
             except Exception as e:
-                logger.error(f"aifs search failed: {e}", exc_info=True)
-                # If aifs fails due to broken index, try to recover
-                if "JSONDecodeError" in str(e):
-                    aifs_file = search_path / "_.aifs"
-                    if aifs_file.exists():
-                        logger.warning(f"Removing corrupt index file: {aifs_file}")
-                        aifs_file.unlink()
-                    # Queue for re-indexing
-                    await self.indexing_queue.put({
-                        "action": "index",
-                        "namespace": namespace,
-                        "path": search_path
-                    })
-                    return {
-                        "success": True,
-                        "results": [],
-                        "total_results": 0,
-                        "status": "indexing",
-                        "message": "Index was corrupted and is being rebuilt. Please try again in a few moments."
-                    }
-                raise
+                logger.error(f"ChromaDB search failed: {e}", exc_info=True)
+                # If search fails, try to rebuild the index
+                chromadb_manager.invalidate_collection(namespace)
+                await self.indexing_queue.put({
+                    "action": "index",
+                    "namespace": namespace,
+                    "path": search_path
+                })
+                return {
+                    "success": True,
+                    "results": [],
+                    "total_results": 0,
+                    "status": "indexing",
+                    "message": "Index was corrupted and is being rebuilt. Please try again in a few moments."
+                }
             
             # Format results
             formatted_results = self._format_search_results(search_results, namespace, limit)
@@ -395,27 +431,34 @@ class SemanticIndexer:
         namespace: str,
         limit: int
     ) -> Dict[str, Any]:
-        """Format aifs search results for API response."""
+        """Format ChromaDB search results for API response."""
         results = []
         
         for i, result in enumerate(raw_results[:limit]):
-            # Handle both old format (string) and new format (dict with source)
+            # Handle ChromaDB result format
             if isinstance(result, dict):
-                # Our improved aifs returns {"content": text, "source": filepath}
+                # ChromaDB returns {"content": text, "metadata": {...}, "score": float}
                 content = result.get("content", "")
-                source_path = result.get("source", "unknown")
-                # Extract just the filename from the full path
-                if source_path and "/" in source_path:
-                    file_path = Path(source_path).name
+                metadata = result.get("metadata", {})
+                score = result.get("score", 1.0 - (i * 0.1))
+                
+                # Extract file path from metadata
+                source_path = metadata.get("file", metadata.get("source_path", "unknown"))
+                
+                # Clean up the file path for display
+                if source_path and source_path != "unknown":
+                    # If it's a full path, get just the relative part
+                    if source_path.startswith("/"):
+                        file_path = Path(source_path).name
+                    else:
+                        file_path = source_path
                 else:
-                    file_path = source_path
+                    file_path = f"unknown_{i}.md"
             else:
-                # Fallback for old string format
+                # Fallback for unexpected string format
                 content = str(result)
                 file_path = f"unknown_{i}.md"
-            
-            # Calculate a simple relevance score based on position
-            score = 1.0 - (i * 0.1)
+                score = 1.0 - (i * 0.1)
             
             results.append({
                 "relative_path": str(file_path),
@@ -496,14 +539,9 @@ class SemanticIndexer:
                     "error": f"Namespace not found: {namespace}"
                 }
             
-            # Delete existing index to force full reindex
-            aifs_file = path / "_.aifs"
-            if aifs_file.exists():
-                aifs_file.unlink()
-                logger.info(f"Deleted existing index for namespace: {namespace}")
-            
-            # Invalidate ChromaDB collection cache
+            # Clear existing ChromaDB collection to force full reindex
             chromadb_manager.invalidate_collection(namespace)
+            logger.info(f"Deleted existing index for namespace: {namespace}")
             logger.info(f"Invalidated ChromaDB collection for namespace: {namespace}")
             
             # Queue for reindexing
@@ -626,18 +664,19 @@ class SemanticIndexer:
         else:
             path = self.kb_path / namespace
             
-        aifs_file = path / "_.aifs"
+        # Check ChromaDB collection stats
+        collection = chromadb_manager.get_or_create_collection(namespace)
         
-        if aifs_file.exists():
-            size = aifs_file.stat().st_size
-            # Count how many files are indexed
+        if collection and collection.count() > 0:
+            indexed_chunks = collection.count()
+            # Count how many files exist
             md_files = list(path.rglob("*.md"))
             return {
                 "status": "ready",
                 "indexed": True,
-                "index_size": size,
+                "indexed_chunks": indexed_chunks,
                 "total_files": len(md_files),
-                "message": f"Index ready ({size:,} bytes, {len(md_files)} files)"
+                "message": f"Index ready ({indexed_chunks:,} chunks, {len(md_files)} files)"
             }
         else:
             # Check if indexing is in progress
