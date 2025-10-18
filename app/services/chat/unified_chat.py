@@ -630,22 +630,22 @@ class UnifiedChatHandler:
             return result
     
     async def process_stream(
-        self, 
-        message: str, 
-        auth: dict, 
+        self,
+        message: str,
+        auth: dict,
         context: Optional[dict] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process message with intelligent routing and streaming response.
-        
+
         Yields OpenAI-compatible SSE chunks for streaming.
         """
         start_time = time.time()
         request_id = f"chat-{uuid.uuid4()}"
-        
+
         # Update metrics
         self._routing_metrics["total_requests"] += 1
-        
+
         # Build context
         full_context = await self.build_context(auth, context)
 
@@ -657,18 +657,20 @@ class UnifiedChatHandler:
             context = {}
         context["conversation_id"] = conversation_id
 
-        # Emit conversation metadata as first event for V0.3 streaming
-        yield {
-            "type": "metadata",
-            "conversation_id": conversation_id,
-            "model": "unified-chat",
-            "timestamp": int(time.time())
-        }
+        # Track accumulated response for saving after streaming
+        accumulated_response = ""
 
-        # Make routing decision
-        llm_start = time.time()
-        
         try:
+            # Emit conversation metadata as first event for V0.3 streaming
+            yield {
+                "type": "metadata",
+                "conversation_id": conversation_id,
+                "model": "unified-chat",
+                "timestamp": int(time.time())
+            }
+
+            # Make routing decision
+            llm_start = time.time()
             # Prepare messages for routing decision
             system_prompt = await self.get_routing_prompt(full_context)
             print(f"[SYSTEM PROMPT DEBUG] First 300 chars: {system_prompt[:300]}...")
@@ -731,7 +733,10 @@ class UnifiedChatHandler:
                         content = kb_result['content']
                     else:
                         content = f"No results found for: {tool_args.get('query', 'your search')}"
-                    
+
+                    # Track for saving after streaming
+                    accumulated_response = content
+
                     # Stream the KB results
                     model = "kb-service"
                     
@@ -821,7 +826,10 @@ class UnifiedChatHandler:
                     # Extract the content
                     content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
                     model = result.get("model", "unknown")
-                    
+
+                    # Track for saving after streaming
+                    accumulated_response = content
+
                     # Stream the content in chunks for better perceived performance
                     # Use larger chunks for tool responses since they often contain structured data
                     chunk_size = 50  # Characters per chunk
@@ -914,7 +922,10 @@ class UnifiedChatHandler:
                     # Stream the KB response
                     content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
                     model = result.get("model", "unknown")
-                    
+
+                    # Track for saving after streaming
+                    accumulated_response = content
+
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
@@ -1000,7 +1011,10 @@ class UnifiedChatHandler:
                     # Stream asset generation response
                     content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
                     model = result.get("model", "unknown")
-                    
+
+                    # Track for saving after streaming
+                    accumulated_response = content
+
                     # For asset generation, show progress updates
                     yield {
                         "id": request_id,
@@ -1086,7 +1100,10 @@ class UnifiedChatHandler:
                     
                     content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
                     model = result.get("model", "unknown")
-                    
+
+                    # Track for saving after streaming
+                    accumulated_response = content
+
                     # Show multi-agent coordination
                     yield {
                         "id": request_id,
@@ -1171,7 +1188,10 @@ class UnifiedChatHandler:
                     # Stream the fallback response
                     content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
                     model = result.get("model", "unknown")
-                    
+
+                    # Track for saving after streaming
+                    accumulated_response = content
+
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
@@ -1244,7 +1264,10 @@ class UnifiedChatHandler:
                 # Stream the response from LLM
                 model = routing_response.get("model", "claude-3-5-sonnet-20241022")
                 content = routing_response.get("response", "")
-                
+
+                # Track for saving after streaming
+                accumulated_response = content
+
                 # For direct responses, we already have the full content
                 # Stream it in chunks for better UX
                 chunk_size = 20  # Characters per chunk
@@ -1304,7 +1327,10 @@ class UnifiedChatHandler:
                 
         except Exception as e:
             logger.error(f"[{request_id}] Streaming error: {e}", exc_info=True)
-            
+
+            # Track error for saving
+            accumulated_response = f"Error: {str(e)}"
+
             # Error chunk
             yield {
                 "id": request_id,
@@ -1321,6 +1347,19 @@ class UnifiedChatHandler:
                     "type": "streaming_error"
                 }
             }
+        finally:
+            # Save conversation messages after streaming completes (success or error)
+            if accumulated_response:
+                try:
+                    await self._save_conversation_messages(
+                        conversation_id=conversation_id,
+                        message=message,
+                        response=accumulated_response
+                    )
+                    logger.info(f"[{request_id}] Saved streaming conversation {conversation_id}")
+                except Exception as save_error:
+                    logger.error(f"[{request_id}] Failed to save streaming conversation: {save_error}")
+                    # Don't re-raise - stream already sent to client
     
     async def get_routing_prompt(self, context: dict) -> str:
         """
