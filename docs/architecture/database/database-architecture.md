@@ -4,11 +4,13 @@ This document explains the complete database architecture for the Gaia Platform 
 
 ## Overview
 
-The Gaia Platform uses a **hybrid database architecture**:
-- **PostgreSQL**: Application data (isolated per environment) with user-associated API keys
+The Gaia Platform uses a **simplified hybrid database architecture**:
+- **PostgreSQL**: Single shared database (`llm_platform`) containing all application data for all services
 - **Supabase**: Authentication only (shared across all environments) for JWT validation
 - **Redis**: Caching layer (isolated per environment) providing 97% performance improvement
 - **Certificate Storage**: Development certificates mounted as Docker volumes
+
+**Note**: All microservices (Auth, Chat, KB, Asset, Gateway) share the same PostgreSQL database for simplicity and consistency. This represents a simplified architecture where an unused secondary database (`gaia`) was removed in October 2025 to eliminate confusion and align documentation with implementation reality.
 
 ## Database Distribution
 
@@ -72,14 +74,45 @@ graph TD
 
 ## What's Stored Where
 
-### PostgreSQL (Per Environment)
-- `users` table - User profiles linked to Supabase auth
-- `api_keys` table - User API keys (hashed)
-- `assets` table - Generated asset metadata
-- `conversations` table - Chat conversations
-- `messages` table - Individual messages
-- `providers` table - LLM provider configurations
-- All application-specific data
+### PostgreSQL (`llm_platform` database)
+**Core Tables:**
+- `users` - User profiles linked to Supabase auth
+- `api_keys` - User API keys (hashed)
+- `conversations` - Chat conversations  
+- `chat_messages` - Individual chat messages
+- `personas` - AI persona configurations
+- `user_persona_preferences` - User persona selections
+
+**Asset Management:**
+- `assets` - Generated asset metadata
+- `asset_generations` - Asset generation tracking
+- `asset_modifications` - Asset modification history
+- `asset_sources` - Asset source information
+- `asset_usage` - Asset usage analytics
+
+**Knowledge Base:**
+- `kb_documents` - Knowledge base document storage
+- `kb_search_index` - Search index for KB
+- `kb_activity_log` - KB activity tracking
+- `kb_context_cache` - KB context caching
+- `kb_document_history` - KB document versioning
+- `kb_permissions` - KB access permissions
+
+**RBAC System:**
+- `roles` - User roles definition
+- `permissions` - Permission definitions
+- `teams` - Team management
+- `workspaces` - Workspace organization
+- `user_roles` - User-role assignments
+- `user_permissions` - Direct user permissions
+- `role_permissions` - Role-permission mappings
+- `resource_permissions` - Resource access control
+- `team_members` - Team membership
+- `workspace_members` - Workspace membership
+- `shared_resources` - Shared resource tracking
+- `permission_audit_log` - Permission change auditing
+
+**Total: 29 tables serving all microservices**
 
 ### Supabase (Shared)
 - `auth.users` - Email, password hash, email verification
@@ -98,14 +131,14 @@ graph TD
    ```
    User → Supabase (shared) → Creates auth record
          ↓
-   App → PostgreSQL (environment-specific) → Creates user profile
+   App → PostgreSQL (llm_platform) → Creates user profile
    ```
 
 2. **User Login**
    ```
    User → Supabase (shared) → Validates credentials
          ↓
-   App → PostgreSQL (environment-specific) → Loads user data
+   App → PostgreSQL (llm_platform) → Loads user data
          ↓
    Redis (environment-specific) → Caches session
    ```

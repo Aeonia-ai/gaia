@@ -4,9 +4,9 @@ Database design and strategy.
 
 ## Files
 
-- `database-architecture.md` - Hybrid PostgreSQL + Redis
+- `database-architecture.md` - Simplified hybrid architecture (PostgreSQL + Supabase + Redis)
 - `postgresql-simplicity-lessons.md` - Avoiding overengineering
-- `portable-database-architecture.md` - Portable database design
+- `portable-database-architecture.md` - Portable database design patterns
 
 ## Parent
 [../+architecture.md](../+architecture.md)

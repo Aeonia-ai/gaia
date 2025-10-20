@@ -118,25 +118,25 @@ DATABASE_URL="postgresql://postgres@gaia-db-prod.internal:5432/postgres"
 **AWS RDS Pattern**:
 ```bash
 # Dev
-DATABASE_URL="postgresql://gaia_dev:password@gaia-dev.region.rds.amazonaws.com:5432/gaia"
+DATABASE_URL="postgresql://gaia_dev:password@gaia-dev.region.rds.amazonaws.com:5432/llm_platform"
 
 # Staging  
-DATABASE_URL="postgresql://gaia_staging:password@gaia-staging.region.rds.amazonaws.com:5432/gaia"
+DATABASE_URL="postgresql://gaia_staging:password@gaia-staging.region.rds.amazonaws.com:5432/llm_platform"
 
 # Production
-DATABASE_URL="postgresql://gaia_prod:password@gaia-prod.region.rds.amazonaws.com:5432/gaia"
+DATABASE_URL="postgresql://gaia_prod:password@gaia-prod.region.rds.amazonaws.com:5432/llm_platform"
 ```
 
 **Google Cloud SQL Pattern**:
 ```bash
 # Dev
-DATABASE_URL="postgresql://gaia_dev:password@/gaia?host=/cloudsql/project:region:gaia-dev"
+DATABASE_URL="postgresql://gaia_dev:password@/llm_platform?host=/cloudsql/project:region:gaia-dev"
 
 # Staging
-DATABASE_URL="postgresql://gaia_staging:password@/gaia?host=/cloudsql/project:region:gaia-staging"
+DATABASE_URL="postgresql://gaia_staging:password@/llm_platform?host=/cloudsql/project:region:gaia-staging"
 
 # Production
-DATABASE_URL="postgresql://gaia_prod:password@/gaia?host=/cloudsql/project:region:gaia-prod"
+DATABASE_URL="postgresql://gaia_prod:password@/llm_platform?host=/cloudsql/project:region:gaia-prod"
 ```
 
 ## Portability Features

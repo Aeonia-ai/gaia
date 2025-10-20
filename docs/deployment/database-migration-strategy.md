@@ -1,8 +1,10 @@
-# Database Migration Strategy
+# Database Migration Strategy (Future Implementation Plan)
 
 ## Overview
 
-This document outlines the strategy for keeping database schemas synchronized between local development and remote environments (dev, staging, production) for the Gaia Platform.
+This document outlines a **proposed strategy** for keeping database schemas synchronized between local development and remote environments (dev, staging, production) for the Gaia Platform.
+
+**⚠️ Status**: This describes a future implementation plan. The current system uses numbered migrations (001, 002, 003...) applied manually without tracking.
 
 ## Current Issues
 
