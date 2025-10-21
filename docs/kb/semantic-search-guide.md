@@ -2,7 +2,7 @@
 
 ## Overview
 
-The GAIA Knowledge Base now supports **semantic search** - an AI-powered natural language search capability that goes beyond traditional keyword matching. Using the `aifs` library and local embeddings, semantic search understands the meaning and context of your queries.
+The GAIA Knowledge Base supports **semantic search** - an AI-powered natural language search capability that goes beyond traditional keyword matching. Using **pgvector** (PostgreSQL extension) with **sentence-transformers**, semantic search understands the meaning and context of your queries with persistent, incremental indexing.
 
 ## Key Features
 
@@ -18,13 +18,24 @@ Semantic search finds related content even when exact words don't match:
 
 ### Namespace Isolation
 - Each user/team/workspace has its own isolated semantic index
-- Indexes are stored as `_.aifs` files within each namespace directory
+- Indexes stored in PostgreSQL with namespace column for isolation
 - Complete privacy and security between different users' content
 
+### Persistent Storage
+- **No re-indexing on restart** - indexes persist in PostgreSQL database
+- Survives container restarts and deployments
+- Transactional consistency with ACID guarantees
+
 ### Incremental Updates
-- Automatic reindexing when files are added, modified, or deleted
-- Git sync triggers reindexing for changed files
-- Manual reindexing available via API endpoint
+- **Smart mtime comparison** - only reindexes files that changed
+- 60-second tolerance handles Docker volume mount delays
+- Git sync automatically triggers incremental reindexing
+- Manual reindexing available via MCP tool or API endpoint
+
+### High Performance
+- **HNSW indexing** for sub-second vector similarity searches
+- 384-dimensional embeddings (all-MiniLM-L6-v2 model)
+- Cosine distance similarity scoring (0.0-1.0 relevance)
 
 ## Configuration
 
@@ -41,11 +52,13 @@ KB_SEMANTIC_CACHE_TTL=3600
 ### Dependencies
 
 The following are automatically installed with the KB service:
-- `aifs>=0.0.16` - Core semantic search library
-- `chromadb>=0.4.22` - Vector database (required by aifs but not declared as its dependency)
-- `unstructured[all-docs]>=0.10.0` - Document parsing for various formats
+- `pgvector>=0.2.4` - PostgreSQL extension for vector similarity search
+- `sentence-transformers>=2.2.2` - Embedding model (all-MiniLM-L6-v2)
+- `asyncpg>=0.29.0` - Async PostgreSQL driver with pgvector support
 
-**Important Note**: The aifs package has a bug where it doesn't declare ChromaDB as a dependency. We explicitly install ChromaDB in our requirements.txt to ensure semantic search works properly.
+**Database Requirements**:
+- PostgreSQL 12+ with pgvector extension enabled
+- Docker image: `pgvector/pgvector:pg15` (includes extension pre-installed)
 
 ## API Endpoints
 
@@ -105,39 +118,43 @@ Get indexing status and statistics for your namespace.
 
 ## How It Works
 
-### ChromaDB Integration
+### pgvector Integration
 
-**Optimized Implementation** (GAIA Platform):
-- Uses a **singleton ChromaDB manager** that persists across requests
-- Collections are cached per namespace to avoid recreation overhead
-- Embeddings stay in memory between searches (3x faster than recreating)
-- Similar to our MCP-Agent hot loading pattern
+**Architecture** (GAIA Platform):
+- Uses **PostgreSQL with pgvector extension** for native vector storage
+- HNSW indexes enable sub-second similarity searches
+- sentence-transformers generates 384-dimensional embeddings
+- asyncpg with explicit vector type registration for Python ↔ PostgreSQL conversion
 
 **How it works**:
-- `chromadb.Client()` creates an in-memory database (ephemeral mode)
-- No separate ChromaDB server is needed
-- Embeddings are computed in-process using ONNX models
-- The embedding model (all-MiniLM-L6-v2) is cached locally in `~/.cache/chroma/`
+- Files are chunked into semantic segments (paragraphs)
+- Each chunk is converted to a 384-dimensional vector using all-MiniLM-L6-v2
+- Vectors stored in PostgreSQL with `vector(384)` data type
+- HNSW index enables fast cosine distance similarity searches
+- Query embeddings compared against stored vectors for relevant matches
 
 ### Indexing Process
 
-1. **Initial Indexing**: When semantic search is first enabled, namespaces are indexed in the background
-2. **File Parsing**: Documents are parsed and chunked semantically based on file type  
-3. **Embedding Generation**: Text chunks are converted to vector embeddings using ChromaDB's embedded model
-4. **Index Storage**: Embeddings are stored in `_.aifs` files (Git-ignored) for persistence
+1. **File Discovery**: System scans namespace directory for markdown files
+2. **Incremental Check**: Compares file mtime against stored metadata (60s tolerance)
+3. **File Chunking**: Changed files split into semantic paragraphs (50+ chars minimum)
+4. **Embedding Generation**: sentence-transformers converts chunks to 384-dim vectors
+5. **Database Storage**: Vectors inserted into PostgreSQL with chunk text and metadata
+6. **HNSW Indexing**: PostgreSQL builds/updates HNSW index for fast similarity search
 
 ### Search Process
 
-1. **Query Embedding**: Your natural language query is converted to a vector
-2. **Similarity Search**: The system finds the most similar document chunks
-3. **Result Ranking**: Results are ranked by relevance score (0-1)
-4. **Caching**: Results are cached in Redis for faster repeated searches
+1. **Query Embedding**: Your natural language query is converted to a 384-dim vector
+2. **Vector Similarity**: PostgreSQL uses HNSW index to find nearest vectors (cosine distance)
+3. **Result Ranking**: Results ranked by similarity score (0.0-1.0, higher is more relevant)
+4. **Result Formatting**: Chunks returned with source file paths and relevance scores
 
 ### Automatic Reindexing Triggers
 
-- **Git Sync**: When pulling changes from Git repository
+- **Startup**: Incremental indexing checks all files, only indexes changed ones
+- **Git Sync**: When pulling changes from Git repository (mtime changes detected)
 - **File Operations**: When files are created, updated, or deleted via API
-- **Manual Trigger**: Via the `/search/semantic/reindex` endpoint
+- **Manual Trigger**: Via the `search_semantic` MCP tool (reindex parameter)
 
 ## Usage Examples
 
@@ -190,24 +207,27 @@ curl -X POST http://localhost:8000/search/semantic/reindex \
 ## Performance Considerations
 
 ### Initial Indexing
-- First-time indexing may take 30 seconds to several minutes depending on content size
-- Indexing happens in the background without blocking service startup
-- The service returns "indexing" status while processing
+- First-time indexing: Depends on content size (1,825 files = ~80 minutes)
+- Subsequent startups: Only changed files indexed (typically < 1 minute)
+- Incremental mtime checking prevents unnecessary reindexing
+- Background processing doesn't block service startup
 
 ### Search Performance
-- First search after indexing: 1-3 seconds
-- Subsequent searches (cached): < 100ms
-- Cache TTL: 1 hour by default
+- HNSW index enables sub-second searches even with 50,000+ chunks
+- Query embedding generation: ~50-100ms
+- Vector similarity search: < 100ms (HNSW optimized)
+- Total search time: ~200-500ms per query
 
 ### Storage Requirements
-- Index files (_.aifs) typically 10-20% of original content size
-- Stored within namespace directories
-- Never committed to Git (included in .gitignore)
+- **Metadata table**: Small (file paths, mtime, chunk counts)
+- **Chunks table**: ~50KB per 1000 chunks (includes embeddings)
+- **Indexes**: HNSW index ~20% overhead on embedding storage
+- Example: 55,681 chunks ≈ 2.8MB stored embeddings + 560KB HNSW index
 
 ### Memory Usage
-- Embeddings are loaded into memory during search
-- Memory usage scales with index size
-- Monitor with `/search/semantic/stats` endpoint
+- sentence-transformers model: ~100MB (loaded once, kept in memory)
+- Embeddings in PostgreSQL, not application memory
+- asyncpg connection pool: configurable (default: 10 connections)
 
 ## Best Practices
 
@@ -250,77 +270,90 @@ curl -X POST http://localhost:8000/search/semantic/reindex \
 ## Architecture Details
 
 ### Technology Stack
-- **aifs**: Local semantic search library
-- **ChromaDB**: Embedded vector database (runs in-memory, no server needed)
-- **ONNX Runtime**: Powers the all-MiniLM-L6-v2 embedding model
-- **Unstructured**: Document parsing and chunking
-- **Redis**: Result caching
+- **pgvector**: PostgreSQL extension for vector similarity search
+- **sentence-transformers**: Embedding generation (all-MiniLM-L6-v2 model)
+- **asyncpg**: Async PostgreSQL driver with pgvector type support
+- **PostgreSQL HNSW**: Fast approximate nearest neighbor search
+- **Redis**: Result caching (future enhancement)
 
 ### File Types Supported
 
-#### Standard Build (Dockerfile.kb)
-Full support for:
-- Markdown (`.md`)
-- Text (`.txt`)
-- YAML (`.yml`, `.yaml`)
-- JSON (`.json`)
-- PDF (`.pdf`) - including OCR for scanned PDFs
-- HTML (`.html`)
-- Images with text (`.jpg`, `.png`) - OCR extraction
+Currently indexes:
+- **Markdown (`.md`)** - Primary file type, best performance
+- Future: Text, YAML, JSON, code files
 
-Limited/No support for (requires Dockerfile.kb.full):
-- Word Documents (`.docx`) - requires LibreOffice
-- PowerPoint (`.pptx`) - requires LibreOffice
-- Excel (`.xlsx`) - requires LibreOffice
-- RTF, EPUB, Open Office - requires pandoc
+**Why only markdown?**
+- Markdown is the standard for documentation and knowledge bases
+- Simple text chunking works reliably for markdown structure
+- Can easily extend to other text formats when needed
 
-#### Full Build (Dockerfile.kb.full)
-Complete support for all document types including Office formats.
-Note: This build is ~2GB vs ~500MB for the standard build.
+**Not supported yet:**
+- Binary formats (PDF, Word, etc.) - would require additional parsing
+- Code files - would benefit from AST-based chunking (future enhancement)
 
 ### Security & Privacy
-- Complete namespace isolation
-- No cross-namespace search possible
-- Indexes never leave your infrastructure
-- Git-ignored to prevent accidental commits
+- Complete namespace isolation via PostgreSQL row-level filtering
+- No cross-namespace search possible (enforced at query level)
+- Indexes stored in your database infrastructure
+- ACID transactional guarantees prevent data corruption
+- pgvector extension is open-source and auditable
 
 ## Future Enhancements
 
 ### Planned Features
-1. **Hybrid Search**: Combine semantic and keyword search
-2. **Query Expansion**: Automatically expand queries with synonyms
-3. **Feedback Loop**: Learn from user interactions
-4. **Custom Embeddings**: Support for domain-specific models
+1. **Embedding Caching**: Cache query embeddings for frequently searched terms
+2. **Hybrid Search**: Combine pgvector semantic + ripgrep keyword search
+3. **Multi-file format support**: Extend beyond markdown to code, YAML, JSON
+4. **Better chunking**: AST-aware chunking for code files
 5. **Similarity Threshold**: Configurable minimum relevance scores
+6. **Re-ranking**: Two-stage search with initial retrieval + LLM re-ranking
 
-### API Evolution
-- `/search/hybrid` - Combined semantic + keyword search
-- `/search/similar` - Find documents similar to a given document
-- `/search/explain` - Explain why results matched
+### Performance Improvements
+- **Batch indexing**: Index multiple files in single database transaction
+- **Parallel embedding generation**: Use multiple CPU cores for faster indexing
+- **IVF index option**: For very large datasets (>1M vectors)
+- **Quantization**: Reduce embedding size with minimal accuracy loss
 
 ## Migration Guide
 
-### Enabling Semantic Search
+### Enabling Semantic Search (New Installation)
 
-1. **Update environment variables**:
+1. **Apply database migrations**:
+   ```bash
+   docker exec gaia-db-1 psql -U postgres -d llm_platform -f migrations/006_create_semantic_search_metadata_tables.sql
+   docker exec gaia-db-1 psql -U postgres -d llm_platform -f migrations/007_add_pgvector_embeddings.sql
+   ```
+
+2. **Update environment variables**:
    ```bash
    KB_SEMANTIC_SEARCH_ENABLED=true
    ```
 
-2. **Restart KB service**:
+3. **Rebuild and restart KB service** (to install sentence-transformers):
    ```bash
-   docker compose restart kb-service
+   docker compose build kb-docs
+   docker compose up -d kb-docs
    ```
 
-3. **Initial indexing** (automatic):
-   - Service starts immediately (non-blocking)
-   - Background indexing begins
-   - Check status: `GET /search/semantic/stats`
+4. **Monitor initial indexing**:
+   ```bash
+   # Watch logs
+   docker compose logs -f kb-docs
 
-4. **Start searching**:
-   - Use `/search/semantic` endpoint
-   - Natural language queries work immediately
-   - Results improve as indexing completes
+   # Check if indexing complete
+   curl http://localhost:8005/health
+   ```
+
+5. **Test semantic search**:
+   ```bash
+   # Via REST API
+   curl -X POST http://localhost:8005/search \
+     -H "Content-Type: application/json" \
+     -d '{"message":"your search query"}'
+
+   # Via MCP (in Claude Code)
+   # search_semantic tool will be available
+   ```
 
 ### Rollback Procedure
 
@@ -333,13 +366,17 @@ If you need to disable semantic search:
 
 2. **Restart service**:
    ```bash
-   docker compose restart kb-service
+   docker compose restart kb-docs
    ```
 
-3. **Clean up indexes** (optional):
-   ```bash
-   find /kb -name "_.aifs" -delete
-   find /kb -name ".aifs" -type d -exec rm -rf {} +
+3. **Optionally drop pgvector data** (frees up space):
+   ```sql
+   -- Keeps tables but removes data
+   TRUNCATE kb_semantic_index_metadata, kb_semantic_chunk_ids;
+
+   -- Or completely remove (requires re-running migrations to re-enable)
+   DROP TABLE kb_semantic_chunk_ids;
+   DROP TABLE kb_semantic_index_metadata;
    ```
 
 ## Support
