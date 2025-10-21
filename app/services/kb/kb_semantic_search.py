@@ -2,11 +2,12 @@
 KB Semantic Search Implementation
 
 Provides natural language semantic search capabilities for the GAIA Knowledge Base
-using the aifs library for local vector search.
+using pgvector for PostgreSQL-native vector search.
 
 Key features:
 - Namespace-aware indexing (respects user/team/workspace boundaries)
-- Automatic incremental indexing on file changes
+- Incremental indexing based on file modification time
+- Persistent vector storage in PostgreSQL
 - Redis caching for search results
 - Deferred initialization for fast startup
 """
@@ -19,14 +20,29 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 
-# Remove AIFS dependency - using ChromaDB directly
-CHROMADB_AVAILABLE = True
-logging.info("Using ChromaDB directly for semantic search")
+# Use pgvector via PostgreSQL
+PGVECTOR_AVAILABLE = True
+logging.info("Using pgvector for PostgreSQL-native semantic search")
+
+try:
+    from sentence_transformers import SentenceTransformer
+    EMBEDDINGS_AVAILABLE = True
+except ImportError:
+    EMBEDDINGS_AVAILABLE = False
+    logging.warning("sentence-transformers not available - semantic search disabled")
+
+# Import pgvector for asyncpg type registration
+try:
+    from pgvector.asyncpg import register_vector
+    PGVECTOR_ASYNCPG_AVAILABLE = True
+except ImportError:
+    PGVECTOR_ASYNCPG_AVAILABLE = False
+    logging.warning("pgvector.asyncpg not available - vector type registration disabled")
 
 from app.shared.config import settings
 from app.shared.redis_client import redis_client
 from app.shared.logging import get_logger
-from .kb_chromadb_manager import chromadb_manager
+from app.shared.database import get_database
 
 logger = get_logger(__name__)
 
@@ -34,31 +50,47 @@ logger = get_logger(__name__)
 class SemanticIndexer:
     """
     Manages semantic search indexing and querying for KB namespaces.
-    
-    Each namespace gets its own ChromaDB collection for isolation.
-    Collections are managed in-memory with ChromaDB.
+
+    Uses pgvector for PostgreSQL-native vector storage with incremental indexing.
     """
-    
+
     def __init__(self):
         self.kb_path = Path(getattr(settings, 'KB_PATH', '/kb'))
         self.indexing_queue = asyncio.Queue()
         self.indexing_task = None
         self.cache_ttl = getattr(settings, 'KB_SEMANTIC_CACHE_TTL', 3600)  # Default 1 hour
-        
+
+        # Database connection pool
+        self.db = get_database()
+
+        # Embedding model (lazy loaded on first use)
+        self._embedding_model = None
+
         # Check configuration
         config_enabled = getattr(settings, 'KB_SEMANTIC_SEARCH_ENABLED', False)
         logger.info(f"KB_SEMANTIC_SEARCH_ENABLED from settings: {config_enabled}")
-        logger.info(f"CHROMADB_AVAILABLE: {CHROMADB_AVAILABLE}")
-        
-        self.enabled = CHROMADB_AVAILABLE and config_enabled
-        
+        logger.info(f"PGVECTOR_AVAILABLE: {PGVECTOR_AVAILABLE}")
+        logger.info(f"EMBEDDINGS_AVAILABLE: {EMBEDDINGS_AVAILABLE}")
+
+        self.enabled = PGVECTOR_AVAILABLE and EMBEDDINGS_AVAILABLE and config_enabled
+
         if not self.enabled:
-            if not CHROMADB_AVAILABLE:
-                logger.info("Semantic search disabled - ChromaDB not available")
+            if not PGVECTOR_AVAILABLE:
+                logger.info("Semantic search disabled - pgvector not available")
+            elif not EMBEDDINGS_AVAILABLE:
+                logger.info("Semantic search disabled - sentence-transformers not available")
             elif not config_enabled:
                 logger.info("Semantic search disabled - not enabled in config")
         else:
             logger.info("Semantic search ENABLED successfully!")
+
+    def _get_embedding_model(self) -> SentenceTransformer:
+        """Lazy load the embedding model (heavy operation)."""
+        if self._embedding_model is None:
+            logger.info("Loading sentence embedding model (all-MiniLM-L6-v2)...")
+            self._embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+            logger.info("Embedding model loaded successfully")
+        return self._embedding_model
     
     async def initialize_indexes(self):
         """
@@ -152,159 +184,165 @@ class SemanticIndexer:
         """Index or reindex a complete namespace."""
         try:
             logger.info(f"Indexing namespace: {namespace}")
-            
+
             # Simple approach - files are on disk from Git, just use them
             if not path.exists():
                 logger.warning(f"Namespace path does not exist: {path}")
                 path.mkdir(parents=True, exist_ok=True)
-            
-            # Run ChromaDB indexing in executor to avoid blocking
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, self._run_chromadb_index, path, namespace)
-            
+
+            # Run pgvector indexing directly (now async)
+            await self._run_pgvector_index(path, namespace)
+
             logger.info(f"Successfully indexed namespace: {namespace}")
-            
+
         except Exception as e:
             logger.error(f"Failed to index namespace {namespace}: {e}", exc_info=True)
     
-    def _run_chromadb_index(self, path: Path, namespace: str):
-        """Run ChromaDB indexing (blocking operation)."""
-        if not CHROMADB_AVAILABLE:
-            logger.warning("ChromaDB not available, skipping indexing")
-            return
-            
-        logger.info(f"Starting ChromaDB indexing for path: {path}")
-        
-        # Track indexing progress
+    async def _run_pgvector_index(self, path: Path, namespace: str):
+        """
+        Run pgvector indexing (async operation).
+
+        Implements incremental indexing by checking file mtime against stored metadata.
+        Only reindexes files that have changed since last indexing.
+        """
         import time
+
         start_time = time.time()
-        
+
+        # Get embedding model
+        model = self._get_embedding_model()
+
         # Count files to index
         md_files = list(path.rglob("*.md"))
         total_files = len(md_files)
-        logger.info(f"Found {total_files} markdown files to index in {path}")
-        
-        # Store progress in a shared location (could be Redis in production)
+        logger.info(f"Found {total_files} markdown files in {path}")
+
+        # Track progress
         self.indexing_progress = {
             "namespace": path.name,
             "total_files": total_files,
             "start_time": start_time,
             "status": "indexing"
         }
-        
-        # Index files directly using ChromaDB
+
         try:
-            collection = chromadb_manager.get_or_create_collection(namespace)
-            if not collection:
-                raise Exception("Failed to create ChromaDB collection")
-            
-            # Clear existing data - delete all documents
-            try:
-                # Get all document IDs and delete them
-                existing_docs = collection.get()
-                if existing_docs['ids']:
-                    collection.delete(ids=existing_docs['ids'])
-                    logger.info(f"Cleared {len(existing_docs['ids'])} existing documents")
-            except Exception as e:
-                logger.warning(f"Failed to clear existing collection: {e}")
-            
-            # Process all markdown files
-            documents = []
-            metadatas = []
-            ids = []
-            id_counter = 0
-            
-            for md_file in path.rglob("*.md"):
+            # Get existing file metadata from database
+            async with self.db.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT relative_path, mtime, num_chunks
+                    FROM kb_semantic_index_metadata
+                    WHERE namespace = $1
+                    """,
+                    namespace
+                )
+                existing_metadata = {row['relative_path']: (row['mtime'], row['num_chunks']) for row in rows}
+
+                files_to_index = []
+                files_skipped = 0
+
+                # Check which files need indexing
+                for md_file in md_files:
+                    relative_path = str(md_file.relative_to(path))
+                    file_mtime = md_file.stat().st_mtime
+
+                    if relative_path in existing_metadata:
+                        stored_mtime, _ = existing_metadata[relative_path]
+                        mtime_diff = abs(file_mtime - stored_mtime)
+
+                        # Skip if file hasn't changed (within 60 second tolerance for Docker volume mounts)
+                        # Larger tolerance handles filesystem sync delays and precision differences
+                        if mtime_diff < 60.0:
+                            files_skipped += 1
+                            continue
+
+                    files_to_index.append(md_file)
+
+                logger.info(f"Incremental indexing: {len(files_to_index)} new/changed files, {files_skipped} unchanged files")
+
+            if not files_to_index:
+                logger.info(f"No files need reindexing in {namespace}")
+                self.indexing_progress["status"] = "completed"
+                self.indexing_progress["elapsed_time"] = time.time() - start_time
+                return
+
+            # Process files and generate embeddings
+            total_chunks_indexed = 0
+
+            for md_file in files_to_index:
                 try:
                     content = md_file.read_text(encoding='utf-8')
+                    relative_path = str(md_file.relative_to(path))
+                    file_mtime = md_file.stat().st_mtime
+
                     # Simple chunking - split by double newlines (paragraphs)
                     chunks = [chunk.strip() for chunk in content.split('\n\n') if chunk.strip()]
-                    
-                    for chunk in chunks:
-                        if len(chunk) > 50:  # Skip very short chunks
-                            documents.append(chunk)
-                            metadatas.append({
-                                "file": str(md_file.relative_to(path)),
-                                "source_path": str(md_file)
-                            })
-                            ids.append(f"{namespace}_{id_counter}")
-                            id_counter += 1
-                            
+                    chunks = [chunk for chunk in chunks if len(chunk) > 50]  # Skip very short chunks
+
+                    if not chunks:
+                        continue
+
+                    # Generate embeddings for all chunks
+                    embeddings = model.encode(chunks, convert_to_numpy=True)
+
+                    # Store in database (direct await - no nested loop needed)
+                    async with self.db.acquire() as conn:
+                        # Register pgvector type for this connection
+                        if PGVECTOR_ASYNCPG_AVAILABLE:
+                            await register_vector(conn)
+
+                        async with conn.transaction():
+                            # Delete old chunks for this file
+                            await conn.execute(
+                                "DELETE FROM kb_semantic_index_metadata WHERE relative_path = $1 AND namespace = $2",
+                                relative_path, namespace
+                            )
+
+                            # Insert metadata
+                            await conn.execute(
+                                """
+                                INSERT INTO kb_semantic_index_metadata (relative_path, namespace, mtime, num_chunks)
+                                VALUES ($1, $2, $3, $4)
+                                """,
+                                relative_path, namespace, file_mtime, len(chunks)
+                            )
+
+                            # Insert chunks with embeddings
+                            for chunk_index, (chunk_text, embedding) in enumerate(zip(chunks, embeddings)):
+                                chunk_id = f"{namespace}:{relative_path}:{chunk_index}"
+
+                                # Convert numpy array to list for pgvector
+                                embedding_list = embedding.tolist()
+
+                                await conn.execute(
+                                    """
+                                    INSERT INTO kb_semantic_chunk_ids
+                                    (relative_path, chunk_id, chunk_index, chunk_text, embedding)
+                                    VALUES ($1, $2, $3, $4, $5::vector)
+                                    ON CONFLICT (chunk_id) DO UPDATE
+                                    SET chunk_text = EXCLUDED.chunk_text,
+                                        embedding = EXCLUDED.embedding
+                                    """,
+                                    relative_path, chunk_id, chunk_index, chunk_text, embedding_list
+                                )
+
+                    total_chunks_indexed += len(chunks)
+
                 except Exception as e:
                     logger.warning(f"Failed to process {md_file}: {e}")
-            
-            # Add documents to ChromaDB in batches
-            if documents:
-                batch_size = 100
-                for i in range(0, len(documents), batch_size):
-                    batch_end = min(i + batch_size, len(documents))
-                    collection.add(
-                        documents=documents[i:batch_end],
-                        metadatas=metadatas[i:batch_end],
-                        ids=ids[i:batch_end]
-                    )
-                
-                elapsed = time.time() - start_time
-                logger.info(f"ChromaDB indexing completed for {path} in {elapsed:.1f} seconds")
-                logger.info(f"Indexed {len(documents)} chunks from {total_files} files")
-            else:
-                logger.warning("No documents found to index")
-            
+
+            elapsed = time.time() - start_time
+            logger.info(f"pgvector indexing completed in {elapsed:.1f}s: {total_chunks_indexed} chunks from {len(files_to_index)} files")
+
             # Update progress
             self.indexing_progress["status"] = "completed"
             self.indexing_progress["elapsed_time"] = elapsed
             self.indexing_progress["completed_time"] = time.time()
-            
+
         except Exception as e:
-            logger.error(f"ChromaDB indexing failed: {e}", exc_info=True)
+            logger.error(f"pgvector indexing failed: {e}", exc_info=True)
             self.indexing_progress["status"] = "failed"
             self.indexing_progress["error"] = str(e)
-    
-    async def _index_to_chromadb(self, path: Path, collection):
-        """Index documents directly into ChromaDB."""
-        try:
-            logger.info(f"Indexing {path} directly into ChromaDB")
-            
-            # Find all markdown files
-            md_files = list(path.rglob("*.md"))
-            logger.info(f"Found {len(md_files)} markdown files to index")
-            
-            # Process files in batches
-            batch_size = 10
-            for i in range(0, len(md_files), batch_size):
-                batch = md_files[i:i+batch_size]
-                documents = []
-                metadatas = []
-                ids = []
-                
-                for file_path in batch:
-                    try:
-                        content = file_path.read_text(encoding='utf-8')
-                        rel_path = str(file_path.relative_to(path))
-                        
-                        # Split content into chunks (simple approach)
-                        chunks = [content[j:j+1000] for j in range(0, len(content), 800)]
-                        
-                        for chunk_idx, chunk in enumerate(chunks):
-                            documents.append(chunk)
-                            metadatas.append({"file": rel_path, "chunk": chunk_idx})
-                            ids.append(f"{rel_path}_{chunk_idx}")
-                    except Exception as e:
-                        logger.warning(f"Failed to read {file_path}: {e}")
-                
-                if documents:
-                    # Add to ChromaDB collection
-                    collection.add(
-                        documents=documents,
-                        metadatas=metadatas,
-                        ids=ids
-                    )
-                    logger.info(f"Indexed batch {i//batch_size + 1}: {len(documents)} chunks")
-            
-            logger.info(f"ChromaDB indexing complete. Collection has {collection.count()} documents")
-        except Exception as e:
-            logger.error(f"Failed to index to ChromaDB: {e}", exc_info=True)
-            raise
     
     
     async def search_semantic(
@@ -362,55 +400,78 @@ class SemanticIndexer:
                 logger.info(f"Semantic search cache hit for: {query}")
                 return cached_result
             
-            # Check if ChromaDB collection exists and has data
-            collection = chromadb_manager.get_or_create_collection(namespace)
-            if not collection or collection.count() == 0:
-                logger.info(f"No ChromaDB index found for {namespace}, queuing background indexing")
-                # Queue indexing but DON'T wait for it
-                await self.indexing_queue.put({
-                    "action": "index",
-                    "namespace": namespace,
-                    "path": search_path
-                })
-                return {
-                    "success": True,
-                    "results": [],
-                    "total_results": 0,
-                    "status": "indexing",
-                    "message": "Building search index for this namespace. This happens once and may take a few minutes. Please try again shortly."
-                }
-            
-            # Use ChromaDB for search
-            try:
-                collection = chromadb_manager.get_or_create_collection(namespace)
-                if not collection:
-                    raise Exception("ChromaDB collection not available")
-                
-                search_results = chromadb_manager.search(
-                    query=query,
-                    collection=collection,
-                    limit=limit
+            # Check if PostgreSQL index has data for this namespace
+            async with self.db.acquire() as conn:
+                # Register pgvector type for this connection
+                if PGVECTOR_ASYNCPG_AVAILABLE:
+                    await register_vector(conn)
+
+                chunk_count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM kb_semantic_chunk_ids c JOIN kb_semantic_index_metadata m ON c.relative_path = m.relative_path WHERE m.namespace = $1",
+                    namespace
                 )
-                logger.info(f"ChromaDB search returned {len(search_results)} results")
-            except Exception as e:
-                logger.error(f"ChromaDB search failed: {e}", exc_info=True)
-                # If search fails, try to rebuild the index
-                chromadb_manager.invalidate_collection(namespace)
-                await self.indexing_queue.put({
-                    "action": "index",
-                    "namespace": namespace,
-                    "path": search_path
-                })
-                return {
-                    "success": True,
-                    "results": [],
-                    "total_results": 0,
-                    "status": "indexing",
-                    "message": "Index was corrupted and is being rebuilt. Please try again in a few moments."
-                }
-            
-            # Format results
-            formatted_results = self._format_search_results(search_results, namespace, limit)
+
+                if chunk_count == 0:
+                    logger.info(f"No pgvector index found for {namespace}, queuing background indexing")
+                    # Queue indexing but DON'T wait for it
+                    await self.indexing_queue.put({
+                        "action": "index",
+                        "namespace": namespace,
+                        "path": search_path
+                    })
+                    return {
+                        "success": True,
+                        "results": [],
+                        "total_results": 0,
+                        "status": "indexing",
+                        "message": "Building search index for this namespace. This happens once and may take a few minutes. Please try again shortly."
+                    }
+
+                # Generate embedding for query
+                model = self._get_embedding_model()
+                query_embedding = model.encode(query, convert_to_numpy=True).tolist()
+
+                # Perform pgvector similarity search
+                rows = await conn.fetch(
+                    """
+                    SELECT c.relative_path, c.chunk_text, c.embedding <=> $1::vector AS distance
+                    FROM kb_semantic_chunk_ids c
+                    JOIN kb_semantic_index_metadata m ON c.relative_path = m.relative_path
+                    WHERE m.namespace = $2
+                    ORDER BY distance ASC
+                    LIMIT $3
+                    """,
+                    query_embedding, namespace, limit
+                )
+
+                # Format results (distance to similarity score: 1 - distance)
+                search_results = []
+                for row in rows:
+                    search_results.append({
+                        "relative_path": row['relative_path'],
+                        "chunk_text": row['chunk_text'],
+                        "distance": row['distance'],
+                        "relevance_score": 1.0 - row['distance']  # Convert distance to similarity
+                    })
+
+                logger.info(f"pgvector search returned {len(search_results)} results")
+
+            # Format results for API response
+            formatted_results = {
+                "success": True,
+                "results": [
+                    {
+                        "relative_path": result["relative_path"],
+                        "content_excerpt": result["chunk_text"][:500] if result["chunk_text"] else "",
+                        "relevance_score": result["relevance_score"],
+                        "namespace": namespace
+                    }
+                    for result in search_results
+                ],
+                "total_results": len(search_results),
+                "query": "",  # Don't expose the actual query
+                "search_type": "semantic"
+            }
             
             # Cache results
             await self._cache_result(cache_key, formatted_results)
@@ -425,55 +486,6 @@ class SemanticIndexer:
                 "results": []
             }
     
-    def _format_search_results(
-        self,
-        raw_results: List[Any],
-        namespace: str,
-        limit: int
-    ) -> Dict[str, Any]:
-        """Format ChromaDB search results for API response."""
-        results = []
-        
-        for i, result in enumerate(raw_results[:limit]):
-            # Handle ChromaDB result format
-            if isinstance(result, dict):
-                # ChromaDB returns {"content": text, "metadata": {...}, "score": float}
-                content = result.get("content", "")
-                metadata = result.get("metadata", {})
-                score = result.get("score", 1.0 - (i * 0.1))
-                
-                # Extract file path from metadata
-                source_path = metadata.get("file", metadata.get("source_path", "unknown"))
-                
-                # Clean up the file path for display
-                if source_path and source_path != "unknown":
-                    # If it's a full path, get just the relative part
-                    if source_path.startswith("/"):
-                        file_path = Path(source_path).name
-                    else:
-                        file_path = source_path
-                else:
-                    file_path = f"unknown_{i}.md"
-            else:
-                # Fallback for unexpected string format
-                content = str(result)
-                file_path = f"unknown_{i}.md"
-                score = 1.0 - (i * 0.1)
-            
-            results.append({
-                "relative_path": str(file_path),
-                "content_excerpt": content[:500] if content else "",
-                "relevance_score": score,
-                "namespace": namespace
-            })
-        
-        return {
-            "success": True,
-            "results": results,
-            "total_results": len(results),
-            "query": "",  # Don't expose the actual query in results
-            "search_type": "semantic"
-        }
     
     def _get_cache_key(self, namespace: str, query: str) -> str:
         """Generate cache key for semantic search results."""
@@ -539,10 +551,13 @@ class SemanticIndexer:
                     "error": f"Namespace not found: {namespace}"
                 }
             
-            # Clear existing ChromaDB collection to force full reindex
-            chromadb_manager.invalidate_collection(namespace)
-            logger.info(f"Deleted existing index for namespace: {namespace}")
-            logger.info(f"Invalidated ChromaDB collection for namespace: {namespace}")
+            # Clear existing pgvector index to force full reindex
+            async with self.db.acquire() as conn:
+                await conn.execute(
+                    "DELETE FROM kb_semantic_index_metadata WHERE namespace = $1",
+                    namespace
+                )
+            logger.info(f"Cleared existing pgvector index for namespace: {namespace}")
             
             # Queue for reindexing
             await self.indexing_queue.put({
@@ -658,30 +673,44 @@ class SemanticIndexer:
             logger.error(f"Failed to reindex files in {namespace}: {e}", exc_info=True)
     
     async def get_indexing_status(self, namespace: str = "root") -> Dict[str, Any]:
-        """Check the indexing status for a namespace."""
+        """Check the indexing status for a namespace using PostgreSQL."""
         if namespace == "root":
             path = self.kb_path
         else:
             path = self.kb_path / namespace
-            
-        # Check ChromaDB collection stats
-        collection = chromadb_manager.get_or_create_collection(namespace)
-        
-        if collection and collection.count() > 0:
-            indexed_chunks = collection.count()
-            # Count how many files exist
+
+        # Check PostgreSQL index stats
+        async with self.db.acquire() as conn:
+            # Count indexed chunks and files
+            indexed_chunks = await conn.fetchval(
+                """
+                SELECT COUNT(*)
+                FROM kb_semantic_chunk_ids c
+                JOIN kb_semantic_index_metadata m ON c.relative_path = m.relative_path
+                WHERE m.namespace = $1
+                """,
+                namespace
+            )
+
+            indexed_files = await conn.fetchval(
+                "SELECT COUNT(*) FROM kb_semantic_index_metadata WHERE namespace = $1",
+                namespace
+            )
+
+        if indexed_chunks and indexed_chunks > 0:
+            # Count total markdown files on disk
             md_files = list(path.rglob("*.md"))
             return {
                 "status": "ready",
                 "indexed": True,
                 "indexed_chunks": indexed_chunks,
                 "total_files": len(md_files),
-                "message": f"Index ready ({indexed_chunks:,} chunks, {len(md_files)} files)"
+                "message": f"Index ready ({indexed_chunks:,} chunks, {indexed_files} indexed files, {len(md_files)} total files)"
             }
         else:
             # Check if indexing is in progress
             queue_size = self.indexing_queue.qsize()
-            
+
             # Get detailed progress if available
             progress_info = {}
             if hasattr(self, 'indexing_progress'):
@@ -695,7 +724,7 @@ class SemanticIndexer:
                         "estimated_per_file": round(elapsed / max(1, progress.get("total_files", 1)), 2),
                         "current_status": progress.get("status", "unknown")
                     }
-            
+
             return {
                 "status": "indexing" if queue_size > 0 else "not_indexed",
                 "indexed": False,
@@ -713,10 +742,6 @@ class SemanticIndexer:
             except asyncio.CancelledError:
                 pass
             logger.info("Semantic indexing worker stopped")
-        
-        # Shutdown ChromaDB manager
-        chromadb_manager.shutdown()
-        logger.info("ChromaDB manager shutdown")
 
 
 # Global indexer instance

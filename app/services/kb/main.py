@@ -63,11 +63,36 @@ else:
     kb_rbac_router = None
     logger.info("Single-user KB mode enabled")
 
+# Import FastMCP before lifespan definition
+try:
+    from .kb_fastmcp_server import mcp
+    mcp_app = mcp.http_app(path="/", transport="streamable-http")
+    HAS_FASTMCP = True
+except ImportError:
+    HAS_FASTMCP = False
+    mcp_app = None
+    logger.warning("FastMCP not available")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage service lifecycle"""
+    """Manage service lifecycle - includes FastMCP lifespan if available"""
+
+    # If FastMCP is available, nest its lifespan with ours
+    if HAS_FASTMCP and mcp_app and hasattr(mcp_app, 'lifespan'):
+        async with mcp_app.lifespan(app):
+            # Run all our startup/shutdown inside FastMCP's lifespan context
+            async with kb_service_lifespan(app):
+                yield
+    else:
+        # No FastMCP, just run our lifespan
+        async with kb_service_lifespan(app):
+            yield
+
+@asynccontextmanager
+async def kb_service_lifespan(app: FastAPI):
+    """KB service startup and shutdown logic"""
     log_service_startup("kb", "1.0", settings.SERVICE_PORT)
-    
+
     # Initialize NATS connection for service coordination
     try:
         nats_client = await ensure_nats_connection()
@@ -122,9 +147,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Semantic search initialization failed: {e}")
 
-    yield
-    
-    # Shutdown
+    yield  # Service is running
+
+    # Shutdown sequence
     log_service_shutdown("kb")
     
     # Shutdown Semantic Indexer
@@ -676,6 +701,20 @@ if kb_rbac_router:
 app.include_router(agent_router)
 app.include_router(waypoints_router)
 logger.info("✅ KB Agent endpoints added")
+
+# Mount FastMCP endpoint for Claude Code integration
+try:
+    from .kb_fastmcp_server import mcp
+
+    # Use streamable-http transport (recommended over SSE)
+    # This transport handles lifespan internally without coordination
+    mcp_app = mcp.http_app(path="/", transport="streamable-http")
+    app.mount("/mcp", mcp_app)
+    logger.info("✅ FastMCP HTTP endpoint mounted at /mcp (8 KB tools available)")
+except ImportError as e:
+    logger.warning(f"FastMCP not available: {e}")
+except Exception as e:
+    logger.error(f"Failed to mount FastMCP endpoint: {e}", exc_info=True)
 
 from datetime import datetime
 
