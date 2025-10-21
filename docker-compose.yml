@@ -126,6 +126,8 @@ services:
       - db
       - nats
       - redis
+    ports:
+      - "8002:8000"  # Expose chat service for persona management
     networks:
       - gaia_net
     command: uvicorn app.services.chat.main:app --host 0.0.0.0 --port 8000 --reload
@@ -133,7 +135,7 @@ services:
     mem_limit: 512m
     cpus: 1.0
 
-  # KB Service (Knowledge Base integration)
+  # KB Service (Knowledge Base integration - Game Content)
   kb-service:
     build:
       context: .
@@ -155,6 +157,41 @@ services:
       - KB_MULTI_USER_ENABLED=false  # Disable for semantic search testing
     ports:
       - "8001:8000"  # Expose KB service for testing (avoid conflict with local services)
+    depends_on:
+      - db
+      - nats
+      - redis
+    networks:
+      - gaia_net
+    command: uvicorn app.services.kb.main:app --host 0.0.0.0 --port 8000 --reload
+    # Local development resource limits
+    mem_limit: 512m
+    cpus: 1.0
+
+  # KB Docs Service (Documentation KB - Obsidian Vault direct mount)
+  kb-docs:
+    build:
+      context: .
+      dockerfile: Dockerfile.kb
+    volumes:
+      - ./app:/app/app
+      - ../../Vaults:/vaults:rw  # Direct filesystem mount for instant updates
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@db:5432/llm_platform}
+      - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
+      # KB configuration for documentation
+      - KB_PATH=/vaults/Obsidian-Vault
+      - KB_STORAGE_MODE=filesystem
+      - KB_GIT_AUTO_CLONE=false  # Disable Git features - using direct mount
+      - KB_MCP_ENABLED=true
+      - KB_MODE=local
+      - KB_MULTI_USER_ENABLED=false
+      - KB_SEMANTIC_SEARCH_ENABLED=true  # Now using ChromaDB directly (no ARM hang)
+    ports:
+      - "8005:8000"  # Different port to avoid conflict with kb-service
     depends_on:
       - db
       - nats
@@ -201,9 +238,9 @@ services:
     mem_limit: 128m
     cpus: 0.5
 
-  # PostgreSQL Database (with Gaia Platform schema)
+  # PostgreSQL Database (with Gaia Platform schema + pgvector)
   db:
-    image: postgres:15
+    image: pgvector/pgvector:pg15  # Includes pgvector extension for semantic search
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-local-database.sql:/docker-entrypoint-initdb.d/init-gaia.sql
@@ -229,7 +266,7 @@ services:
       - gaia_net
     command: ["--jetstream", "--http_port", "8222"]
     # Local development resource limits
-    mem_limit: 256m
+    mem_limit: 128m
     cpus: 0.5
 
   # Redis Cache

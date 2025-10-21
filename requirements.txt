@@ -36,12 +36,12 @@ aioredis>=2.0.0
 # Additional Gaia Platform dependencies
 nats-py>=2.3.0
 mcp-agent>=0.1.0
+fastmcp>=0.2.0  # FastMCP HTTP server for Claude Code integration
 
 # KB integration dependencies
 python-frontmatter>=1.1.0
 asyncpg>=0.29.0
 
-# Semantic search dependencies
-aifs>=0.0.16
-chromadb>=0.4.22  # Required by aifs but not declared as dependency
+# Semantic search dependencies (pgvector-based)
+sentence-transformers>=2.2.2  # For generating embeddings (all-MiniLM-L6-v2)
 unstructured[all-docs]>=0.10.0
