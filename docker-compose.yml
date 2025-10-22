@@ -183,7 +183,7 @@ services:
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       # KB configuration for documentation
-      - KB_PATH=/vaults/Obsidian-Vault
+      - KB_PATH=/vaults/KB
       - KB_STORAGE_MODE=filesystem
       - KB_GIT_AUTO_CLONE=false  # Disable Git features - using direct mount
       - KB_MCP_ENABLED=true

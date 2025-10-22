@@ -32,6 +32,28 @@ Semantic search finds related content even when exact words don't match:
 - Git sync automatically triggers incremental reindexing
 - Manual reindexing available via MCP tool or API endpoint
 
+### New Content Detection
+
+The semantic indexing system automatically detects and processes new KB content through:
+
+**Automatic Detection Mechanism:**
+- **File modification time (mtime) tracking** - Each file's last modification time is stored in `kb_semantic_index_metadata` table
+- **60-second tolerance** - Files are reindexed if mtime differs by more than 60 seconds (handles Docker volume sync delays)
+- **Incremental processing** - Only changed files are reindexed, not the entire knowledge base
+- **Background indexing** - Happens during deferred initialization after service startup
+
+**How It Works:**
+1. Service startup triggers background indexing task
+2. System scans all `.md` files in KB namespaces
+3. Compares current file mtime with stored mtime from database
+4. Files with mtime differences >60s are queued for reindexing
+5. New embeddings are generated and stored in PostgreSQL
+
+**Verification:**
+- Check service logs: `docker logs gaia-kb-docs-1 --tail 20`
+- Search for recently added content to test indexing
+- Indexing status appears in search metadata: `"indexing_status": "ready"`
+
 ### High Performance
 - **HNSW indexing** for sub-second vector similarity searches
 - 384-dimensional embeddings (all-MiniLM-L6-v2 model)

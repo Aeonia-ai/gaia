@@ -15,7 +15,7 @@ primary_region = "lax"
   force_https = true
   auto_stop_machines = "suspend"
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
   [http_service.timeout]
     idle = "30m"
@@ -34,4 +34,4 @@ primary_region = "lax"
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 1024
+  memory_mb = 256

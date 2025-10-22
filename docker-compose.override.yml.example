@@ -1,0 +1,34 @@
+# Example Docker Compose Override for Local Development
+# 
+# To use this file:
+# 1. Copy this file to docker-compose.override.yml:
+#    cp docker-compose.override.yml.example docker-compose.override.yml
+# 2. Run: docker-compose up (the override loads automatically)
+# 
+# NOTE: The relative path assumes you follow the standard directory structure.
+#       If your KB vault is elsewhere, update the path in your override file.
+#
+# The override file is gitignored, so your local paths won't be committed.
+#
+# In production/remote deployments, use: docker-compose -f docker-compose.yml up
+# This explicitly excludes the override file.
+
+services:
+  kb-service:
+    volumes:
+      # Uses relative path from gaia/ directory to the KB vault
+      # Assumes standard directory structure:
+      # Development/Aeonia/Server/gaia/ (this repo)
+      # Development/Aeonia/Vaults/gaia-knowledge-base/ (KB vault)
+      - ../../Vaults/gaia-knowledge-base:/kb:rw
+      
+    environment:
+      # Development mode flag
+      KB_DEV_MODE: "true"
+      
+  # You can override other services for local development too
+  # Example: Use a local Redis instance instead of the container
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"

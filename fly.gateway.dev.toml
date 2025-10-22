@@ -33,14 +33,14 @@ primary_region = 'lax'
   force_https = true
   auto_stop_machines = 'suspend'
   auto_start_machines = true
-  min_machines_running = 1  # Dev: single instance is fine
+  min_machines_running = 0  # Dev: single instance is fine
   processes = ['app']
 
   [http_service.timeout]
     idle = "30m"
 
 [[vm]]
-  memory = '1gb'  # Dev: moderate resources
+  memory = '256mb'
   cpu_kind = 'shared'
   cpus = 1
 
