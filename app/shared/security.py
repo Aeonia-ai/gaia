@@ -227,8 +227,9 @@ async def get_current_auth(
         try:
             jwt_payload = await validate_supabase_jwt(credentials)
             user_id = jwt_payload.get('sub')
-            logger.debug(f"Authenticated via JWT: {user_id}")
-            return AuthenticationResult(auth_type="jwt", user_id=user_id)
+            email = jwt_payload.get('email')
+            logger.debug(f"Authenticated via JWT: {user_id}, email: {email}")
+            return AuthenticationResult(auth_type="jwt", user_id=user_id, email=email)
         except HTTPException as e:
             logger.debug(f"JWT validation failed: {e.detail}")
             # Continue to API key validation
@@ -310,12 +311,13 @@ async def validate_auth_for_service(auth_data: Dict[str, Any]) -> Authentication
     
     if auth_type == "jwt":
         user_id = auth_data.get("user_id")
+        email = auth_data.get("email")
         if not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid JWT authentication data"
             )
-        return AuthenticationResult(auth_type="jwt", user_id=user_id)
+        return AuthenticationResult(auth_type="jwt", user_id=user_id, email=email)
     
     elif auth_type == "service_jwt":
         # New: Service-to-service JWT validation
@@ -335,17 +337,19 @@ async def validate_auth_for_service(auth_data: Dict[str, Any]) -> Authentication
         user_id = auth_data.get("user_id")
         api_key = auth_data.get("api_key") or auth_data.get("key")  # Support both formats
         api_key_id = auth_data.get("api_key_id")
-        
+        email = auth_data.get("email")
+
         if not user_id or not api_key:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid user API key authentication data"
             )
         return AuthenticationResult(
-            auth_type="user_api_key", 
-            user_id=user_id, 
+            auth_type="user_api_key",
+            user_id=user_id,
             api_key=api_key,
-            api_key_id=api_key_id
+            api_key_id=api_key_id,
+            email=email
         )
     
     else:
