@@ -491,30 +491,38 @@ class KBMCPServer:
                     "path": path
                 }
             
-            # List files matching pattern
+            # List files matching pattern and ALL directories
             files = []
             directories = []
             
-            for item in dir_path.glob(pattern):
+            # Iterate through all items in directory
+            for item in dir_path.iterdir():
+                # Skip hidden files/directories
+                if item.name.startswith('.'):
+                    continue
+                    
                 rel_path = str(item.relative_to(self.kb_path))
                 
                 if item.is_file():
-                    file_info = {
-                        "name": item.name,
-                        "path": rel_path,
-                        "is_index": self._is_index_file(item)
-                    }
-                    
-                    if include_metadata:
-                        stat = item.stat()
-                        file_info.update({
-                            "size": stat.st_size,
-                            "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
-                        })
-                    
-                    files.append(file_info)
-                    
+                    # Only include files that match the pattern
+                    if item.match(pattern):
+                        file_info = {
+                            "name": item.name,
+                            "path": rel_path,
+                            "is_index": self._is_index_file(item)
+                        }
+                        
+                        if include_metadata:
+                            stat = item.stat()
+                            file_info.update({
+                                "size": stat.st_size,
+                                "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()
+                            })
+                        
+                        files.append(file_info)
+                        
                 elif item.is_dir():
+                    # Always include directories regardless of pattern
                     directories.append({
                         "name": item.name,
                         "path": rel_path

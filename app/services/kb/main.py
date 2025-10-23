@@ -41,6 +41,7 @@ from .kb_service import (
 from .kb_editor import kb_editor
 from .agent_endpoints import router as agent_router
 from .waypoints_api import router as waypoints_router
+from .game_commands_api import router as game_commands_router
 from .kb_agent import kb_agent
 from app.models.kb import WriteRequest, DeleteRequest, MoveRequest
 from .kb_semantic_search import semantic_indexer
@@ -700,7 +701,8 @@ if kb_rbac_router:
 # Add KB Agent router
 app.include_router(agent_router)
 app.include_router(waypoints_router)
-logger.info("✅ KB Agent endpoints added")
+app.include_router(game_commands_router)
+logger.info("✅ KB Agent, Waypoints, and Game Commands endpoints added")
 
 # Mount FastMCP endpoint for Claude Code integration
 try:
