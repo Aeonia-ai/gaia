@@ -1,3 +1,17 @@
+---
+title: "Game Command System Developer Guide"
+tags: ["game", "simulation", "game commands", "llm", "kb", "runtime", "developer guide", "architecture", "tool calling", "game logic", "yaml as llm training", "two-stage llm", "structured json response", "markdown as dsl"]
+feature: "Game Commands"
+status: "active development"
+version: "0.1"
+created: "2025-10-22"
+summary: "Practical guide to understanding and working with the KB-driven game command system, explaining how LLMs interpret natural language commands from Markdown to generate structured game responses."
+related_docs:
+  - title: "KB-Driven Command Processing Spec"
+    path: "./kb-driven-command-processing-spec.md"
+  - title: "KB Agent API"
+    path: "./kb-agent-api.md"
+---
 # Game Command System Developer Guide
 
 > **Status**: ACTIVE DEVELOPMENT
@@ -366,7 +380,6 @@ actions:
   - type: "trigger_visual_effect"
     effect: "spell_casting_glow"
 ```
-```
 
 ### Step 3: Test with KB Agent First
 
@@ -593,10 +606,19 @@ actions:
 
 ## Related Documentation
 
+### Experience Platform
+- **[Experience Platform Architecture](../+experiences.md)** - Overall platform architecture
+- **[Player Progress Storage](../storage/player-progress-storage.md)** - How player progress is tracked
+- **[Experience Tools API](../content-creation/experience-tools-api.md)** - LLM tools for content creation
+- **[Experience Data Models](../storage/experience-data-models.md)** - Database schemas
+- **[AI Character Integration](../ai-systems/ai-character-integration.md)** - Multi-agent NPC system
+
+### Game Command System
 - **[KB-Driven Command Processing Spec](./kb-driven-command-processing-spec.md)** - Complete technical specification (910 lines)
-- **[KB Agent API](./kb-agent-api.md)** - Agent endpoint documentation
-- **[KB Architecture Guide](../kb/developer/kb-architecture-guide.md)** - Knowledge Base infrastructure
-- **[Testing Guide](../testing/TESTING_GUIDE.md)** - Testing patterns and best practices
+- **[Action Vocabulary Spec](../../../../../Vaults/KB/users/jason@aeonia.ai/mmoirl/experiences/wylding-woods/action-vocabulary.md)** - Wylding Woods action types (external KB)
+- **[KB Agent API](../../api/kb-agent-api.md)** - Agent endpoint documentation (if exists)
+- **[KB Architecture Guide](../../kb/developer/kb-architecture-guide.md)** - Knowledge Base infrastructure
+- **[Testing Guide](../../testing/TESTING_GUIDE.md)** - Testing patterns and best practices
 
 ---
 
