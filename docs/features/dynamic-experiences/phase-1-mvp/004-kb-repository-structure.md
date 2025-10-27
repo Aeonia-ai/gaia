@@ -136,6 +136,248 @@ KB Agent Ready (118 files loaded)
             └── combat.md               # Universal combat system
 ```
 
+## Instance Management Structure (Phase 2 - Implemented October 2025)
+
+**Status**: ✅ Design Complete, Implementation In Progress
+
+### Overview
+
+Phase 2 introduces a file-based instance management system for tracking dynamic game objects and player progress in AR/location-based experiences like Wylding Woods. This extends the existing KB structure with runtime state management.
+
+**See**: [100-instance-management-implementation.md](./100-instance-management-implementation.md) for complete design
+
+### New Directory Structure
+
+```
+/kb/experiences/wylding-woods/
+├── waypoints/                      # ✅ Existing (37 AR location markers)
+│   ├── waypoint_01a.md
+│   └── waypoint_28a.md
+│
+├── instances/                      # 🆕 NEW - Live game instances
+│   ├── manifest.json               # Central instance registry
+│   ├── npcs/
+│   │   └── louisa_1.json           # NPC instance at specific location
+│   └── items/
+│       └── dream_bottle_1.json     # Item instance at specific location
+│
+├── templates/                      # 🆕 NEW - Design-time definitions
+│   ├── npcs/
+│   │   └── louisa.md               # Character template
+│   └── items/
+│       └── dream_bottle.md         # Item template
+│
+└── players/                        # 🆕 NEW - Per-player progress
+    └── {user_id}/
+        └── wylding-woods/
+            └── progress.json       # Player's inventory, state
+```
+
+**Implementation Status**:
+- ✅ `waypoints/` directory: 37 files exist (implemented)
+- 📝 `instances/` directory: Empty, ready for manifest.json and instance files (to be created)
+- 📝 `templates/` directory: Empty, ready for template markdown files (to be created)
+- 📝 `players/` directory: Will be created on first player interaction
+
+All directories follow the validated design in [100-instance-management-implementation.md](./100-instance-management-implementation.md).
+
+### Key Design Decisions
+
+**1. Incremental IDs (Not UUIDs)**
+- File naming: `louisa_1.json`, `louisa_2.json`, `dream_bottle_1.json`
+- Prevents LLM hallucination (validated via Perplexity research)
+- Human-readable and debuggable
+- IDs never reused (tracked in manifest.json)
+
+**2. Template vs Instance Separation**
+- **Templates** (markdown): Design-time definitions, shared across all instances
+- **Instances** (JSON): Runtime state, specific to each spawned object
+- Example: `louisa.md` template → `louisa_1.json` instance at waypoint_28a
+
+**3. Three-Layer Architecture**
+```
+Layer 1: World Instances (instances/*.json)
+  ↓ (shared state - NPC locations, world items)
+Layer 2: Player Progress (players/{user_id}/*.json)
+  ↓ (per-user state - inventory, quest status)
+Layer 3: Player World View (runtime computed)
+  ↓ (what player sees - Layer 1 minus collected items)
+```
+
+**4. GPS-to-Waypoint Resolution**
+```
+Unity sends GPS (37.9061, -122.5450)
+  ↓
+Server calculates closest waypoint via Haversine (50m radius)
+  ↓ (finds waypoint_28a at Mill Valley Library)
+Server filters instances by waypoint
+  ↓ (returns [louisa_1, dream_bottle_1] at waypoint_28a)
+Player sees available instances at current location
+```
+
+**5. Semantic Name Resolution**
+- **LLM layer**: Works with semantic names ("dream_bottle", "louisa")
+- **Code layer**: Resolves to instance IDs (dream_bottle_1.json)
+- **Critical rule**: NEVER trust LLM to generate/select instance IDs
+- Code enforces location-based filtering to prevent ambiguity
+
+### File Formats
+
+**instances/manifest.json** (Central Registry):
+```json
+{
+  "experience": "wylding-woods",
+  "next_id": 3,
+  "instances": [
+    {
+      "id": 1,
+      "semantic_name": "louisa",
+      "type": "npc",
+      "template": "/experiences/wylding-woods/templates/npcs/louisa.md",
+      "location": "waypoint_28a",
+      "state": {
+        "active": true,
+        "met_by_users": []
+      },
+      "_version": 1
+    },
+    {
+      "id": 2,
+      "semantic_name": "dream_bottle",
+      "type": "item",
+      "template": "/experiences/wylding-woods/templates/items/dream_bottle.md",
+      "location": "waypoint_28a",
+      "state": {
+        "collected": false,
+        "collected_by": null
+      },
+      "_version": 1
+    }
+  ]
+}
+```
+
+**instances/items/dream_bottle_1.json** (Item Instance):
+```json
+{
+  "id": 1,
+  "semantic_name": "dream_bottle",
+  "type": "item",
+  "template": "/experiences/wylding-woods/templates/items/dream_bottle.md",
+  "location": "waypoint_28a",
+  "state": {
+    "collected": false,
+    "collected_by": null,
+    "collected_at": null
+  },
+  "description": "A glass bottle filled with shimmering, ethereal liquid",
+  "_version": 1,
+  "_created": "2025-10-26T10:00:00Z",
+  "_updated": "2025-10-26T10:00:00Z"
+}
+```
+
+**players/{user_id}/wylding-woods/progress.json** (Player State):
+```json
+{
+  "experience": "wylding-woods",
+  "user_id": "user123",
+  "state": {
+    "inventory": [
+      {
+        "instance_id": 2,
+        "semantic_name": "dream_bottle",
+        "collected_at": "2025-10-26T10:30:00Z"
+      }
+    ],
+    "met_npcs": [1],
+    "current_waypoint": "waypoint_28a"
+  },
+  "_version": 1,
+  "_created": "2025-10-26T09:00:00Z",
+  "_updated": "2025-10-26T10:30:00Z"
+}
+```
+
+### Integration with KB Agent
+
+**Command Flow Example**: "Collect dream bottle"
+
+```python
+# 1. Unity sends GPS coordinates
+gps = (37.9061, -122.5450)
+
+# 2. Server resolves to waypoint
+waypoint = find_closest_waypoint(gps)  # → waypoint_28a
+
+# 3. Load manifest and filter by location
+manifest = load_manifest("/kb/experiences/wylding-woods/instances/manifest.json")
+candidates = [inst for inst in manifest['instances']
+              if inst['semantic_name'] == "dream_bottle"
+              and inst['location'] == waypoint]
+
+# 4. LLM works with semantic name, code selects instance
+instance = candidates[0]  # dream_bottle_1
+
+# 5. Update instance state (atomic write)
+instance['state']['collected'] = True
+instance['state']['collected_by'] = user_id
+save_instance_atomic(instance)
+
+# 6. Update player progress
+add_to_inventory(user_id, instance_id=1)
+```
+
+### Atomic File Operations
+
+**Concurrency Safety**:
+```python
+# Pattern for atomic writes (prevents corruption)
+temp_file = f"{instance_file}.tmp"
+with open(temp_file, 'w') as f:
+    json.dump(data, f, indent=2)
+os.replace(temp_file, instance_file)  # Atomic on POSIX
+```
+
+**Rationale**:
+- "Last write wins" acceptable at 1-10 player MVP scale
+- No complex locking needed (validated via Perplexity research)
+- `_version` field included for future optimistic locking
+- Migration to PostgreSQL planned at 20-50+ concurrent players
+
+### Migration Path
+
+**Current (MVP)**: File-based JSON storage
+- Appropriate for 1-10 concurrent players (Perplexity validated)
+- Dictionary-based implementation (not classes)
+- Fast delivery (6-9 hours estimated)
+
+**Future (Scale)**: PostgreSQL with class hierarchy
+```sql
+-- Migration at 20-50+ concurrent players
+CREATE TABLE game_instances (
+  id SERIAL PRIMARY KEY,
+  semantic_name VARCHAR(255),
+  location VARCHAR(255),
+  state JSONB,
+  _version INTEGER DEFAULT 1
+);
+
+-- Optimistic locking
+UPDATE game_instances
+SET state = $1, _version = _version + 1
+WHERE id = $2 AND _version = $3;
+```
+
+### Design Validation
+
+This design was validated by:
+- **server-frantz** (this agent): GPS-to-waypoint resolution, file-based approach
+- **server-frantz-gemini**: MMO best practices, template/instance separation
+- **Perplexity research**: File-based storage for prototype scale, incremental IDs for LLMs
+
+**See**: [101-design-decisions.md](./101-design-decisions.md) for complete decision rationale
+
 ### File Organization Patterns
 
 **1. Index Files (`+name.md`)**
@@ -470,7 +712,7 @@ def _select_model_for_query(self, query: str, mode: str) -> str:
     if mode == "validation":
         return "claude-3-5-haiku-20241022"  # Fast
     elif len(query) > 1000 or mode == "synthesis":
-        return "claude-3-5-sonnet-20241022"  # Powerful
+        return "claude-sonnet-4-5"  # Powerful
     else:
         return "claude-3-5-haiku-20241022"  # Default
 ```

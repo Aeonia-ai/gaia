@@ -1,3 +1,11 @@
+---
+title: "KB Agent API Reference"
+tags: ["api", "kb agent", "knowledge base", "llm agent", "integration", "rest", "authentication", "workflow", "decision making", "synthesis", "validation"]
+feature: "KB Agent Core"
+status: "active"
+version: "1.0.0"
+summary: "API reference for the KB Agent service, detailing endpoints for intelligent knowledge interpretation, workflow execution, and validation, including authentication, request/response formats, and best practices."
+---
 # KB Agent API Reference
 
 **Version**: 1.0.0
@@ -246,8 +254,8 @@ The agent automatically selects models based on:
 |-----------|----------------|---------|
 | Validation | claude-3-5-haiku-20241022 | Fast, consistent responses |
 | Simple Decisions | claude-3-5-haiku-20241022 | Cost-effective for basic queries |
-| Complex Synthesis | claude-3-5-sonnet-20241022 | Superior reasoning capabilities |
-| Workflows | claude-3-5-sonnet-20241022 | Multi-step execution handling |
+| Complex Synthesis | claude-sonnet-4-5 | Superior reasoning capabilities |
+| Workflows | claude-sonnet-4-5 | Multi-step execution handling |
 
 ## Integration Examples
 
@@ -296,7 +304,7 @@ result = client.interpret("How should I handle player combat?", "/shared/combat"
 class KBAgentClient {
     constructor(baseUrl, apiKey) {
         this.baseUrl = baseUrl;
-        this.headers = {
+        self.headers = {
             'X-API-Key': apiKey,
             'Content-Type': 'application/json'
         };

@@ -107,7 +107,7 @@ class UnifiedChatHandler:
             ],
             tools=self.routing_tools,
             tool_choice="auto",  # LLM decides: direct response or tool use
-            model="claude-3-5-sonnet-20241022",  # Fast, smart model for routing
+            model="claude-sonnet-4-5",  # Fast, smart model for routing
             max_tokens=4096
         )
         
@@ -140,7 +140,7 @@ class UnifiedChatHandler:
             return self.format_response(
                 {
                     "content": routing_response.content,
-                    "model": "claude-3-5-sonnet-20241022"
+                    "model": "claude-sonnet-4-5"
                 },
                 "direct",
                 start_time
@@ -285,7 +285,7 @@ Route: multiagent (6.5s)
 ```python
 # Environment variables
 UNIFIED_CHAT_ENABLED=true
-UNIFIED_CHAT_DEFAULT_MODEL=claude-3-5-sonnet-20241022
+UNIFIED_CHAT_DEFAULT_MODEL=claude-sonnet-4-5
 UNIFIED_CHAT_ROUTING_TIMEOUT_MS=500
 UNIFIED_CHAT_MAX_RETRIES=2
 

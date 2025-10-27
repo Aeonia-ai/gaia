@@ -50,7 +50,7 @@ Orchestrated chat with intelligent routing.
   "messages": [
     {"role": "user", "content": "Your complex request here"}
   ],
-  "model": "claude-3-5-sonnet-20241022"
+  "model": "claude-sonnet-4-5"
 }
 ```
 
@@ -146,9 +146,9 @@ class Task:
 - Automatic context passing between dependent tasks
 
 ### Model Selection
-- **Orchestrator**: Claude 3.5 Sonnet (complex decision making)
+- **Orchestrator**: Claude Sonnet 4.5 (complex decision making)
 - **Simple agents**: Claude 3 Haiku (faster, cheaper)
-- **Complex agents**: Claude 3.5 Sonnet (better quality)
+- **Complex agents**: Claude Sonnet 4.5 (better quality)
 
 ## Best Practices
 

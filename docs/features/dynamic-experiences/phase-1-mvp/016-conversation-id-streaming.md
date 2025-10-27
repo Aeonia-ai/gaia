@@ -16,7 +16,7 @@ curl -X POST http://localhost:8666/api/v0.3/chat \
   -H "Accept: text/event-stream" \
   -d '{
     "message": "Hello, world!",
-    "model": "claude-3-5-sonnet-20241022",
+    "model": "claude-sonnet-4-5",
     "stream": true
   }' --no-buffer
 ```
@@ -67,7 +67,7 @@ POST /api/v0.3/chat
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `message` | string | Yes | User message content |
-| `model` | string | Yes | LLM model identifier (e.g., "claude-3-5-sonnet-20241022") |
+| `model` | string | Yes | LLM model identifier (e.g., "claude-sonnet-4-5") |
 | `stream` | boolean | Yes | Must be `true` for streaming responses |
 | `conversation_id` | string or null | No | Conversation UUID, "new", or omit for new conversation |
 
@@ -173,7 +173,7 @@ public class GaiaStreamingClient : MonoBehaviour
         var request = new
         {
             message = message,
-            model = "claude-3-5-sonnet-20241022",
+            model = "claude-sonnet-4-5",
             stream = true,
             conversation_id = conversationId
         };
@@ -252,7 +252,7 @@ class GaiaStreamingClient {
             },
             body: JSON.stringify({
                 message: message,
-                model: 'claude-3-5-sonnet-20241022',
+                model: 'claude-sonnet-4-5',
                 stream: true,
                 conversation_id: conversationId
             })
@@ -351,7 +351,7 @@ class GaiaStreamingClient:
         """
         payload = {
             "message": message,
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-sonnet-4-5",
             "stream": True
         }
 
@@ -408,7 +408,7 @@ class GaiaStreamingClient:
         """
         payload = {
             "message": message,
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-sonnet-4-5",
             "stream": True
         }
 

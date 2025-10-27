@@ -102,7 +102,7 @@ Enhanced routing includes KOS-aware domain specialists:
     {"role": "assistant", "content": "I'm doing well, thanks!"},
     {"role": "user", "content": "What's the weather like?"}
   ],
-  "model": "claude-3-5-sonnet-20241022",
+  "model": "claude-sonnet-4-5",
   "stream": false
 }
 
@@ -111,7 +111,7 @@ Enhanced routing includes KOS-aware domain specialists:
   "id": "chatcmpl-123",
   "object": "chat.completion",
   "created": 1677652288,
-  "model": "claude-3-5-sonnet-20241022",
+  "model": "claude-sonnet-4-5",
   "choices": [{
     "index": 0,
     "message": {

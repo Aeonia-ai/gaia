@@ -152,8 +152,8 @@ Intelligent model selection based on operation requirements:
 |---------------|--------------|-----------|
 | **Validation** | claude-3-5-haiku-20241022 | Fast, consistent, cost-effective |
 | **Simple Decisions** | claude-3-5-haiku-20241022 | Adequate capability, fast response |
-| **Complex Synthesis** | claude-3-5-sonnet-20241022 | Superior reasoning for complex tasks |
-| **Workflow Execution** | claude-3-5-sonnet-20241022 | Multi-step reasoning capability |
+| **Complex Synthesis** | claude-sonnet-4-5 | Superior reasoning for complex tasks |
+| **Workflow Execution** | claude-sonnet-4-5 | Multi-step reasoning capability |
 
 ### Temperature Configuration
 
@@ -325,7 +325,7 @@ async def execute_knowledge_workflow(self, workflow_path: str, parameters: Dict[
     # Execute with powerful model
     response = await self.llm_service.chat_completion(
         messages=[{"role": "user", "content": prompt}],
-        model="claude-3-5-sonnet-20241022",
+        model="claude-sonnet-4-5",
         user_id=user_id
     )
 ```

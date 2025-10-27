@@ -212,7 +212,7 @@ This document provides a detailed comparison of the execution paths for all chat
 │      │   └─ All messages in memory                                         │
 │      │                                                                      │
 │      ├─ ANTHROPIC API CALL [~1500-2300ms]                                 │
-│      │   ├─ Claude 3.5 Sonnet                                              │
+│      │   ├─ Claude Sonnet 4.5                                              │
 │      │   ├─ Full conversation context                                      │
 │      │   └─ Higher token limit                                             │
 │      │                                                                      │

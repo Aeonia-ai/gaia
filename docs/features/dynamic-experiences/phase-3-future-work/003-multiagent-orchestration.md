@@ -331,7 +331,7 @@ PSYCHOLOGY EXPERT:
 ```json
 {
   "message": "Your request or scenario description",
-  "model": "claude-3-5-sonnet-20241022",
+  "model": "claude-sonnet-4-5",
   "persona": "optional_persona_context"
 }
 ```
@@ -343,7 +343,7 @@ PSYCHOLOGY EXPERT:
   "id": "multiagent-{user_id}-{timestamp}",
   "object": "chat.completion", 
   "created": 1234567890,
-  "model": "claude-3-5-sonnet-20241022",
+  "model": "claude-sonnet-4-5",
   "choices": [{
     "index": 0,
     "message": {

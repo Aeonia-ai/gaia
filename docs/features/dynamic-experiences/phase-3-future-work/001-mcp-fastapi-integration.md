@@ -156,7 +156,7 @@ class FastAPIWrapper(Server):
 # mcp_agent.config.yaml
 llm:
   provider: anthropic
-  model: claude-3-5-sonnet-20241022
+  model: claude-sonnet-4-5
 
 mcp_servers:
   # Existing MCP servers

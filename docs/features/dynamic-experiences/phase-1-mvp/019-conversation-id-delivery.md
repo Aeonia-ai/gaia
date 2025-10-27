@@ -81,7 +81,7 @@ if conversation_id and conversation_id != "new":
 ```json
 {
   "message": "User message content",
-  "model": "claude-3-5-sonnet-20241022",
+  "model": "claude-sonnet-4-5",
   "stream": true,
   "conversation_id": "optional-uuid-or-new"
 }
@@ -118,7 +118,7 @@ public class ConversationManager : MonoBehaviour
     {
         var payload = new {
             message = message,
-            model = "claude-3-5-sonnet-20241022",
+            model = "claude-sonnet-4-5",
             stream = true,
             conversation_id = conversationId ?? "new"
         };
@@ -158,7 +158,7 @@ import json
 async def extract_conversation_id_from_stream(session, message, conversation_id=None):
     payload = {
         "message": message,
-        "model": "claude-3-5-sonnet-20241022",
+        "model": "claude-sonnet-4-5",
         "stream": True
     }
     if conversation_id:

@@ -51,7 +51,7 @@ graph TD
 
 Location: `app/services/chat/intelligent_router.py`
 
-The routing system uses a **single LLM call** with Claude 3.5 Sonnet that can either:
+The routing system uses a **single LLM call** with Claude Sonnet 4.5 that can either:
 1. **Respond directly** (ultra-fast path for simple queries)
 2. **Classify and route** (for complex queries needing tools)
 
@@ -65,7 +65,7 @@ async def classify_message(self, message: str) -> Dict[str, Any]:
         ],
         tools=[classification_function],
         tool_choice="auto",  # LLM decides: respond directly or classify
-        model="claude-3-5-sonnet-20241022",
+        model="claude-sonnet-4-5",
         temperature=0.7,
         max_tokens=2000
     )
@@ -141,7 +141,7 @@ KB_TOOLS = [
 sequenceDiagram
     participant U as User
     participant IR as Intelligent Router
-    participant LLM as Claude 3.5 Sonnet
+    participant LLM as Claude Sonnet 4.5
     participant KBE as KB Tool Executor
     participant KB as KB Service
     

@@ -136,16 +136,28 @@ Player Progress Service: Log event to PostgreSQL
 
 **Timeline:** 4-6 hours implementation
 
-### Phase 2: Player Progress Tracking (Next)
+### Phase 2: Player Progress Tracking (CURRENT - October 2025)
 **Goal:** Track player state and progress
+**Status:** ✅ Design Complete, Implementation Starting
 
-- [ ] Add database tables (PlayerProfile, ExperienceProgress, PlayerProgressEvent)
-- [ ] Implement PlayerProgressManager (PostgreSQL + Redis)
-- [ ] Integrate with game command execution
-- [ ] Add progress query endpoints
-- [ ] Demo: Track waypoint visits, quest completion
+**Validated Design** (File-Based MVP):
+- [x] Design complete and validated (2 Claude agents + Perplexity research)
+- [x] Incremental IDs validated superior to UUIDs for LLM systems
+- [x] GPS-to-waypoint resolution strategy defined
+- [x] Atomic file operations pattern established
+- [ ] Create file structure (manifest.json, instance files, player progress)
+- [ ] Implement KB Agent methods (_load_manifest, _load_player_state, _collect_item)
+- [ ] Update execute_game_command() with GPS resolution
+- [ ] Demo: "Collect dream bottle" at Mill Valley Library
 
-**Timeline:** 3-5 days implementation
+**Approach:**
+- File-based storage (JSON files in KB) - appropriate for 1-10 player MVP
+- Dictionary-based implementation - refactor to classes when scaling
+- Migration to PostgreSQL planned at 20-50+ concurrent players
+
+**See**: [Instance Management Implementation](./100-instance-management-implementation.md)
+
+**Timeline:** 6-9 hours implementation (validated estimate)
 
 ### Phase 3: Live Operations (Future)
 **Goal:** Hot-patching, rollbacks, scheduling

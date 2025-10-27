@@ -40,7 +40,7 @@ This release introduces immediate conversation_id delivery in V0.3 streaming res
 POST /api/v0.3/chat
 {
   "message": "User message",
-  "model": "claude-3-5-sonnet-20241022",
+  "model": "claude-sonnet-4-5",
   "stream": true,
   "conversation_id": "optional-uuid-or-new"
 }

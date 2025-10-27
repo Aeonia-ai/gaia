@@ -15,7 +15,7 @@
 {
     "message": "Check my GitHub PRs and summarize them",
     "tools": ["github", "markdown"],
-    "model": "claude-3-5-sonnet-20241022"
+    "model": "claude-sonnet-4-5"
 }
 ```
 

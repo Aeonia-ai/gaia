@@ -18,7 +18,7 @@ The only differences are:
 
 ### Single LLM Call Approach
 
-Instead of making separate calls for classification and response, we use a single LLM call with Claude 3.5 Sonnet that can:
+Instead of making separate calls for classification and response, we use a single LLM call with Claude Sonnet 4.5 that can:
 1. **Respond directly** for simple messages (ultra-fast path ~0.5s)
 2. **Classify and route** for complex messages that need special handling
 
@@ -54,7 +54,7 @@ Instead of making separate calls for classification and response, we use a singl
 # Single LLM call with optional classification
 response = await multi_provider_selector.chat_completion(
     messages=messages,
-    model="claude-3-5-sonnet-20241022",
+    model="claude-sonnet-4-5",
     tools=[{"type": "function", "function": classification_function}],
     tool_choice="auto",  # LLM decides whether to classify
     temperature=0.7,

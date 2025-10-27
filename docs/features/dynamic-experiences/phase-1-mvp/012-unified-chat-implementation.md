@@ -104,7 +104,7 @@ All responses follow the OpenAI-compatible format with additional metadata:
   "id": "chat-uuid",
   "object": "chat.completion",
   "created": 1234567890,
-  "model": "claude-3-5-sonnet-20241022",
+  "model": "claude-sonnet-4-5",
   "choices": [{
     "index": 0,
     "message": {
@@ -151,7 +151,7 @@ All responses follow the OpenAI-compatible format with additional metadata:
 Environment variables (optional):
 ```bash
 UNIFIED_CHAT_ENABLED=true
-UNIFIED_CHAT_DEFAULT_MODEL=claude-3-5-sonnet-20241022
+UNIFIED_CHAT_DEFAULT_MODEL=claude-sonnet-4-5
 UNIFIED_CHAT_ROUTING_TIMEOUT_MS=500
 UNIFIED_CHAT_LOG_ROUTING_DECISIONS=true
 ```

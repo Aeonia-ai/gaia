@@ -201,7 +201,7 @@ class KBIntelligentAgent:
 
         response = await self.llm_service.chat_completion(
             messages=[{"role": "user", "content": prompt}],
-            model="claude-3-5-sonnet-20241022",  # Use powerful model for workflows
+            model="claude-sonnet-4-5",  # Use powerful model for workflows
             user_id=user_id
         )
 
@@ -283,7 +283,7 @@ class KBIntelligentAgent:
         if mode == "validation" or query_length < 100:
             return "claude-3-5-haiku-20241022"  # Fast
         elif mode == "synthesis" or query_length > 500:
-            return "claude-3-5-sonnet-20241022"  # Powerful
+            return "claude-sonnet-4-5"  # Powerful
         else:
             return "gpt-4-turbo-preview"  # Balanced
 
@@ -425,7 +425,7 @@ async def agent_status() -> Dict[str, Any]:
         "cached_contexts": len(kb_agent.context_cache),
         "available_models": [
             "claude-3-5-haiku-20241022",
-            "claude-3-5-sonnet-20241022",
+            "claude-sonnet-4-5",
             "gpt-4-turbo-preview"
         ]
     }

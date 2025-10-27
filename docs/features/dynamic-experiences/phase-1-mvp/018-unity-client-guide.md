@@ -43,7 +43,7 @@ public class Delta
 public class ChatRequest
 {
     public string message;
-    public string model = "claude-3-5-sonnet-20241022";
+    public string model = "claude-sonnet-4-5";
     public bool stream = true;
     public string conversation_id;
 }
@@ -615,7 +615,7 @@ public class VRConversationManager : MonoBehaviour
     {
         request.message = null;
         request.conversation_id = null;
-        request.model = "claude-3-5-sonnet-20241022";
+        request.model = "claude-sonnet-4-5";
         request.stream = true;
     }
 
