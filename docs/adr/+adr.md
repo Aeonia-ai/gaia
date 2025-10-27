@@ -10,6 +10,7 @@ Architecture Decision Records.
 - `003-postgresql-simplicity.md` - Database simplicity
 - `004-enabling-personas-with-tdd.md` - Persona TDD approach
 - `adr-008-user-deletion-cascade-cleanup.md` - User deletion
+- `009-kb-ephemeral-storage.md` - **KB ephemeral storage (production parity)**
 - `README.md` - Human-readable overview
 
 ## Parent

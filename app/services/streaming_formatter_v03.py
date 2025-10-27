@@ -4,7 +4,7 @@ Streaming formatter for GAIA v0.3 format with smart buffering.
 import json
 import time
 from typing import AsyncGenerator, Dict, Any
-from .streaming_buffer import create_buffered_stream
+from .streaming_buffer import create_buffered_stream, ChunkingMode
 
 
 async def create_v03_stream(
@@ -39,7 +39,7 @@ async def create_smart_v03_stream(
     chunk_generator: AsyncGenerator[Dict[str, Any], None],
     preserve_boundaries: bool = True,
     preserve_json: bool = True,
-    sentence_mode: bool = True
+    chunking_mode: ChunkingMode = "sentence"
 ) -> AsyncGenerator[str, None]:
     """
     Create a v0.3 SSE stream with smart buffering for word/JSON boundaries.
@@ -48,7 +48,8 @@ async def create_smart_v03_stream(
         chunk_generator: Original stream of chunks
         preserve_boundaries: Whether to preserve word boundaries
         preserve_json: Whether to buffer JSON directives
-        sentence_mode: If True, only sends complete sentences (. ! ?) - DEFAULT
+        chunking_mode: "sentence" = only split at sentence endings (. ! ?) - DEFAULT
+                      "phrase" = split at natural pause points (. ! ? : ; \n)
 
     Yields:
         SSE-formatted events in v0.3 format with preserved boundaries
@@ -58,7 +59,7 @@ async def create_smart_v03_stream(
         chunk_generator,
         preserve_boundaries=preserve_boundaries,
         preserve_json=preserve_json,
-        sentence_mode=sentence_mode
+        chunking_mode=chunking_mode
     )
 
     # Then format as v0.3 SSE

@@ -161,23 +161,24 @@ class ClaudeProvider(LLMProviderInterface):
                     ModelCapability.TOOL_CALLING,
                     ModelCapability.VISION,
                     ModelCapability.STREAMING,
-                    ModelCapability.CODE_GENERATION
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.LONG_CONTEXT
                 ],
-                max_tokens=8192,
+                max_tokens=64000,
                 context_window=200000,
-                cost_per_input_token=0.0000008,
-                cost_per_output_token=0.000004,
+                cost_per_input_token=0.000001,
+                cost_per_output_token=0.000005,
                 avg_response_time_ms=800,
                 quality_score=0.9,
-                speed_score=0.95,
-                description="Latest Haiku with enhanced reasoning, coding, and near-frontier intelligence",
+                speed_score=1.0,
+                description="Latest Haiku with near-frontier intelligence, fastest Claude model",
                 supports_system_prompt=True,
                 supports_temperature=True,
                 supports_streaming=True
             ),
             ModelInfo(
-                id="claude-sonnet-4-5",
-                name="Claude Sonnet 4.5",
+                id="claude-3-5-sonnet-20241022",
+                name="Claude 3.5 Sonnet",
                 provider=LLMProvider.CLAUDE,
                 capabilities=[
                     ModelCapability.CHAT,

@@ -3,10 +3,13 @@ Intelligent streaming buffer that preserves word and JSON boundaries.
 Version 3: Optimized for minimal overhead - sends complete phrases when possible.
 """
 import re
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator, Optional, Literal
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Chunking mode type for clarity
+ChunkingMode = Literal["sentence", "phrase"]
 
 
 class StreamBuffer:
@@ -18,21 +21,21 @@ class StreamBuffer:
     4. Optional sentence-only mode for complete sentence delivery
     """
 
-    def __init__(self, preserve_json: bool = True, sentence_mode: bool = True):
+    def __init__(self, preserve_json: bool = True, chunking_mode: ChunkingMode = "sentence"):
         """
         Initialize the stream buffer.
 
         Args:
             preserve_json: Whether to detect and buffer JSON directives
-            sentence_mode: If True, only sends complete sentences (periods, !, ?) - DEFAULT
-                          If False, uses phrase-first strategy (includes : ; etc)
+            chunking_mode: "sentence" = only split at sentence endings (. ! ?) - DEFAULT
+                          "phrase" = split at natural pause points (. ! ? : ; \n)
         """
         self.incomplete_buffer = ""  # Buffer for incomplete content
         self.json_buffer = ""        # Buffer for JSON directive
         self.json_depth = 0          # Track brace nesting
         self.in_json = False         # Are we currently buffering JSON?
         self.preserve_json = preserve_json
-        self.sentence_mode = sentence_mode
+        self.chunking_mode = chunking_mode
 
         # Pattern to detect game directives
         self.directive_pattern = re.compile(r'\{"m"\s*:\s*"')
@@ -157,7 +160,7 @@ class StreamBuffer:
             return
 
         # Determine which endings to use based on mode
-        preferred_endings = self.sentence_endings if self.sentence_mode else self.phrase_endings
+        preferred_endings = self.sentence_endings if self.chunking_mode == "sentence" else self.phrase_endings
 
         # Case 1: Text ends with preferred ending
         # But first check if there are multiple endings inside that we should split on
@@ -266,7 +269,7 @@ async def create_buffered_stream(
     chunk_generator: AsyncGenerator[dict, None],
     preserve_boundaries: bool = True,
     preserve_json: bool = True,
-    sentence_mode: bool = True
+    chunking_mode: ChunkingMode = "sentence"
 ) -> AsyncGenerator[dict, None]:
     """
     Wrap a stream with smart buffering optimized for minimal overhead.
@@ -275,7 +278,8 @@ async def create_buffered_stream(
         chunk_generator: Original stream of chunks
         preserve_boundaries: Whether to preserve word boundaries
         preserve_json: Whether to buffer JSON directives
-        sentence_mode: If True, only sends complete sentences (. ! ?) - DEFAULT
+        chunking_mode: "sentence" = only split at sentence endings (. ! ?) - DEFAULT
+                      "phrase" = split at natural pause points (. ! ? : ; \n)
 
     Yields:
         Optimally batched chunks with preserved boundaries
@@ -286,7 +290,7 @@ async def create_buffered_stream(
             yield chunk
         return
 
-    buffer = StreamBuffer(preserve_json=preserve_json, sentence_mode=sentence_mode)
+    buffer = StreamBuffer(preserve_json=preserve_json, chunking_mode=chunking_mode)
     
     async for chunk in chunk_generator:
         if chunk.get("type") == "content":

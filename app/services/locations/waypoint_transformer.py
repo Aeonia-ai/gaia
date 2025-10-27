@@ -23,17 +23,20 @@ def transform_to_unity_format(waypoint: Dict[str, Any]) -> Dict[str, Any]:
         ]
 
     # Build Unity format
+    waypoint_id = waypoint.get("id", "unknown")
+    media = waypoint.get("media") or {}
+
     unity_waypoint = {
-        "id": waypoint["id"],
-        "name": waypoint["name"],
-        "waypoint_type": waypoint["waypoint_type"],
+        "id": waypoint_id,
+        "name": waypoint.get("name", waypoint_id),
+        "waypoint_type": waypoint.get("waypoint_type", "unknown"),
         "gps": gps,
         "media": {
-            "audio": waypoint["media"].get("audio"),
-            "visual_fx": waypoint["media"].get("visual_fx"),
-            "interaction": waypoint["media"].get("interaction"),
-            "image_ref": waypoint["media"].get("image_ref"),
-            "display_text": waypoint["media"].get("display_text"),
+            "audio": media.get("audio"),
+            "visual_fx": media.get("visual_fx"),
+            "interaction": media.get("interaction"),
+            "image_ref": media.get("image_ref"),
+            "display_text": media.get("display_text"),
         }
     }
 

@@ -86,13 +86,16 @@ cat ../CLAUDE.md
 
 ### For DevOps/SRE
 ```bash
-# Complete deployment pipeline
-cat deployment/deployment-best-practices.md
+# Complete deployment guide
+cat deployment/deployment-guide.md
+
+# Quick command reference
+cat deployment/deployment-reference.md
 
 # Environment-specific deployments
-./scripts/deploy.sh --env dev --services all         # Dev: Full microservices
-./scripts/deploy.sh --env staging --services all     # Staging: Full microservices
-./scripts/deploy.sh --env production --services all  # Production: Full microservices
+./scripts/deploy.sh --env dev --services all --remote-only        # Dev: Full microservices
+./scripts/deploy.sh --env staging --services all --remote-only    # Staging: Full microservices
+./scripts/deploy.sh --env production --services all --remote-only # Production: Full microservices
 
 # Platform management
 ./scripts/manage.sh status             # Environment overview

@@ -216,6 +216,55 @@ class UnifiedChatHandler:
         Process message with intelligent routing.
 
         Returns a standardized response format regardless of routing path.
+
+        TODO: REFACTOR NEEDED - Code Duplication with process_stream()
+        ========================================================================
+        This method shares ~60% of its code with process_stream() (~240 lines).
+        The duplication has caused bugs in the past:
+        - Bug: Streaming path (line 707) missing KB_TOOLS, causing LLM to report
+          "I don't have access to a knowledge base search tool"
+        - Root cause: Line 271 has `all_tools = self.routing_tools + KB_TOOLS` ✅
+                      Line 707 only has `tools=self.routing_tools` ❌
+
+        RECOMMENDED REFACTOR: Extract shared logic into _process_core(stream: bool)
+        --------------------------------------------------------------------------
+        Pattern (from Perplexity recommendation):
+
+        async def _process_core(
+            self,
+            message: str,
+            auth: dict,
+            context: Optional[dict],
+            stream: bool
+        ) -> AsyncGenerator[Dict[str, Any], None]:
+            '''
+            Core routing and execution logic shared by both streaming and non-streaming.
+            Yields chunks regardless of streaming mode.
+            '''
+            # Single source of truth for tools configuration
+            all_tools = self.routing_tools + KB_TOOLS  # ✅ No divergence possible
+
+            # All routing logic, tool execution, error handling...
+            # Yield chunks incrementally
+
+        async def process(...) -> dict:
+            '''Non-streaming: Collect all chunks and return dict'''
+            chunks = [chunk async for chunk in self._process_core(..., stream=False)]
+            return self._assemble_response(chunks)
+
+        async def process_stream(...) -> AsyncGenerator:
+            '''Streaming: Yield chunks as they arrive'''
+            async for chunk in self._process_core(..., stream=True):
+                yield chunk
+
+        Benefits:
+        - Eliminates 240 lines of duplication
+        - Prevents divergence bugs (single source of truth for tool config)
+        - Easier to maintain and test
+        - Changes only need to be made in one place
+
+        See also: process_stream() at line 633 (needs same refactor)
+        ========================================================================
         """
         start_time = time.time()
         request_id = f"chat-{uuid.uuid4()}"
@@ -360,12 +409,13 @@ class UnifiedChatHandler:
                     
                     try:
                         # Don't include tools in final call since we're providing results, not requesting tools
+                        # IMPORTANT: Use same system_prompt as initial call to preserve persona!
                         final_response = await chat_service.chat_completion(
                             messages=messages,
                             temperature=0.7,
                             max_tokens=4096,
                             request_id=f"{request_id}-final",
-                            system_prompt="You are a helpful assistant. Please provide a comprehensive response based on the tool results provided."
+                            system_prompt=system_prompt  # Preserve persona from initial call!
                         )
                         
                         print(f"DEBUG: LLM response received: {type(final_response)}")
@@ -584,7 +634,7 @@ class UnifiedChatHandler:
                 
                 # Extract content from the response structure
                 content = routing_response.get("response", "")
-                model = routing_response.get("model", "claude-sonnet-4-5")
+                model = routing_response.get("model", "claude-haiku-4-5")
                 usage = routing_response.get("usage", {
                     "prompt_tokens": 0,
                     "completion_tokens": 0,
@@ -668,9 +718,66 @@ class UnifiedChatHandler:
         Process message with intelligent routing and streaming response.
 
         Yields OpenAI-compatible SSE chunks for streaming.
+
+        TODO: REFACTOR NEEDED - Code Duplication with process()
+        ========================================================================
+        This method shares ~60% of its code with process() (~240 lines).
+        The duplication has caused bugs in the past:
+        - Bug: This streaming path (line 707) missing KB_TOOLS
+        - Symptom: LLM says "I don't have access to a knowledge base search tool"
+        - Root cause: Line 707 only has `tools=self.routing_tools` ❌
+                      Non-streaming (line 271) correctly has
+                      `all_tools = self.routing_tools + KB_TOOLS` ✅
+
+        Dead Code: Lines 729-815 handle KB execution but are unreachable because
+                   LLM never sees KB tools in its tool list to call them.
+
+        RECOMMENDED REFACTOR: Extract shared logic into _process_core(stream: bool)
+        --------------------------------------------------------------------------
+        Pattern (from Perplexity recommendation):
+
+        async def _process_core(
+            self,
+            message: str,
+            auth: dict,
+            context: Optional[dict],
+            stream: bool
+        ) -> AsyncGenerator[Dict[str, Any], None]:
+            '''
+            Core routing and execution logic shared by both streaming and non-streaming.
+            Yields chunks regardless of streaming mode.
+            '''
+            # Single source of truth for tools configuration
+            all_tools = self.routing_tools + KB_TOOLS  # ✅ No divergence possible
+
+            # All routing logic, tool execution, error handling...
+            # Yield chunks incrementally
+
+        async def process(...) -> dict:
+            '''Non-streaming: Collect all chunks and return dict'''
+            chunks = [chunk async for chunk in self._process_core(..., stream=False)]
+            return self._assemble_response(chunks)
+
+        async def process_stream(...) -> AsyncGenerator:
+            '''Streaming: Yield chunks as they arrive'''
+            async for chunk in self._process_core(..., stream=True):
+                yield chunk
+
+        Benefits:
+        - Eliminates 240 lines of duplication
+        - Prevents divergence bugs (single source of truth for tool config)
+        - Removes dead code (unreachable KB execution path)
+        - Easier to maintain and test
+        - Changes only need to be made in one place
+
+        See also: process() at line 208 (needs same refactor)
+        ========================================================================
         """
+        print(f"[TTFC DEBUG] process_stream() called with message: {message[:50]}")
         start_time = time.time()
         request_id = f"chat-{uuid.uuid4()}"
+        first_content_time = None  # Track when first text content is sent
+        time_to_first_chunk_ms = None  # Will be set when first chunk is sent
 
         # Update metrics
         self._routing_metrics["total_requests"] += 1
@@ -698,6 +805,8 @@ class UnifiedChatHandler:
                 "timestamp": int(time.time())
             }
 
+            print(f"[TTFC DEBUG] Metadata yielded, starting routing decision...")
+
             # Make routing decision
             llm_start = time.time()
             # Prepare messages for routing decision
@@ -722,20 +831,25 @@ class UnifiedChatHandler:
                 "role": "user",
                 "content": message
             })
-            
+
+            # Combine routing tools with KB tools (matches non-streaming at line 320)
+            all_tools = self.routing_tools + KB_TOOLS
+
             # First, make routing decision (non-streaming)
             routing_response = await chat_service.chat_completion(
                 messages=messages,
                 system_prompt=system_prompt,  # PASS SYSTEM PROMPT AS PARAMETER!
-                tools=self.routing_tools,
+                tools=all_tools,
                 tool_choice={"type": "auto"},
                 temperature=0.7,
                 max_tokens=4096,
                 request_id=f"{request_id}-routing"
             )
-            
+
             llm_time = (time.time() - llm_start) * 1000
-            
+
+            print(f"[TTFC DEBUG] LLM routing done in {llm_time:.0f}ms, has tool_calls: {bool(routing_response.get('tool_calls'))}")
+
             # Check if LLM made tool calls
             if routing_response.get("tool_calls"):
                 # Route to appropriate service with streaming
@@ -750,7 +864,8 @@ class UnifiedChatHandler:
                 if is_kb_tool:
                     route_type = RouteType.DIRECT  # KB tools are direct responses
                     self._routing_metrics[route_type] += 1
-                    
+
+                    print(f"[TTFC DEBUG] Taking KB TOOL streaming path: {tool_name}")
                     logger.info(f"[{request_id}] Executing KB tool in streaming mode: {tool_name}")
                     
                     # Execute KB tool
@@ -798,11 +913,18 @@ class UnifiedChatHandler:
                         }]
                     }
                     
-                    # Use StreamBuffer for sentence-aware chunking
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
+                    # Use StreamBuffer for phrase-aware chunking
+                    buffer = StreamBuffer(preserve_json=True, chunking_mode="phrase")
 
                     # Process content through buffer
                     async for chunk_text in buffer.process(content):
+                        # Track first content chunk timing
+                        if first_content_time is None:
+                            first_content_time = time.time()
+                            time_to_first_chunk_ms = int((first_content_time - start_time) * 1000)
+                            print(f"[TTFC] [{request_id}] Time to first content chunk: {time_to_first_chunk_ms}ms")
+                            logger.info(f"[{request_id}] Time to first content chunk: {time_to_first_chunk_ms}ms")
+
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -831,32 +953,24 @@ class UnifiedChatHandler:
                         }
                         await asyncio.sleep(0.003)
                     
-                    # Final chunk
-                    yield {
-                        "id": request_id,
-                        "object": "chat.completion.chunk",
-                        "created": int(time.time()),
-                        "model": model,
-                        "choices": [{
-                            "index": 0,
-                            "delta": {},
-                            "finish_reason": "stop"
-                        }],
-                        "_metadata": {
-                            "route_type": route_type.value,
-                            "kb_tool": tool_name,
+                    # Final chunk - send metadata then done
+                    if time_to_first_chunk_ms is not None:
+                        yield {
+                            "type": "metadata",
+                            "time_to_first_chunk_ms": time_to_first_chunk_ms,
                             "routing_time_ms": int(llm_time),
-                            "total_time_ms": int((time.time() - start_time) * 1000),
-                            "request_id": request_id
+                            "total_time_ms": int((time.time() - start_time) * 1000)
                         }
-                    }
+
+                    yield {"type": "done", "finish_reason": "stop"}
                     return
                 
                 # Tool-routed responses - simulate streaming for better UX
                 elif tool_name == "use_mcp_agent":
                     route_type = RouteType.MCP_AGENT
                     self._routing_metrics[route_type] += 1
-                    
+
+                    print(f"[TTFC DEBUG] Taking MCP AGENT streaming path")
                     logger.info(f"[{request_id}] Routing to MCP agent with simulated streaming")
                     
                     from app.models.chat import ChatRequest
@@ -892,11 +1006,17 @@ class UnifiedChatHandler:
                         }]
                     }
                     
-                    # Use StreamBuffer for sentence-aware chunking
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
+                    # Use StreamBuffer for phrase-aware chunking
+                    buffer = StreamBuffer(preserve_json=True, chunking_mode="phrase")
 
                     # Process content through buffer
                     async for chunk_text in buffer.process(content):
+                        # Track first content chunk timing
+                        if first_content_time is None:
+                            first_content_time = time.time()
+                            time_to_first_chunk_ms = int((first_content_time - start_time) * 1000)
+                            logger.info(f"[{request_id}] Time to first content chunk: {time_to_first_chunk_ms}ms (MCP agent)")
+
                         yield {
                             "id": request_id,
                             "object": "chat.completion.chunk",
@@ -927,6 +1047,17 @@ class UnifiedChatHandler:
                         await asyncio.sleep(0.005)
                     
                     # Final chunk with metadata
+                    final_metadata = {
+                        "route_type": route_type.value,
+                        "routing_time_ms": int(llm_time),
+                        "total_time_ms": int((time.time() - start_time) * 1000),
+                        "reasoning": tool_args.get("reasoning"),
+                        "request_id": request_id,
+                        "mcp_response_time_ms": result.get("_response_time_ms", 0)
+                    }
+                    if time_to_first_chunk_ms is not None:
+                        final_metadata["time_to_first_chunk_ms"] = time_to_first_chunk_ms
+
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
@@ -937,14 +1068,7 @@ class UnifiedChatHandler:
                             "delta": {},
                             "finish_reason": "stop"
                         }],
-                        "_metadata": {
-                            "route_type": route_type.value,
-                            "routing_time_ms": int(llm_time),
-                            "total_time_ms": int((time.time() - start_time) * 1000),
-                            "reasoning": tool_args.get("reasoning"),
-                            "request_id": request_id,
-                            "mcp_response_time_ms": result.get("_response_time_ms", 0)
-                        }
+                        "_metadata": final_metadata
                     }
                 
                 elif tool_name == "use_kb_service":
@@ -984,7 +1108,7 @@ class UnifiedChatHandler:
                     }
                     
                     # Use StreamBuffer for sentence-aware chunking (KB results)
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
+                    buffer = StreamBuffer(preserve_json=True, chunking_mode="phrase")
                     async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
@@ -1075,7 +1199,7 @@ class UnifiedChatHandler:
                     
                     # Stream the actual response
                     # Use StreamBuffer for sentence-aware chunking (asset response)
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
+                    buffer = StreamBuffer(preserve_json=True, chunking_mode="phrase")
                     async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
@@ -1164,7 +1288,7 @@ class UnifiedChatHandler:
                     
                     # Stream response
                     # Use StreamBuffer for sentence-aware chunking (multi-agent response)
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
+                    buffer = StreamBuffer(preserve_json=True, chunking_mode="phrase")
                     async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
@@ -1249,8 +1373,8 @@ class UnifiedChatHandler:
                         }]
                     }
                     
-                    # Use StreamBuffer for sentence-aware chunking
-                    buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
+                    # Use StreamBuffer for phrase-aware chunking
+                    buffer = StreamBuffer(preserve_json=True, chunking_mode="phrase")
                     async for chunk_text in buffer.process(content):
                         yield {
                             "id": request_id,
@@ -1303,12 +1427,16 @@ class UnifiedChatHandler:
                 # Direct response - stream the LLM response
                 route_type = RouteType.DIRECT
                 self._routing_metrics[route_type] += 1
-                
+
+                print(f"[TTFC DEBUG] Taking DIRECT streaming path")
                 logger.info(f"[{request_id}] Direct streaming response")
-                
+
                 # Stream the response from LLM
-                model = routing_response.get("model", "claude-sonnet-4-5")
+                model = routing_response.get("model", "claude-haiku-4-5")
                 content = routing_response.get("response", "")
+
+                print(f"[TTFC DEBUG] Got content from routing_response, length: {len(content)}")
+                print(f"[TTFC DEBUG] Content preview: {content[:100] if content else 'EMPTY'}")
 
                 # Track for saving after streaming
                 accumulated_response = content
@@ -1316,10 +1444,18 @@ class UnifiedChatHandler:
                 # For direct responses, we already have the full content
                 # Stream it in chunks for better UX
                 chunk_size = 20  # Characters per chunk
-                
+
                 # Use StreamBuffer for sentence-aware chunking (error case)
-                buffer = StreamBuffer(preserve_json=True, sentence_mode=False)
+                buffer = StreamBuffer(preserve_json=True, chunking_mode="phrase")
+                print(f"[TTFC DEBUG] Starting buffer.process() loop...")
                 async for chunk_text in buffer.process(content):
+                    print(f"[TTFC DEBUG] Got chunk from buffer, length: {len(chunk_text)}")
+                    # Track first content chunk timing
+                    if first_content_time is None:
+                        first_content_time = time.time()
+                        time_to_first_chunk_ms = int((first_content_time - start_time) * 1000)
+                        logger.info(f"[{request_id}] Time to first content chunk: {time_to_first_chunk_ms}ms (direct)")
+
                     yield {
                         "id": request_id,
                         "object": "chat.completion.chunk",
@@ -1347,25 +1483,17 @@ class UnifiedChatHandler:
                     }
                     await asyncio.sleep(0.01)
                 
-                # Final chunk with metadata
-                yield {
-                    "id": request_id,
-                    "object": "chat.completion.chunk",
-                    "created": int(time.time()),
-                    "model": model,
-                    "choices": [{
-                        "index": 0,
-                        "delta": {},
-                        "finish_reason": "stop"
-                    }],
-                    "_metadata": {
-                        "route_type": route_type.value,
+                # Final chunk - send metadata then done (v0.3 format)
+                if time_to_first_chunk_ms is not None:
+                    yield {
+                        "type": "metadata",
+                        "time_to_first_chunk_ms": time_to_first_chunk_ms,
                         "routing_time_ms": 0,
                         "llm_time_ms": int(llm_time),
-                        "total_time_ms": int((time.time() - start_time) * 1000),
-                        "request_id": request_id
+                        "total_time_ms": int((time.time() - start_time) * 1000)
                     }
-                }
+
+                yield {"type": "done", "finish_reason": "stop"}
                 
                 # Update metrics
                 self._update_timing_metrics(0, (time.time() - start_time) * 1000)
@@ -1517,10 +1645,9 @@ Guidelines:
     def _is_directive_enhanced_context(self, context: dict) -> bool:
         """
         Check if this context should use directive-enhanced responses.
-        
+
         v0.3 API always uses directives for immersive experiences.
         """
-        # v0.3 always uses directives
         if context.get("response_format") == "v0.3":
             return True
             

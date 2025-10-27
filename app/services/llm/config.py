@@ -146,7 +146,7 @@ class LLMProviderGlobalConfig(BaseModel):
     
     # Global settings
     default_provider: LLMProvider = LLMProvider.CLAUDE
-    default_model: str = "claude-3-haiku-20240307"  # Fast, reliable default
+    default_model: str = "claude-haiku-4-5"  # Haiku 4.5: Fastest, most cost-effective
     enable_auto_selection: bool = False  # Default to single model choice
     enable_auto_fallback: bool = True
     request_timeout_seconds: int = 30
