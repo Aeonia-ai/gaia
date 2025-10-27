@@ -14,10 +14,11 @@ The admin command system now provides a **complete CRUD interface** for world bu
 4. [Update Operations](#update-operations)
 5. [Delete Operations](#delete-operations)
 6. [Search Operations](#search-operations)
-7. [Complete Command Reference](#complete-command-reference)
-8. [Implementation Details](#implementation-details)
-9. [Testing](#testing)
-10. [Best Practices](#best-practices)
+7. [Reset Operations](#reset-operations)
+8. [Complete Command Reference](#complete-command-reference)
+9. [Implementation Details](#implementation-details)
+10. [Testing](#testing)
+11. [Best Practices](#best-practices)
 
 ---
 
@@ -25,13 +26,14 @@ The admin command system now provides a **complete CRUD interface** for world bu
 
 ### What's Implemented
 
-**20+ admin commands** covering all CRUD operations:
+**23 admin commands** covering all CRUD operations plus testing utilities:
 
 - **Read**: @list, @stats, @inspect (11 variants)
 - **Create**: @create, @connect (5 variants)
 - **Update**: @edit (8 variants)
 - **Delete**: @delete (3 variants)
-- **Search**: @where, @find (3 variants)
+- **Search**: @where, @find (2 variants)
+- **Reset**: @reset (3 variants for testing and development)
 
 ### Key Features
 
@@ -437,6 +439,121 @@ Found 4 instances of 'dream_bottle':
 
 ---
 
+## Reset Operations
+
+The @reset command provides three levels of reset functionality for testing and world management. All reset operations require explicit CONFIRM to prevent accidental data loss.
+
+### @reset instance
+
+**Reset a single instance to uncollected state**
+
+```bash
+@reset instance 2 CONFIRM
+```
+
+**What it does:**
+- Clears the `collected_by` field (sets to `null`)
+- Increments the `_version` field
+- Saves instance file atomically
+- Instance returns to its original location
+
+**Use cases:**
+- Testing item collection mechanics
+- Resetting puzzle elements
+- Fixing stuck quest items
+- Development testing
+
+**Output:**
+```
+✅ Reset instance #2 (dream_bottle at waypoint_28a/shelf_1)
+   - Cleared collected_by (was: jason@aeonia.ai)
+   - Instance returned to uncollected state
+```
+
+---
+
+### @reset player
+
+**Delete all progress for a specific player**
+
+```bash
+@reset player jason@aeonia.ai CONFIRM
+```
+
+**What it does:**
+- Shows count of items in player's inventory
+- Deletes player progress file entirely
+- Removes quest progress
+- Player starts fresh on next action
+
+**Use cases:**
+- Testing new player experience
+- Resetting test accounts
+- Debugging player state issues
+- QA testing
+
+**Output:**
+```
+✅ Reset progress for jason@aeonia.ai in wylding-woods
+   - Cleared inventory (2 items removed)
+   - Reset quest progress
+   - Player progress file deleted
+```
+
+**Note:** Items return to their last known world location (not deleted, just released from inventory).
+
+---
+
+### @reset experience
+
+**Nuclear reset - resets ALL instances and ALL players**
+
+```bash
+@reset experience CONFIRM
+```
+
+**What it does:**
+- Resets ALL instances to uncollected state
+- Deletes ALL player progress files
+- Essentially resets the entire experience to initial state
+- Shows counts before executing
+
+**Use cases:**
+- Major content updates
+- Starting new test cycles
+- Resetting demo/staging environments
+- **CAUTION**: Never use in production!
+
+**Output:**
+```
+✅ Experience reset complete for wylding-woods
+   - Reset 4 instances
+   - Cleared 2 player progress files
+   - All players and instances returned to initial state
+```
+
+---
+
+### Safety Mechanisms
+
+**All @reset commands require CONFIRM:**
+
+```bash
+# ❌ Without CONFIRM - shows usage error
+@reset instance 2
+
+# ✅ With CONFIRM - executes
+@reset instance 2 CONFIRM
+```
+
+**Safety features:**
+- Shows counts before destructive operations
+- Requires exact "CONFIRM" string (case-sensitive)
+- Shows what was reset after completion
+- Uses atomic file operations
+
+---
+
 ## Complete Command Reference
 
 ### Quick Syntax Table
@@ -467,6 +584,9 @@ Found 4 instances of 'dream_bottle':
 | | Sublocation | `@delete sublocation <waypoint> <location> <id> CONFIRM` |
 | **Search** | Find by ID/name | `@where <id_or_name>` |
 | | Find template instances | `@find <template_name>` |
+| **Reset** | Reset instance | `@reset instance <instance_id> CONFIRM` |
+| | Reset player progress | `@reset player <user_id> CONFIRM` |
+| | Reset entire experience | `@reset experience CONFIRM` |
 
 ---
 

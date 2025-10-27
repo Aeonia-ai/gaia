@@ -1068,11 +1068,13 @@ If action invalid or target not found, return:
                 return await self._admin_connect(parts[1:], experience, user_context)
             elif action == "disconnect":
                 return await self._admin_disconnect(parts[1:], experience, user_context)
+            elif action == "reset":
+                return await self._admin_reset(target_type, parts[2:], experience, user_context)
             else:
                 return {
                     "success": False,
                     "error": {"code": "unknown_command", "message": f"Unknown admin command: @{action}"},
-                    "narrative": f"❌ Unknown command '@{action}'. Available: @list, @inspect, @create, @edit, @delete, @spawn, @where, @find, @stats, @connect, @disconnect"
+                    "narrative": f"❌ Unknown command '@{action}'. Available: @list, @inspect, @create, @edit, @delete, @spawn, @where, @find, @stats, @connect, @disconnect, @reset"
                 }
 
         except Exception as e:
@@ -2724,6 +2726,221 @@ If action invalid or target not found, return:
             },
             "actions": []
         }
+
+    async def _admin_reset(
+        self,
+        target_type: Optional[str],
+        args: List[str],
+        experience: str,
+        user_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Handle @reset command - reset instances or player progress.
+
+        Supported:
+        - @reset instance <instance_id> CONFIRM
+        - @reset player <user_id> CONFIRM
+        - @reset experience <experience> CONFIRM
+        """
+        import os
+        import json
+        from datetime import datetime
+
+        if target_type == "instance":
+            # Reset single instance
+            if len(args) < 2:
+                return {
+                    "success": False,
+                    "error": {"code": "missing_arg", "message": "Missing arguments"},
+                    "narrative": "❌ Usage: @reset instance <instance_id> CONFIRM"
+                }
+
+            instance_id = int(args[0])
+            confirm = args[1].upper() if len(args) > 1 else ""
+
+            if confirm != "CONFIRM":
+                return {
+                    "success": False,
+                    "error": {"code": "missing_confirm", "message": "CONFIRM required"},
+                    "narrative": f"⚠️  Resetting instance #{instance_id} will clear collection state.\n   Add CONFIRM to proceed: @reset instance {instance_id} CONFIRM"
+                }
+
+            # Load manifest to find instance
+            manifest = await self._load_manifest(experience)
+            instance_entry = None
+            for inst in manifest.get("instances", []):
+                if inst["id"] == instance_id:
+                    instance_entry = inst
+                    break
+
+            if not instance_entry:
+                return {
+                    "success": False,
+                    "error": {"code": "not_found", "message": f"Instance #{instance_id} not found"},
+                    "narrative": f"❌ Instance #{instance_id} does not exist."
+                }
+
+            # Load instance file
+            kb_path = getattr(settings, 'KB_PATH', '/kb')
+            instance_file = f"{kb_path}/experiences/{experience}/instances/{instance_entry['instance_file']}"
+
+            if not os.path.exists(instance_file):
+                return {
+                    "success": False,
+                    "error": {"code": "not_found", "message": "Instance file not found"},
+                    "narrative": f"❌ Instance file not found: {instance_entry['instance_file']}"
+                }
+
+            with open(instance_file, 'r') as f:
+                instance_data = json.load(f)
+
+            # Reset state
+            old_collected_by = instance_data["state"].get("collected_by")
+            instance_data["state"]["collected_by"] = None
+            instance_data["metadata"]["last_modified"] = datetime.now().isoformat()
+            instance_data["metadata"]["_version"] = instance_data["metadata"].get("_version", 1) + 1
+
+            # Save atomically
+            success = await self._save_instance_atomic(instance_file, instance_data)
+
+            if not success:
+                return {
+                    "success": False,
+                    "error": {"code": "save_failed", "message": "Failed to save instance"},
+                    "narrative": "❌ Failed to save instance state."
+                }
+
+            location_str = f"{instance_entry['location']}/{instance_entry.get('sublocation', 'N/A')}"
+            reset_msg = f"✅ Reset instance #{instance_id} ({instance_entry['semantic_name']} at {location_str})"
+            if old_collected_by:
+                reset_msg += f"\n   - Cleared collected_by (was: {old_collected_by})"
+            reset_msg += "\n   - Instance returned to uncollected state"
+
+            return {
+                "success": True,
+                "narrative": reset_msg,
+                "data": {"instance": instance_data},
+                "actions": []
+            }
+
+        elif target_type == "player":
+            # Reset player progress
+            if len(args) < 2:
+                return {
+                    "success": False,
+                    "error": {"code": "missing_arg", "message": "Missing arguments"},
+                    "narrative": "❌ Usage: @reset player <user_id> CONFIRM"
+                }
+
+            player_user_id = args[0]
+            confirm = args[1].upper() if len(args) > 1 else ""
+
+            if confirm != "CONFIRM":
+                return {
+                    "success": False,
+                    "error": {"code": "missing_confirm", "message": "CONFIRM required"},
+                    "narrative": f"⚠️  Resetting player '{player_user_id}' will delete all progress.\n   Add CONFIRM to proceed: @reset player {player_user_id} CONFIRM"
+                }
+
+            # Load player state to see what we're deleting
+            player_state = await self._load_player_state(player_user_id, experience)
+            inventory_count = len(player_state.get("inventory", []))
+
+            # Delete player progress file
+            kb_path = getattr(settings, 'KB_PATH', '/kb')
+            player_file = f"{kb_path}/players/{player_user_id}/{experience}/progress.json"
+
+            if os.path.exists(player_file):
+                os.remove(player_file)
+
+                return {
+                    "success": True,
+                    "narrative": f"✅ Reset progress for {player_user_id} in {experience}\n   - Cleared inventory ({inventory_count} items removed)\n   - Reset quest progress\n   - Player progress file deleted",
+                    "data": {"player_id": player_user_id, "items_removed": inventory_count},
+                    "actions": []
+                }
+            else:
+                return {
+                    "success": True,
+                    "narrative": f"✅ Player {player_user_id} had no progress in {experience} (already reset)",
+                    "data": {"player_id": player_user_id},
+                    "actions": []
+                }
+
+        elif target_type == "experience":
+            # Reset entire experience (nuclear option)
+            if len(args) < 1:
+                return {
+                    "success": False,
+                    "error": {"code": "missing_arg", "message": "Missing CONFIRM"},
+                    "narrative": "❌ Usage: @reset experience CONFIRM"
+                }
+
+            confirm = args[0].upper()
+
+            if confirm != "CONFIRM":
+                # Count what will be reset
+                manifest = await self._load_manifest(experience)
+                instance_count = len(manifest.get("instances", []))
+
+                kb_path = getattr(settings, 'KB_PATH', '/kb')
+                players_dir = f"{kb_path}/players"
+                player_count = 0
+                if os.path.exists(players_dir):
+                    for user_dir in os.listdir(players_dir):
+                        player_progress_file = f"{players_dir}/{user_dir}/{experience}/progress.json"
+                        if os.path.exists(player_progress_file):
+                            player_count += 1
+
+                return {
+                    "success": False,
+                    "error": {"code": "missing_confirm", "message": "CONFIRM required"},
+                    "narrative": f"⚠️  This will reset:\n   - {instance_count} instances (all set to uncollected)\n   - {player_count} player progress files (all deleted)\n\n   Add CONFIRM to proceed: @reset experience CONFIRM"
+                }
+
+            # Reset all instances
+            manifest = await self._load_manifest(experience)
+            kb_path = getattr(settings, 'KB_PATH', '/kb')
+            instances_reset = 0
+
+            for inst in manifest.get("instances", []):
+                instance_file = f"{kb_path}/experiences/{experience}/instances/{inst['instance_file']}"
+
+                if os.path.exists(instance_file):
+                    with open(instance_file, 'r') as f:
+                        instance_data = json.load(f)
+
+                    # Reset state
+                    if instance_data["state"].get("collected_by") is not None:
+                        instance_data["state"]["collected_by"] = None
+                        instance_data["metadata"]["last_modified"] = datetime.now().isoformat()
+                        instance_data["metadata"]["_version"] = instance_data["metadata"].get("_version", 1) + 1
+                        await self._save_instance_atomic(instance_file, instance_data)
+                        instances_reset += 1
+
+            # Delete all player progress files
+            players_dir = f"{kb_path}/players"
+            players_reset = 0
+            if os.path.exists(players_dir):
+                for user_dir in os.listdir(players_dir):
+                    player_progress_file = f"{players_dir}/{user_dir}/{experience}/progress.json"
+                    if os.path.exists(player_progress_file):
+                        os.remove(player_progress_file)
+                        players_reset += 1
+
+            return {
+                "success": True,
+                "narrative": f"✅ Experience '{experience}' reset to initial state\n   - {instances_reset} instances reset to uncollected\n   - {players_reset} player progress files deleted",
+                "data": {"instances_reset": instances_reset, "players_reset": players_reset},
+                "actions": []
+            }
+
+        else:
+            return {
+                "success": False,
+                "error": {"code": "invalid_target", "message": f"Unknown target type: {target_type}"},
+                "narrative": f"❌ Unknown target '{target_type}'. Available: instance, player, experience"
+            }
 
     async def _admin_stats(self, experience: str) -> Dict[str, Any]:
         """
