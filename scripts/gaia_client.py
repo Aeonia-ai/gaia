@@ -367,7 +367,7 @@ class GaiaClient:
             "stream": stream
         }
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             if stream:
                 # Handle streaming response
                 async with client.stream(
@@ -753,7 +753,10 @@ async def batch_mode(client: GaiaClient, message: str, logger: ConversationLogge
             logger.end_session()
             
     except Exception as e:
+        import traceback
         print(f"Error: {e}", file=sys.stderr)
+        print(f"Error type: {type(e).__name__}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
 
 

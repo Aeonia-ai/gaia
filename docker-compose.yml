@@ -290,6 +290,7 @@ services:
       context: .
       dockerfile: Dockerfile.test
     volumes:
+      - ./app:/app/app
       - ./tests:/app/tests
       - mcp_data:/app/data/kb
     env_file:

@@ -656,7 +656,7 @@ def setup_routes(app):
                 # Start streaming from gateway
                 response_content = ""
                 async with GaiaAPIClient() as client:
-                    async for chunk in client.chat_completion_stream(messages, jwt_token):
+                    async for chunk in client.chat_completion_stream(messages, jwt_token, response_format="v0.3"):
                         try:
                             # Parse the chunk
                             import json

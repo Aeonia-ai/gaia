@@ -104,7 +104,7 @@ async def demo_game_master_orchestration():
             result = await game_master.generate_str(
                 message=player_action,
                 request_params=RequestParams(
-                    model="claude-3-5-sonnet-20241022",
+                    model="claude-sonnet-4-5",
                     maxTokens=2500,
                     max_iterations=3
                 )

@@ -45,7 +45,7 @@ class TestV1WebGatewaySimple:
                 headers=headers,
                 json={
                     "messages": [{"role": "user", "content": "Hello from v1 web test"}],
-                    "model": "claude-3-5-sonnet-20241022"
+                    "model": "claude-sonnet-4-5"
                 }
             )
             
@@ -73,7 +73,7 @@ class TestV1WebGatewaySimple:
                 headers=headers_v03,
                 json={
                     "messages": [{"role": "user", "content": "Hello in v0.3 format via v1"}],
-                    "model": "claude-3-5-sonnet-20241022"
+                    "model": "claude-sonnet-4-5"
                 }
             )
             
@@ -114,7 +114,7 @@ class TestV1WebGatewaySimple:
                 headers=headers,
                 json={
                     "messages": [{"role": "user", "content": "Remember the number 42"}],
-                    "model": "claude-3-5-sonnet-20241022"
+                    "model": "claude-sonnet-4-5"
                 }
             )
             
@@ -130,7 +130,7 @@ class TestV1WebGatewaySimple:
                 json={
                     "messages": [{"role": "user", "content": "What number did I mention?"}],
                     "conversation_id": conversation_id,
-                    "model": "claude-3-5-sonnet-20241022"
+                    "model": "claude-sonnet-4-5"
                 }
             )
             
@@ -152,7 +152,7 @@ class TestV1WebGatewaySimple:
                 headers=headers,
                 json={
                     "messages": [{"role": "user", "content": "Remember the color green"}],
-                    "model": "claude-3-5-sonnet-20241022"
+                    "model": "claude-sonnet-4-5"
                 }
             )
             
@@ -164,7 +164,7 @@ class TestV1WebGatewaySimple:
                 headers=headers,
                 json={
                     "messages": [{"role": "user", "content": "What color did I mention?"}],
-                    "model": "claude-3-5-sonnet-20241022"
+                    "model": "claude-sonnet-4-5"
                 }
             )
             

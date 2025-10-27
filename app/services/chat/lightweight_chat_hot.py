@@ -135,7 +135,7 @@ class HotLoadedChatService:
         response = await llm.generate_str(
             message=full_prompt,
             request_params=RequestParams(
-                model=request.model or "claude-3-5-sonnet-20241022",
+                model=request.model or "claude-sonnet-4-5",
                 temperature=0.7,
                 max_tokens=2000
             )
@@ -158,7 +158,7 @@ class HotLoadedChatService:
             "id": f"chat-{auth_key}-{len(self.chat_histories[auth_key])}",
             "object": "chat.completion",
             "created": int(time.time()),
-            "model": request.model or "claude-3-5-sonnet-20241022",
+            "model": request.model or "claude-sonnet-4-5",
             "choices": [{
                 "index": 0,
                 "message": {

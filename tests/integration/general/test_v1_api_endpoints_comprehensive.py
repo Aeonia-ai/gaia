@@ -135,7 +135,7 @@ class TestV1ComprehensiveAPIEndpoints:
         # Test with OpenAI-style request format
         openai_request = {
             "messages": [{"role": "user", "content": "Hello from OpenAI-style request"}],
-            "model": "claude-3-5-sonnet-20241022"
+            "model": "claude-sonnet-4-5"
         }
         
         success, status_code, response_data = await self.make_request(

@@ -116,7 +116,7 @@ The classification function is a TOOL for routing complex requests, not a requir
         try:
             # Use a capable model that can both respond and classify
             provider = LLMProvider.ANTHROPIC
-            model = "claude-3-5-sonnet-20241022"  # Better model for quality responses
+            model = "claude-sonnet-4-5"  # Better model for quality responses
             
             # Make a single call that can either respond directly or classify
             response = await multi_provider_selector.chat_completion(

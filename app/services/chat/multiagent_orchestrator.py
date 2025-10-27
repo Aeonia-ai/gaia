@@ -296,7 +296,7 @@ class MMOIRLMultiagentOrchestrator:
         response = await orchestrator.generate_str(
             message=scenario_prompt,
             request_params=RequestParams(
-                model=request.model or "claude-3-5-sonnet-20241022",
+                model=request.model or "claude-sonnet-4-5",
                 temperature=0.8,  # Higher creativity for storytelling
                 maxTokens=2500,
                 max_iterations=3
@@ -312,7 +312,7 @@ class MMOIRLMultiagentOrchestrator:
             "id": f"multiagent-{auth_key}-{int(time.time())}",
             "object": "chat.completion",
             "created": int(time.time()),
-            "model": request.model or "claude-3-5-sonnet-20241022",
+            "model": request.model or "claude-sonnet-4-5",
             "choices": [{
                 "index": 0,
                 "message": {

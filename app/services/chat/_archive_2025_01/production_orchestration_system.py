@@ -121,7 +121,7 @@ class BaseAgent(ABC):
         agent_id: str,
         role: AgentRole,
         capabilities: Set[str],
-        model: str = "claude-3-5-sonnet-20241022"
+        model: str = "claude-sonnet-4-5"
     ):
         self.agent_id = agent_id
         self.role = role
@@ -413,7 +413,7 @@ Request: {request}
 Respond in JSON format."""
 
         response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5",
             messages=[{
                 "role": "user",
                 "content": analysis_prompt.format(request=request)

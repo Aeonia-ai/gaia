@@ -25,10 +25,11 @@ kill_timeout = 5
   NATS_HOST = "gaia-nats-dev.fly.dev"
   NATS_PORT = "4222"
   
-  # KB-specific settings  
+  # KB-specific settings
   KB_PATH = "/kb"
+  KB_GIT_REPO_URL = "https://github.com/Aeonia-ai/gaia-knowledge-base"
   KB_GIT_AUTO_CLONE = "true"
-  
+
   # Enable sync for remote deployment
   KB_GIT_AUTO_SYNC = "true"
   KB_GIT_SYNC_INTERVAL = "900"  # 15 minutes

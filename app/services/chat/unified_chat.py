@@ -205,7 +205,13 @@ class UnifiedChatHandler:
             "avg_total_time_ms": 0
         }
     
-    async def process(self, message: str, auth: dict, context: Optional[dict] = None) -> dict:
+    async def process(
+        self,
+        message: str,
+        auth: dict,
+        context: Optional[dict] = None,
+        user_email: Optional[str] = None
+    ) -> dict:
         """
         Process message with intelligent routing.
 
@@ -270,8 +276,17 @@ class UnifiedChatHandler:
         # Update metrics
         self._routing_metrics["total_requests"] += 1
 
+        if not user_email:
+            user_email = (
+                auth.get("email")
+                or auth.get("user_email")
+                or auth.get("preferred_username")
+            )
+        if not user_email and context:
+            user_email = context.get("user_email")
+
         # Pre-create conversation_id for unified behavior (matches streaming)
-        conversation_id = await self._get_or_create_conversation_id(message, context, auth)
+        conversation_id = await self._get_or_create_conversation_id(message, context, auth, user_email)
 
         # Update context with the conversation_id for any future operations
         if context is None:
@@ -351,10 +366,23 @@ class UnifiedChatHandler:
                     # For Anthropic, tool results are included as user messages
                     tool_result_content = "\n\nTool Results:\n"
                     for result in tool_results:
-                        # Extract just the text content, not the full JSON to avoid formatting issues
-                        if result['result'].get('success') and result['result'].get('content'):
+                        # Extract text content based on tool type
+                        content = None
+                        if result['result'].get('success'):
+                            # Game commands have 'narrative' field
+                            if 'narrative' in result['result']:
+                                content = result['result']['narrative']
+                                # Optionally include suggestions
+                                if result['result'].get('next_suggestions'):
+                                    suggestions = ", ".join(result['result']['next_suggestions'][:3])
+                                    content += f"\n\n💡 Try: {suggestions}"
+                            # Other KB tools have 'content' field
+                            elif result['result'].get('content'):
+                                content = result['result']['content']
+
+                        if content:
                             # Clean the content of potential problematic characters
-                            content = result['result']['content'].replace('🔍', '[SEARCH]').replace('**', '')
+                            content = content.replace('🔍', '[SEARCH]').replace('**', '')
                             formatted_result = f"\n{result['tool']}:\n{content}\n"
                         else:
                             formatted_result = f"\n{result['tool']}:\nNo results found\n"
@@ -683,7 +711,8 @@ class UnifiedChatHandler:
         self,
         message: str,
         auth: dict,
-        context: Optional[dict] = None
+        context: Optional[dict] = None,
+        user_email: Optional[str] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process message with intelligent routing and streaming response.
@@ -757,7 +786,7 @@ class UnifiedChatHandler:
         full_context = await self.build_context(auth, context)
 
         # Pre-create conversation_id for streaming
-        conversation_id = await self._get_or_create_conversation_id(message, context, auth)
+        conversation_id = await self._get_or_create_conversation_id(message, context, auth, user_email)
 
         # Update context with the conversation_id for any future operations
         if context is None:
@@ -842,12 +871,28 @@ class UnifiedChatHandler:
                     # Execute KB tool
                     kb_executor = KBToolExecutor(auth)
                     kb_result = await kb_executor.execute_tool(tool_name, tool_args)
-                    
-                    # Format the response
-                    if kb_result.get('success') and kb_result.get('content'):
-                        content = kb_result['content']
+
+                    # Format the response based on tool type
+                    if kb_result.get('success'):
+                        # Game command responses have 'narrative' field
+                        if 'narrative' in kb_result:
+                            content = kb_result['narrative']
+
+                            # Optionally append next suggestions for guidance
+                            if kb_result.get('next_suggestions'):
+                                suggestions = ", ".join(kb_result['next_suggestions'][:3])
+                                content += f"\n\n💡 Try: {suggestions}"
+
+                        # Other KB tools have 'content' field
+                        elif kb_result.get('content'):
+                            content = kb_result['content']
+                        else:
+                            content = "Command executed successfully."
                     else:
-                        content = f"No results found for: {tool_args.get('query', 'your search')}"
+                        # Handle errors
+                        error = kb_result.get('error', {})
+                        error_msg = error.get('message', 'Unknown error')
+                        content = f"❌ {error_msg}"
 
                     # Track for saving after streaming
                     accumulated_response = content
@@ -1726,7 +1771,13 @@ Guidelines:
         
         return context
     
-    async def _get_or_create_conversation_id(self, message: str, context: Optional[dict], auth: dict) -> str:
+    async def _get_or_create_conversation_id(
+        self,
+        message: str,
+        context: Optional[dict],
+        auth: dict,
+        user_email: Optional[str] = None
+    ) -> str:
         """Get existing conversation_id or create a new conversation.
 
         This method handles the conversation creation logic for streaming responses
@@ -1737,6 +1788,7 @@ Guidelines:
         conversation_id = context.get("conversation_id") if context else None
         user_id = auth.get("user_id") or auth.get("sub") or "unknown"
 
+        conversation_id: Optional[str] = None
         try:
             from .conversation_store import chat_conversation_store
 
@@ -1744,7 +1796,8 @@ Guidelines:
             if not conversation_id or conversation_id == "new":
                 conv = chat_conversation_store.create_conversation(
                     user_id=user_id,
-                    title=message[:50] + "..." if len(message) > 50 else message
+                    title=message[:50] + "..." if len(message) > 50 else message,
+                    user_email=user_email
                 )
                 conversation_id = conv["id"]
                 logger.info(f"Created new conversation: {conversation_id}")
@@ -1756,7 +1809,8 @@ Guidelines:
                     logger.warning(f"Conversation {conversation_id} not found, creating new conversation")
                     conv = chat_conversation_store.create_conversation(
                         user_id=user_id,
-                        title=message[:50] + "..." if len(message) > 50 else message
+                        title=message[:50] + "..." if len(message) > 50 else message,
+                        user_email=user_email
                     )
                     conversation_id = conv["id"]  # Use the new ID
                     logger.info(f"Created new conversation: {conversation_id} (requested ID was not found)")
@@ -1794,7 +1848,14 @@ Guidelines:
             logger.error(f"Error saving conversation messages: {e}")
             # Don't fail the whole request if conversation saving fails
 
-    async def _save_conversation(self, message: str, response: str, context: Optional[dict], auth: dict) -> str:
+    async def _save_conversation(
+        self,
+        message: str,
+        response: str,
+        context: Optional[dict],
+        auth: dict,
+        user_email: Optional[str] = None
+    ) -> str:
         """Save user message and AI response to conversation history.
 
         Returns the conversation_id (creates one if needed).
@@ -1806,7 +1867,19 @@ Guidelines:
             from .conversation_store import chat_conversation_store
 
             # Get or create conversation_id using the shared method
-            conversation_id = await self._get_or_create_conversation_id(message, context, auth)
+            if user_email is None:
+                user_email = (
+                    auth.get("email")
+                    or auth.get("user_email")
+                    or auth.get("preferred_username")
+                )
+
+            conversation_id = await self._get_or_create_conversation_id(
+                message,
+                context,
+                auth,
+                user_email
+            )
 
             # Save messages using the new method
             await self._save_conversation_messages(conversation_id, message, response)

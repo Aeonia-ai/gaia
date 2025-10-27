@@ -142,7 +142,7 @@ class OrchestratedChatService:
     async def _handle_direct_llm(self, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         """Handle simple direct LLM requests"""
         response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5",
             messages=messages,
             max_tokens=2000
         )
@@ -170,7 +170,7 @@ class OrchestratedChatService:
         tool_descriptions = self._get_tool_descriptions(required_tools)
         
         response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5",
             messages=messages,
             tools=tool_descriptions,
             max_tokens=2000
@@ -231,7 +231,7 @@ class OrchestratedChatService:
         """Format response to match standard chat endpoint format"""
         return {
             "response": response.get("content", ""),
-            "model": response.get("model", "claude-3-5-sonnet-20241022"),
+            "model": response.get("model", "claude-sonnet-4-5"),
             "usage": response.get("usage", {}),
             "_metadata": {
                 "route": route,

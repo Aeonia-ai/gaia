@@ -115,7 +115,7 @@ class LightweightChatWithDB:
                 response = await llm.generate_str(
                     message=full_prompt,
                     request_params=RequestParams(
-                        model=request.model or "claude-3-5-sonnet-20241022",
+                        model=request.model or "claude-sonnet-4-5",
                         temperature=0.7,
                         max_tokens=2000
                     )
@@ -136,7 +136,7 @@ class LightweightChatWithDB:
                     conversation_id=conversation_id,
                     role="assistant",
                     content=response,
-                    model=request.model or "claude-3-5-sonnet-20241022",
+                    model=request.model or "claude-sonnet-4-5",
                     provider=request.provider or "anthropic"
                 )
                 
@@ -154,7 +154,7 @@ class LightweightChatWithDB:
                     "id": f"chat-{conversation_id}-{len(db_messages)+2}",
                     "object": "chat.completion",
                     "created": int(time.time()),
-                    "model": request.model or "claude-3-5-sonnet-20241022",
+                    "model": request.model or "claude-sonnet-4-5",
                     "conversation_id": conversation_id,
                     "choices": [{
                         "index": 0,

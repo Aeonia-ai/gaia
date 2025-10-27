@@ -112,7 +112,12 @@ graph TD
 - `shared_resources` - Shared resource tracking
 - `permission_audit_log` - Permission change auditing
 
-**Total: 29 tables serving all microservices**
+**Experience Platform** (Planned - See [Experience Architecture](../experiences/)):
+- `player_profiles` - Player stats across all experiences
+- `experience_progress` - Per-experience player progress
+- `player_progress_events` - Event log for analytics
+
+**Total: 29 tables serving all microservices** (32 with planned Experience Platform)
 
 ### Supabase (Shared)
 - `auth.users` - Email, password hash, email verification

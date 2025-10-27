@@ -128,18 +128,21 @@ if [[ -z "$DEPLOY_SERVICES" ]]; then
 fi
 
 # Validate services
-case "$DEPLOY_SERVICES" in
-    "gateway"|"auth"|"asset"|"chat"|"web"|"kb")
-        ;;
-    "all")
-        DEPLOY_SERVICES="gateway auth asset chat web kb"
-        ;;
-    *)
-        log_error "Invalid services: $DEPLOY_SERVICES"
-        log_error "Valid options: gateway, auth, asset, chat, web, kb, all"
-        exit 1
-        ;;
-esac
+if [[ "$DEPLOY_SERVICES" == "all" ]]; then
+    DEPLOY_SERVICES="gateway auth asset chat web kb"
+else
+    for service in $DEPLOY_SERVICES; do
+        case "$service" in
+            "gateway"|"auth"|"asset"|"chat"|"web"|"kb")
+                ;;
+            *)
+                log_error "Invalid service: $service"
+                log_error "Valid options: gateway, auth, asset, chat, web, kb, all"
+                exit 1
+                ;;
+        esac
+    done
+fi
 
 function check_prerequisites() {
     log_step "Checking prerequisites..."

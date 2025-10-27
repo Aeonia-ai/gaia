@@ -141,6 +141,31 @@ KB_TOOLS = [
                 "required": ["sources"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_game_command",
+            "description": "Process natural language game commands when user is playing a game experience. Use when user input looks like: game actions ('go north', 'take lamp', 'examine mailbox'), turn-based moves ('play rock', 'choose scissors'), AR interactions ('scan marker', 'activate waypoint'). Returns structured narrative, actions, and state changes.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "The natural language game command from the user"
+                    },
+                    "experience": {
+                        "type": "string",
+                        "description": "The game experience ID (e.g., 'west-of-house', 'wylding-woods', 'rock-paper-scissors')"
+                    },
+                    "session_state": {
+                        "type": "object",
+                        "description": "Optional current game state (inventory, location, etc.)"
+                    }
+                },
+                "required": ["command", "experience"]
+            }
+        }
     }
 ]
 
@@ -167,25 +192,32 @@ class KBToolExecutor:
     
     async def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a KB tool and return the result."""
-        
+
         if tool_name == "search_knowledge_base":
             return await self._search_kb(arguments.get("query"), arguments.get("limit", 10))
-        
+
         elif tool_name == "load_kos_context":
             return await self._load_kos_context(arguments.get("context_type"), arguments.get("project"))
-        
+
         elif tool_name == "read_kb_file":
             return await self._read_file(arguments.get("path"))
-        
+
         elif tool_name == "list_kb_directory":
             return await self._list_directory(arguments.get("path", "/"))
-        
+
         elif tool_name == "load_kb_context":
             return await self._load_context(arguments.get("topic"), arguments.get("depth", 2))
-        
+
         elif tool_name == "synthesize_kb_information":
             return await self._synthesize(arguments.get("sources"), arguments.get("focus"))
-        
+
+        elif tool_name == "execute_game_command":
+            return await self._execute_game_command(
+                arguments.get("command"),
+                arguments.get("experience"),
+                arguments.get("session_state")
+            )
+
         else:
             return {"error": f"Unknown KB tool: {tool_name}"}
     
@@ -326,14 +358,14 @@ class KBToolExecutor:
             # Map context types to KB search patterns
             context_search_map = {
                 "current-session": "current-session OR session-state OR active-context",
-                "active-threads": "active-threads OR threads OR project-status", 
+                "active-threads": "active-threads OR threads OR project-status",
                 "daily-plan": "daily-plan OR today OR priorities OR schedule",
                 "chat-instructions": "chat-instructions OR chat-context OR preferences",
                 "project-context": f"project-context OR {project}" if project else "project-context"
             }
-            
+
             search_query = context_search_map.get(context_type, context_type)
-            
+
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{KB_SERVICE_URL}/search",
@@ -341,7 +373,7 @@ class KBToolExecutor:
                     headers=self.headers,
                     timeout=30.0
                 )
-                
+
                 if response.status_code == 200:
                     result = response.json()
                     if result.get("status") == "success":
@@ -351,7 +383,76 @@ class KBToolExecutor:
                         return {"success": False, "error": result.get("response", "Unknown error")}
                 else:
                     return {"success": False, "error": f"HTTP {response.status_code}"}
-                    
+
         except Exception as e:
             logger.error(f"KOS context load error: {e}")
             return {"success": False, "error": str(e)}
+
+    async def _execute_game_command(
+        self,
+        command: str,
+        experience: str,
+        session_state: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Execute a game command through the KB service."""
+        try:
+            # Prepare request payload
+            payload = {
+                "command": command,
+                "experience": experience,
+                "user_context": {
+                    "user_id": self.auth_principal.get("user_id", "unknown"),
+                    "role": self.auth_principal.get("role", "player"),
+                    "auth_type": self.auth_principal.get("auth_type", "api_key")
+                }
+            }
+
+            if session_state:
+                payload["session_state"] = session_state
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{KB_SERVICE_URL}/game/command",
+                    json=payload,
+                    headers=self.headers,
+                    timeout=30.0
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    # Game command endpoint returns structured GameCommandResponse
+                    return result
+                elif response.status_code == 403:
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "insufficient_permissions",
+                            "message": "You don't have permission to execute this command"
+                        }
+                    }
+                elif response.status_code == 404:
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "experience_not_found",
+                            "message": f"Experience '{experience}' not found"
+                        }
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "http_error",
+                            "message": f"HTTP {response.status_code}"
+                        }
+                    }
+
+        except Exception as e:
+            logger.error(f"Game command execution error: {e}")
+            return {
+                "success": False,
+                "error": {
+                    "code": "execution_error",
+                    "message": str(e)
+                }
+            }

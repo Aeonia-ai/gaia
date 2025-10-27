@@ -101,7 +101,7 @@ class MMOIRLMultiagentDemo:
             result = await game_master.generate_str(
                 message=player_action,
                 request_params=RequestParams(
-                    model="claude-3-5-sonnet-20241022",
+                    model="claude-sonnet-4-5",
                     maxTokens=2000,
                     max_iterations=3
                 )
@@ -421,7 +421,7 @@ class MMOIRLMultiagentDemo:
             result = await problem_solving_team.generate_str(
                 message=design_challenge,
                 request_params=RequestParams(
-                    model="claude-3-5-sonnet-20241022",
+                    model="claude-sonnet-4-5",
                     maxTokens=3000,
                     max_iterations=4
                 )

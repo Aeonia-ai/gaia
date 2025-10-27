@@ -324,7 +324,7 @@ Always explain why you're navigating to a new state.
         
         # LLM call with dynamic tools
         response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": message}
@@ -359,7 +359,7 @@ Always explain why you're navigating to a new state.
             
             # Continue conversation with new state info
             continuation = self.anthropic.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-sonnet-4-5",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": message},

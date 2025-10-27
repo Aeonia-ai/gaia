@@ -1,18 +1,54 @@
 # KB-Driven Command Processing Tool Specification
 
-> **Status**: SPECIFICATION  
-> **Version**: 0.4  
-> **Purpose**: Define general-purpose game command processing tool that leverages KB content for any game system  
-> **Created**: 2025-10-22  
-> **Updated**: 2025-10-22 (Simplified architecture, incorporated expert feedback)  
-> **Related**: 
-> - [KB Architecture Guide](../kb/developer/kb-architecture-guide.md) - Knowledge Base infrastructure  
-> - [RBAC System Guide](../kb/reference/rbac-system-guide.md) - Role-based access control  
+> **Status**: SPECIFICATION
+> **Version**: 0.5
+> **Purpose**: Define general-purpose game command processing tool that leverages KB content for any game system
+> **Created**: 2025-10-22
+> **Updated**: 2025-10-22 (Added gameplay-first TDD strategy with security envelope pattern)
+> **Implementation Status**: Infrastructure complete, core processor pending (see below)
+> **Related**:
+> - **[Game Command Developer Guide](./game-command-developer-guide.md)** - Practical guide with examples and current status
+> - [KB Architecture Guide](../kb/developer/kb-architecture-guide.md) - Knowledge Base infrastructure
+> - [RBAC System Guide](../kb/reference/rbac-system-guide.md) - Role-based access control
 > - [Chat API Documentation](./chat/) - LLM processing infrastructure  
 
 ## Executive Summary
 
 This specification defines a general-purpose `execute_game_command` tool that processes natural language commands for any game system by leveraging Knowledge Base content as interpretable game logic. The tool uses code-enforced RBAC with LLM interpretation of filtered content, supporting diverse game types through content-driven flexibility rather than code complexity.
+
+## Current Implementation Status
+
+**As of October 22, 2025:**
+
+### ✅ Infrastructure Complete
+- **Chat Service Integration** (`app/services/chat/kb_tools.py`)
+  - `execute_game_command` added to KB_TOOLS array
+  - KBToolExecutor routes commands to KB service
+  - LLM can detect game commands via tool calling
+
+- **KB Service API** (`app/services/kb/game_commands_api.py`)
+  - `/game/command` endpoint created
+  - Request/response models defined
+  - Router integrated into main KB service
+
+- **Detection & Routing**
+  - Zero string parsing - pure LLM tool calling
+  - Automatic integration with unified_chat.py
+  - Works for any experience defined in KB
+
+### ❌ Core Processor Pending
+- **File:** `app/shared/tools/game_commands.py` (currently returns stub)
+- **Needs Implementation:**
+  1. KB content loading (`kb_storage.load_experience_content()`)
+  2. RBAC filtering (`GameRBAC.filter_content_for_role()`)
+  3. LLM interpretation (`llm_service.interpret_game_command()`)
+  4. Response formatting (`format_game_response()`)
+
+**Current Behavior:** Returns `{"success": False, "error": {"code": "not_implemented"}}`
+
+**Working Alternative:** KB Agent endpoint (`/agent/interpret`) works for natural language responses, but lacks structured action format.
+
+See **[Game Command Developer Guide](./game-command-developer-guide.md)** for detailed status and practical examples.
 
 ## Design Principles
 
@@ -21,15 +57,50 @@ This specification defines a general-purpose `execute_game_command` tool that pr
 - Let experiences define their own complexity levels and rule interpretations
 - Leverage existing proven LLM-to-structured-response patterns
 
-### **Security Through Code**
+### **Security Envelope Pattern**
+- Implement minimal security boundaries early with placeholder tests
+- Focus on gameplay validation first, expand security as features solidify
 - Enforce RBAC in code before LLM processing, not through LLM interpretation
-- Filter content by role before sending to LLM to prevent prompt injection
-- Multi-layer validation with audit logging
+- Progressive security hardening without sacrificing development velocity
 
 ### **Service Integration Flexibility**
 - Any service (Chat, Web, KB) can invoke game command processing
 - Tool-based approach leverages existing `ToolProvider` infrastructure
 - Clear separation: services handle UI/conversation, tool handles game logic
+
+## Development Strategy
+
+### **TDD Approach: Gameplay-First with Security Envelope**
+
+Based on expert analysis, this system follows a **gameplay-first TDD strategy** with early security placeholders:
+
+**Phase 1: Core Gameplay Mechanics**
+- Focus on command execution, state management, and LLM interpretation
+- Write failing tests for actual gameplay scenarios
+- Implement basic session isolation and user scoping stubs
+- Validate KB content loading and rule interpretation
+
+**Phase 2: Rich Gameplay Features**
+- Multi-turn narratives and complex state changes
+- Advanced command parsing and natural language variations
+- Cross-experience compatibility and content switching
+- Performance optimization for command processing
+
+**Phase 3: Security Envelope Expansion**
+- Convert security stubs to full RBAC implementation
+- Add comprehensive access control and content filtering
+- Implement audit logging and security monitoring
+- Penetration testing and security validation
+
+**Rationale**: Early gameplay validation prevents building secure but unusable systems, while placeholder security tests ensure retrofit-friendly architecture.
+
+### **Test Priority Framework**
+
+1. **Start**: Core command execution (`"look"`, `"take lamp"`, `"go north"`)
+2. **Next**: KB content interpretation and state persistence
+3. **Then**: Multi-turn gameplay and session management
+4. **Later**: Service integration and advanced features
+5. **Last**: Full RBAC implementation and security hardening
 
 ## Tool Interface
 
@@ -565,9 +636,88 @@ class GameAuditLogger:
 
 ## Testing Strategy
 
-### **Test Categories**
+### **Gameplay-First TDD Implementation**
 
-#### **1. RBAC Enforcement Tests**
+Following expert recommendation for **gameplay-first development with security envelope**, tests are prioritized to validate core mechanics before hardening security.
+
+### **Phase 1: Core Gameplay Tests** (Start Here)
+
+#### **1. Basic Command Execution Tests**
+```python
+def test_basic_look_command():
+    """User says 'look' and gets room description with items."""
+    result = await execute_game_command(
+        command="look",
+        experience="west-of-house",
+        user_context={"role": "player", "user_id": "test"},
+        session_state={"current_room": "west_of_house"}
+    )
+    
+    assert result["success"] == True
+    assert "white house" in result["narrative"].lower()
+    assert "mailbox" in result["narrative"].lower()
+    assert "obvious exits" in result["narrative"].lower()
+
+def test_take_item_updates_inventory():
+    """User takes lamp, it appears in inventory and disappears from room."""
+    result = await execute_game_command(
+        command="take lamp",
+        experience="west-of-house",
+        user_context={"role": "player", "user_id": "test"},
+        session_state={
+            "current_room": "forest",
+            "inventory": [],
+            "room_states": {"forest": {"items": ["lamp"]}}
+        }
+    )
+    
+    assert result["success"] == True
+    assert "lamp" in result["narrative"]
+    assert result["state_changes"]["inventory"] == ["lamp"]
+    assert "lamp" not in result["state_changes"]["room_states"]["forest"]["items"]
+
+def test_movement_between_rooms():
+    """User goes north, current room changes, new room description shown."""
+    result = await execute_game_command(
+        command="go north",
+        experience="west-of-house",
+        user_context={"role": "player", "user_id": "test"},
+        session_state={"current_room": "west_of_house"}
+    )
+    
+    assert result["success"] == True
+    assert result["state_changes"]["current_room"] == "north_of_house"
+    assert "north of house" in result["narrative"].lower()
+
+def test_rock_paper_scissors_game():
+    """User plays rock, AI plays scissors, user wins."""
+    result = await execute_game_command(
+        command="rock",
+        experience="rock-paper-scissors",
+        user_context={"role": "player", "user_id": "test"},
+        session_state={"round": 1, "score": {"player": 0, "ai": 0}}
+    )
+    
+    assert result["success"] == True
+    assert "rock" in result["narrative"].lower()
+    assert any(action["type"] == "update_score" for action in result["actions"])
+```
+
+#### **2. Session Isolation Stubs** (Security Envelope)
+```python
+def test_user_session_isolation_stub():
+    """Different users get separate game sessions (placeholder test)."""
+    # TODO: Expand to full RBAC in Phase 3
+    user1_state = {"current_room": "west_of_house", "inventory": ["lamp"]}
+    user2_state = {"current_room": "west_of_house", "inventory": []}
+    
+    # Verify sessions don't bleed (basic implementation)
+    assert user1_state != user2_state  # Placeholder - expand later
+```
+
+### **Phase 2: Rich Gameplay Features**
+
+#### **3. State Persistence Tests**
 ```python
 async def test_player_cannot_execute_admin_commands():
     """Verify code-enforced RBAC works"""
@@ -583,48 +733,85 @@ async def test_player_cannot_execute_admin_commands():
     assert "gamemaster" in result["error"]["details"]["required_role"]
 ```
 
-#### **2. Game System Variety Tests**
 ```python
-async def test_text_adventure_commands():
-    """Test text adventure game system"""
-    result = await execute_game_command(
-        command="examine mailbox",
-        experience="west-of-house",
-        user_context={"role": "player"},
-        session_state={"current_room": "west_of_house"}
+def test_multi_turn_narrative_consistency():
+    """Commands build coherent story across multiple turns."""
+    # Turn 1: Look around
+    result1 = await execute_game_command("look", "west-of-house", user_context, {})
+    
+    # Turn 2: Examine mailbox
+    result2 = await execute_game_command(
+        "examine mailbox", "west-of-house", user_context, 
+        result1["state_changes"]
     )
     
-    assert result["success"] == True
-    assert "mailbox" in result["narrative"]
+    # Turn 3: Open mailbox
+    result3 = await execute_game_command(
+        "open mailbox", "west-of-house", user_context,
+        result2["state_changes"]
+    )
+    
+    assert "leaflet" in result3["narrative"]
+    assert result3["state_changes"]["mailbox_opened"] == True
 
-async def test_turn_based_commands():
-    """Test turn-based game system"""
+def test_inventory_capacity_limits():
+    """Inventory has realistic capacity constraints."""
+    full_inventory = ["lamp", "matches", "leaflet", "sword", "rope", "bread", "water"]
+    
     result = await execute_game_command(
-        command="play rock",
-        experience="rock-paper-scissors",
-        user_context={"role": "player"},
-        session_state={"round": 1}
+        "take heavy_rock",
+        "west-of-house",
+        user_context,
+        {"inventory": full_inventory, "inventory_capacity": 7}
     )
     
-    assert result["success"] == True
-    assert "rock" in result["narrative"]
-    assert any(action["type"] == "update_score" for action in result["actions"])
-
-async def test_ar_location_commands():
-    """Test AR location-based system"""
-    result = await execute_game_command(
-        command="scan marker",
-        experience="wylding-woods",
-        user_context={"role": "player"},
-        session_state={"current_waypoint": "woander_storefront"}
-    )
-    
-    assert result["success"] == True
-    assert any(action["type"] == "play_sound" for action in result["actions"])
+    assert result["success"] == False
+    assert "too heavy" in result["error"]["message"].lower()
 ```
 
-#### **3. Content Integration Tests**
+#### **4. Content Loading and Interpretation**
 ```python
+def test_kb_content_loading():
+    """Load game rules from actual KB markdown files."""
+    # Test loading west-of-house room content
+    content = await load_experience_content("west-of-house")
+    
+    assert "west_of_house" in content["rooms"]
+    assert "mailbox" in content["rooms"]["west_of_house"]["items"]
+    assert "north" in content["rooms"]["west_of_house"]["exits"]
+
+def test_natural_language_command_variations():
+    """Handle command variations and synonyms."""
+    commands = ["take lamp", "get lamp", "grab the lamp", "pick up lamp"]
+    
+    for command in commands:
+        result = await execute_game_command(
+            command, "west-of-house", user_context,
+            {"current_room": "forest", "room_states": {"forest": {"items": ["lamp"]}}}
+        )
+        assert result["success"] == True
+        assert "lamp" in result["state_changes"]["inventory"]
+```
+
+### **Phase 3: Security Envelope Expansion** (Final Phase)
+
+#### **5. RBAC Enforcement Tests** (Convert stubs to full implementation)
+
+#### **6. Content Filtering and Access Control**
+```python
+async def test_player_cannot_execute_admin_commands():
+    """Verify code-enforced RBAC works (converted from stub)"""
+    result = await execute_game_command(
+        command="set weather stormy",
+        experience="sanctuary",
+        user_context={"role": "player", "user_id": "test"},
+        session_state={}
+    )
+    
+    assert result["success"] == False
+    assert result["error"]["code"] == "insufficient_permissions"
+    assert "gamemaster" in result["error"]["details"]["required_role"]
+
 async def test_content_filtering_by_role():
     """Verify RBAC content filtering"""
     # Test that players don't see gamemaster content
@@ -634,7 +821,43 @@ async def test_content_filtering_by_role():
     # Test that gamemasters see all content
     gm_content = GameRBAC.filter_content_for_role(sample_content, "gamemaster")
     assert "admin_commands" in gm_content
+
+async def test_cross_user_session_isolation():
+    """Full implementation of session isolation (expanded from stub)"""
+    user1_context = {"role": "player", "user_id": "user1"}
+    user2_context = {"role": "player", "user_id": "user2"}
+    
+    # User 1 takes lamp
+    result1 = await execute_game_command(
+        "take lamp", "west-of-house", user1_context,
+        {"current_room": "forest", "inventory": []}
+    )
+    
+    # User 2 tries to take same lamp - should fail
+    result2 = await execute_game_command(
+        "take lamp", "west-of-house", user2_context,
+        {"current_room": "forest", "inventory": []}
+    )
+    
+    assert result1["success"] == True
+    assert "lamp" in result1["state_changes"]["inventory"]
+    # Session isolation: User 2 sees lamp still available in their session
+    assert result2["success"] == True or "don't see" in result2["error"]["message"]
 ```
+
+### **TDD Development Benefits**
+
+**Gameplay-First Advantages Realized**:
+- **Rapid validation** of LLM interpretation and KB content loading
+- **Early user experience feedback** on command parsing and narrative quality
+- **Clear test scenarios** that demonstrate actual game functionality
+- **Reduced complexity** by focusing on core mechanics before security
+
+**Security Envelope Benefits**:
+- **Retrofit-friendly architecture** with placeholder security hooks
+- **Progressive hardening** without breaking existing gameplay tests
+- **Clear security boundaries** identified through gameplay testing
+- **Maintainable test suite** with logical progression from simple to complex
 
 ## Migration and Implementation
 

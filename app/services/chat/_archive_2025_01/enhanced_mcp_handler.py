@@ -55,7 +55,7 @@ class EnhancedMCPHandler:
         self,
         message: str,
         tools: List[str],
-        model: str = "claude-3-5-sonnet-20241022",
+        model: str = "claude-sonnet-4-5",
         stream: bool = False,
         cache_results: bool = True
     ) -> AsyncIterator[Dict[str, Any]]:
@@ -386,7 +386,7 @@ class MCPChatEndpoint:
         message: str,
         requested_tools: Optional[List[str]] = None,
         workflow_type: Optional[str] = None,
-        model: str = "claude-3-5-sonnet-20241022",
+        model: str = "claude-sonnet-4-5",
         stream: bool = False
     ):
         """Process chat request with intelligent routing"""

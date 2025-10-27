@@ -14,29 +14,106 @@ An interactive command-line interface for the GAIA platform, supporting v0.3 API
 
 ## Installation
 
-```bash
-# Clone the repository
-cd /Users/jasbahr/Development/Aeonia/server/gaia
+### Prerequisites
 
-# Run first-time setup
-python3 scripts/gaia_client.py --setup
+- Python 3.8+ (3.12+ recommended)
+- Homebrew Python recommended on macOS: `brew install python`
+
+### Setup Steps
+
+```bash
+# 1. Navigate to GAIA repository
+cd /path/to/gaia
+
+# 2. Create virtual environment
+python3 -m venv .venv
+
+# 3. Activate virtual environment
+source .venv/bin/activate  # macOS/Linux
+# OR
+.venv\Scripts\activate     # Windows
+
+# 4. Install CLI dependencies
+python3 -m pip install httpx python-dotenv keyring
+
+# 5. Configure VS Code (recommended for auto-activation)
+cp .vscode/settings.json.example .vscode/settings.json
+# Then reload VS Code - venv will auto-activate in integrated terminal
+
+# 6. Configure API key (choose one method):
+
+# Method A: Add to .env file (recommended for local dev)
+echo "GAIA_API_KEY=your-api-key-here" >> .env
+
+# Method B: Set environment variable for this session
+export GAIA_API_KEY="your-api-key-here"
+
+# Method C: Let the client prompt you (stores in OS keyring)
+# Just run the client and it will ask for your key
 ```
 
-### What Setup Does
+### Verification
 
-1. **Python Version Check**: Ensures Python 3.8+ is installed
-2. **Package Installation**: Auto-installs required packages:
-   - `httpx`: Async HTTP client for API calls
-   - `python-dotenv`: Load environment variables from .env files
-   - `keyring`: Secure OS-level credential storage
-3. **Directory Creation**:
-   - `./logs/`: For conversation logs (safe if already exists)
-   - `~/.gaia/`: For future config files (currently empty)
-4. **Usage Examples**: Shows how to get started
+```bash
+# If using VS Code with auto-activation (recommended):
+python3 scripts/gaia_client.py --env local --batch "Hello"
+
+# If running outside VS Code:
+.venv/bin/python3 scripts/gaia_client.py --env local --batch "Hello"
+
+# Expected output: Response from Mu persona
+```
+
+### What Gets Installed
+
+The CLI requires these Python packages:
+- **httpx** (0.28.1+): Async HTTP client for API calls
+- **python-dotenv** (1.1.1+): Load environment variables from .env files
+- **keyring** (25.6.0+): Secure OS-level credential storage
+
+### Directory Structure
+
+The client creates these directories automatically:
+- `./logs/`: For conversation logs
+- `~/.gaia/`: For future config files (currently empty)
+
+### Why Virtual Environment?
+
+The CLI client is a **standalone Python script** (not Dockerized like the main GAIA services). Using a virtual environment:
+- ✅ Isolates dependencies from your global Python installation
+- ✅ Prevents conflicts with other Python projects
+- ✅ Follows Homebrew + pip best practices on macOS
+- ✅ Makes dependency management reproducible
+
+**Note**: The main GAIA services (Gateway, Chat, Auth, etc.) run in Docker and don't need a venv
 
 ## Usage
 
+**IMPORTANT**: The CLI client runs as a standalone Python script (not in Docker). You must use the virtual environment.
+
+### Command Format Options
+
+```bash
+# Option 1: VS Code with auto-activation (RECOMMENDED)
+# - Configure .vscode/settings.json (see Installation)
+# - VS Code terminal auto-activates venv
+python3 scripts/gaia_client.py [options]
+
+# Option 2: Manual venv activation (for any terminal)
+source .venv/bin/activate
+python3 scripts/gaia_client.py [options]
+deactivate  # When done
+
+# Option 3: Direct venv path (for scripts/automation)
+.venv/bin/python3 scripts/gaia_client.py [options]
+
+# Option 4: Inline API key (one-off commands)
+GAIA_API_KEY="your-key" .venv/bin/python3 scripts/gaia_client.py [options]
+```
+
 ### Interactive Mode
+
+**Note**: Examples below assume VS Code auto-activation or manual `source .venv/bin/activate`. If not activated, prefix with `.venv/bin/python3`.
 
 ```bash
 # Connect to dev environment (default)
@@ -44,6 +121,9 @@ python3 scripts/gaia_client.py
 
 # Connect to production
 python3 scripts/gaia_client.py --env prod
+
+# Connect to local (Docker services)
+python3 scripts/gaia_client.py --env local
 
 # Start with specific persona
 python3 scripts/gaia_client.py --persona ava
@@ -58,14 +138,23 @@ python3 scripts/gaia_client.py --conversation conv-123abc
 ### Batch Mode
 
 ```bash
-# Single query
-python3 scripts/gaia_client.py --batch "What is quantum computing?"
+# Single query to local environment
+python3 scripts/gaia_client.py --env local --batch "What is quantum computing?"
 
 # With specific environment
 python3 scripts/gaia_client.py --env prod --batch "Explain relativity"
 
+# With API key inline (useful for scripts)
+GAIA_API_KEY="your-key" python3 scripts/gaia_client.py --env dev --batch "Hello"
+
 # Pipe input
 echo "What is the meaning of life?" | python3 scripts/gaia_client.py --batch -
+
+# Batch mode with logging
+python3 scripts/gaia_client.py --env local --log --batch "Explain AI"
+
+# Script/automation example (explicit venv path)
+.venv/bin/python3 scripts/gaia_client.py --env local --batch "Test query"
 ```
 
 ### Interactive Commands
@@ -130,8 +219,11 @@ API keys are stored securely in your operating system's credential manager:
 # View stored keys (macOS)
 security find-generic-password -s "gaia-client-dev" -a "api_key"
 
-# Remove stored key if needed
+# Remove stored key if needed (assumes venv activated)
 python3 -c "import keyring; keyring.delete_password('gaia-client-dev', 'api_key')"
+
+# Or with explicit venv path:
+.venv/bin/python3 -c "import keyring; keyring.delete_password('gaia-client-dev', 'api_key')"
 
 # The client will prompt for a new key on next run
 ```
@@ -177,6 +269,8 @@ Type /help for available commands
 
 🤖 Assistant: Quantum entanglement is one of the most fascinating...
 ```
+
+**Note**: This assumes venv is activated (VS Code auto-activation or manual `source .venv/bin/activate`)
 
 ### Persona Switching
 
@@ -285,8 +379,30 @@ find logs/ -name "*.json" -mtime +30 -delete
 # Check gateway health
 curl https://gaia-gateway-dev.fly.dev/health
 
-# Verify API key
+# Verify API key with local environment (assumes venv activated)
+python3 scripts/gaia_client.py --env local --batch "test"
+
+# Verify API key with dev environment
 python3 scripts/gaia_client.py --env dev --batch "test"
+
+# If venv not activated, use explicit path:
+.venv/bin/python3 scripts/gaia_client.py --env local --batch "test"
+```
+
+### Virtual Environment Issues
+
+```bash
+# Check if venv is activated (should show .venv path)
+which python3
+
+# If not showing .venv, activate it:
+source .venv/bin/activate
+
+# In VS Code, check that interpreter is set:
+# Cmd+Shift+P → "Python: Select Interpreter" → Choose .venv/bin/python3
+
+# Verify packages are installed in venv:
+python3 -m pip list | grep -E "httpx|keyring|dotenv"
 ```
 
 ### Authentication Errors
@@ -310,11 +426,18 @@ If streaming doesn't work, the client will automatically fall back to non-stream
 ### Testing
 
 ```bash
-# Test basic functionality
+# Test basic functionality (assumes venv activated)
 python3 scripts/gaia_client.py --env local --batch "test"
 
-# Test with mock server
+# Test with different environments
+python3 scripts/gaia_client.py --env dev --batch "test"
+
+# Test with mock server (if pytest tests exist)
 python3 -m pytest tests/test_gaia_client.py
+
+# Or with explicit venv path (for CI/scripts):
+.venv/bin/python3 scripts/gaia_client.py --env local --batch "test"
+.venv/bin/python3 -m pytest tests/test_gaia_client.py
 ```
 
 ## Related Documentation
