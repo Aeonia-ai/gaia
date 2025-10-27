@@ -18,6 +18,7 @@ GAIA platform documentation root.
 - `shared/` - Shared components and utilities
 - `testing/` - Testing guides and patterns
 - `troubleshooting/` - Problem-solving guides
+- `features/` - Feature-specific documentation
 - `web-ui/` - FastHTML frontend documentation
 - `_archive/` - Historical documentation
 - `_debugging-guides/` - Debug procedures and guides
@@ -55,6 +56,10 @@ GAIA platform documentation root.
 ### Testing
 - `testing/TESTING_GUIDE.md` - Main testing documentation
 - `testing/TEST_INFRASTRUCTURE.md` - Test infrastructure
+
+## Features
+
+- `features/dynamic-experiences/phase-1-mvp/000-admin-commands-quick-start.md` - Admin Commands Quick Start Guide
 
 ## Status
 
