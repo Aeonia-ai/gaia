@@ -339,6 +339,151 @@ Tracks total number of interactions:
 
 ---
 
+## User Identity and Per-Player Memory
+
+### How User Identity Works
+
+Every player command must include a `user_id` in the request:
+
+```json
+{
+  "command": "Hello Louisa",
+  "experience": "wylding-woods",
+  "user_context": {
+    "user_id": "jason@aeonia.ai",  // ← Identifies the player
+    "waypoint": "waypoint_28a",
+    "sublocation": "fairy_door_1",
+    "role": "player"
+  }
+}
+```
+
+**What the user_id controls:**
+- ✅ **Inventory** - Items you've collected
+- ✅ **Quest Progress** - Bottles you've returned
+- ✅ **NPC Relationships** - Trust levels and conversation history
+- ✅ **Player State** - Location, stats, etc.
+
+### Per-Player NPC Memory
+
+Each player has their own unique relationship with every NPC:
+
+```
+Player A talks to Louisa → Trust: 60, 5 conversations
+Player B talks to Louisa → Trust: 50, 1 conversation (first time)
+```
+
+**Louisa remembers each player separately:**
+- Different trust levels
+- Different conversation histories
+- Different facts learned
+- Different promises made
+
+### File Structure Per User
+
+```
+/kb/experiences/wylding-woods/players/
+├── jason@aeonia.ai/
+│   ├── progress.json           # Jason's inventory and quests
+│   └── npcs/
+│       └── louisa.json         # Jason's relationship with Louisa
+├── alice@example.com/
+│   ├── progress.json           # Alice's inventory and quests
+│   └── npcs/
+│       └── louisa.json         # Alice's relationship with Louisa
+└── bob@example.com/
+    ├── progress.json           # Bob's inventory and quests
+    └── npcs/
+        └── louisa.json         # Bob's relationship with Louisa
+```
+
+**Each user's state is completely isolated.**
+
+### Multi-User Example
+
+```python
+# Alice meets Louisa for the first time
+response = talk_to_npc("Hello Louisa", user_id="alice@example.com")
+# Trust: 50 (neutral starting point)
+# Conversation: 1
+# Louisa: "Oh! You can see me?"
+
+# Alice talks again
+response = talk_to_npc("What's wrong?", user_id="alice@example.com")
+# Trust: 52 (increased)
+# Conversation: 2
+# Louisa: "My community's dreams have been stolen..."
+
+# Bob meets Louisa for the first time (different user)
+response = talk_to_npc("Hello Louisa", user_id="bob@example.com")
+# Trust: 50 (starts at neutral - Louisa doesn't know Bob yet)
+# Conversation: 1
+# Louisa: "Oh! You can see me?" (same first-time greeting)
+
+# Alice talks again (she has history)
+response = talk_to_npc("I can help find the bottles", user_id="alice@example.com")
+# Trust: 54 (continues building)
+# Conversation: 3
+# Louisa: "You're so kind! I knew I could trust you." (references history)
+```
+
+### Viewing Player State
+
+**Check any player's state:**
+```bash
+# View Jason's inventory
+cat /kb/experiences/wylding-woods/players/jason@aeonia.ai/progress.json
+
+# View Alice's relationship with Louisa
+cat /kb/experiences/wylding-woods/players/alice@example.com/npcs/louisa.json
+
+# View Bob's quest progress
+cat /kb/experiences/wylding-woods/players/bob@example.com/progress.json
+```
+
+### Resetting User State
+
+**Reset specific user:**
+```bash
+# Reset Jason's progress
+curl -X POST http://localhost:8001/game/command \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -d '{
+    "command": "@reset player jason@aeonia.ai CONFIRM",
+    "experience": "wylding-woods",
+    "user_context": {"role": "admin"}
+  }'
+
+# Reset Alice's progress
+curl -X POST http://localhost:8001/game/command \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR_KEY" \
+  -d '{
+    "command": "@reset player alice@example.com CONFIRM",
+    "experience": "wylding-woods",
+    "user_context": {"role": "admin"}
+  }'
+```
+
+### Important Notes
+
+⚠️ **User ID Format**
+- Can be any string (email format recommended)
+- Must be consistent across requests
+- Not tied to authentication (for now - MVP)
+- In production, should match authenticated user from JWT
+
+⚠️ **State Isolation**
+- Users cannot see each other's inventory
+- Users cannot see each other's NPC conversations
+- Quest progress is per-user (one player returning bottles doesn't affect others)
+
+⚠️ **Shared World State**
+- NPC locations are shared (if Louisa moves, all players see it)
+- NPC emotional state is shared (if Louisa becomes happy, all players see it)
+- World events are shared (if a dragon attacks, all players experience it)
+
 ## Testing NPC Communication
 
 ### Test Script
