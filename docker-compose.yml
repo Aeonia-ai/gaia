@@ -122,6 +122,7 @@ services:
       - TLS_CA_PATH=/app/certs/ca.pem
       - JWT_PRIVATE_KEY_PATH=/app/certs/jwt-signing.key
       - JWT_PUBLIC_KEY_PATH=/app/certs/jwt-signing.pub
+      - WATCHFILES_FORCE_POLLING=true
     depends_on:
       - db
       - nats

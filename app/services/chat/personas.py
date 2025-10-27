@@ -3,9 +3,9 @@ from typing import List, Dict, Any, Optional
 import logging
 
 from app.shared.security import get_current_auth_legacy as get_current_auth
-from .persona_service_postgres import PersonaService
+from .persona_service_postgres import PostgresPersonaService as PersonaService
 from app.models.persona import (
-    Persona, PersonaCreate, PersonaUpdate, PersonaResponse, 
+    Persona, PersonaCreate, PersonaUpdate, PersonaResponse,
     PersonaListResponse, SetPersonaRequest, UserPersonaPreference
 )
 
@@ -26,6 +26,7 @@ async def list_personas(
     try:
         personas = await persona_service.list_personas(active_only=active_only)
         return PersonaListResponse(
+            success=True,
             personas=personas,
             total=len(personas),
             message="Personas retrieved successfully"
@@ -55,6 +56,7 @@ async def get_current_persona(
                 raise ValueError("No personas available")
         
         return PersonaResponse(
+            success=True,
             persona=persona,
             message="Current persona retrieved successfully"
         )
@@ -102,6 +104,7 @@ async def get_persona(
             raise HTTPException(status_code=404, detail="Persona not found")
         
         return PersonaResponse(
+            success=True,
             persona=persona,
             message="Persona retrieved successfully"
         )
@@ -121,8 +124,9 @@ async def create_persona(
     try:
         user_id = auth_principal.get("sub") or auth_principal.get("user_id")
         persona = await persona_service.create_persona(persona_data, created_by=user_id)
-        
+
         return PersonaResponse(
+            success=True,
             persona=persona,
             message="Persona created successfully"
         )
@@ -148,8 +152,9 @@ async def update_persona(
         updated_persona = await persona_service.update_persona(persona_id, persona_data)
         if not updated_persona:
             raise HTTPException(status_code=404, detail="Persona not found after update")
-        
+
         return PersonaResponse(
+            success=True,
             persona=updated_persona,
             message="Persona updated successfully"
         )
@@ -187,6 +192,7 @@ async def initialize_default_persona(
     try:
         persona = await persona_service.get_default_persona()
         return PersonaResponse(
+            success=True,
             persona=persona,
             message="Default persona initialized successfully"
         )

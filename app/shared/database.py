@@ -111,6 +111,18 @@ async def get_async_pool():
         # Parse database URL to get connection params
         import urllib.parse
         parsed = urllib.parse.urlparse(DATABASE_URL)
+
+        # Init callback to register pgvector for all connections
+        async def init_connection(conn):
+            try:
+                from pgvector.asyncpg import register_vector
+                await register_vector(conn)
+                logger.debug("Registered pgvector type for new connection")
+            except ImportError:
+                logger.debug("pgvector.asyncpg not available - vector type not registered")
+            except Exception as e:
+                logger.warning(f"Failed to register pgvector type: {e}")
+
         _async_pool = await asyncpg.create_pool(
             host=parsed.hostname,
             port=parsed.port or 5432,
@@ -119,8 +131,10 @@ async def get_async_pool():
             database=parsed.path[1:],  # Remove leading /
             min_size=5,
             max_size=20,
-            command_timeout=10
+            command_timeout=10,
+            init=init_connection  # Register pgvector for every new connection
         )
+        logger.info("Database pool created with pgvector type registration")
     return _async_pool
 
 async def close_async_pool():
