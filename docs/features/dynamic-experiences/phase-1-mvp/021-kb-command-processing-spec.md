@@ -18,37 +18,63 @@ This specification defines a general-purpose `execute_game_command` tool that pr
 
 ## Current Implementation Status
 
-**As of October 22, 2025:**
+**As of October 27, 2025:**
 
 ### ✅ Infrastructure Complete
 - **Chat Service Integration** (`app/services/chat/kb_tools.py`)
   - `execute_game_command` added to KB_TOOLS array
-  - KBToolExecutor routes commands to KB service
+  - KBToolExecutor routes commands to KB service via HTTP
   - LLM can detect game commands via tool calling
+  - Tested end-to-end via GAIA CLI
 
 - **KB Service API** (`app/services/kb/game_commands_api.py`)
   - `/game/command` endpoint created
   - Request/response models defined
   - Router integrated into main KB service
+  - Authentication context merging
 
 - **Detection & Routing**
   - Zero string parsing - pure LLM tool calling
   - Automatic integration with unified_chat.py
   - Works for any experience defined in KB
 
-### ❌ Core Processor Pending
-- **File:** `app/shared/tools/game_commands.py` (currently returns stub)
-- **Needs Implementation:**
-  1. KB content loading (`kb_storage.load_experience_content()`)
-  2. RBAC filtering (`GameRBAC.filter_content_for_role()`)
-  3. LLM interpretation (`llm_service.interpret_game_command()`)
-  4. Response formatting (`format_game_response()`)
+### 🟡 Core Processor Partially Implemented
+- **File:** `app/services/kb/kb_agent.py` (lines 109-277)
+- **Implemented:**
+  1. ✅ Natural language parsing with LLM (Claude Haiku 4.5)
+  2. ✅ Location extraction from commands (waypoint + sublocation)
+  3. ✅ Action type detection (look, collect, return, inventory)
+  4. ✅ Instance management integration
+  5. ✅ Structured response formatting
+  6. ✅ Narrative generation from results
 
-**Current Behavior:** Returns `{"success": False, "error": {"code": "not_implemented"}}`
+- **Not Yet Implemented (from spec):**
+  1. ❌ KB content loading from markdown files (spec lines 182-198)
+  2. ❌ RBAC filtering (`GameRBAC.filter_content_for_role()`)
+  3. ❌ Code-enforced permission checking (spec lines 221-294)
+  4. ❌ Audit logging (spec lines 609-635)
+  5. ❌ Content-level access control
 
-**Working Alternative:** KB Agent endpoint (`/agent/interpret`) works for natural language responses, but lacks structured action format.
+**Current Behavior:**
+- Processes natural language → structured actions → instance operations
+- Uses file-based instance management (JSON files in KB)
+- Returns structured GameCommandResponse with narrative + state changes
+- **Performance:** 1.5-2s average response time (including LLM parsing)
 
-See **[Game Command Developer Guide](./game-command-developer-guide.md)** for detailed status and practical examples.
+**What Works Now:**
+```python
+# Via chat: "pick up the dream bottle from shelf_1 at waypoint_28a"
+# Via API: POST /game/command with natural language command
+# Result: Haiku 4.5 extracts location + action → updates instance JSON → returns narrative
+```
+
+**Current Limitations:**
+- No RBAC content filtering (all content visible to all users)
+- No audit trail (commands not logged for security review)
+- Location must be extractable from command text (no persistent session context)
+- Limited to file-based instance operations (no dynamic KB content loading)
+
+See **[Instance Management Implementation](./100-instance-management-implementation.md)** for file-based system details.
 
 ## Design Principles
 

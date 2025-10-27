@@ -153,6 +153,29 @@ class ClaudeProvider(LLMProviderInterface):
                 supports_streaming=True
             ),
             ModelInfo(
+                id="claude-haiku-4-5",
+                name="Claude Haiku 4.5",
+                provider=LLMProvider.CLAUDE,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.TOOL_CALLING,
+                    ModelCapability.VISION,
+                    ModelCapability.STREAMING,
+                    ModelCapability.CODE_GENERATION
+                ],
+                max_tokens=8192,
+                context_window=200000,
+                cost_per_input_token=0.0000008,
+                cost_per_output_token=0.000004,
+                avg_response_time_ms=800,
+                quality_score=0.9,
+                speed_score=0.95,
+                description="Latest Haiku with enhanced reasoning, coding, and near-frontier intelligence",
+                supports_system_prompt=True,
+                supports_temperature=True,
+                supports_streaming=True
+            ),
+            ModelInfo(
                 id="claude-sonnet-4-5",
                 name="Claude Sonnet 4.5",
                 provider=LLMProvider.CLAUDE,
