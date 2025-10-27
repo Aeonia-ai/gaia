@@ -7,6 +7,9 @@ Embedded agent that interprets KB content as knowledge and rules for intelligent
 import time
 import logging
 import json
+import os
+import tempfile
+from datetime import datetime
 from typing import Dict, Any, List, Optional
 from app.services.llm.chat_service import MultiProviderChatService
 from app.services.llm.base import ModelCapability, LLMProvider
@@ -189,6 +192,9 @@ Examples:
 - "pick up the dream bottle" → {{"action": "collect", "target": "dream_bottle"}}
 - "return bottle to fairy_door_1" → {{"action": "return", "target": "dream_bottle", "destination": "fairy_door_1", "sublocation": "fairy_door_1"}}
 - "check inventory" → {{"action": "inventory"}}
+- "talk to louisa" → {{"action": "talk", "target": "louisa"}}
+- "ask louisa about the dream bottles" → {{"action": "talk", "target": "louisa"}}
+- "hello louisa" → {{"action": "talk", "target": "louisa"}}
 """
 
         try:
@@ -277,12 +283,28 @@ Examples:
                     "model_used": parse_response["model"]
                 }
 
+            elif action_type == "talk":
+                if not target:
+                    return {"success": False, "error": {"code": "no_target", "message": "Who do you want to talk to?"}}
+
+                # Extract the actual message from the original command
+                # For now, use the full command as the message (LLM will extract intent)
+                result = await self._talk_to_npc(
+                    experience=experience,
+                    npc_semantic_name=target,
+                    message=command,
+                    user_id=user_id,
+                    waypoint=command_waypoint,
+                    sublocation=command_sublocation
+                )
+                return {**result, "model_used": parse_response["model"]}
+
             else:
                 return {
                     "success": False,
                     "error": {
                         "code": "unknown_action",
-                        "message": f"I don't understand that command. Try: look, collect, return, or check inventory."
+                        "message": f"I don't understand that command. Try: look, collect, return, inventory, or talk to NPCs."
                     },
                     "model_used": parse_response["model"]
                 }
@@ -3014,6 +3036,273 @@ If action invalid or target not found, return:
             }
 
     # ========== End Admin Command Methods ==========
+
+    # ========== NPC Communication Methods ==========
+
+    async def _talk_to_npc(
+        self,
+        experience: str,
+        npc_semantic_name: str,
+        message: str,
+        user_id: str,
+        waypoint: str,
+        sublocation: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Handle NPC conversation with memory-aware dialogue.
+
+        Uses three-layer memory system:
+        1. Template (markdown) - personality, knowledge, voice
+        2. Instance (JSON) - current world state, quest status
+        3. Relationship (JSON) - per-player conversation history
+
+        Args:
+            experience: Experience ID
+            npc_semantic_name: NPC semantic name (e.g., "louisa")
+            message: Player's message
+            user_id: Player user ID
+            waypoint: Current waypoint
+            sublocation: Current sublocation
+
+        Returns:
+            Response with narrative, actions, state changes
+        """
+        try:
+            # 1. Find NPC instance at player's location
+            manifest = await self._load_manifest(experience)
+            npc_instance = None
+
+            for inst in manifest["instances"]:
+                if (inst["semantic_name"] == npc_semantic_name and
+                    inst["location"] == waypoint):
+                    if sublocation is None or inst.get("sublocation") == sublocation:
+                        npc_instance = inst
+                        break
+
+            if not npc_instance:
+                return {
+                    "success": False,
+                    "error": {"code": "npc_not_found", "message": f"No {npc_semantic_name} here"},
+                    "narrative": f"You don't see {npc_semantic_name} nearby."
+                }
+
+            # 2. Load three layers of memory
+            template_text = await self._load_npc_template_text(experience, npc_instance["template"])
+            instance_state = await self._load_npc_instance_state(experience, npc_instance["instance_file"])
+            relationship = await self._load_npc_relationship(experience, user_id, npc_instance["template"])
+
+            # 3. Build conversation context for LLM
+            context = self._build_npc_context(
+                template_text=template_text,
+                instance_state=instance_state,
+                relationship=relationship,
+                message=message
+            )
+
+            # 4. Generate response with LLM
+            llm_response = await self.llm_service.chat_completion(
+                messages=[{"role": "user", "content": context}],
+                model="claude-3-5-haiku-20241022",
+                user_id=user_id,
+                temperature=0.7  # Natural conversation
+            )
+            response_text = llm_response["response"]
+
+            # 5. Update conversation history
+            timestamp = datetime.utcnow().isoformat() + "Z"
+            conversation_entry = {
+                "timestamp": timestamp,
+                "player": message,
+                "npc": response_text,
+                "mood": instance_state["state"].get("emotional_state", "neutral")
+            }
+
+            relationship["conversation_history"].append(conversation_entry)
+
+            # Keep only last 20 conversations
+            if len(relationship["conversation_history"]) > 20:
+                relationship["conversation_history"] = relationship["conversation_history"][-20:]
+
+            # 6. Update relationship metrics
+            relationship["total_conversations"] += 1
+            relationship["last_interaction"] = timestamp
+
+            # Simple trust increase for any positive interaction
+            if len(message) > 5:  # Not just "hi"
+                relationship["trust_level"] = min(100, relationship["trust_level"] + 2)
+
+            # 7. Save updated relationship
+            await self._save_npc_relationship_atomic(experience, user_id, npc_instance["template"], relationship)
+
+            return {
+                "success": True,
+                "narrative": response_text,
+                "actions": [{
+                    "type": "npc_dialogue",
+                    "npc": npc_semantic_name,
+                    "mood": instance_state["state"].get("emotional_state", "neutral")
+                }],
+                "state_changes": {
+                    "relationship": {
+                        "npc": npc_semantic_name,
+                        "trust": relationship["trust_level"],
+                        "conversations": relationship["total_conversations"]
+                    }
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"NPC conversation failed: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": {"code": "npc_talk_failed", "message": str(e)},
+                "narrative": f"Something went wrong while talking to {npc_semantic_name}."
+            }
+
+    async def _load_npc_template_text(self, experience: str, template_name: str) -> str:
+        """Load NPC template markdown file as text."""
+        kb_path = getattr(settings, 'KB_PATH', '/kb')
+        template_path = os.path.join(kb_path, "experiences", experience, "templates", "npcs", f"{template_name}.md")
+
+        if not os.path.exists(template_path):
+            raise FileNotFoundError(f"NPC template not found: {template_path}")
+
+        with open(template_path, 'r') as f:
+            return f.read()
+
+    async def _load_npc_instance_state(self, experience: str, instance_file: str) -> Dict[str, Any]:
+        """Load NPC instance state JSON."""
+        kb_path = getattr(settings, 'KB_PATH', '/kb')
+        instance_path = os.path.join(kb_path, "experiences", experience, "instances", instance_file)
+
+        if not os.path.exists(instance_path):
+            raise FileNotFoundError(f"NPC instance not found: {instance_path}")
+
+        with open(instance_path, 'r') as f:
+            return json.load(f)
+
+    async def _load_npc_relationship(self, experience: str, user_id: str, npc_template: str) -> Dict[str, Any]:
+        """
+        Load player-NPC relationship data.
+
+        Creates new relationship file if it doesn't exist.
+        Stored in: /kb/experiences/{experience}/players/{user_id}/npcs/{npc_template}.json
+        """
+        kb_path = getattr(settings, 'KB_PATH', '/kb')
+        rel_path = os.path.join(kb_path, "experiences", experience, "players", user_id, "npcs", f"{npc_template}.json")
+
+        if os.path.exists(rel_path):
+            with open(rel_path, 'r') as f:
+                return json.load(f)
+        else:
+            # Create new relationship
+            timestamp = datetime.utcnow().isoformat() + "Z"
+            new_relationship = {
+                "npc_template": npc_template,
+                "player_id": user_id,
+                "first_met": timestamp,
+                "last_interaction": timestamp,
+                "total_conversations": 0,
+                "trust_level": 50,  # Neutral starting trust
+                "conversation_history": [],
+                "facts_learned": [],
+                "promises": [],
+                "metadata": {
+                    "created_at": timestamp,
+                    "last_modified": timestamp,
+                    "_version": 1
+                }
+            }
+
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(rel_path), exist_ok=True)
+
+            # Save initial relationship
+            with open(rel_path, 'w') as f:
+                json.dump(new_relationship, f, indent=2)
+
+            return new_relationship
+
+    async def _save_npc_relationship_atomic(
+        self,
+        experience: str,
+        user_id: str,
+        npc_template: str,
+        relationship: Dict[str, Any]
+    ) -> bool:
+        """Save NPC relationship atomically."""
+        kb_path = getattr(settings, 'KB_PATH', '/kb')
+        rel_path = os.path.join(kb_path, "experiences", experience, "players", user_id, "npcs", f"{npc_template}.json")
+
+        # Update metadata
+        relationship["metadata"]["last_modified"] = datetime.utcnow().isoformat() + "Z"
+        relationship["metadata"]["_version"] = relationship["metadata"].get("_version", 0) + 1
+
+        # Atomic write
+        temp_fd, temp_path = tempfile.mkstemp(dir=os.path.dirname(rel_path), suffix='.json')
+        try:
+            with os.fdopen(temp_fd, 'w') as f:
+                json.dump(relationship, f, indent=2)
+            os.replace(temp_path, rel_path)
+            return True
+        except Exception as e:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise e
+
+    def _build_npc_context(
+        self,
+        template_text: str,
+        instance_state: Dict[str, Any],
+        relationship: Dict[str, Any],
+        message: str
+    ) -> str:
+        """Build conversation context for LLM."""
+
+        # Format recent conversation history
+        recent_history = ""
+        if relationship["conversation_history"]:
+            recent_convos = relationship["conversation_history"][-3:]  # Last 3
+            recent_history = "\n".join([
+                f"  Player: {c['player']}\n  NPC: {c['npc']}"
+                for c in recent_convos
+            ])
+
+        # Build prompt
+        prompt = f"""You are an NPC in a fantasy game. Use this information to respond naturally:
+
+=== NPC TEMPLATE ===
+{template_text}
+
+=== CURRENT STATE ===
+Emotional State: {instance_state['state'].get('emotional_state', 'neutral')}
+Quest Given: {instance_state['state'].get('quest_given', False)}
+Bottles Returned: {instance_state['state'].get('bottles_returned', 0)}/4
+
+=== RELATIONSHIP WITH PLAYER ===
+Trust Level: {relationship['trust_level']}/100
+Total Conversations: {relationship['total_conversations']}
+First Met: {relationship['first_met']}
+
+Recent Conversation History:
+{recent_history if recent_history else "(This is your first conversation)"}
+
+=== PLAYER SAYS ===
+"{message}"
+
+=== INSTRUCTIONS ===
+- Respond in character based on your personality and interaction guidelines
+- Remember your current situation and emotional state
+- Consider your relationship with the player (trust level and history)
+- Keep response under 3 sentences unless providing important quest information
+- Be natural and authentic, not scripted
+- If they ask for help and you haven't given the quest yet, explain the dream bottle situation
+
+Respond as the NPC (only the dialogue, no narration or actions):"""
+
+        return prompt
+
+    # ========== End NPC Communication Methods ==========
 
     def _select_model_for_experience(self, experience: str) -> str:
         """
