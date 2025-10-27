@@ -76,7 +76,7 @@ class TestV1WorkingEndpoints:
         # Test with OpenAI-style request format
         openai_request = {
             "messages": [{"role": "user", "content": "OpenAI format regression test"}],
-            "model": "claude-3-5-sonnet-20241022"
+            "model": "claude-sonnet-4-5"
         }
         
         async with httpx.AsyncClient(timeout=30.0) as client:

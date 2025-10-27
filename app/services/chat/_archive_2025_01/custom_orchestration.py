@@ -171,7 +171,7 @@ Examples:
             response = await self._call_llm(
                 messages=messages,
                 tools=[self.spawn_agent_tool],
-                model="claude-3-5-sonnet-20241022"
+                model="claude-sonnet-4-5"
             )
             
             # Phase 2: Execute spawned agents
@@ -252,7 +252,7 @@ Examples:
     async def _call_llm(
         self,
         messages: List[Dict[str, Any]],
-        model: str = "claude-3-5-sonnet-20241022",
+        model: str = "claude-sonnet-4-5",
         tools: Optional[List[Dict]] = None,
         max_tokens: int = 2000
     ) -> Any:
@@ -356,7 +356,7 @@ Examples:
                     context[f"result_from_{dep_id}"] = self.tasks[dep_id].result
             
             # Execute with appropriate model (could use Haiku for simple tasks)
-            model = "claude-3-5-sonnet-20241022"
+            model = "claude-sonnet-4-5"
             if task.role in [AgentRole.RESEARCHER, AgentRole.REVIEWER]:
                 model = "claude-3-haiku-20240307"  # Faster for simpler tasks
             
@@ -520,7 +520,7 @@ class SimpleOrchestrator:
             ]
             
             # Use Haiku for simple roles, Sonnet for complex ones
-            model = "claude-3-haiku-20240307" if role in ["researcher", "reviewer"] else "claude-3-5-sonnet-20241022"
+            model = "claude-3-haiku-20240307" if role in ["researcher", "reviewer"] else "claude-sonnet-4-5"
             
             response = self.anthropic.messages.create(
                 model=model,

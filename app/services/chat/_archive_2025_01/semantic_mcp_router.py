@@ -346,7 +346,7 @@ class FunctionCallRouter:
         """Let the LLM route using function calling"""
         
         response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5",
             messages=[{
                 "role": "user", 
                 "content": f"Route this request: {message}"

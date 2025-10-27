@@ -90,7 +90,7 @@ class ChatSpeedTester:
         # Build request
         request_data = {
             "message": message,
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-sonnet-4-5",
             "stream": False
         }
         

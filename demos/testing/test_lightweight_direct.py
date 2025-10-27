@@ -19,7 +19,7 @@ async def test_lightweight_direct():
     # Create a test request
     request = ChatRequest(
         message="Hello, this is a test message",
-        model="claude-3-5-sonnet-20241022"
+        model="claude-sonnet-4-5"
     )
     
     # Mock auth principal

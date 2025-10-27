@@ -530,6 +530,184 @@ if (!string.IsNullOrEmpty(sublocation)) {
 
 ---
 
+## DD-009: Rules Are Content, Not Code
+
+**Date**: 2025-10-26
+**Status**: ✅ Accepted
+**Deciders**: User directive + server-frantz analysis
+
+### Context
+How should game rules differ between experiences? Should we write experience-specific Python methods like `_return_bottle_to_fairy_house()` or keep code generic?
+
+### Decision
+**Game rules are markdown content interpreted by LLM, not Python code.**
+
+**Rules Storage**:
+- Universal rules: `/shared/mmoirl-platform/rules/` (apply to all experiences)
+- Experience-specific rules: `/experiences/{experience}/mechanics/` (e.g., light-darkness.md)
+- NPC behaviors: Defined in template markdown files (e.g., louisa.md)
+
+**Code Implementation**:
+- ✅ Generic methods that work for ALL experiences
+- ✅ All methods parameterized by `experience: str`
+- ❌ NO experience-specific method names
+
+**Example - Correct Generic Pattern**:
+```python
+# ✅ CORRECT: Generic method works for ANY experience
+async def _collect_item(
+    self,
+    experience: str,
+    item_semantic_name: str,
+    user_id: str,
+    waypoint: str
+) -> Dict[str, Any]:
+    # Load manifest for this experience
+    manifest = await self._load_manifest(experience)
+
+    # Find item instance at player's location
+    candidates = [inst for inst in manifest['instances']
+                  if inst['semantic_name'] == item_semantic_name
+                  and inst['location'] == waypoint
+                  and inst['state'].get('collected_by') is None]
+
+    # ... generic collection logic ...
+
+# ✅ CORRECT: Generic return/give method
+async def _return_item(
+    self,
+    experience: str,
+    item_semantic_name: str,
+    destination_name: str,
+    user_id: str,
+    waypoint: str
+) -> Dict[str, Any]:
+    # Load experience rules (markdown)
+    rules = await self._load_context(f"/experiences/{experience}/mechanics/")
+
+    # LLM validates against rules (e.g., symbol matching for bottles)
+    validation_prompt = f"""
+Experience Rules:
+{rules}
+
+Player Action: Return {item_semantic_name} to {destination_name}
+
+Validate this action against the experience rules. Check:
+1. Does the destination exist?
+2. Does the item meet requirements (e.g., matching symbols)?
+3. What narrative should accompany success/failure?
+"""
+
+    validation = await self.llm_service.chat_completion(
+        messages=[{"role": "user", "content": validation_prompt}],
+        model="claude-sonnet-4"
+    )
+
+    # ... generic return logic based on LLM validation ...
+```
+
+**Example - Incorrect Experience-Specific Pattern**:
+```python
+# ❌ WRONG: Experience-specific method name
+async def _return_bottle_to_fairy_house(
+    self,
+    bottle_id: int,
+    house_name: str
+) -> Dict[str, Any]:
+    # This only works for Wylding Woods!
+    # What about other experiences?
+```
+
+### Rationale
+
+**User Directive**: "is manifest different for wylding-woods than from any other experience? I want common code and logic"
+
+**Key Principle**: Same engine powers all experiences - only CONTENT differs
+
+**How LLM Interprets Rules**:
+
+**West of House** (light-darkness.md):
+```markdown
+# Light and Darkness System
+
+## Grue Timer
+- Turn 1: Warning message
+- Turn 2: Stalking sounds
+- Turn 3: Final warning
+- Turn 4: Death
+
+## Light Sources
+- **Brass Lamp**: Unlimited duration when lit
+- **Match**: 1 turn of light
+```
+
+The LLM reads this markdown and enforces the grue timer - no Python code needed!
+
+**Wylding Woods** (bottle-return-mechanics.md - hypothetical):
+```markdown
+# Dream Bottle Return Rules
+
+## Symbol Matching
+Each dream bottle has a symbol (spiral, star, moon, sun) that must match the fairy house symbol.
+
+## Validation
+- ✅ Correct: "spiral bottle" → "fairy_door_1" (spiral house)
+- ❌ Wrong: "spiral bottle" → "fairy_door_2" (star house)
+
+## Narrative
+**On Success**: "The bottle dissolves into streams of light that flow into the fairy house."
+**On Failure**: "The bottle's symbol doesn't match this house. Perhaps there's another house nearby?"
+```
+
+The LLM reads this markdown and validates symbol matching - no Python code needed!
+
+### Consequences
+
+**Positive**:
+- ✅ Single codebase powers all experiences (rock-paper-scissors, west-of-house, wylding-woods)
+- ✅ Change rules without deploying new code (edit markdown, push to Git, KB syncs)
+- ✅ Easy to create new experiences (write content, not code)
+- ✅ LLM generates context-appropriate narrative automatically
+
+**Negative**:
+- ⚠️ LLM prompt costs for rule validation
+- ⚠️ Rule enforcement consistency depends on LLM quality
+- ⚠️ Debugging requires checking LLM responses, not just code
+
+**Mitigation**:
+- Cache LLM validation responses for identical scenarios
+- Use structured output to ensure consistent validation format
+- Add rule compliance tests that verify LLM enforces rules correctly
+
+### Code Extension Guidelines
+
+**When to Add Generic Methods**:
+- ✅ Action applies to multiple experiences (collect, return, give, use)
+- ✅ Method takes `experience: str` parameter
+- ✅ Logic is parameterized by experience content (rules, templates)
+
+**When NOT to Add Methods** (Use LLM Interpretation Instead):
+- ❌ Action is experience-specific (e.g., "pet the dragon")
+- ❌ Logic is hardcoded to one experience's mechanics
+- ❌ Method name includes experience-specific terms
+
+**Universal Action Vocabulary** (defined in `/shared/mmoirl-platform/commands/universal-actions.md`):
+- `collect`, `take` - Add item to inventory
+- `return`, `give` - Transfer item to location/NPC
+- `use`, `activate` - Trigger item effect
+- `talk`, `ask` - NPC interaction
+- `examine`, `look` - Inspect entity
+
+These actions work identically across ALL experiences - only the narrative differs.
+
+### References
+- User directive: "I want common code and logic"
+- Existing pattern: `execute_game_command(experience, ...)` in kb_agent.py
+- Universal actions: `/shared/mmoirl-platform/commands/universal-actions.md`
+- Example rules: `/experiences/west-of-house/mechanics/light-darkness.md`
+
+---
+
 ## Summary Table
 
 | Decision | Status | Impact | Migration Plan |
@@ -542,6 +720,7 @@ if (!string.IsNullOrEmpty(sublocation)) {
 | **DD-006: Atomic File Ops** | ✅ Accepted | Medium | Add optimistic locking when scaling |
 | **DD-007: Location-Based Disambiguation** | ✅ Accepted | High | Keep pattern, add spatial indexes |
 | **DD-008: Sublocation Field** | ✅ Accepted | High | Keep pattern, add spatial queries when scaling |
+| **DD-009: Rules Are Content, Not Code** | ✅ Accepted | Critical | Keep pattern (works at all scales) |
 
 ---
 

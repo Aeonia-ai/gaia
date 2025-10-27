@@ -2,8 +2,8 @@ FROM python:3.11-slim
 
 # Set up Python environment
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-asset.txt .
+RUN pip install --no-cache-dir -r requirements-asset.txt
 
 # Copy application code
 COPY . .

@@ -70,7 +70,7 @@ class ChatEndpointTester:
         # Prepare request - all endpoints now use standard format
         payload = {
             "message": query,
-            "model": "claude-3-5-sonnet-20241022"
+            "model": "claude-sonnet-4-5"
         }
         
         start_time = time.time()

@@ -87,7 +87,7 @@ class EfficientOrchestrator:
         
         # Main agent decides what to do
         main_response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5",
             messages=[{
                 "role": "system",
                 "content": """You are an AI assistant that can spawn specialized sub-tasks when needed.
@@ -201,7 +201,7 @@ Be efficient - only spawn tasks when it truly adds value."""
             
             # Execute
             response = self.anthropic.messages.create(
-                model="claude-3-5-sonnet-20241022",  # Could use Haiku for speed
+                model="claude-sonnet-4-5",  # Could use Haiku for speed
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {
@@ -239,7 +239,7 @@ Be efficient - only spawn tasks when it truly adds value."""
         
         # Have main agent synthesize
         synthesis = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5",
             messages=[{
                 "role": "system",
                 "content": "Synthesize the task results into a final response for the user."
@@ -302,7 +302,7 @@ class UltraLightOrchestrator:
     
     async def _run_main(self, prompt: str) -> str:
         response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2000
         )
@@ -316,7 +316,7 @@ class UltraLightOrchestrator:
         }
         
         response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",  # Or Haiku for speed
+            model="claude-sonnet-4-5",  # Or Haiku for speed
             messages=[{
                 "role": "user",
                 "content": prompts.get(role, "") + task

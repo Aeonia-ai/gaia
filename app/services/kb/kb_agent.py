@@ -105,6 +105,90 @@ class KBIntelligentAgent:
             "cached": False
         }
 
+    async def execute_game_command(
+        self,
+        command: str,
+        experience: str,
+        user_context: Dict[str, Any],
+        session_state: Optional[Dict] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute a game command by interpreting KB content as game mechanics.
+
+        This is the core game command processor that:
+        1. Loads game content from /kb/experiences/{experience}/
+        2. Interprets player command against game rules
+        3. Returns structured response with narrative, actions, and state changes
+
+        Args:
+            command: Player's natural language command
+            experience: Experience identifier (e.g., "wylding-woods", "west-of-house")
+            user_context: User context (user_id, auth info, etc.)
+            session_state: Current player state/inventory
+
+        Returns:
+            {
+                "success": bool,
+                "narrative": str,  # What the player sees/reads
+                "actions": List[Dict],  # Structured actions for client to execute
+                "state_changes": Dict,  # Updated session state
+                "model_used": str
+            }
+        """
+        user_id = user_context.get("user_id", "unknown")
+
+        # 1. Load game content from KB
+        experience_path = f"/experiences/{experience}"
+        game_content = await self._load_context(experience_path)
+
+        if not game_content:
+            return {
+                "success": False,
+                "error": {
+                    "code": "experience_not_found",
+                    "message": f"Experience '{experience}' not found in KB"
+                }
+            }
+
+        # 2. Build game command prompt
+        prompt = self._build_game_command_prompt(
+            command=command,
+            game_content=game_content,
+            session_state=session_state or {}
+        )
+
+        # 3. Select model based on experience complexity
+        model = self._select_model_for_experience(experience)
+
+        # 4. Get LLM response with structured output
+        try:
+            response = await self.llm_service.chat_completion(
+                messages=[
+                    {"role": "system", "content": "You are a game master interpreting player commands and game content."},
+                    {"role": "user", "content": prompt}
+                ],
+                model=model,
+                user_id=user_id,
+                temperature=0.7  # Creative for narrative, but consistent
+            )
+
+            # 5. Parse LLM response into structured format
+            result = self._parse_game_response(response["response"], session_state or {})
+            result["model_used"] = response["model"]
+            result["content_files"] = len(game_content)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Game command execution failed: {e}")
+            return {
+                "success": False,
+                "error": {
+                    "code": "execution_failed",
+                    "message": str(e)
+                }
+            }
+
     async def execute_knowledge_workflow(
         self,
         workflow_path: str,
@@ -141,7 +225,7 @@ class KBIntelligentAgent:
 
         response = await self.llm_service.chat_completion(
             messages=[{"role": "user", "content": prompt}],
-            model="claude-3-5-sonnet-20241022",  # Use powerful model for workflows
+            model="claude-sonnet-4-5",  # Use powerful model for workflows
             user_id=user_id
         )
 
@@ -307,9 +391,157 @@ class KBIntelligentAgent:
         if mode == "validation":
             return "claude-3-5-haiku-20241022"  # Fast for validation
         elif len(query) > 1000 or mode == "synthesis":
-            return "claude-3-5-sonnet-20241022"  # Powerful for complex tasks
+            return "claude-sonnet-4-5"  # Powerful for complex tasks
         else:
             return "claude-3-5-haiku-20241022"  # Default fast model
+
+    def _build_game_command_prompt(
+        self,
+        command: str,
+        game_content: Dict[str, str],
+        session_state: Dict[str, Any]
+    ) -> str:
+        """
+        Build prompt for game command execution.
+
+        The prompt instructs the LLM to:
+        1. Load universal command vocabulary from KB
+        2. Interpret the command against game content
+        3. Generate narrative response
+        4. Return structured actions following response-format.md
+        """
+        # Combine all game content
+        content_text = "\n\n".join([
+            f"## {path}\n{content}" for path, content in game_content.items()
+        ])
+
+        return f"""
+You are a game master interpreting player commands for an interactive experience.
+
+**Command System Reference**:
+Follow the command vocabulary and response format defined in:
+- `/shared/mmoirl-platform/commands/+commands.md` (command system overview)
+- `/shared/mmoirl-platform/commands/universal-actions.md` (action vocabulary)
+- `/shared/mmoirl-platform/commands/response-format.md` (JSON response structure)
+
+**Key Principles**:
+- Commands are SEMANTIC - describe WHAT happens, not HOW to render it
+- Actions come from universal vocabulary (talk, examine, collect, etc.)
+- Targets come from game content below (NPCs, items, locations)
+- Return structured JSON following response-format.md
+
+**Game Content (NPCs, Items, Locations, Quests):**
+{content_text}
+
+**Current Player State:**
+{session_state}
+
+**Player Command:**
+{command}
+
+**Processing Instructions**:
+1. Parse command to identify semantic action and target
+2. Validate action exists in universal-actions.md vocabulary
+3. Validate target exists in game content above
+4. Check if player state allows this action
+5. Generate narrative appropriate to experience genre
+6. Determine client actions (audio, visual, state updates)
+7. Calculate state changes (inventory, quests, relationships)
+
+**Required Response Format (from response-format.md)**:
+```json
+{{
+  "success": true,
+  "narrative": "Descriptive narrative of what happens (adapt style to experience genre)",
+  "actions": [
+    {{"action": "add_to_inventory", "item": "item_id"}},
+    {{"action": "play_sound", "sound": "effect.mp3", "volume": 0.7}},
+    {{"action": "trigger_ar_effect", "effect": "sparkles", "duration_ms": 2000}},
+    {{"action": "update_dialogue_state", "npc": "npc_id", "dialogue_node": "greeting"}}
+  ],
+  "state_changes": {{
+    "inventory": ["item1", "item2"],
+    "current_location": "waypoint_id",
+    "quest_progress": {{"quest_id": {{"status": "active"}}}},
+    "npc_relationships": {{"npc_id": {{"trust_level": 0.7}}}}
+  }}
+}}
+```
+
+If action invalid or target not found, return:
+```json
+{{
+  "success": false,
+  "error": {{
+    "code": "invalid_action" | "target_not_found" | "state_invalid",
+    "message": "Human-readable error message",
+    "recoverable": true
+  }},
+  "suggestions": [
+    {{"action": "examine", "target": "entity", "description": "Suggested next action"}}
+  ]
+}}
+```
+
+**Important**: Respond ONLY with the JSON object. No markdown code blocks, no explanatory text.
+"""
+
+    def _parse_game_response(
+        self,
+        llm_response: str,
+        current_state: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Parse LLM response into structured game command result.
+
+        Handles both JSON responses and natural language fallback.
+        """
+        import json
+        import re
+
+        try:
+            # Try to extract JSON from response
+            # Look for JSON block in markdown or raw JSON
+            json_match = re.search(r'```json\s*(\{.*\})\s*```', llm_response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                # Try to parse entire response as JSON
+                json_str = llm_response.strip()
+
+            parsed = json.loads(json_str)
+
+            return {
+                "success": True,
+                "narrative": parsed.get("narrative", ""),
+                "actions": parsed.get("actions", []),
+                "state_changes": {**current_state, **parsed.get("state_changes", {})}
+            }
+
+        except (json.JSONDecodeError, AttributeError) as e:
+            # Fallback: treat entire response as narrative
+            logger.warning(f"Could not parse JSON from LLM response: {e}")
+            return {
+                "success": True,
+                "narrative": llm_response,
+                "actions": [],
+                "state_changes": current_state
+            }
+
+    def _select_model_for_experience(self, experience: str) -> str:
+        """
+        Select appropriate model based on experience type.
+
+        Complex AR experiences like Wylding Woods use more powerful models.
+        Simple text adventures can use faster models.
+        """
+        # Map experiences to model complexity
+        complex_experiences = ["wylding-woods", "dragon-quest", "space-odyssey"]
+
+        if experience in complex_experiences:
+            return "claude-sonnet-4-5"  # Powerful for complex games
+        else:
+            return "claude-3-5-haiku-20241022"  # Fast for simpler games
 
 
 # Global agent instance

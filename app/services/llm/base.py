@@ -69,6 +69,7 @@ class LLMRequest:
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
     system_prompt: Optional[str] = None
     user_id: Optional[str] = None
+    user_email: Optional[str] = None
     session_id: Optional[str] = None
     metadata: Dict[str, Any] = None
 

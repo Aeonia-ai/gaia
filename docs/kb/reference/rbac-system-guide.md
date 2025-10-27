@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Gaia Platform implements a flexible, extensible RBAC system that starts with Knowledge Base (KB) permissions but scales to control access across the entire platform. This guide covers the architecture, implementation, and usage of the RBAC system.
+The Gaia Platform implements a flexible, extensible RBAC system that starts with Knowledge Base (KB) permissions but scales to control access across the entire platform. **While the core RBAC logic is implemented in code, its full activation and deployment are conditional on specific environment configurations.** This guide covers the architecture, implementation, and usage of the RBAC system.
 
 ## Table of Contents
 
@@ -131,8 +131,13 @@ The system includes pre-defined roles:
 
 ### Python RBAC Manager
 
+The core RBAC logic is implemented across several modules within `app/shared/`. Specifically, `app/shared/rbac_simple.py` is currently integrated with the KB storage for performance and simplicity. More comprehensive versions like `app/shared/rbac.py` and `app/shared/rbac_fixed.py` exist for broader platform use or future enhancements.
+
+The activation of multi-user RBAC features, particularly for the Knowledge Base, is controlled by environment variables. For instance, setting `KB_MULTI_USER_ENABLED=true` will enable RBAC-aware storage and routing in the KB service.
+
 ```python
-from app.shared.rbac import rbac_manager, ResourceType, Action
+# Example conceptual usage (actual import may vary based on configuration)
+from app.shared.rbac_simple import rbac_manager, ResourceType, Action # Or from app.shared.rbac
 
 # Check permission
 has_access = await rbac_manager.check_permission(
@@ -157,8 +162,10 @@ permissions = await rbac_manager.get_user_permissions("user_123")
 
 ### FastAPI Integration
 
+FastAPI endpoints can leverage the RBAC manager for automatic permission checking. The specific `rbac` module imported will depend on the active configuration.
+
 ```python
-from app.shared.rbac import require_permission, ResourceType, Action
+from app.shared.rbac_simple import require_permission, ResourceType, Action # Or from app.shared.rbac
 
 # Automatic permission checking
 @app.get("/kb/{path:path}")
@@ -181,6 +188,10 @@ async def write_kb(
     # User has write permission
     return await save_kb_content(path, content)
 ```
+
+## Current Deployment Status
+
+**The RBAC system is fully implemented in code but is not enabled by default in the current production environment.** Its activation, particularly for multi-user Knowledge Base features, is controlled by environment variables (e.g., `KB_MULTI_USER_ENABLED=true`). This aligns with the phased migration strategy outlined in the [KB Architecture Guide](../kb/developer/kb-architecture-guide.md), where multi-user features are progressively rolled out.
 
 ## Usage Examples
 

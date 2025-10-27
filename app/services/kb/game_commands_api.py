@@ -11,7 +11,7 @@ from pydantic import BaseModel
 import logging
 
 from app.shared.security import get_current_auth_legacy as get_current_auth
-from app.shared.tools.game_commands import execute_game_command
+from .kb_agent import kb_agent
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +62,8 @@ async def process_game_command(
             "auth_type": auth.get("auth_type", "api_key")
         }
 
-        # Execute game command
-        result = await execute_game_command(
+        # Execute game command via KB agent (direct call, no HTTP)
+        result = await kb_agent.execute_game_command(
             command=request.command,
             experience=request.experience,
             user_context=merged_context,

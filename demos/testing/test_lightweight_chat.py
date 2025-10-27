@@ -27,7 +27,7 @@ async def test_lightweight_chat():
             },
             json={
                 "message": "Hello! Tell me a short joke about Python programming.",
-                "model": "claude-3-5-sonnet-20241022",
+                "model": "claude-sonnet-4-5",
                 "temperature": 0.7
             }
         )
