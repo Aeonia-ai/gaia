@@ -84,7 +84,34 @@ async def interact_with_experience(
     if not state_manager:
         raise HTTPException(status_code=500, detail="State manager not initialized")
 
-    # Step 1: Determine which experience to use
+    # Step 1: ALWAYS check if message contains experience selection first
+    # This allows switching experiences mid-conversation
+    available_experiences = state_manager.list_experiences()
+    detected_exp = _detect_experience_selection(request.message, available_experiences)
+
+    if detected_exp:
+        # User is selecting/switching to an experience
+        logger.info(f"Detected experience selection: '{detected_exp}' from message '{request.message}'")
+        await state_manager.set_current_experience(user_id, detected_exp)
+
+        # Get experience info for welcome message
+        exp_info = state_manager.get_experience_info(detected_exp)
+
+        narrative = (
+            f"Great! You've selected **{exp_info['name']}**.\n\n"
+            f"{exp_info.get('description', '')}\n\n"
+            "What would you like to do?"
+        )
+
+        return InteractResponse(
+            success=True,
+            narrative=narrative,
+            experience=detected_exp,
+            available_actions=["look around", "check inventory", "explore"],
+            metadata={"experience_selected": True}
+        )
+
+    # Step 2: No experience selection in message, use current/determined experience
     experience = await _determine_experience(
         state_manager,
         user_id,
@@ -93,36 +120,10 @@ async def interact_with_experience(
     )
 
     if not experience:
-        # No experience selected - check if message contains selection
-        available_experiences = state_manager.list_experiences()
-        detected_exp = _detect_experience_selection(request.message, available_experiences)
+        # Still no experience, return selection prompt
+        return await _prompt_experience_selection(state_manager, user_id)
 
-        if detected_exp:
-            # User is selecting an experience
-            logger.info(f"Detected experience selection: '{detected_exp}' from message '{request.message}'")
-            await state_manager.set_current_experience(user_id, detected_exp)
-
-            # Get experience info for welcome message
-            exp_info = state_manager.get_experience_info(detected_exp)
-
-            narrative = (
-                f"Great! You've selected **{exp_info['name']}**.\n\n"
-                f"{exp_info.get('description', '')}\n\n"
-                "What would you like to do?"
-            )
-
-            return InteractResponse(
-                success=True,
-                narrative=narrative,
-                experience=detected_exp,
-                available_actions=["look around", "check inventory", "explore"],
-                metadata={"experience_selected": True}
-            )
-        else:
-            # Still no experience, return selection prompt
-            return await _prompt_experience_selection(state_manager, user_id)
-
-    # Step 2: Ensure player is bootstrapped
+    # Step 3: Ensure player is bootstrapped
     try:
         player_view = await state_manager.get_player_view(experience, user_id)
         if not player_view:
@@ -132,7 +133,7 @@ async def interact_with_experience(
         logger.error(f"Error bootstrapping player: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to initialize player: {e}")
 
-    # Step 3: Get world state
+    # Step 4: Get world state
     try:
         config = state_manager.load_config(experience)
         state_model = config["state"]["model"]
