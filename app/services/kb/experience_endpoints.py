@@ -381,18 +381,20 @@ async def _process_game_message(
     try:
         # Step 1: Detect which command this is
         logger.warning(f"[DIAGNOSTIC] Starting command detection for: {message}")
-        command_type = await _detect_command_type(
+        command_type, requires_admin = await _detect_command_type(
             kb_agent_instance,
             message,
             experience
         )
 
-        logger.warning(f"[DIAGNOSTIC] Detected command type: {command_type}")
+        logger.warning(f"[DIAGNOSTIC] Detected command type: {command_type} (admin={requires_admin})")
 
         # Step 2: Load markdown command file
+        # Check both game-logic and admin-logic directories
         markdown_content = await _load_command_markdown(
             experience,
-            command_type
+            command_type,
+            is_admin_command=requires_admin
         )
 
         if not markdown_content:
@@ -464,73 +466,93 @@ async def _process_game_message(
         )
 
 
-async def _discover_available_commands(experience: str) -> dict[str, list[str]]:
+async def _discover_available_commands(experience: str) -> tuple[dict[str, list[str]], dict[str, bool]]:
     """
-    Discover available commands by scanning game-logic directory for .md files.
+    Discover available commands by scanning game-logic and admin-logic directories for .md files.
 
     Args:
         experience: Experience ID
 
     Returns:
-        Dictionary mapping command name to list of aliases/synonyms
+        Tuple of (commands dict, admin_required dict):
+        - commands: Dict mapping command name to list of aliases/synonyms
+        - admin_required: Dict mapping command name to whether admin permission is required
     """
     kb_root = Path(settings.KB_PATH)
-    game_logic_dir = kb_root / "experiences" / experience / "game-logic"
 
     commands = {}
+    admin_required = {}
 
-    try:
-        if not game_logic_dir.exists():
-            logger.warning(f"Game logic directory not found: {game_logic_dir}")
-            return {}
+    # Scan both game-logic and admin-logic directories
+    directories = [
+        ("game-logic", False),  # (dir_name, default_admin_required)
+        ("admin-logic", True)   # Admin commands default to requiring permissions
+    ]
 
-        # Scan for .md files
-        for md_file in game_logic_dir.glob("*.md"):
-            try:
-                content = md_file.read_text()
+    for dir_name, default_admin in directories:
+        logic_dir = kb_root / "experiences" / experience / dir_name
 
-                # Parse frontmatter to extract command name and aliases
-                if content.startswith("---"):
-                    frontmatter_end = content.find("---", 3)
-                    if frontmatter_end != -1:
-                        frontmatter = content[3:frontmatter_end].strip()
+        if not logic_dir.exists():
+            if dir_name == "game-logic":
+                logger.warning(f"Game logic directory not found: {logic_dir}")
+            continue
 
-                        # Extract command name and aliases
-                        command_name = None
-                        aliases = []
+        try:
+            # Scan for .md files
+            for md_file in logic_dir.glob("*.md"):
+                try:
+                    content = md_file.read_text()
 
-                        for line in frontmatter.split("\n"):
-                            line = line.strip()
-                            if line.startswith("command:"):
-                                command_name = line.split(":", 1)[1].strip()
-                            elif line.startswith("aliases:"):
-                                # Parse aliases list: [move, walk, travel]
-                                aliases_str = line.split(":", 1)[1].strip()
-                                if aliases_str.startswith("[") and aliases_str.endswith("]"):
-                                    aliases_str = aliases_str[1:-1]
-                                    aliases = [a.strip() for a in aliases_str.split(",")]
+                    # Parse frontmatter to extract command name and aliases
+                    if content.startswith("---"):
+                        frontmatter_end = content.find("---", 3)
+                        if frontmatter_end != -1:
+                            frontmatter = content[3:frontmatter_end].strip()
 
-                        if command_name:
-                            # Combine command name with aliases
-                            all_keywords = [command_name] + aliases
-                            commands[command_name] = all_keywords
-                            logger.info(f"Discovered command '{command_name}' with aliases: {aliases}")
+                            # Extract command name, aliases, and admin requirement
+                            command_name = None
+                            aliases = []
+                            requires_admin = default_admin
 
-            except Exception as e:
-                logger.error(f"Error parsing command file {md_file}: {e}")
-                continue
+                            for line in frontmatter.split("\n"):
+                                line = line.strip()
+                                if line.startswith("command:"):
+                                    command_name = line.split(":", 1)[1].strip()
+                                elif line.startswith("aliases:"):
+                                    # Parse aliases list: [move, walk, travel]
+                                    aliases_str = line.split(":", 1)[1].strip()
+                                    if aliases_str.startswith("[") and aliases_str.endswith("]"):
+                                        aliases_str = aliases_str[1:-1]
+                                        aliases = [a.strip() for a in aliases_str.split(",")]
+                                elif line.startswith("requires_admin:"):
+                                    # Check if admin required
+                                    admin_val = line.split(":", 1)[1].strip().lower()
+                                    requires_admin = admin_val == "true"
 
-    except Exception as e:
-        logger.error(f"Error discovering commands for {experience}: {e}")
+                            if command_name:
+                                # Combine command name with aliases
+                                all_keywords = [command_name] + aliases
+                                commands[command_name] = all_keywords
+                                admin_required[command_name] = requires_admin
 
-    return commands
+                                cmd_type = "admin" if requires_admin else "player"
+                                logger.info(f"Discovered {cmd_type} command '{command_name}' with aliases: {aliases}")
+
+                except Exception as e:
+                    logger.error(f"Error parsing command file {md_file}: {e}")
+                    continue
+
+        except Exception as e:
+            logger.error(f"Error scanning {dir_name} directory for {experience}: {e}")
+
+    return commands, admin_required
 
 
 async def _detect_command_type(
     kb_agent_instance,
     message: str,
     experience: str
-) -> str:
+) -> tuple[str, bool]:
     """
     Use LLM to detect which command type the user is trying to execute.
 
@@ -540,10 +562,12 @@ async def _detect_command_type(
         experience: Experience ID
 
     Returns:
-        Command type (e.g., "look", "collect", "inventory", "talk")
+        Tuple of (command_type, requires_admin):
+        - command_type: Command name (e.g., "look", "collect", "list-waypoints")
+        - requires_admin: Whether this command requires admin permissions
     """
     # Discover available commands from markdown files
-    command_mappings = await _discover_available_commands(experience)
+    command_mappings, admin_required = await _discover_available_commands(experience)
     available_commands = list(command_mappings.keys())
 
     # Build command mapping text for LLM
@@ -586,32 +610,41 @@ Command:"""
             logger.warning(f"Unknown command '{command_type}', defaulting to 'look'")
             command_type = "look"
 
-        return command_type
+        # Check if command requires admin permissions
+        requires_admin = admin_required.get(command_type, False)
+
+        return command_type, requires_admin
 
     except Exception as e:
         logger.error(f"Error detecting command type: {e}")
-        return "look"  # Safe default
+        return "look", False  # Safe default (non-admin)
 
 
 async def _load_command_markdown(
     experience: str,
-    command_type: str
+    command_type: str,
+    is_admin_command: bool = False
 ) -> Optional[str]:
     """
     Load markdown file for a command.
 
     Args:
         experience: Experience ID
-        command_type: Command type (e.g., "look", "collect")
+        command_type: Command type (e.g., "look", "collect", "list-waypoints")
+        is_admin_command: Whether to look in admin-logic directory
 
     Returns:
         Markdown file content or None if not found
     """
     kb_root = Path(settings.KB_PATH)
-    markdown_path = kb_root / "experiences" / experience / "game-logic" / f"{command_type}.md"
+
+    # Choose directory based on command type
+    logic_dir = "admin-logic" if is_admin_command else "game-logic"
+    markdown_path = kb_root / "experiences" / experience / logic_dir / f"{command_type}.md"
 
     try:
         if markdown_path.exists():
+            logger.info(f"Loading {logic_dir} command: {command_type}")
             return markdown_path.read_text()
         else:
             logger.warning(f"Markdown command file not found: {markdown_path}")
