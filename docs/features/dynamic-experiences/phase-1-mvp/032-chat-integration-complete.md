@@ -12,8 +12,10 @@ The markdown command system is now fully integrated with the chat service, enabl
 - Proper welcome messages with experience descriptions
 
 ### ✅ Command Execution
-- All markdown commands work via chat: look, go, collect, inventory
+- All markdown commands work via chat: look, go, collect, inventory, talk
 - Both directional movement (north/south/east/west) and sublocation navigation (go to counter)
+- NPC conversations via natural language (talk to Louisa)
+- Admin commands via @ prefix (@list waypoints, @inspect item 1)
 - State persistence across all commands
 
 ### ✅ State Management
@@ -39,13 +41,24 @@ The markdown command system is now fully integrated with the chat service, enabl
 
 ### Wylding-Woods Workflow
 ```bash
-# Complete test including sublocation navigation
+# Complete test including sublocation navigation and NPC interaction
 1. Select experience: "I want to play wylding-woods" ✅
 2. Go to counter: Sublocation movement works ✅
 3. Take dream bottle: Item collection works ✅
 4. Go to back room: Multiple sublocation navigation ✅
 5. Take fairy dust: Multiple items in inventory ✅
 6. Check inventory: State persistence confirmed ✅
+7. Talk to Louisa: NPC conversation with trust system ✅
+8. Ask Louisa about dreams: Quest offered ✅
+```
+
+### Admin Commands Workflow
+```bash
+# Admin commands work through chat with @ prefix
+1. List waypoints: "@list waypoints" ✅
+2. Inspect waypoint: "@inspect waypoint 4" ✅
+3. List items: "@list items" ✅
+4. Instant response: <30ms (no LLM) ✅
 ```
 
 ### Experience Switching
@@ -104,19 +117,28 @@ experience = await _determine_experience(...)
 
 ### Command Auto-Discovery
 
-Commands are automatically discovered from markdown files:
+Commands are automatically discovered from markdown files in **two directories**:
 
 ```python
-async def _discover_available_commands(experience: str) -> dict[str, list[str]]:
-    """Scan game-logic/*.md files and parse frontmatter"""
-    # Discovers: look, collect, inventory, go, etc.
-    # Returns: {"go": ["go", "move", "walk", "travel", "head", "enter"], ...}
+async def _discover_available_commands(experience: str) -> tuple[dict, dict]:
+    """Scan both game-logic/ and admin-logic/ directories and parse frontmatter"""
+    # Discovers player commands: look, collect, inventory, go, talk, etc.
+    # Discovers admin commands: @list-waypoints, @inspect-item, etc.
+    # Returns: (command_mappings, admin_required_dict)
 ```
 
 **Benefits**:
 - Add new commands by creating `.md` files (no code changes)
 - Different experiences can have different command sets
 - Single source of truth in markdown files
+- Admin commands automatically separated via @ prefix
+
+**Directory Structure**:
+```
+/kb/experiences/{exp}/
+├── game-logic/      # Player commands (look, go, collect, talk)
+└── admin-logic/     # Admin commands (@list, @inspect, @edit)
+```
 
 ## Usage
 
@@ -170,6 +192,29 @@ curl -X POST "http://localhost:8001/experience/interact" \
 ### Not Recommended
 - **Mu**: Cheerful robot companion - does NOT call game tools consistently
 
+## Available Command Types
+
+### Player Commands (game-logic/)
+1. **look** - Observe surroundings and items
+2. **go** - Navigate between locations/sublocations
+3. **collect** - Pick up items from location
+4. **inventory** - View items in player inventory
+5. **talk** - Engage in natural conversation with NPCs (with trust system)
+
+### Admin Commands (admin-logic/)
+1. **@list-waypoints** - List all GPS waypoints (instant, no LLM)
+2. **@inspect-waypoint** - View detailed waypoint info
+3. **@edit-waypoint** - Modify waypoint properties
+4. **@create-waypoint** - Create new waypoint
+5. **@delete-waypoint** - Delete waypoint (requires CONFIRM)
+6. **@list-items** - List all item instances
+7. **@inspect-item** - View detailed item info
+
+**See Documentation:**
+- [Markdown Command System](./markdown-command-system.md) - Complete command architecture
+- [Admin Command System](./admin-command-system.md) - Admin command reference
+- [NPC Interaction System](./npc-interaction-system.md) - Talk command and NPC conversations
+
 ## Known Issues
 
 ### Minor
@@ -194,23 +239,46 @@ curl -X POST "http://localhost:8001/experience/interact" \
    - Fixed experience selection flow
    - Verified with complete chat tests
 
+3. **Waypoint CRUD admin commands** (`e822600`)
+   - Implemented @list, @inspect, @edit, @create, @delete for waypoints
+   - Zero LLM latency (<30ms responses)
+   - CONFIRM safety for destructive operations
+
+4. **Item admin commands** (`205cebd`)
+   - Implemented @list-items and @inspect-item
+   - Admin command auto-discovery from admin-logic/
+
+5. **NPC talk command** (`b8e05b6`)
+   - Implemented natural language NPC conversations
+   - Per-player state tracking (trust, history)
+   - LLM-powered authentic dialogue
+   - Quest integration foundation
+
 ## Next Steps (Future Enhancements)
 
-### Additional Commands
-- `talk.md` - NPC interaction
+### Additional Player Commands
 - `drop.md` - Drop items from inventory
 - `examine.md` - Detailed item inspection
 - `use.md` - Use items in inventory
+- `give.md` - Give items to NPCs
+
+### Additional Admin Commands
+- `@spawn` - Spawn instance from template
+- `@reset` - Reset player progress or experience
+- Batch operations (edit/delete multiple items)
+- Import/export commands
 
 ### Performance
 - Cache command discovery results per experience
 - Invalidate cache on experience content updates
 
 ### Features
-- Quest system integration
+- Quest system integration (foundation complete with talk command)
 - Multiplayer interactions in shared experiences
 - Real-time AR waypoint integration
 - GPS-based experience selection
+- NPC-to-NPC conversations
+- Dynamic NPC movement
 
 ## Testing Scripts
 

@@ -6,13 +6,28 @@ The GAIA platform uses a **markdown-driven command system** where game commands 
 
 ## Architecture
 
+### Dual Directory Structure
+
+The system supports **two types of commands** with separate directories:
+
+```
+/kb/experiences/{experience}/
+├── game-logic/      # Player commands (look, go, collect, talk)
+└── admin-logic/     # Admin commands (@list, @inspect, @edit, @delete)
+```
+
+**Key Distinction:**
+- **game-logic/** - Commands available to all players (no @ prefix)
+- **admin-logic/** - Admin-only commands (requires @ prefix)
+
 ### Auto-Discovery
 
-The system automatically scans for command files at runtime:
+The system automatically scans **both directories** for command files at runtime:
 
 ```python
 # No hardcoded command lists!
-# Commands are discovered from: /kb/experiences/{experience}/game-logic/*.md
+# Player commands: /kb/experiences/{experience}/game-logic/*.md
+# Admin commands: /kb/experiences/{experience}/admin-logic/*.md
 ```
 
 **Benefits**:
@@ -20,14 +35,21 @@ The system automatically scans for command files at runtime:
 - ✅ Different experiences can have different command sets
 - ✅ Content creators can add commands without touching Python code
 - ✅ Single source of truth (markdown files)
+- ✅ Admin commands separated from player commands
 
 ### Command Detection Flow
 
-1. User sends message: `"go to counter"`
-2. `_discover_available_commands()` scans game-logic directory
+1. User sends message: `"go to counter"` or `"@list waypoints"`
+2. `_discover_available_commands()` scans **both** game-logic and admin-logic directories
 3. Parses frontmatter from all `.md` files to build command registry
-4. LLM analyzes user intent against available commands
-5. Routes to appropriate command markdown for execution
+4. Detects admin commands by @ prefix
+5. LLM analyzes user intent against available commands
+6. Routes to appropriate command markdown for execution
+
+**Admin Command Detection:**
+- Commands starting with @ are routed to admin-logic handlers
+- `requires_admin: true` flag checked in frontmatter
+- Permission enforcement (future feature - placeholder currently)
 
 ## Creating a New Command
 
@@ -138,6 +160,7 @@ Optional fields:
 - `requires_location` - Does command need location context?
 - `requires_target` - Does command need a target object/direction?
 - `state_model_support` - Which state models support this? `[shared, isolated]`
+- `requires_admin` - **Admin commands only** - Set to `true` for admin-logic commands
 
 ### 3. LLM Instructions
 
@@ -186,25 +209,73 @@ The LLM must return **pure JSON** with:
 
 ## Existing Commands
 
-### look.md
+### Player Commands (game-logic/)
+
+#### look.md
 - **Aliases**: observe, examine, see, search, explore
 - **Purpose**: Observe surroundings and items
 - **State Updates**: None
 
-### inventory.md
+#### inventory.md
 - **Aliases**: inv, i, check inventory
 - **Purpose**: View items in player inventory
 - **State Updates**: None
 
-### collect.md
+#### collect.md
 - **Aliases**: take, pick up, get, grab
 - **Purpose**: Pick up items from location
 - **State Updates**: Moves item from location to inventory
 
-### go.md
+#### go.md
 - **Aliases**: move, walk, travel, head, enter
 - **Purpose**: Navigate between locations/sublocations
 - **State Updates**: Updates `player.current_location` or `player.current_sublocation`
+
+#### talk.md
+- **Aliases**: talk, speak, chat, greet, say, ask, tell
+- **Purpose**: Engage in natural conversation with NPCs
+- **State Updates**: Updates NPC relationship state (trust, conversation history)
+- **See**: [NPC Interaction System](./npc-interaction-system.md) for full documentation
+
+### Admin Commands (admin-logic/)
+
+#### @list-waypoints.md
+- **Aliases**: @list waypoints, @show waypoints, @waypoints
+- **Purpose**: List all GPS waypoints (admin only)
+- **Requires**: @ prefix, admin role (future)
+- **State Updates**: None
+
+#### @inspect-waypoint.md
+- **Purpose**: View detailed waypoint information
+- **Requires**: @ prefix, waypoint ID
+- **State Updates**: None
+
+#### @edit-waypoint.md
+- **Purpose**: Modify waypoint properties
+- **Requires**: @ prefix, waypoint ID, property, value
+- **State Updates**: Updates waypoint metadata
+
+#### @create-waypoint.md
+- **Purpose**: Create new GPS waypoint
+- **Requires**: @ prefix, waypoint ID, name, coordinates
+- **State Updates**: Creates new waypoint file
+
+#### @delete-waypoint.md
+- **Purpose**: Delete waypoint (requires CONFIRM)
+- **Requires**: @ prefix, waypoint ID, CONFIRM keyword
+- **State Updates**: Removes waypoint file
+
+#### @list-items.md
+- **Aliases**: @show items, @items
+- **Purpose**: List all item instances (admin only)
+- **State Updates**: None
+
+#### @inspect-item.md
+- **Purpose**: View detailed item instance information
+- **Requires**: @ prefix, instance ID
+- **State Updates**: None
+
+**See**: [Admin Command System](./admin-command-system.md) for complete documentation
 
 ## Testing Commands
 
@@ -239,61 +310,90 @@ Location: `app/services/kb/experience_endpoints.py`
 ### _discover_available_commands()
 
 ```python
-async def _discover_available_commands(experience: str) -> dict[str, list[str]]:
+async def _discover_available_commands(experience: str) -> tuple[dict[str, list[str]], dict[str, bool]]:
     """
-    Discover available commands by scanning game-logic directory for .md files.
+    Discover available commands by scanning both game-logic and admin-logic directories.
 
     Returns:
-        Dictionary mapping command name to list of aliases/synonyms
+        Tuple of (command_mappings, admin_required_dict)
+        - command_mappings: Dictionary mapping command name to list of aliases/synonyms
+        - admin_required_dict: Dictionary mapping command name to requires_admin boolean
     """
     kb_root = Path(settings.KB_PATH)
-    game_logic_dir = kb_root / "experiences" / experience / "game-logic"
 
     commands = {}
+    admin_required = {}
 
-    # Scan for .md files
+    # Scan game-logic directory (player commands)
+    game_logic_dir = kb_root / "experiences" / experience / "game-logic"
     for md_file in game_logic_dir.glob("*.md"):
-        content = md_file.read_text()
+        command_name, aliases, is_admin = _parse_command_frontmatter(md_file)
+        if command_name:
+            commands[command_name] = [command_name] + aliases
+            admin_required[command_name] = False  # Player commands
 
-        # Parse frontmatter
-        if content.startswith("---"):
-            frontmatter_end = content.find("---", 3)
-            if frontmatter_end != -1:
-                frontmatter = content[3:frontmatter_end].strip()
+    # Scan admin-logic directory (admin commands)
+    admin_logic_dir = kb_root / "experiences" / experience / "admin-logic"
+    if admin_logic_dir.exists():
+        for md_file in admin_logic_dir.glob("*.md"):
+            command_name, aliases, is_admin = _parse_command_frontmatter(md_file)
+            if command_name:
+                commands[command_name] = [command_name] + aliases
+                admin_required[command_name] = is_admin or True  # Admin commands
 
-                # Extract command name and aliases
-                command_name = None
-                aliases = []
+    return commands, admin_required
 
-                for line in frontmatter.split("\n"):
-                    if line.startswith("command:"):
-                        command_name = line.split(":", 1)[1].strip()
-                    elif line.startswith("aliases:"):
-                        aliases_str = line.split(":", 1)[1].strip()
-                        if aliases_str.startswith("[") and aliases_str.endswith("]"):
-                            aliases = [a.strip() for a in aliases_str[1:-1].split(",")]
+def _parse_command_frontmatter(md_file: Path) -> tuple[str, list[str], bool]:
+    """Parse frontmatter from markdown file."""
+    content = md_file.read_text()
 
-                if command_name:
-                    commands[command_name] = [command_name] + aliases
+    if not content.startswith("---"):
+        return None, [], False
 
-    return commands
+    frontmatter_end = content.find("---", 3)
+    if frontmatter_end == -1:
+        return None, [], False
+
+    frontmatter = content[3:frontmatter_end].strip()
+
+    # Extract command name, aliases, and admin flag
+    command_name = None
+    aliases = []
+    requires_admin = False
+
+    for line in frontmatter.split("\n"):
+        if line.startswith("command:"):
+            command_name = line.split(":", 1)[1].strip()
+        elif line.startswith("aliases:"):
+            aliases_str = line.split(":", 1)[1].strip()
+            if aliases_str.startswith("[") and aliases_str.endswith("]"):
+                aliases = [a.strip().strip("'\"") for a in aliases_str[1:-1].split(",")]
+        elif line.startswith("requires_admin:"):
+            admin_str = line.split(":", 1)[1].strip().lower()
+            requires_admin = admin_str == "true"
+
+    return command_name, aliases, requires_admin
 ```
 
 ### _detect_command_type()
 
 ```python
-async def _detect_command_type(kb_agent_instance, message: str, experience: str) -> str:
+async def _detect_command_type(kb_agent_instance, message: str, experience: str) -> tuple[str, bool]:
     """
     Use LLM to detect which command type the user is trying to execute.
+
+    Returns:
+        Tuple of (command_type, requires_admin)
     """
     # Discover available commands from markdown files
-    command_mappings = await _discover_available_commands(experience)
+    command_mappings, admin_required_dict = await _discover_available_commands(experience)
     available_commands = list(command_mappings.keys())
 
     # Build command mapping text for LLM
     mapping_lines = []
     for cmd, keywords in command_mappings.items():
-        mapping_lines.append(f"- {cmd}: {', '.join(keywords)}")
+        admin_marker = " [ADMIN]" if admin_required_dict.get(cmd, False) else ""
+        mapping_lines.append(f"- {cmd}{admin_marker}: {', '.join(keywords)}")
 
     detection_prompt = f"""You are a command parser for a text adventure game.
 
@@ -304,6 +404,7 @@ Command mappings:
 {chr(10).join(mapping_lines)}
 
 Respond with ONLY the command name (one word, lowercase).
+If the message starts with @, it's an admin command.
 """
 
     response = await kb_agent_instance.llm_service.chat_completion(
@@ -316,7 +417,10 @@ Respond with ONLY the command name (one word, lowercase).
         temperature=0.1
     )
 
-    return response["response"].strip().lower()
+    command_type = response["response"].strip().lower()
+    requires_admin = admin_required_dict.get(command_type, False)
+
+    return command_type, requires_admin
 ```
 
 ## Best Practices
@@ -413,8 +517,30 @@ async def _get_commands_cached(experience: str):
 - Service restart
 - Manual cache clear endpoint
 
+## Admin vs Player Commands
+
+### Player Commands
+- **Location**: `/kb/experiences/{exp}/game-logic/`
+- **Prefix**: None (e.g., `look`, `go`, `talk`)
+- **Access**: All players
+- **Execution**: LLM interprets intent, generates narrative response
+- **Response Time**: 1-3 seconds (LLM latency)
+- **Examples**: look, go, collect, inventory, talk
+
+### Admin Commands
+- **Location**: `/kb/experiences/{exp}/admin-logic/`
+- **Prefix**: @ symbol (e.g., `@list`, `@inspect`, `@edit`)
+- **Access**: Admins only (future RBAC enforcement)
+- **Execution**: Direct file system operations
+- **Response Time**: <30ms (no LLM)
+- **Examples**: @list-waypoints, @inspect-item, @edit-waypoint, @delete-waypoint
+
+**See**: [Admin Command System](./admin-command-system.md) for complete admin command documentation
+
 ## Related Documentation
 
-- [Unified State Model](./unified-state-model.md) - Player views and state management
-- [Experience Configuration](./experience-configuration.md) - Experience setup
-- [KB Service API](./api/kb-endpoints.md) - API reference
+- [Admin Command System](./admin-command-system.md) - Complete admin command reference
+- [NPC Interaction System](./npc-interaction-system.md) - Talk command and NPC conversations
+- [Unified State Model](./unified-state-model/experience-config-schema.md) - Player views and state management
+- [Experience Configuration](./unified-state-model/config-examples.md) - Experience setup
+- [Chat Integration Complete](./chat-integration-complete.md) - Chat service integration

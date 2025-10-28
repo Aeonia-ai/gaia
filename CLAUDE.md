@@ -211,6 +211,8 @@ Claude: [reads message] → [analyzes question] → [checks codebase]
 - ✅ mTLS + JWT infrastructure (Phases 1-2, 100% backward compatible)
 - ✅ Redis caching (97% performance improvement)
 - ✅ AR Waypoints System - `/api/v0.3/locations/nearby` endpoint (AEO-10 partial)
+- ✅ Admin Command System - @ prefix commands for world building (<30ms response time)
+- ✅ NPC Interaction System - Natural language conversations with trust/relationship tracking
 
 **AR Waypoints Implementation** (AEO-10):
 - ✅ 37 waypoints loaded from KB markdown files (`/kb/experiences/wylding-woods/waypoints/`)
@@ -220,6 +222,25 @@ Claude: [reads message] → [analyzes question] → [checks codebase]
 - ⏸️ Mission parameters (deferred - to be added with full mission system)
 - ⏸️ Mission-based waypoint ordering (Unity expects array order)
 - ⚠️ Technical debt: Logic in Gateway (should be separate Locations service)
+
+**Admin Command System** (Complete):
+- ✅ Auto-discovery from `/kb/experiences/{exp}/admin-logic/` directory
+- ✅ @ prefix distinguishes admin from player commands
+- ✅ Zero LLM latency (<30ms response time vs 1-3s for player commands)
+- ✅ 8+ admin commands: @list-waypoints, @inspect-waypoint, @edit-waypoint, @create-waypoint, @delete-waypoint, @list-items, @inspect-item
+- ✅ Safety mechanisms: CONFIRM required for destructive operations
+- ✅ Metadata tracking: created_by, last_modified, timestamps
+- ⚠️ Permission enforcement: Placeholder only (future RBAC implementation)
+- 📚 See: [Admin Command System](docs/admin-command-system.md) for complete reference
+
+**NPC Interaction System** (Complete):
+- ✅ Natural language conversations via `talk` command
+- ✅ LLM-powered authentic, in-character dialogue
+- ✅ Per-player state tracking: trust level (0-100), conversation history (last 20 turns)
+- ✅ Relationship progression: trust gates content and quest availability
+- ✅ Quest integration foundation: NPCs can offer quests based on trust level
+- ✅ Tested with Louisa (Dream Weaver fairy) in wylding-woods
+- 📚 See: [NPC Interaction System](docs/npc-interaction-system.md) for complete reference
 
 **Active Development**:
 - 🔧 Getting Supabase service role key for full remote functionality
