@@ -463,6 +463,68 @@ async def _process_game_message(
         )
 
 
+async def _discover_available_commands(experience: str) -> dict[str, list[str]]:
+    """
+    Discover available commands by scanning game-logic directory for .md files.
+
+    Args:
+        experience: Experience ID
+
+    Returns:
+        Dictionary mapping command name to list of aliases/synonyms
+    """
+    kb_root = Path(settings.KB_PATH)
+    game_logic_dir = kb_root / "experiences" / experience / "game-logic"
+
+    commands = {}
+
+    try:
+        if not game_logic_dir.exists():
+            logger.warning(f"Game logic directory not found: {game_logic_dir}")
+            return {}
+
+        # Scan for .md files
+        for md_file in game_logic_dir.glob("*.md"):
+            try:
+                content = md_file.read_text()
+
+                # Parse frontmatter to extract command name and aliases
+                if content.startswith("---"):
+                    frontmatter_end = content.find("---", 3)
+                    if frontmatter_end != -1:
+                        frontmatter = content[3:frontmatter_end].strip()
+
+                        # Extract command name and aliases
+                        command_name = None
+                        aliases = []
+
+                        for line in frontmatter.split("\n"):
+                            line = line.strip()
+                            if line.startswith("command:"):
+                                command_name = line.split(":", 1)[1].strip()
+                            elif line.startswith("aliases:"):
+                                # Parse aliases list: [move, walk, travel]
+                                aliases_str = line.split(":", 1)[1].strip()
+                                if aliases_str.startswith("[") and aliases_str.endswith("]"):
+                                    aliases_str = aliases_str[1:-1]
+                                    aliases = [a.strip() for a in aliases_str.split(",")]
+
+                        if command_name:
+                            # Combine command name with aliases
+                            all_keywords = [command_name] + aliases
+                            commands[command_name] = all_keywords
+                            logger.info(f"Discovered command '{command_name}' with aliases: {aliases}")
+
+            except Exception as e:
+                logger.error(f"Error parsing command file {md_file}: {e}")
+                continue
+
+    except Exception as e:
+        logger.error(f"Error discovering commands for {experience}: {e}")
+
+    return commands
+
+
 async def _detect_command_type(
     kb_agent_instance,
     message: str,
@@ -479,8 +541,14 @@ async def _detect_command_type(
     Returns:
         Command type (e.g., "look", "collect", "inventory", "talk")
     """
-    # List of available commands (could be loaded from experience config)
-    available_commands = ["look", "collect", "inventory", "return", "talk"]
+    # Discover available commands from markdown files
+    command_mappings = await _discover_available_commands(experience)
+    available_commands = list(command_mappings.keys())
+
+    # Build command mapping text for LLM
+    mapping_lines = []
+    for cmd, keywords in command_mappings.items():
+        mapping_lines.append(f"- {cmd}: {', '.join(keywords)}")
 
     detection_prompt = f"""You are a command parser for a text adventure game.
 
@@ -491,11 +559,7 @@ Analyze the user's message and determine which command they're trying to execute
 Consider synonyms and natural language variations.
 
 Command mappings:
-- look: look, observe, examine, see, search, explore, what's here, where am i
-- collect: take, pick up, get, grab, collect
-- inventory: inventory, inv, i, check inventory, what am i carrying, what do i have
-- return: return, give, put back, drop at
-- talk: talk, speak, ask, tell, say, chat
+{chr(10).join(mapping_lines)}
 
 Respond with ONLY the command name (one word, lowercase).
 If you're not sure, default to "look".
