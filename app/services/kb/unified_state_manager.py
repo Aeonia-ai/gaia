@@ -487,6 +487,10 @@ class UnifiedStateManager:
         """
         Merge updates into current state (deep merge).
 
+        Supports merge operation markers:
+        - {"$append": item} - Append item to array
+        - {"$remove": item} - Remove item from array (by matching item["id"])
+
         Args:
             current: Current state dict
             updates: Updates to apply
@@ -497,12 +501,45 @@ class UnifiedStateManager:
         result = current.copy()
 
         for key, value in updates.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                # Recursive merge for nested dicts
-                result[key] = self._merge_updates(result[key], value)
-            else:
-                # Direct replacement
-                result[key] = value
+            # Check if value is a merge operation marker
+            if isinstance(value, dict):
+                if "$append" in value:
+                    # Append operation: Add item to array
+                    item_to_append = value["$append"]
+                    logger.warning(f"[MERGE] Processing $append for key='{key}', current type={type(result.get(key))}")
+                    if key not in result:
+                        result[key] = []
+                        logger.warning(f"[MERGE] Created new array for '{key}'")
+                    if not isinstance(result[key], list):
+                        logger.warning(f"[MERGE] Converting non-list '{key}' to list (was {type(result[key])})")
+                        result[key] = [result[key]]
+                    result[key].append(item_to_append)
+                    logger.warning(f"[MERGE] Appended item to {key}: {item_to_append.get('id', 'unknown')}, new length={len(result[key])}")
+                    continue
+
+                elif "$remove" in value:
+                    # Remove operation: Remove item from array by ID
+                    item_to_remove = value["$remove"]
+                    if key not in result or not isinstance(result[key], list):
+                        logger.warning(f"Cannot remove from non-existent or non-list field '{key}'")
+                        continue
+
+                    # Remove item matching ID
+                    item_id = item_to_remove.get("id") if isinstance(item_to_remove, dict) else item_to_remove
+                    original_length = len(result[key])
+                    result[key] = [item for item in result[key] if item.get("id") != item_id]
+                    removed_count = original_length - len(result[key])
+                    logger.debug(f"Removed {removed_count} item(s) with id '{item_id}' from {key}")
+                    continue
+
+                # Not a merge operation, check if we should do recursive merge
+                elif key in result and isinstance(result[key], dict):
+                    # Recursive merge for nested dicts
+                    result[key] = self._merge_updates(result[key], value)
+                    continue
+
+            # Direct replacement for non-dict values or when key doesn't exist
+            result[key] = value
 
         return result
 

@@ -375,15 +375,18 @@ async def _process_game_message(
     Returns:
         Interaction response with narrative and state updates
     """
+    logger.warning(f"[DIAGNOSTIC] _process_game_message called for exp={experience}, user={user_id}")
+
     try:
         # Step 1: Detect which command this is
+        logger.warning(f"[DIAGNOSTIC] Starting command detection for: {message}")
         command_type = await _detect_command_type(
             kb_agent_instance,
             message,
             experience
         )
 
-        logger.info(f"Detected command type: {command_type} for message: '{message}'")
+        logger.warning(f"[DIAGNOSTIC] Detected command type: {command_type}")
 
         # Step 2: Load markdown command file
         markdown_content = await _load_command_markdown(
@@ -402,6 +405,15 @@ async def _process_game_message(
             )
 
         # Step 3: Execute command using LLM + markdown instructions
+        # Write full state to file for debugging
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        with open(f"/tmp/world_state_{timestamp}.json", "w") as f:
+            f.write(json.dumps(world_state, indent=2))
+        with open(f"/tmp/player_view_{timestamp}.json", "w") as f:
+            f.write(json.dumps(player_view, indent=2))
+        logger.warning(f"[DIAGNOSTIC] Wrote full state to /tmp/world_state_{timestamp}.json and player_view_{timestamp}.json")
+
         result = await _execute_markdown_command(
             kb_agent_instance,
             markdown_content,
@@ -413,6 +425,14 @@ async def _process_game_message(
         )
 
         # Step 4: Apply state updates if any
+        # Diagnostic logging for state persistence issue
+        logger.info(f"Command result success: {result.get('success')}")
+        logger.info(f"Has state_updates: {bool(result.get('state_updates'))}")
+        if result.get("state_updates"):
+            logger.info(f"Applying state updates: {json.dumps(result['state_updates'], indent=2)}")
+        else:
+            logger.warning(f"No state_updates in result for command: {command_type}")
+
         if result.get("state_updates"):
             await _apply_state_updates(
                 state_manager,
@@ -560,6 +580,8 @@ async def _execute_markdown_command(
     Returns:
         Dict with: success, narrative, state_updates, available_actions, metadata
     """
+    print(f"[DIAGNOSTIC] Executing markdown command for user: {user_id}")  # Force output
+
     # Build execution prompt with all context
     execution_prompt = f"""You are a game command executor. You will execute a game command by following the instructions in a markdown file.
 
@@ -583,44 +605,50 @@ async def _execute_markdown_command(
 State Model: {config["state"]["model"]}
 
 ## Your Task:
-Follow the markdown instructions exactly to execute this command. Use the sections:
-1. "Input Parameters" - Extract parameters from user message
-2. "State Access" - Access the player_view and world_state provided above
-3. "Execution Logic" - Follow step-by-step instructions
-4. "State Updates" - Determine what state changes to make (if any)
-5. "Response Format" - Format your response
+Follow the markdown instructions EXACTLY. Process each section in order:
+1. "Input Parameters" - Extract what the user is asking for
+2. "State Access" - Read player_view and world_state (above)
+3. "Execution Logic" - Execute the command step-by-step
+4. "State Updates" - **CRITICAL**: Determine state changes
+5. "Response Format" - Use the EXACT format from the markdown
 
-Return ONLY a JSON object (no markdown, no explanation):
+## IMPORTANT - State Updates:
+- **IF SUCCESS**: MUST include "state_updates" with actual changes
+- **IF FAILURE**: Set "state_updates": null
+- Follow the Response Format section in the markdown EXACTLY
+
+## Response Rules:
+1. Return ONLY valid JSON (no markdown blocks, no explanations)
+2. Use the Response Format examples from the markdown as your template
+3. For successful state-modifying commands, state_updates is REQUIRED
+4. Match the example response structure exactly
+
+Example for successful collect:
 {{
-  "success": true/false,
-  "narrative": "Natural language response to player",
-  "state_updates": {{  // Only if command modifies state
-    "world": {{
-      "path": "locations.some_location.items",
-      "operation": "remove" | "add" | "update",
-      "data": {{}}
-    }},
-    "player": {{
-      "path": "player.inventory",
-      "operation": "add" | "remove" | "update",
-      "data": {{}}
-    }}
+  "success": true,
+  "narrative": "You take the brass lantern.",
+  "state_updates": {{
+    "world": {{"path": "locations.west_of_house.items", "operation": "remove", "item_id": "lantern_1"}},
+    "player": {{"path": "player.inventory", "operation": "add", "item": {{...}}}}
   }},
-  "available_actions": ["action1", "action2"],
-  "metadata": {{}}
+  "available_actions": [...],
+  "metadata": {{...}}
 }}
 
-If the command fails (item not found, etc.), set success: false and explain in narrative."""
+Now execute the command following the markdown instructions."""
 
     try:
         response = await kb_agent_instance.llm_service.chat_completion(
             messages=[
-                {"role": "system", "content": "You are a game command executor. Respond ONLY with valid JSON."},
+                {
+                    "role": "system",
+                    "content": "You are a game command executor. You MUST respond with ONLY a valid JSON object. NO markdown code blocks, NO explanations, NO commentary - ONLY the raw JSON object."
+                },
                 {"role": "user", "content": execution_prompt}
             ],
             model="claude-sonnet-4-5",  # Use smarter model for execution
             user_id=user_id,
-            temperature=0.3
+            temperature=0.1  # Lower temperature for more deterministic JSON output
         )
 
         # Parse JSON response
@@ -633,7 +661,23 @@ If the command fails (item not found, etc.), set success: false and explain in n
                 response_text = response_text[4:]
             response_text = response_text.strip()
 
+        # Diagnostic logging for state persistence issue
+        # Write raw response to file for debugging
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        debug_file = f"/tmp/llm_response_{timestamp}.json"
+        with open(debug_file, "w") as f:
+            f.write(response_text)
+        logger.warning(f"[DIAGNOSTIC] Wrote LLM response to {debug_file}")
+
         result = json.loads(response_text)
+
+        # Log the parsed result
+        logger.warning(f"[DIAGNOSTIC] Parsed result keys: {list(result.keys())}")
+        logger.warning(f"[DIAGNOSTIC] state_updates present: {'state_updates' in result}")
+        if 'state_updates' in result:
+            logger.warning(f"[DIAGNOSTIC] state_updates value: {result['state_updates']}")
+
         return result
 
     except json.JSONDecodeError as e:
@@ -677,7 +721,9 @@ async def _apply_state_updates(
             world_update = state_updates["world"]
             path = world_update.get("path", "")
             operation = world_update.get("operation", "update")
-            data = world_update.get("data", {})
+
+            # Accept multiple field names for data (flexible format)
+            data = world_update.get("data") or world_update.get("item_id") or world_update.get("item") or {}
 
             # Convert path to nested dict update
             updates = _path_to_nested_dict(path, data, operation)
@@ -687,21 +733,27 @@ async def _apply_state_updates(
                 updates,
                 user_id if state_model == "isolated" else None
             )
+            logger.debug(f"Applied world state update: {operation} at {path}")
 
         # Apply player state updates
         if "player" in state_updates:
             player_update = state_updates["player"]
             path = player_update.get("path", "")
             operation = player_update.get("operation", "update")
-            data = player_update.get("data", {})
 
+            # Accept multiple field names for data (flexible format)
+            data = player_update.get("data") or player_update.get("item_id") or player_update.get("item") or {}
+
+            logger.warning(f"[APPLY] Player update - path='{path}', operation='{operation}', data type={type(data)}")
             updates = _path_to_nested_dict(path, data, operation)
+            logger.warning(f"[APPLY] Nested dict result: {json.dumps(updates, indent=2)[:500]}")
 
             await state_manager.update_player_view(
                 experience,
                 user_id,
                 updates
             )
+            logger.debug(f"Applied player state update: {operation} at {path}")
 
         logger.info(f"Applied state updates for user {user_id} in {experience}")
 
