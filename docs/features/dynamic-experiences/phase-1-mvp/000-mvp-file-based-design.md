@@ -1,8 +1,32 @@
 # 000 - MVP File-Based Design
 
-**Status:** Proposed
+**Status:** ⚠️ LEGACY - Superseded by Unified State Model (see below)
 **Version:** 1.0
-**Purpose:** This document describes the design of the file-based MVP for the Dynamic Experiences feature. This design is intended to be a simple, zero-infrastructure solution that can be implemented quickly.
+**Purpose:** This document describes the original design of the file-based MVP for the Dynamic Experiences feature. This design is intended to be a simple, zero-infrastructure solution that can be implemented quickly.
+
+---
+
+## ⚠️ IMPLEMENTATION STATUS UPDATE (2025-10-27)
+
+**This design has been superseded by the [Unified State Model](./030-unified-state-model-implementation.md).**
+
+**What Changed:**
+- ✅ **Implemented:** Config-driven state management (`config.json` determines architecture)
+- ✅ **Implemented:** Player profile persistence (experience selection remembered)
+- ✅ **Implemented:** New API endpoint `/experience/interact` (replaces hardcoded `/game/command`)
+- ✅ **Production Ready:** 854 lines of code, 25 tests passing
+- ⏸️ **Placeholder:** Markdown-driven game logic (coming soon)
+
+**Key Innovation:** One setting (`state.model: "shared"` or `"isolated"`) determines whether experiences are multiplayer or single-player. This replaces the hardcoded approach described below.
+
+**See:**
+- [Unified State Model Implementation Guide](./030-unified-state-model-implementation.md) - Complete technical reference
+- [Experience Config Schema](../../../unified-state-model/experience-config-schema.md) - Config file reference
+- [Config Examples](../../../unified-state-model/config-examples.md) - Production configs
+
+**Continue reading below for historical context and design principles that still apply.**
+
+---
 
 ## 1. Core Principle: Templates vs. Instances
 
@@ -13,8 +37,11 @@ The fundamental principle of the system is the separation between **templates** 
 
 ## 2. Directory Structure
 
-The following directory structure will be used to store the templates, instances, and player progress in the KB:
+**⚠️ LEGACY STRUCTURE - See [Unified State Model](./030-unified-state-model-implementation.md) for current implementation**
 
+The following directory structure **was originally proposed** but has been replaced by the unified state model:
+
+**OLD (Original Proposal):**
 ```
 kb/
 ├── experiences/
@@ -35,6 +62,31 @@ kb/
         └── wylding-woods/
             └── progress.json    (The player's progress for this experience)
 ```
+
+**NEW (Implemented - Unified State Model):**
+```
+kb/
+├── experiences/
+│   └── wylding-woods/
+│       ├── config.json              ← NEW: Defines state model (shared vs isolated)
+│       ├── templates/               (Entity blueprints - unchanged)
+│       │   ├── npcs/
+│       │   │   └── louisa.md
+│       │   └── items/
+│       │       └── sword.md
+│       ├── state/                   ← NEW: Unified world state
+│       │   └── world.json           (Merged from instances/, single source of truth)
+│       └── game-logic/              ← NEW: Markdown command handlers
+│           ├── look.md
+│           └── collect.md
+└── players/
+    └── user123/
+        ├── profile.json             ← NEW: Global player data (current experience)
+        └── wylding-woods/
+            └── view.json            ← NEW: Player's view (expanded from progress.json)
+```
+
+**Migration Path:** See [030-unified-state-model-implementation.md](./030-unified-state-model-implementation.md#migration-path-from-old-structure)
 
 ## 3. File Formats
 

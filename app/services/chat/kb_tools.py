@@ -145,25 +145,26 @@ KB_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "execute_game_command",
-            "description": "Process natural language game commands when user is playing a game experience. Use when user input looks like: game actions ('go north', 'take lamp', 'examine mailbox'), turn-based moves ('play rock', 'choose scissors'), AR interactions ('scan marker', 'activate waypoint'). Returns structured narrative, actions, and state changes.",
+            "name": "interact_with_experience",
+            "description": "Interact with a game experience using the unified state model. Use for: experience selection ('play west-of-house', 'I want to play wylding-woods'), game actions ('look around', 'take lamp', 'talk to Louisa'), or general gameplay. The system remembers which experience you're in, so you only need to select once. Returns narrative, available actions, and state updates.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "command": {
+                    "message": {
                         "type": "string",
-                        "description": "The natural language game command from the user"
+                        "description": "The user's message (can be experience selection or game action)"
                     },
                     "experience": {
                         "type": "string",
-                        "description": "The game experience ID (e.g., 'west-of-house', 'wylding-woods', 'rock-paper-scissors')"
+                        "description": "Optional: Explicitly specify which experience to interact with. If omitted, uses player's current experience."
                     },
-                    "session_state": {
-                        "type": "object",
-                        "description": "Optional current game state (inventory, location, etc.)"
+                    "force_experience_selection": {
+                        "type": "boolean",
+                        "description": "Optional: Force experience selection prompt even if player has a current experience",
+                        "default": False
                     }
                 },
-                "required": ["command", "experience"]
+                "required": ["message"]
             }
         }
     }
@@ -216,6 +217,13 @@ class KBToolExecutor:
                 arguments.get("command"),
                 arguments.get("experience"),
                 arguments.get("session_state")
+            )
+
+        elif tool_name == "interact_with_experience":
+            return await self._interact_with_experience(
+                arguments.get("message"),
+                arguments.get("experience"),
+                arguments.get("force_experience_selection", False)
             )
 
         else:
@@ -449,6 +457,105 @@ class KBToolExecutor:
 
         except Exception as e:
             logger.error(f"Game command execution error: {e}")
+            return {
+                "success": False,
+                "error": {
+                    "code": "execution_error",
+                    "message": str(e)
+                }
+            }
+
+    async def _interact_with_experience(
+        self,
+        message: str,
+        experience: Optional[str] = None,
+        force_experience_selection: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Interact with a game experience using the unified state model.
+
+        This is the NEW approach using the /experience/interact endpoint.
+        Features:
+        - Persistent experience selection (no need to specify each time)
+        - Automatic player bootstrapping
+        - Unified state management (shared or isolated based on config)
+        - Markdown-driven game logic (when implemented)
+
+        Args:
+            message: User's message (can be experience selection or game action)
+            experience: Optional explicit experience ID
+            force_experience_selection: Force selection prompt
+
+        Returns:
+            Interaction response with narrative, actions, and metadata
+        """
+        try:
+            # Prepare request payload
+            payload = {
+                "message": message,
+                "force_experience_selection": force_experience_selection
+            }
+
+            if experience:
+                payload["experience"] = experience
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{KB_SERVICE_URL}/experience/interact",
+                    json=payload,
+                    headers=self.headers,
+                    timeout=30.0
+                )
+
+                if response.status_code == 200:
+                    result = response.json()
+                    # Experience endpoint returns InteractResponse model
+                    return result
+                elif response.status_code == 401:
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "unauthorized",
+                            "message": "Authentication required"
+                        }
+                    }
+                elif response.status_code == 404:
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "experience_not_found",
+                            "message": "Experience not found"
+                        }
+                    }
+                elif response.status_code == 500:
+                    error_detail = response.json().get("detail", "Internal server error")
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "server_error",
+                            "message": error_detail
+                        }
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": {
+                            "code": "http_error",
+                            "message": f"HTTP {response.status_code}"
+                        }
+                    }
+
+        except httpx.TimeoutException:
+            logger.error("Experience interaction timeout")
+            return {
+                "success": False,
+                "error": {
+                    "code": "timeout",
+                    "message": "Request timed out"
+                }
+            }
+        except Exception as e:
+            logger.error(f"Experience interaction error: {e}")
             return {
                 "success": False,
                 "error": {

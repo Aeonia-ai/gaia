@@ -63,6 +63,8 @@ async def process_game_command(
         }
 
         # Execute game command via KB agent (direct call, no HTTP)
+        # NOTE: execute_game_command() currently delegates to legacy version
+        #       Once markdown migration complete, it will use content-driven system
         result = await kb_agent.execute_game_command(
             command=request.command,
             experience=request.experience,

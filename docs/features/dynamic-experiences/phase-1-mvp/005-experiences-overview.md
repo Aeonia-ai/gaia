@@ -1,10 +1,11 @@
 # Experience Platform Architecture
 
 > **Purpose**: Architecture for interactive experiences (AR games, text adventures, simulations)
-> **Status**: DESIGN PHASE
+> **Status**: ✅ PHASE 1 IMPLEMENTED - Unified State Model Complete
 > **Created**: 2025-10-24
-> **Updated**: 2025-10-24 (Reorganized by system layer)
+> **Updated**: 2025-10-27 (Major update: Unified state model implemented)
 > **Related**:
+> - **[Unified State Model Implementation](./030-unified-state-model-implementation.md)** - ✅ PRODUCTION READY
 > - [Game Command Developer Guide](./runtime-execution/game-command-developer-guide.md) - Runtime command execution
 > - [KB-Driven Command Processing Spec](./runtime-execution/kb-driven-command-processing-spec.md) - Game command spec
 > - [KB LLM Content Creation](./content-creation/kb-llm-content-creation.md) - Content creation via LLM
@@ -125,10 +126,37 @@ Player Progress Service: Log event to PostgreSQL
 
 ## Implementation Phases
 
-### Phase 1: Content Creation (Current Focus)
+### Phase 1: Unified State Model ✅ COMPLETE (October 2025)
+**Goal:** Config-driven state management for all experiences
+**Status:** ✅ PRODUCTION READY - 854 lines, 25 tests passing
+
+**Completed:**
+- [x] UnifiedStateManager class (854 lines)
+- [x] Experience config system (`config.json` with validation)
+- [x] Player profile persistence (experience selection remembered)
+- [x] New API endpoint `/experience/interact`
+- [x] Bootstrap process (shared & isolated models)
+- [x] File locking for concurrency (shared model)
+- [x] Optimistic versioning for conflict detection
+- [x] 25 unit tests passing
+
+**Key Innovation:** One config setting (`state.model: "shared"` or `"isolated"`) determines entire architecture:
+- **Shared:** Multiplayer mode - one world file, all players interact
+- **Isolated:** Single-player mode - each player gets own world copy
+
+**Documentation:**
+- [Unified State Model Implementation](./030-unified-state-model-implementation.md) - Complete guide
+- [Experience Config Schema](../../../unified-state-model/experience-config-schema.md) - Config reference
+- [Config Examples](../../../unified-state-model/config-examples.md) - Production configs
+
+**Not Yet Implemented:**
+- ⏸️ Markdown-driven game logic (placeholder in `/experience/interact`)
+- ⏸️ Migration scripts for existing data (designed, not built)
+
+### Phase 2: Content Creation Tools (NEXT - November 2025)
 **Goal:** Enable conversational content creation via web chat
 
-- [x] Design 12 core experience tools
+- [x] Design 20 experience tools (see [Experience Tools API](./007-experience-tools-api.md))
 - [ ] Implement template discovery endpoints
 - [ ] Add KB write/edit capabilities
 - [ ] Build multi-turn conversation flow
@@ -136,28 +164,16 @@ Player Progress Service: Log event to PostgreSQL
 
 **Timeline:** 4-6 hours implementation
 
-### Phase 2: Player Progress Tracking (CURRENT - October 2025)
-**Goal:** Track player state and progress
-**Status:** ✅ Design Complete, Implementation Starting
-
-**Validated Design** (File-Based MVP):
-- [x] Design complete and validated (2 Claude agents + Perplexity research)
-- [x] Incremental IDs validated superior to UUIDs for LLM systems
-- [x] GPS-to-waypoint resolution strategy defined
-- [x] Atomic file operations pattern established
-- [ ] Create file structure (manifest.json, instance files, player progress)
-- [ ] Implement KB Agent methods (_load_manifest, _load_player_state, _collect_item)
-- [ ] Update execute_game_command() with GPS resolution
-- [ ] Demo: "Collect dream bottle" at Mill Valley Library
+### Phase 3: Markdown Game Logic (FUTURE)
+**Goal:** Move game command processing to markdown files
 
 **Approach:**
-- File-based storage (JSON files in KB) - appropriate for 1-10 player MVP
-- Dictionary-based implementation - refactor to classes when scaling
-- Migration to PostgreSQL planned at 20-50+ concurrent players
+- Game commands in `/experiences/{exp}/game-logic/*.md`
+- Hierarchical loading (like `/agent/interpret`)
+- LLM interprets markdown → structured response
+- Apply state changes via UnifiedStateManager
 
-**See**: [Instance Management Implementation](./100-instance-management-implementation.md)
-
-**Timeline:** 6-9 hours implementation (validated estimate)
+**Timeline:** 2-3 days implementation
 
 ### Phase 3: Live Operations (Future)
 **Goal:** Hot-patching, rollbacks, scheduling

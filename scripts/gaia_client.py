@@ -571,8 +571,18 @@ class ChatCommands:
     
     async def status(self, args: str = "") -> str:
         """Show current status."""
+        # Get user identity
+        if self.auth._user_email:
+            user_info = f"👤 User: {self.auth._user_email} (JWT)"
+        elif self.auth._api_key or os.getenv('GAIA_API_KEY') or os.getenv('API_KEY'):
+            api_key = self.auth._api_key or os.getenv('GAIA_API_KEY') or os.getenv('API_KEY')
+            user_info = f"🔑 User: API Key ({api_key[:8]}...)"
+        else:
+            user_info = "❌ User: Not authenticated"
+
         status_lines = [
             f"🌐 Environment: {self.client.base_url}",
+            user_info,
             f"💬 Conversation: {self.client.current_conversation_id or 'None'}",
             f"🎭 Persona: {self.client.current_persona}",
         ]

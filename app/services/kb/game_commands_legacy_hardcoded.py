@@ -1,125 +1,119 @@
 """
-KB Intelligent Agent - Knowledge Interpretation and Decision Making
+Legacy Hardcoded Game Command System (ARCHIVED)
 
-Embedded agent that interprets KB content as knowledge and rules for intelligent responses.
+This module contains the ORIGINAL hardcoded implementation of the game command
+system used in wylding-woods and west-of-house experiences.
+
+## Why This Exists
+
+This code is archived before migrating to markdown-driven command execution.
+It represents the working, production-tested system that:
+
+1. Parses natural language commands with Haiku 4.5 LLM
+2. Routes to hardcoded Python methods (look, collect, return, inventory, talk)
+3. Manages JSON state files (manifest.json, player progress, item instances)
+4. Returns hardcoded narrative strings
+
+## Migration Context
+
+**Before Migration** (this file):
+- Command logic: Hardcoded in Python
+- Narratives: Hardcoded strings
+- State: JSON files (this part stays the same)
+- Response time: 1-2 seconds
+- Content updates: Require code deploy
+
+**After Migration** (new implementation):
+- Command logic: Defined in markdown files
+- Narratives: Generated from templates
+- State: JSON files (no change)
+- Response time: 2-4 seconds
+- Content updates: Edit markdown, instant
+
+## Usage
+
+This file should NOT be imported or used directly. It exists for:
+1. **Reference** - Understanding how the original system worked
+2. **Comparison** - Validating new implementation matches behavior
+3. **Rollback** - Emergency fallback if migration fails
+4. **Documentation** - Showing what we're migrating away from
+
+## Key Methods Archived
+
+### Main Entry Point
+- `execute_game_command()` - Parse and route player/admin commands
+
+### Player Command Handlers
+- `_find_instances_at_location()` - Look/observe command
+- `_collect_item()` - Pick up items
+- `_return_item()` - Return items to NPCs/destinations
+- `_talk_to_npc()` - NPC conversations
+
+### State Management
+- `_load_player_state()` - Load player inventory/progress
+- `_save_player_state_atomic()` - Save player state
+- `_save_instance_atomic()` - Atomic file writes
+
+### Admin Commands
+- `_execute_admin_command()` - Route admin commands (@list, @create, etc.)
+- ~20 admin command handlers (_admin_list, _admin_create, etc.)
+
+## File Organization
+
+Lines 1-3211 extracted from app/services/kb/kb_agent.py:
+- Lines 113-330: execute_game_command() - Main entry point
+- Lines 700-796: Player state management helpers
+- Lines 797-1023: Instance operation methods
+- Lines 1028-3041: Admin command system (23+ commands)
+- Lines 3042-3323: NPC conversation system
+
+## Date Archived
+
+2025-10-27 (before markdown migration)
+
+## Related Documentation
+
+- /tmp/markdown_migration_plan.md - Complete migration plan
+- /tmp/markdown_command_execution_flow.md - New vs old architecture
+- docs/kb/game-command-systems.md - System comparison
+
+## DO NOT MODIFY
+
+This file is READ-ONLY. It represents the snapshot at the time of
+migration and should be preserved for historical reference.
+
+If you need to reference this code, copy specific methods to the new
+implementation rather than importing from here.
 """
 
-import time
-import logging
 import json
+import logging
 import os
+import time
 import tempfile
-from datetime import datetime
 from typing import Dict, Any, List, Optional
-from app.services.llm.chat_service import MultiProviderChatService
-from app.services.llm.base import ModelCapability, LLMProvider
+
 from app.shared.config import settings
-from .unified_state_manager import UnifiedStateManager
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-class KBIntelligentAgent:
-    """
-    Embedded agent that interprets KB content as knowledge and rules.
 
-    Key capabilities:
-    - Interpret markdown as decision rules
-    - Execute knowledge-driven workflows
-    - Synthesize information across domains
-    - Maintain context across queries
+class LegacyGameCommandHandler:
+    """
+    ARCHIVED: Original hardcoded game command handler.
+
+    This class contains the complete original implementation.
+    DO NOT use this in production - it's archived for reference only.
     """
 
-    def __init__(self):
-        self.llm_service = None  # Lazy init
-        self.kb_storage = None   # Injected from main
-        self.state_manager = None  # UnifiedStateManager, initialized in initialize()
-        self.rule_cache: Dict[str, Any] = {}
-        self.context_cache: Dict[str, List[str]] = {}
+    def __init__(self, llm_service, kb_server):
+        """Initialize with required dependencies."""
+        self.llm_service = llm_service
+        self.kb_server = kb_server
 
-    async def initialize(self, kb_storage):
-        """Initialize the agent with dependencies"""
-        self.kb_storage = kb_storage
-        self.llm_service = MultiProviderChatService()
-        await self.llm_service.initialize()
+    # ========== ARCHIVED METHOD: Main Entry Point ==========
 
-        # Initialize UnifiedStateManager
-        kb_root = Path(settings.KB_PATH)
-        self.state_manager = UnifiedStateManager(kb_root)
-        logger.info(f"UnifiedStateManager initialized with KB root: {kb_root}")
-
-        logger.info("KB Intelligent Agent initialized")
-
-    async def interpret_knowledge(
-        self,
-        query: str,
-        context_path: str,
-        user_id: str,
-        mode: str = "decision",  # decision, synthesis, validation
-        model_hint: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Interpret knowledge from KB and generate intelligent response.
-
-        Args:
-            query: User query or decision request
-            context_path: Path in KB to search for relevant knowledge
-            user_id: User identifier for context
-            mode: Interpretation mode
-            model_hint: Preferred model to use
-
-        Returns:
-            Response with interpretation, decision, or synthesis
-        """
-
-        # 1. Load relevant knowledge from KB
-        knowledge_files = await self._load_context(context_path)
-
-        # 2. Build prompt based on mode
-        if mode == "decision":
-            prompt = self._build_decision_prompt(query, knowledge_files)
-            required_capabilities = [ModelCapability.CHAT]
-        elif mode == "synthesis":
-            prompt = self._build_synthesis_prompt(query, knowledge_files)
-            required_capabilities = [ModelCapability.LONG_CONTEXT]
-        elif mode == "validation":
-            prompt = self._build_validation_prompt(query, knowledge_files)
-            required_capabilities = [ModelCapability.CODE_GENERATION]
-        else:
-            raise ValueError(f"Unknown mode: {mode}")
-
-        # 3. Select appropriate model based on complexity
-        model = model_hint or self._select_model_for_query(query, mode)
-
-        # 4. Get LLM response
-        response = await self.llm_service.chat_completion(
-            messages=[
-                {"role": "system", "content": "You are a knowledge interpreter for the Gaia platform."},
-                {"role": "user", "content": prompt}
-            ],
-            model=model,
-            user_id=user_id,
-            required_capabilities=required_capabilities,
-            temperature=0.3 if mode == "validation" else 0.7
-        )
-
-        # 5. Cache successful interpretations
-        cache_key = f"{context_path}:{query[:50]}"
-        self.rule_cache[cache_key] = {
-            "response": response["response"],
-            "model": response["model"],
-            "timestamp": time.time()
-        }
-
-        return {
-            "interpretation": response["response"],
-            "model_used": response["model"],
-            "context_files": len(knowledge_files),
-            "mode": mode,
-            "cached": False
-        }
-
-    async def execute_game_command_legacy_hardcoded(
+    async def execute_game_command(
         self,
         command: str,
         experience: str,
@@ -127,17 +121,7 @@ class KBIntelligentAgent:
         session_state: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """
-        LEGACY: Execute a game command using hardcoded Python logic.
-
-        ⚠️  This is the ORIGINAL hardcoded implementation, preserved for reference.
-        ⚠️  See game_commands_legacy_hardcoded.py for full archived copy.
-        ⚠️  This method will be replaced with markdown-driven execution.
-
-        Original behavior:
-        - Parses natural language with Haiku 4.5 LLM
-        - Routes to hardcoded Python methods (look, collect, return, etc.)
-        - Returns hardcoded narrative strings
-        - Manages JSON state files
+        Execute a game command using LLM to parse natural language → instance operations.
 
         Supports both player commands and admin commands (prefixed with @).
 
@@ -346,60 +330,6 @@ Examples:
                     "message": str(e)
                 }
             }
-
-    async def execute_game_command(
-        self,
-        command: str,
-        experience: str,
-        user_context: Dict[str, Any],
-        session_state: Optional[Dict] = None
-    ) -> Dict[str, Any]:
-        """
-        NEW: Execute a game command using markdown-driven content system.
-
-        🚧  This is the NEW markdown-driven implementation (under construction).
-        🚧  Currently delegates to legacy version - will be replaced during migration.
-
-        New behavior (when complete):
-        - Loads markdown files from game-logic/ directory
-        - Loads item/NPC templates from templates/ directory
-        - LLM interprets command using markdown content as context
-        - Generates rich narratives from template content
-        - Still uses JSON for state management (inventory, locations, etc.)
-
-        Migration status:
-        - [ ] Load command markdown files (look.md, collect.md, etc.)
-        - [ ] Load item/NPC templates
-        - [ ] Build comprehensive prompt with markdown context
-        - [ ] LLM interpretation and narrative generation
-        - [ ] Extract and apply state changes
-        - [ ] Testing and validation
-
-        Args:
-            command: Player's natural language command or admin command
-            experience: Experience identifier (e.g., "wylding-woods", "west-of-house")
-            user_context: User context (waypoint, sublocation, user_id, role, etc.)
-            session_state: Current player state/inventory
-
-        Returns:
-            {
-                "success": bool,
-                "narrative": str,  # Generated from markdown templates
-                "actions": List[Dict],
-                "state_changes": Dict,
-                "model_used": str,
-                "markdown_files_loaded": List[str]  # NEW: shows which files were used
-            }
-        """
-        # TODO: Implement markdown-driven execution
-        # For now, delegate to legacy hardcoded version
-        logger.info(f"execute_game_command() called - delegating to legacy version during migration")
-        return await self.execute_game_command_legacy_hardcoded(
-            command=command,
-            experience=experience,
-            user_context=user_context,
-            session_state=session_state
-        )
 
     async def execute_knowledge_workflow(
         self,
@@ -3394,4 +3324,3 @@ Respond as the NPC (only the dialogue, no narration or actions):"""
 
 
 # Global agent instance
-kb_agent = KBIntelligentAgent()

@@ -1,12 +1,31 @@
 # Experience Tools API
 
 > **Purpose**: LLM tools for conversational experience design
-> **Status**: DESIGN PHASE
+> **Status**: DESIGN PHASE (Tools designed, awaiting implementation)
 > **Created**: 2025-10-24
+> **Updated**: 2025-10-27 (Added unified state model context)
 > **Related**:
-> - [Experience Platform Architecture](./+experiences.md) - Overall platform
-> - [Player Progress Storage](./player-progress-storage.md) - Progress tracking
+> - **[Unified State Model](./030-unified-state-model-implementation.md)** - ✅ Foundation implemented
+> - [Experience Platform Architecture](./005-experiences-overview.md) - Overall platform
+> - [Experience Config Schema](../../../unified-state-model/experience-config-schema.md) - Config reference
+> - [Player Progress Storage](./storage/player-progress-storage.md) - Progress tracking
 > - [KB LLM Content Creation](../../kb/developer/kb-llm-content-creation.md) - Content creation workflow
+
+## Implementation Context
+
+**The unified state model is now complete!** This provides the foundation for experience tools:
+- ✅ Experience configs loaded/validated via `UnifiedStateManager`
+- ✅ Player profiles persist experience selection
+- ✅ New `/experience/interact` endpoint operational
+- ✅ State management (shared & isolated models) working
+
+**What tools can build on:**
+- Read/validate configs via `manager.load_config(experience)`
+- List experiences via `manager.list_experiences()`
+- Get experience metadata via `manager.get_experience_info(experience)`
+- Bootstrap players via `manager.bootstrap_player(experience, user)`
+
+**Next step:** Implement the 20 tools below using the UnifiedStateManager as foundation.
 
 ## Overview
 
@@ -661,6 +680,58 @@ Experience Tools (20 tools)
 
 ---
 
+## New API Endpoint: `/experience/interact`
+
+**✅ IMPLEMENTED** - Production-ready stateful interaction endpoint
+
+**Purpose:** Replace hardcoded `/game/command` with config-driven, markdown-based approach
+
+**Key Features:**
+- ✅ Remembers player's current experience (persists across sessions)
+- ✅ Auto-bootstraps new players based on experience config
+- ✅ Supports both shared (multiplayer) and isolated (single-player) models
+- ⏸️ Markdown-driven game logic (placeholder, coming soon)
+
+**Request:**
+```json
+POST /experience/interact
+{
+  "message": "look around",
+  "experience": "wylding-woods",  // Optional if player has current_experience
+  "force_experience_selection": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "narrative": "You stand at the Woander Storefront...",
+  "experience": "wylding-woods",
+  "state_updates": {
+    "player": {
+      "current_location": "waypoint_1"
+    }
+  },
+  "available_actions": ["look around", "check inventory", "explore"],
+  "metadata": {
+    "player_view_version": 5,
+    "state_model": "shared"
+  }
+}
+```
+
+**Flow:**
+1. Determine experience (request, profile, or prompt selection)
+2. Bootstrap player if needed
+3. Load world state + player view
+4. Process message (markdown logic placeholder)
+5. Update state, return response
+
+**Documentation:** See [Unified State Model Implementation](./030-unified-state-model-implementation.md#4-new-api-endpoint)
+
+---
+
 ## Implementation Phases
 
 ### Phase 1: Core Content Tools (Priority 1)
@@ -669,6 +740,7 @@ Experience Tools (20 tools)
 Tools 1-10 (Discovery + Content Management)
 - Enables conversational content creation
 - Demo-ready: Create waypoint through conversation
+- **Builds on:** UnifiedStateManager (already implemented)
 
 ### Phase 2: Lifecycle & Progress (Priority 2)
 **Timeline:** 2-3 days
