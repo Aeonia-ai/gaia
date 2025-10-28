@@ -768,7 +768,10 @@ Total: 59KB of comprehensive documentation
 - [ ] Test health endpoints: `./scripts/test.sh --local health`
 - [ ] Verify KB service has waypoints: `ls /kb/experiences/wylding-woods/waypoints/`
 - [ ] Test Game Master persona: `@inspect waypoint woander_store`
-- [ ] Clear any test data from previous demos
+- [ ] **Reset experience to pristine state**: `./scripts/reset-experience.sh --force wylding-woods`
+  - Ensures clean starting state for every demo
+  - All items at original locations, no player progress
+  - See [Experience Reset Guide](036-experience-reset-guide.md) for details
 
 **Content Preparation:**
 - [ ] Practice the Louisa conversation flow

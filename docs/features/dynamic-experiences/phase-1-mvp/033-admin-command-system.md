@@ -23,6 +23,7 @@ Admin commands are **content-driven commands** that world builders use to inspec
 - `@edit waypoint 8 name New Name` - Modify waypoint properties
 - `@create waypoint test Test Waypoint` - Create new waypoint
 - `@delete waypoint test CONFIRM` - Delete waypoint (requires confirmation)
+- `@reset experience CONFIRM` - Reset experience to pristine state (with backup)
 
 ## Directory Structure
 
@@ -43,7 +44,8 @@ Admin commands are stored separately from game commands:
     ├── @create-waypoint.md
     ├── @delete-waypoint.md
     ├── @list-items.md
-    └── @inspect-item.md
+    ├── @inspect-item.md
+    └── @reset-experience.md
 ```
 
 **Key Distinction:**
@@ -251,6 +253,16 @@ async def _discover_available_commands(experience: str) -> tuple[dict, dict]:
 |---------|---------|-----------|-----------------|
 | `@list-items` | List all item instances | None | No |
 | `@inspect-item` | View item details | instance_id | No |
+
+### Experience Management
+
+| Command | Purpose | Parameters | CONFIRM Required |
+|---------|---------|-----------|-----------------|
+| `@reset-experience` | Reset experience to pristine state | scope (optional), CONFIRM | **Yes** |
+| `@reset-world` | Reset world state only (keep players) | CONFIRM | **Yes** |
+| `@reset-player` | Reset single player | user_id, CONFIRM | **Yes** |
+
+**Note**: See [Experience Reset Guide](036-experience-reset-guide.md) for complete documentation on reset functionality, including CLI script and manual procedures.
 
 ## Testing Admin Commands
 
