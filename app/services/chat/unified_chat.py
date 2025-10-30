@@ -368,17 +368,17 @@ class UnifiedChatHandler:
                     for result in tool_results:
                         # Extract text content based on tool type
                         content = None
-                        if result['result'].get('success'):
-                            # Game commands have 'narrative' field
-                            if 'narrative' in result['result']:
-                                content = result['result']['narrative']
-                                # Optionally include suggestions
-                                if result['result'].get('next_suggestions'):
-                                    suggestions = ", ".join(result['result']['next_suggestions'][:3])
-                                    content += f"\n\n💡 Try: {suggestions}"
-                            # Other KB tools have 'content' field
-                            elif result['result'].get('content'):
-                                content = result['result']['content']
+
+                        # Game commands have 'narrative' field (extract regardless of success/failure)
+                        if 'narrative' in result['result']:
+                            content = result['result']['narrative']
+                            # Optionally include suggestions for successful commands
+                            if result['result'].get('success') and result['result'].get('next_suggestions'):
+                                suggestions = ", ".join(result['result']['next_suggestions'][:3])
+                                content += f"\n\n💡 Try: {suggestions}"
+                        # Other KB tools have 'content' field
+                        elif result['result'].get('content'):
+                            content = result['result']['content']
 
                         if content:
                             # Clean the content of potential problematic characters
@@ -889,10 +889,13 @@ class UnifiedChatHandler:
                         else:
                             content = "Command executed successfully."
                     else:
-                        # Handle errors
-                        error = kb_result.get('error', {})
-                        error_msg = error.get('message', 'Unknown error')
-                        content = f"❌ {error_msg}"
+                        # Handle errors - prefer narrative over error message
+                        if 'narrative' in kb_result:
+                            content = kb_result['narrative']
+                        else:
+                            error = kb_result.get('error', {})
+                            error_msg = error.get('message', 'Unknown error')
+                            content = f"❌ {error_msg}"
 
                     # Track for saving after streaming
                     accumulated_response = content
@@ -1549,59 +1552,21 @@ class UnifiedChatHandler:
             persona_prompt = "You are a helpful AI assistant."
         
         # Build the tools/routing section
-        tools_section = f"""You can either respond directly or use specialized tools when needed.
+        tools_section = f"""You have access to specialized tools when needed.
 
 Current context:
 - User: {context.get('user_id', 'unknown')}
 - Conversation: {context.get('conversation_id', 'new')}
 - Message count: {context.get('message_count', 0)}
 
-IMPORTANT: Always check conversation history FIRST before using any tools.
+Available tools:
+- interact_with_experience: Game commands and experience interactions
+- search_knowledge_base: Search stored knowledge and documents
+- read_kb_file: Read specific knowledge base files
+- use_mcp_agent: File system operations, web searches, system commands
+- use_asset_service: Generate images, 3D models, audio
 
-Direct responses (NO tools needed) for:
-- Questions about information mentioned in the current conversation
-- Conversation memory: "What did I tell you about X?", "What is my lucky number?", "Remember when I said..."
-- General knowledge: "What's the capital of France?" → "Paris"
-- Math: "What is 2+2?" → "4"
-- Explanations: "How does photosynthesis work?" → Direct explanation
-- Opinions: "What do you think about AI?" → Direct discussion
-
-Knowledge Base (KB) tools should ONLY be used when:
-- Information is NOT available in conversation history AND
-- User explicitly asks for stored/archived knowledge: "find my notes on Y", "search my documents for X"
-- Work continuity: "continue where we left off", "what was I working on" → load_kos_context  
-- Thread management: "show active threads", "load project context" → load_kos_context
-- Cross-domain synthesis: "how does X relate to Y", "connect A with B" → synthesize_kb_information
-
-Respond DIRECTLY (without tools) for:
-- Greetings and casual conversation ("Hello", "How are you?", "Thank you")
-- Simple arithmetic and math ("What is 2+2?", "Calculate 5*3")
-- General knowledge questions ("What's the capital of France?", "Who invented the telephone?")
-- Explanations and teaching ("Explain quantum computing", "How does photosynthesis work?")
-- Opinions, advice, and discussions ("What do you think about...", "Should I...")
-- Creative tasks ("Tell me a joke", "Write a poem", "Create a story")
-- Questions about yourself ("What's your name?", "What can you do?")
-- Hypotheticals and theoretical questions ("What if...", "Imagine...")
-
-Use tools ONLY when the user explicitly asks for:
-- File system operations: "read file X", "create file Y", "list files in directory Z", "what files are in..."
-  → use_mcp_agent
-- Knowledge base operations are handled directly with KB tools (search_knowledge_base, read_kb_file, etc.)
-- Asset generation: "generate an image of...", "create a 3D model of...", "make audio of..."
-  → use_asset_service
-- Web searches: "search the web for...", "find online information about...", "what's the latest news on..."
-  → use_mcp_agent
-- System commands: "run command X", "execute script Y", "what's the current time/date"
-  → use_mcp_agent
-- Complex analysis requiring multiple perspectives: "analyze this from technical, business, and legal angles"
-  → use_multiagent_orchestration
-
-Key principles:
-1. If you can answer the question with your knowledge, respond directly
-2. Only use tools when the user explicitly asks for an external action
-3. "What is X?" or "Explain Y" are knowledge questions - answer directly
-4. "Find X in my files/KB" or "Search for X online" require tools
-5. When uncertain, prefer direct responses - tools add latency"""
+Tool usage is controlled by your persona instructions above. Follow the persona's guidance on when to use tools."""
         
         # Check for directive-enhanced context and add JSON-RPC directive instructions
         if self._is_directive_enhanced_context(context):
