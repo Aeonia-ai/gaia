@@ -30,13 +30,6 @@ primary_region = 'sjc'
 
   [http_service.timeout]
     idle = "30m"
-  
-  [[http_service.checks]]
-    method = "GET"
-    path = "/health"
-    interval = "15s"
-    timeout = "5s"
-    grace_period = "10s"
 
 [[vm]]
   memory = '512MB'  # Auth service needs less memory
@@ -45,3 +38,12 @@ primary_region = 'sjc'
 
 [deploy]
   strategy = "rolling"
+
+# Health checks for auth service
+[[services.http_checks]]
+  interval = "10s"
+  grace_period = "5s"
+  method = "GET"
+  path = "/health"
+  protocol = "https"
+  timeout = "2s"

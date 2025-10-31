@@ -173,7 +173,7 @@ services:
   kb-docs:
     build:
       context: .
-      dockerfile: Dockerfile.kb
+      dockerfile: Dockerfile.kb.docs
     volumes:
       - ./app:/app/app
       - ../../Vaults:/vaults:rw  # Direct filesystem mount for instant updates
