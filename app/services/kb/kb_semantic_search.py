@@ -17,17 +17,21 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from datetime import datetime, timedelta
 
 # Use pgvector via PostgreSQL
 PGVECTOR_AVAILABLE = True
 logging.info("Using pgvector for PostgreSQL-native semantic search")
 
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
+
 try:
     from sentence_transformers import SentenceTransformer
     EMBEDDINGS_AVAILABLE = True
 except ImportError:
+    SentenceTransformer = None  # type: ignore
     EMBEDDINGS_AVAILABLE = False
     logging.warning("sentence-transformers not available - semantic search disabled")
 
@@ -84,7 +88,7 @@ class SemanticIndexer:
         else:
             logger.info("Semantic search ENABLED successfully!")
 
-    def _get_embedding_model(self) -> SentenceTransformer:
+    def _get_embedding_model(self) -> "SentenceTransformer":
         """Lazy load the embedding model (heavy operation)."""
         if self._embedding_model is None:
             logger.info("Loading sentence embedding model (all-MiniLM-L6-v2)...")

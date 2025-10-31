@@ -1,4 +1,5 @@
-# KB Service Dockerfile
+# KB Docs Service Dockerfile - Includes ML dependencies for semantic search
+# Used for local development only (kb-docs service in docker-compose)
 FROM python:3.11-slim
 
 # Install system dependencies including ripgrep for fast search and git for version control
@@ -24,11 +25,11 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements
-COPY requirements-kb.txt .
+# Copy requirements with ML dependencies
+COPY requirements-kb-docs.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements-kb.txt
+# Install Python dependencies including sentence-transformers
+RUN pip install --no-cache-dir -r requirements-kb-docs.txt
 
 # Copy application code
 COPY . .
