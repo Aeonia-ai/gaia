@@ -41,6 +41,10 @@ System architecture and design patterns.
 - `persona-system-guide.md` - Persona system architecture
 - `microservices-scaling.md` - Scaling strategies
 
+## Key Concepts
+
+- `unified-state-model-deep-dive.md` - Deep dive on the dual state model, including the Content Entity System (Blueprints, Templates, Instances) and debugging.
+
 ## Key Patterns
 
 - **Service Discovery**: Dynamic endpoint discovery

@@ -570,6 +570,22 @@ async def _detect_command_type(
     command_mappings, admin_required = await _discover_available_commands(experience)
     available_commands = list(command_mappings.keys())
 
+    # 1. Direct check for admin commands (prefixed with '@')
+    if message.startswith('@'):
+        # Extract the potential command name and add the '@' prefix back for lookup
+        parts = message[1:].split(' ', 1)
+        potential_admin_cmd = f"@{parts[0].lower()}"
+
+        if potential_admin_cmd in available_commands and admin_required.get(potential_admin_cmd, False):
+            logger.info(f"Detected direct admin command: '{potential_admin_cmd}'")
+            return potential_admin_cmd, True
+        else:
+            logger.warning(f"Message starts with '@' but not a recognized admin command: '{potential_admin_cmd}'")
+            # Fall through to LLM for interpretation if not a direct admin command,
+            # or if it's an admin command but not marked as such in frontmatter (shouldn't happen if frontmatter is correct)
+
+    # Fallback to LLM for natural language command detection
+
     # Build command mapping text for LLM
     mapping_lines = []
     for cmd, keywords in command_mappings.items():
@@ -664,24 +680,15 @@ async def _execute_markdown_command(
     user_id: str
 ) -> Dict[str, Any]:
     """
-    Execute a command by having LLM follow markdown instructions.
-
-    Args:
-        kb_agent_instance: KB agent for LLM access
-        markdown_content: Markdown command file content
-        user_message: User's original message
-        player_view: Player's view state
-        world_state: World state
-        config: Experience config
-        user_id: User ID
-
-    Returns:
-        Dict with: success, narrative, state_updates, available_actions, metadata
+    Execute a command by having LLM follow markdown instructions using a two-pass approach.
+    Pass 1 (Logic): Deterministically generate JSON for state changes and actions.
+    Pass 2 (Narrative): Creatively generate narrative based on the logic outcome.
     """
-    print(f"[DIAGNOSTIC] Executing markdown command for user: {user_id}")  # Force output
+    print(f"[DIAGNOSTIC] Executing markdown command for user: {user_id}")
 
-    # Build execution prompt with all context
-    execution_prompt = f"""You are a game command executor. You will execute a game command by following the instructions in a markdown file.
+    try:
+        # ===== PASS 1: LOGIC (DETERMINISTIC) =====
+        logic_prompt = f"""You are a game logic engine. Your task is to interpret a player's command based on game rules and state, then return ONLY a structured JSON object representing the outcome. DO NOT generate any narrative text.
 
 ## Markdown Command Instructions:
 {markdown_content}
@@ -699,98 +706,98 @@ async def _execute_markdown_command(
 {json.dumps(world_state, indent=2)}
 ```
 
-## Experience Config:
-State Model: {config["state"]["model"]}
-
 ## Your Task:
-Follow the markdown instructions EXACTLY. Process each section in order:
-1. "Input Parameters" - Extract what the user is asking for
-2. "State Access" - Read player_view and world_state (above)
-3. "Execution Logic" - Execute the command step-by-step
-4. "State Updates" - **CRITICAL**: Determine state changes
-5. "Response Format" - Use the EXACT format from the markdown
+Follow the markdown instructions to determine the outcome. Respond with ONLY a valid JSON object containing:
+- `success`: boolean
+- `state_updates`: object or null (changes to world or player state)
+- `available_actions`: array of strings (suggested next actions)
+- `metadata`: object with diagnostic info
 
-## IMPORTANT - State Updates:
-- **IF SUCCESS**: MUST include "state_updates" with actual changes
-- **IF FAILURE**: Set "state_updates": null
-- Follow the Response Format section in the markdown EXACTLY
+## IMPORTANT:
+- DO NOT include a "narrative" field.
+- Your entire response must be a single, raw JSON object.
+- If the command is purely observational (like 'look'), `state_updates` should be null.
+"""
 
-## Response Rules:
-1. Return ONLY valid JSON (no markdown blocks, no explanations)
-2. Use the Response Format examples from the markdown as your template
-3. For successful state-modifying commands, state_updates is REQUIRED
-4. Match the example response structure exactly
-
-Example for successful collect:
-{{
-  "success": true,
-  "narrative": "You take the brass lantern.",
-  "state_updates": {{
-    "world": {{"path": "locations.west_of_house.items", "operation": "remove", "item_id": "lantern_1"}},
-    "player": {{"path": "player.inventory", "operation": "add", "item": {{...}}}}
-  }},
-  "available_actions": [...],
-  "metadata": {{...}}
-}}
-
-Now execute the command following the markdown instructions."""
-
-    try:
-        response = await kb_agent_instance.llm_service.chat_completion(
+        logic_response_raw = await kb_agent_instance.llm_service.chat_completion(
             messages=[
-                {
-                    "role": "system",
-                    "content": "You are a game command executor. You MUST respond with ONLY a valid JSON object. NO markdown code blocks, NO explanations, NO commentary - ONLY the raw JSON object."
-                },
-                {"role": "user", "content": execution_prompt}
+                {"role": "system", "content": "You are a game logic engine. You MUST respond with ONLY a valid JSON object."},
+                {"role": "user", "content": logic_prompt}
             ],
-            model="claude-sonnet-4-5",  # Use smarter model for execution
+            model="claude-sonnet-4-5",
             user_id=user_id,
-            temperature=0.1  # Lower temperature for more deterministic JSON output
+            temperature=0.1  # Low temperature for deterministic logic
         )
 
-        # Parse JSON response
-        response_text = response["response"].strip()
+        logic_response_text = logic_response_raw["response"].strip()
+        if logic_response_text.startswith("```"):
+            logic_response_text = logic_response_text.split("```")[1]
+            if logic_response_text.startswith("json"):
+                logic_response_text = logic_response_text[4:]
+            logic_response_text = logic_response_text.strip()
 
-        # Remove markdown code blocks if present
-        if response_text.startswith("```"):
-            response_text = response_text.split("```")[1]
-            if response_text.startswith("json"):
-                response_text = response_text[4:]
-            response_text = response_text.strip()
+        logic_result = json.loads(logic_response_text)
+        logger.warning(f"[DIAGNOSTIC-PASS-1] Logic result: {logic_result}")
 
-        # Diagnostic logging for state persistence issue
-        # Write raw response to file for debugging
-        import datetime
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        debug_file = f"/tmp/llm_response_{timestamp}.json"
-        with open(debug_file, "w") as f:
-            f.write(response_text)
-        logger.warning(f"[DIAGNOSTIC] Wrote LLM response to {debug_file}")
+        # ===== PASS 2: NARRATIVE (CREATIVE) =====
+        narrative_prompt = f"""You are a creative storyteller for a text adventure game. A game event has just occurred. Your task is to write a short, engaging, and atmospheric narrative to describe this event to the player.
 
-        result = json.loads(response_text)
+## Game Rules for Context:
+{markdown_content}
 
-        # Log the parsed result
-        logger.warning(f"[DIAGNOSTIC] Parsed result keys: {list(result.keys())}")
-        logger.warning(f"[DIAGNOSTIC] state_updates present: {'state_updates' in result}")
-        if 'state_updates' in result:
-            logger.warning(f"[DIAGNOSTIC] state_updates value: {result['state_updates']}")
+## Player's Command:
+"{user_message}"
 
-        return result
+## Game Outcome (The event you need to describe):
+```json
+{json.dumps(logic_result, indent=2)}
+```
+
+## Your Task:
+Write a compelling narrative for the player that describes what just happened.
+- If `success` is true, describe the successful action.
+- If `success` is false, describe the failure in a helpful way.
+- Use the style and tone suggested by the game rules.
+- DO NOT output JSON or any other structured data. Just the story.
+"""
+
+        narrative_response_raw = await kb_agent_instance.llm_service.chat_completion(
+            messages=[
+                {"role": "system", "content": "You are a creative storyteller. Respond ONLY with the narrative text."},
+                {"role": "user", "content": narrative_prompt}
+            ],
+            model="claude-sonnet-4-5",
+            user_id=user_id,
+            temperature=0.7  # Higher temperature for creative narrative
+        )
+
+        narrative = narrative_response_raw["response"].strip()
+        logger.warning(f"[DIAGNOSTIC-PASS-2] Narrative result: {narrative}")
+
+        # ===== COMBINE RESULTS =====
+        final_result = {
+            "success": logic_result.get("success", False),
+            "narrative": narrative,
+            "state_updates": logic_result.get("state_updates"),
+            "available_actions": logic_result.get("available_actions", []),
+            "metadata": logic_result.get("metadata", {})
+        }
+
+        return final_result
 
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM response as JSON: {e}\nResponse: {response_text}")
+        logger.error(f"Failed to parse LLM response as JSON in Pass 1: {e}\nResponse: {logic_response_text}")
         return {
             "success": False,
-            "narrative": "I had trouble understanding that command. Please try again.",
+            "narrative": "I had trouble understanding the logic of that command. Please try rephrasing.",
             "available_actions": ["look around", "check inventory"],
             "metadata": {"error": "json_parse_failed"}
         }
     except Exception as e:
-        logger.error(f"Error executing markdown command: {e}", exc_info=True)
+        logger.error(f"Error executing two-pass markdown command: {e}", exc_info=True)
         return {
             "success": False,
-            "narrative": f"Something went wrong: {str(e)}",
+            "narrative": f"A system error occurred: {str(e)}",
             "available_actions": ["look around"],
             "metadata": {"error": str(e)}
         }

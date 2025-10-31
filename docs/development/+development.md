@@ -4,6 +4,7 @@ Local development guides.
 
 ## Files
 
+- `cookbook-creating-experiences-and-commands.md` - **START HERE**: How to create new game content
 - `dev-environment-setup.md` - Local development workflow
 - `command-reference.md` - Correct command syntax
 - `database-initialization-guide.md` - Database setup

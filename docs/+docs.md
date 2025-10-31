@@ -34,6 +34,10 @@ GAIA platform documentation root.
 
 ## Key Documents
 
+### Development & Debugging
+- `development/cookbook-creating-experiences-and-commands.md` - **START HERE**: How to create new game content
+- `architecture/unified-state-model-deep-dive.md` - State Model Deep Dive, Content Entity System, & Debugging Guide
+
 ### API
 - `api/reference/CLIENT_API_REFERENCE.md` - v0.3 API for external devs
 - `api/reference/GAIA_API_REFERENCE.md` - v1 API with advanced features

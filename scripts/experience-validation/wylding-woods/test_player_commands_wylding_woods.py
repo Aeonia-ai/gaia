@@ -144,6 +144,11 @@ result = player_cmd(
 test_results.append(("Look around center", result.get("success", False)))
 
 result = player_cmd(
+    "go to counter",
+    desc="Move to the counter"
+)
+
+result = player_cmd(
     "What's on the first shelf?",
     sublocation="shelf_1",
     desc="Test 2: Examine shelf_1"
@@ -203,6 +208,11 @@ test_results.append(("Check multiple items", result.get("success", False)))
 print("\n" + "█"*70)
 print("█  SECTION 4: NPC Interaction")
 print("█"*70)
+
+result = player_cmd(
+    "go to fairy_door_1",
+    desc="Move to the fairy door"
+)
 
 result = player_cmd(
     "Talk to Louisa",
@@ -274,7 +284,7 @@ admin_cmd("@reset instance 4 CONFIRM", "Reset dream bottle on shelf_3")
 time.sleep(0.5)
 
 result = player_cmd(
-    "I want to grab that glowing bottle on the third shelf",
+    "I want to grab the dream bottle on the third shelf",
     sublocation="shelf_3",
     desc="Test 16: Complex pickup command"
 )
