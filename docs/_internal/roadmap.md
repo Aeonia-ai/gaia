@@ -1,6 +1,17 @@
-# Implementation Status & Future Tasks
+# Roadmap
 
-## ✅ Completed Systems
+## Overview (from +roadmap.md)
+Future plans and status.
+
+### Files
+
+- `feature-roadmap.md` - Complete feature pipeline
+- `implementation-status.md` - Current progress tracking
+- `web-ui-development-status.md` - Frontend development state
+
+## Implementation Status & Future Tasks (from implementation-status.md)
+
+### ✅ Completed Systems
 
 ### Provider Management System (20/22 endpoints) - FULLY COMPLETE
 - **Core functionality**: Multi-LLM provider support (Claude, OpenAI)
