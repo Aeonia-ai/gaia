@@ -4,28 +4,10 @@ GAIA platform documentation root.
 
 ## Subdirectories
 
-- `adr/` - Architecture Decision Records
-- `agents/` - Claude Code agent documentation  
-- `api/` - API reference and contracts
-- `architecture/` - System design and patterns
-- `authentication/` - Security and auth documentation
-- `deployment/` - Production deployment guides
-- `development/` - Local development guides
-- `kb/` - Knowledge Base documentation
-- `roadmap/` - Future plans and status
-- `security/` - Security documentation and guides
-- `services/` - Service-specific documentation
-- `shared/` - Shared components and utilities
-- `testing/` - Testing guides and patterns
-- `troubleshooting/` - Problem-solving guides
-- `features/` - Feature-specific documentation
-- `web-ui/` - FastHTML frontend documentation
-- `_archive/` - Historical documentation
-- `_debugging-guides/` - Debug procedures and guides
-- `_future/` - Future planning documents
-- `_postmortems/` - Incident analysis and learnings
-- `_reports/` - Status reports and analysis
-- `_research/` - Research documents and findings
+- `guides/` - How-to's & Tutorials
+- `reference/` - Technical Reference
+- `concepts/` - High-level Explanations
+- `_internal/` - Project Artifacts
 
 ## Files
 
