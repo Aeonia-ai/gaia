@@ -667,6 +667,7 @@ class UnifiedStateManager:
         """
         starting_location = config["bootstrap"]["player_starting_location"]
         starting_inventory = config["bootstrap"]["player_starting_inventory"]
+        logger.warning(f"[BOOTSTRAP-DEBUG] user={user_id}, starting_location={starting_location}, starting_inventory={starting_inventory}")
 
         view = {
             "player": {

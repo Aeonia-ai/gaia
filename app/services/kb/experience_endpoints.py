@@ -408,14 +408,9 @@ async def _process_game_message(
             )
 
         # Step 3: Execute command using LLM + markdown instructions
-        # Write full state to file for debugging
-        import datetime
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        with open(f"/tmp/world_state_{timestamp}.json", "w") as f:
-            f.write(json.dumps(world_state, indent=2))
-        with open(f"/tmp/player_view_{timestamp}.json", "w") as f:
-            f.write(json.dumps(player_view, indent=2))
-        logger.warning(f"[DIAGNOSTIC] Wrote full state to /tmp/world_state_{timestamp}.json and player_view_{timestamp}.json")
+        # Log player inventory for debugging
+        player_inventory = player_view.get("player", {}).get("inventory", [])
+        logger.warning(f"[DIAGNOSTIC] Player inventory before execution: {player_inventory}")
 
         result = await _execute_markdown_command(
             kb_agent_instance,
@@ -713,15 +708,18 @@ Follow the markdown instructions to determine the outcome. Respond with ONLY a v
 - `available_actions`: array of strings (suggested next actions)
 - `metadata`: object with diagnostic info
 
-## IMPORTANT:
+## CRITICAL RULES:
 - DO NOT include a "narrative" field.
 - Your entire response must be a single, raw JSON object.
 - If the command is purely observational (like 'look'), `state_updates` should be null.
+- Use ONLY data from the provided Player State and World State - DO NOT invent or hallucinate items, locations, or state.
+- If player.inventory is empty ([]), the metadata items list MUST be empty ([]).
+- If a location has no items, do NOT fabricate items - report accurately what exists.
 """
 
         logic_response_raw = await kb_agent_instance.llm_service.chat_completion(
             messages=[
-                {"role": "system", "content": "You are a game logic engine. You MUST respond with ONLY a valid JSON object."},
+                {"role": "system", "content": "You are a game logic engine. You MUST respond with ONLY a valid JSON object. Use ONLY data from the provided game state - never invent or hallucinate data."},
                 {"role": "user", "content": logic_prompt}
             ],
             model="claude-sonnet-4-5",

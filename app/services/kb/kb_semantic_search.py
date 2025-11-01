@@ -84,7 +84,7 @@ class SemanticIndexer:
         else:
             logger.info("Semantic search ENABLED successfully!")
 
-    def _get_embedding_model(self) -> SentenceTransformer:
+    def _get_embedding_model(self) -> "SentenceTransformer":
         """Lazy load the embedding model (heavy operation)."""
         if self._embedding_model is None:
             logger.info("Loading sentence embedding model (all-MiniLM-L6-v2)...")
