@@ -2,6 +2,14 @@
 
 Manual test scripts for end-to-end functionality testing.
 
+## 📚 Documentation
+
+**[Testing Experience Changes Guide](../../docs/experiences/testing-experience-changes.md)**
+- How to test markdown-based experience logic changes
+- Test script structure and patterns
+- State validation techniques
+- Common issues and solutions
+
 ## Directory Structure
 
 ```
@@ -16,6 +24,15 @@ testing/
 ## Usage
 
 ### Wylding Woods Tests
+
+**Reset & Collection Validation** (NEW - 2025-11-02):
+```bash
+# Comprehensive reset + collection test
+python3 scripts/experience-validation/wylding-woods/validate_reset_and_collection.py
+
+# Quick collection test only
+python3 scripts/experience-validation/wylding-woods/quick_collection_test.py
+```
 
 **Player Commands** (17 tests):
 ```bash
