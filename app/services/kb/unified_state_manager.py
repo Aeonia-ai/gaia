@@ -926,3 +926,186 @@ class UnifiedStateManager:
             "multiplayer_enabled": config["multiplayer"]["enabled"],
             "capabilities": config["capabilities"]
         }
+
+    # ===== RESET OPERATIONS =====
+
+    def _get_world_template_path(self, experience: str) -> Path:
+        """Get path to world template file."""
+        return self.experiences_path / experience / "state" / "world.template.json"
+
+    def create_backup(self, experience: str) -> Path:
+        """
+        Create timestamped backup of world state.
+
+        Args:
+            experience: Experience ID
+
+        Returns:
+            Path to backup file
+
+        Raises:
+            StateNotFoundError: If world.json doesn't exist
+        """
+        config = self.load_config(experience)
+        world_path = self._get_world_state_path(experience, config)
+
+        if not world_path.exists():
+            raise StateNotFoundError(
+                f"Cannot backup - world state not found for '{experience}': {world_path}"
+            )
+
+        # Create backup with timestamp
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        backup_path = world_path.parent / f"world.backup.{timestamp}.json"
+
+        shutil.copy(world_path, backup_path)
+        logger.info(f"Created backup for '{experience}': {backup_path}")
+
+        return backup_path
+
+    async def restore_from_template(self, experience: str) -> Dict[str, Any]:
+        """
+        Restore world state from template.
+
+        Args:
+            experience: Experience ID
+
+        Returns:
+            Restored world state
+
+        Raises:
+            StateNotFoundError: If template doesn't exist
+        """
+        config = self.load_config(experience)
+        template_path = self._get_world_template_path(experience)
+        world_path = self._get_world_state_path(experience, config)
+
+        if not template_path.exists():
+            raise StateNotFoundError(
+                f"Template not found for '{experience}': {template_path}"
+            )
+
+        # Load template
+        with open(template_path, 'r') as f:
+            template = json.load(f)
+
+        # Update metadata for restored state
+        if "metadata" not in template:
+            template["metadata"] = {}
+        template["metadata"]["_version"] = 1
+        template["metadata"]["last_modified"] = datetime.utcnow().isoformat() + "Z"
+        template["metadata"]["_restored_from_template"] = datetime.utcnow().isoformat() + "Z"
+
+        # Write restored state
+        with open(world_path, 'w') as f:
+            json.dump(template, f, indent=2)
+
+        logger.info(f"Restored world state for '{experience}' from template")
+        return template
+
+    async def delete_all_player_views(self, experience: str) -> int:
+        """
+        Delete all player views for an experience.
+
+        Args:
+            experience: Experience ID
+
+        Returns:
+            Number of player views deleted
+        """
+        deleted_count = 0
+
+        if not self.players_path.exists():
+            logger.warning(f"Players directory doesn't exist: {self.players_path}")
+            return 0
+
+        # Iterate through all player directories
+        for player_dir in self.players_path.iterdir():
+            if not player_dir.is_dir():
+                continue
+
+            view_path = player_dir / experience / "view.json"
+            if view_path.exists():
+                view_path.unlink()
+                deleted_count += 1
+                logger.debug(f"Deleted player view: {view_path}")
+
+                # Clean up empty directories
+                exp_dir = player_dir / experience
+                if exp_dir.exists() and not any(exp_dir.iterdir()):
+                    exp_dir.rmdir()
+                    logger.debug(f"Removed empty experience directory: {exp_dir}")
+
+        logger.info(f"Deleted {deleted_count} player view(s) for '{experience}'")
+        return deleted_count
+
+    async def reset_experience(
+        self,
+        experience: str,
+        reset_type: str = "full",
+        create_backup_file: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Reset experience state.
+
+        Reset types:
+        - "full": Restore world + delete all player views (safe, recommended)
+        - "world_only": Restore world only (WARNING: may cause item duplication)
+        - "players_only": Delete player views only (WARNING: may cause item loss)
+
+        Args:
+            experience: Experience ID
+            reset_type: Type of reset ("full", "world_only", "players_only")
+            create_backup_file: Create backup before reset
+
+        Returns:
+            Dict with reset results
+
+        Raises:
+            ConfigValidationError: If reset_type invalid
+            StateNotFoundError: If required files missing
+        """
+        if reset_type not in ["full", "world_only", "players_only"]:
+            raise ConfigValidationError(
+                f"Invalid reset_type '{reset_type}' (must be 'full', 'world_only', or 'players_only')"
+            )
+
+        logger.info(f"Starting {reset_type} reset for '{experience}'")
+        results = {
+            "experience": experience,
+            "reset_type": reset_type,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "backup_created": None,
+            "world_restored": False,
+            "player_views_deleted": 0
+        }
+
+        # Step 1: Backup (if requested)
+        if create_backup_file and reset_type in ["full", "world_only"]:
+            try:
+                backup_path = self.create_backup(experience)
+                results["backup_created"] = str(backup_path)
+            except Exception as e:
+                logger.error(f"Backup failed: {e}")
+                raise
+
+        # Step 2: Restore world (if applicable)
+        if reset_type in ["full", "world_only"]:
+            try:
+                await self.restore_from_template(experience)
+                results["world_restored"] = True
+            except Exception as e:
+                logger.error(f"World restore failed: {e}")
+                raise
+
+        # Step 3: Delete player views (if applicable)
+        if reset_type in ["full", "players_only"]:
+            try:
+                deleted_count = await self.delete_all_player_views(experience)
+                results["player_views_deleted"] = deleted_count
+            except Exception as e:
+                logger.error(f"Player view deletion failed: {e}")
+                raise
+
+        logger.info(f"Reset complete for '{experience}': {results}")
+        return results

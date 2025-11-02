@@ -8,6 +8,7 @@ Replaces hardcoded /game/command with config-driven, markdown-based approach.
 import logging
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException
@@ -422,16 +423,24 @@ async def _process_game_message(
             user_id
         )
 
-        # Step 4: Apply state updates if any
-        # Diagnostic logging for state persistence issue
-        logger.info(f"Command result success: {result.get('success')}")
-        logger.info(f"Has state_updates: {bool(result.get('state_updates'))}")
-        if result.get("state_updates"):
-            logger.info(f"Applying state updates: {json.dumps(result['state_updates'], indent=2)}")
-        else:
-            logger.warning(f"No state_updates in result for command: {command_type}")
+        # Step 4: Handle special admin operations (reset, etc.)
+        if command_type == "@reset-experience":
+            reset_result = await _handle_reset_command(
+                state_manager,
+                experience,
+                result.get("metadata", {})
+            )
+            # Override result with reset details
+            result["metadata"] = reset_result
+            result["narrative"] = f"**Reset Complete!**\n\n{result.get('narrative', '')}\n\n**Details:**\n- World restored: {reset_result.get('world_restored', False)}\n- Player views deleted: {reset_result.get('player_views_deleted', 0)}\n- Backup: {reset_result.get('backup_created', 'None')}"
 
-        if result.get("state_updates"):
+        # Step 5: Apply state updates if any (skip for reset commands)
+        elif result.get("state_updates"):
+            # Diagnostic logging for state persistence issue
+            logger.info(f"Command result success: {result.get('success')}")
+            logger.info(f"Has state_updates: {bool(result.get('state_updates'))}")
+            logger.info(f"Applying state updates: {json.dumps(result['state_updates'], indent=2)}")
+
             await _apply_state_updates(
                 state_manager,
                 experience,
@@ -439,6 +448,8 @@ async def _process_game_message(
                 result["state_updates"],
                 config["state"]["model"]
             )
+        else:
+            logger.warning(f"No state_updates in result for command: {command_type}")
 
         # Step 5: Return response
         return InteractResponse(
@@ -798,6 +809,51 @@ Write a compelling narrative for the player that describes what just happened.
             "narrative": f"A system error occurred: {str(e)}",
             "available_actions": ["look around"],
             "metadata": {"error": str(e)}
+        }
+
+
+async def _handle_reset_command(
+    state_manager,
+    experience: str,
+    metadata: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Handle reset command execution.
+
+    Extracts reset parameters from LLM metadata and calls state_manager.reset_experience().
+
+    Args:
+        state_manager: UnifiedStateManager instance
+        experience: Experience ID
+        metadata: Metadata from LLM response (contains reset parameters)
+
+    Returns:
+        Reset result dict from state_manager.reset_experience()
+    """
+    # Extract reset parameters from metadata
+    # Default to "full" reset for safety
+    reset_type = metadata.get("reset_type", "full")
+    create_backup = metadata.get("create_backup", True)
+
+    logger.info(f"Executing reset command: type={reset_type}, backup={create_backup}")
+
+    try:
+        reset_result = await state_manager.reset_experience(
+            experience,
+            reset_type=reset_type,
+            create_backup_file=create_backup
+        )
+        logger.info(f"Reset successful: {reset_result}")
+        return reset_result
+
+    except Exception as e:
+        logger.error(f"Reset failed: {e}", exc_info=True)
+        return {
+            "experience": experience,
+            "reset_type": reset_type,
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat() + "Z"
         }
 
 
