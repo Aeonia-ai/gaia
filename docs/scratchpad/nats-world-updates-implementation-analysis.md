@@ -33,6 +33,35 @@ NATS world updates optimize *perceived* latency (visual feedback) rather than *a
 
 ---
 
+## Client-Server Coordination (2025-11-02)
+
+**Unity Client Team Collaboration**: This implementation has been coordinated with the Unity client team via Symphony Network "directives" room. Key agreements:
+
+**State Delta Pattern Confirmed** ✅
+- Server sends **abstract state changes** (not rendering commands)
+- Client interprets state deltas using `DirectiveDemoManager` and `SceneContextRegistry`
+- Follows industry standard: Minecraft, Roblox, WoW, Unity Netcode all use this pattern
+
+**Schema Agreement**:
+- Format: `WorldUpdateEvent` with `version: "0.3"` field (see below)
+- Operations: `add`, `remove`, `update`
+- Unity team ready to implement client-side interpretation in parallel
+
+**Coordinated Roadmap**:
+- Phase 1A (server): KB publishes state deltas to NATS (2-3h)
+- Phase 1B (server): Chat Service forwards to SSE (3-4h)
+- Phase 2 (client): Unity wires DirectiveDemoManager (2.5h)
+- Phase 3 (both): Integration testing (2-3h)
+
+**Research Validation**:
+- X Window System, Wayland, browser rendering all use symbolic server → concrete client pattern
+- Game industry unanimous: state deltas, not rendering commands
+- Client-side translation provides flexibility, low bandwidth, clean separation of concerns
+
+See Symphony "directives" room messages (2025-11-02 5:17 PM - 5:20 PM) for full coordination details.
+
+---
+
 ## Prototype vs Production Priorities
 
 This analysis was initially written from a "production at scale" perspective. For the **current prototype stage (target: 100 users, latency-focused)**, priorities shift significantly:
@@ -694,10 +723,16 @@ class WorldUpdateEvent(BaseModel):
     Consumed by: Chat Service → Client via SSE
     NATS Subject: world.updates.user.{user_id}
 
+    Schema Version: 0.3
+    - Added version field for future compatibility (coordinated with Unity team)
+    - Follows industry pattern: state deltas interpreted by client
+    - Matches Minecraft, Roblox, WoW network protocols
+
     Example:
         ```json
         {
             "type": "world_update",
+            "version": "0.3",
             "experience": "wylding-woods",
             "user_id": "player@example.com",
             "changes": {
@@ -723,6 +758,7 @@ class WorldUpdateEvent(BaseModel):
         ```
     """
     type: Literal["world_update"] = "world_update"
+    version: str = Field(default="0.3", description="Protocol version for future compatibility")
     experience: str = Field(..., description="Experience ID (e.g., 'wylding-woods')")
     user_id: str = Field(..., description="User ID for scoping updates")
     changes: Dict[str, Any] = Field(..., description="State delta (updates applied)")
@@ -733,6 +769,7 @@ class WorldUpdateEvent(BaseModel):
         json_schema_extra = {
             "example": {
                 "type": "world_update",
+                "version": "0.3",
                 "experience": "wylding-woods",
                 "user_id": "player@example.com",
                 "changes": {
@@ -800,6 +837,7 @@ async def _publish_world_update(
     try:
         if self.nats_client and await self.nats_client.is_connected():
             event = WorldUpdateEvent(
+                # version="0.3" is set by default in Pydantic model
                 experience=experience,
                 user_id=user_id,
                 changes=changes,
