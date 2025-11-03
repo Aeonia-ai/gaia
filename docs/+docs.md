@@ -4,10 +4,12 @@ GAIA platform documentation root.
 
 ## Subdirectories
 
+- `designs/` - Design Documents
 - `guides/` - How-to's & Tutorials
 - `reference/` - Technical Reference
 - `concepts/` - High-level Explanations
 - `_internal/` - Project Artifacts
+- `scratchpad/` - Temporary notes and architectural outlines
 
 ## Files
 
