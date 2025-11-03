@@ -117,3 +117,125 @@
 **Last Updated**: 2025-11-02
 **Total Estimated Time**: 9-13 hours (server-side only)
 **Target**: 100-user prototype with sub-100ms perceived latency
+
+---
+
+## 📋 Prompt for Future Claude Code Session
+
+**If this conversation context gets compacted or you're starting a fresh session**, use this prompt to resume work:
+
+### Task: Implement Phase 1A - NATS World Updates (KB Service Publishing)
+
+#### Context
+
+You're implementing real-time world state synchronization for the GAIA platform. When players interact with the game world (e.g., "take bottle"), the KB Service updates state but clients don't see changes for 2-3 seconds (waiting for LLM narrative).
+
+**Goal**: Publish state changes to NATS immediately so Unity clients can update visuals in projected sub-100ms while narrative completes in background.
+
+**Coordination Status**:
+- ✅ Unity team coordinated via Symphony "directives" room
+- ✅ Schema agreed: WorldUpdateEvent v0.3 (state deltas)
+- ✅ Unity implementing Phase 2 in parallel (DirectiveQueue interpretation)
+- ✅ Integration testing (Phase 3) after both teams complete
+
+#### What to Implement
+
+Read the task list above in this file. You need to:
+
+1. Define `WorldUpdateEvent` Pydantic schema in `app/shared/events.py`
+2. Add NATS subject helper to `app/shared/nats_client.py`
+3. Modify `UnifiedStateManager` to publish events after state changes
+4. Wire NATS client into KB service startup
+5. Add logging and tests
+
+**Estimated time**: 2-3 hours
+
+#### Critical Documentation
+
+**READ THIS FIRST**: `docs/scratchpad/nats-world-updates-implementation-analysis.md`
+
+This document contains:
+- Complete implementation guide with exact code placement (lines 777-1021)
+- WorldUpdateEvent schema definition (lines 689-752)
+- Error handling strategy (graceful degradation)
+- Code examples for every step
+- Validation checklist
+
+**Also read**:
+- `tests/manual/README.md` - How to test with NATS subscriber
+- This file (TODO.md) - Task checklist with file paths
+
+#### Key Decisions Already Made
+
+**DO:**
+- ✅ Use state deltas (operation: add/remove/update) - matches Minecraft/Roblox/WoW
+- ✅ Client-side interpretation (Unity's DirectiveQueue) - industry best practice
+- ✅ Graceful degradation - NATS failures should NOT break game logic
+- ✅ Include version: "0.3" field for future compatibility
+
+**DON'T:**
+- ❌ Transform state deltas to rendering commands - that's Unity's job
+- ❌ Make NATS required - it's a performance optimization, not critical path
+- ❌ Send concrete Unity instructions - server stays domain-focused
+
+#### Schema (Already Agreed with Unity)
+
+```python
+class WorldUpdateEvent(BaseModel):
+    type: Literal["world_update"] = "world_update"
+    version: str = Field(default="0.3")
+    experience: str
+    user_id: str
+    changes: Dict[str, Any]  # State delta with operations
+    timestamp: int
+    metadata: Optional[Dict[str, Any]] = None
+```
+
+Unity team expects:
+- `operation: "add"` - Object added to location/inventory
+- `operation: "remove"` - Object removed
+- `operation: "update"` - Properties changed
+
+#### Testing
+
+After implementation:
+1. Start Docker services: `docker compose up`
+2. Run NATS subscriber: `python tests/manual/test_nats_subscriber.py`
+3. Trigger state change: `./scripts/test.sh --local chat "take dream bottle"`
+4. Verify events appear in subscriber output
+
+**Success criteria**:
+- Events published to `world.updates.user.{user_id}`
+- Payload matches WorldUpdateEvent schema
+- Game continues if NATS is down (check logs)
+
+#### Implementation Strategy
+
+Follow the guide in `docs/scratchpad/nats-world-updates-implementation-analysis.md` starting at line 777 ("Phase 1 Implementation Guide").
+
+Work through tasks in order (they have dependencies):
+1. Schema first (enables everything else)
+2. Subject helper (used by publishing method)
+3. UnifiedStateManager modifications (core logic)
+4. KB service startup wiring (dependency injection)
+5. Tests (validation)
+
+Mark tasks complete in this file by changing `- [ ]` to `- [x]`.
+
+#### If You Get Stuck
+
+Check:
+- Implementation guide has exact line numbers and code examples
+- Validation checklist at docs/scratchpad/nats-world-updates-implementation-analysis.md:997-1020
+- Existing NATS usage in `app/services/chat/main.py` (same pattern)
+
+#### When Complete
+
+Update this TODO.md and tell the user:
+- Phase 1A complete
+- How to test (NATS subscriber script)
+- Ready for Phase 1B (Chat Service SSE forwarding)
+
+---
+
+**Start by reading the implementation guide, then work through the task list sequentially.**
