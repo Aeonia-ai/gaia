@@ -990,6 +990,198 @@ python tests/manual/test_nats_subscriber.py
 # Changes: {"world": {"locations.woander_store.items": ...}}
 ```
 
+#### How the Test Script Works
+
+The NATS subscriber test script acts as a **passive observer** that listens for events published by the KB Service, without requiring the Chat Service to be implemented. This section explains the mechanics for developers new to NATS pub/sub patterns.
+
+**Architecture: Pub/Sub Pattern**
+
+```
+┌──────────────┐         NATS          ┌─────────────────┐
+│ KB Service   │────────publish───────>│ world.updates.  │
+│              │   (after state change) │ user.{user_id}  │
+└──────────────┘                        └─────────────────┘
+                                               │
+                                               │ subscribe
+                                               ▼
+                                        ┌──────────────┐
+                                        │ Test Script  │
+                                        │ (observer)   │
+                                        └──────────────┘
+```
+
+The script subscribes to `world.updates.user.*` (wildcard matches ALL user IDs), so it receives events for any user's state changes.
+
+**1. Connection Flow**
+
+```python
+async def connect(self):
+    self.nc = await nats.connect(self.nats_url)
+```
+
+- Opens TCP connection to NATS server at `localhost:4222`
+- Uses the same NATS infrastructure that KB and Chat services will use
+- If connection fails, provides troubleshooting steps
+
+**2. Subscription with Callback**
+
+```python
+await self.nc.subscribe(subject, cb=self.message_handler)
+```
+
+**Key mechanism:** The callback pattern (`cb=self.message_handler`)
+
+When KB Service publishes a message to `world.updates.user.player@example.com`, NATS:
+1. Matches the subject against subscriber patterns (`world.updates.user.*`)
+2. **Automatically invokes** the `message_handler()` callback
+3. Passes a `msg` object containing the event data
+
+This is **asynchronous event-driven I/O** - the script doesn't poll, it reacts when events arrive.
+
+**3. Message Handler**
+
+```python
+async def message_handler(self, msg):
+    # 1. Decode the raw bytes
+    data = json.loads(msg.data.decode())
+
+    # 2. Extract and display event fields
+    print(f"Subject: {msg.subject}")
+    print(f"Experience: {data.get('experience')}")
+    print(f"Changes: {json.dumps(changes, indent=2)}")
+```
+
+**What's in the `msg` object:**
+- `msg.subject` - The exact NATS subject (e.g., `world.updates.user.player@example.com`)
+- `msg.data` - Raw bytes of the JSON payload
+- `msg.headers` - Optional metadata (not used in Phase 1)
+
+**4. Event Loop Keep-Alive**
+
+```python
+async def run(self):
+    await self.connect()
+    await self.subscribe()
+
+    # Keep subscriber alive
+    while True:
+        await asyncio.sleep(1)
+```
+
+**Critical design choice:** The infinite loop with `asyncio.sleep(1)` keeps the async event loop running.
+
+Without this loop:
+- ❌ Script would exit immediately after subscribing
+- ❌ No time for NATS callbacks to fire
+- ❌ Events would be lost
+
+With this loop:
+- ✅ Script stays alive indefinitely
+- ✅ Callbacks fire whenever KB publishes events
+- ✅ You can trigger multiple state changes and see all events
+
+**5. Graceful Shutdown**
+
+```python
+except KeyboardInterrupt:
+    print(f"Total events received: {self.event_count}")
+finally:
+    await self.nc.drain()  # Flush pending messages
+```
+
+When you press Ctrl+C:
+1. Python raises `KeyboardInterrupt`
+2. Script prints statistics (total events received)
+3. `nc.drain()` ensures any in-flight messages are processed before disconnect
+4. Connection closes cleanly
+
+**Why This Works for Phase 1 Validation**
+
+The test script fills the gap between Phase 1 (KB publishing) and Phase 2 (Chat subscribing):
+
+```
+Phase 1: KB Service publishes events
+         ↓
+         Test Script validates events are published correctly
+         ↓
+Phase 2: Chat Service subscribes and forwards to clients
+```
+
+Without this test script, you'd be **blind** during Phase 1 implementation. With it:
+- ✅ Write KB publishing code
+- ✅ Run test script to **immediately see** events
+- ✅ Validate event structure, timing, subject formatting
+- ✅ Move to Phase 2 with confidence
+
+**Example: Validating Event Structure**
+
+When you run the script and trigger a state change (e.g., `"take dream bottle"`), you should see:
+
+```
+[2025-11-02 14:23:45] Received world_update
+Subject: world.updates.user.player@example.com
+Experience: wylding-woods
+User ID: player@example.com
+Timestamp: 1698765432100
+Changes:
+{
+  "world": {
+    "locations.woander_store.items": {
+      "operation": "remove",
+      "item": {"id": "dream_bottle_3"}
+    }
+  },
+  "player": {
+    "inventory": {
+      "operation": "add",
+      "item": {"id": "dream_bottle_3"}
+    }
+  }
+}
+Metadata: {"source": "kb_service", "state_model": "shared"}
+---
+```
+
+**What to validate:**
+- ✅ Subject matches pattern: `world.updates.user.{actual_user_id}`
+- ✅ Experience ID is correct
+- ✅ Changes delta shows both world and player state updates
+- ✅ Operations are correct (`remove` from world, `add` to player)
+- ✅ Metadata identifies source as `kb_service`
+
+**Advanced: Measuring Actual Latency**
+
+You can extend the script to measure actual delivery latency:
+
+```python
+# In message_handler, add:
+event_timestamp = data.get('timestamp')  # When KB published (ms)
+receive_timestamp = int(time.time() * 1000)  # When we received (ms)
+
+latency_ms = receive_timestamp - event_timestamp
+print(f"Delivery latency: {latency_ms}ms")
+```
+
+This lets you validate the "sub-100ms delivery" projection from the architecture docs against your actual deployment environment.
+
+**Callback Pattern Mirrors Production**
+
+The `message_handler` callback structure in this test script is **identical** to what Chat Service will use in Phase 2:
+
+```python
+# Test script (Phase 1 validation)
+async def message_handler(self, msg):
+    data = json.loads(msg.data.decode())
+    # Print to console
+
+# Chat Service (Phase 2 production)
+async def world_update_handler(self, msg):
+    data = json.loads(msg.data.decode())
+    # Forward to SSE stream: yield {"type": "world_update", ...}
+```
+
+This makes the test script both a validation tool AND a working prototype for Phase 2 implementation.
+
 ### Validation Checklist
 
 After implementing Phase 1, verify:
