@@ -68,11 +68,12 @@ else:
 # Import FastMCP before lifespan definition
 try:
     from .kb_fastmcp_server import mcp
-    mcp_app = mcp.http_app(path="/", transport="streamable-http")
+    # Create MCP transport app - used in both lifespan and mounting
+    http_mcp_app = mcp.http_app(path="/", transport="streamable-http")
     HAS_FASTMCP = True
 except ImportError:
     HAS_FASTMCP = False
-    mcp_app = None
+    http_mcp_app = None
     logger.warning("FastMCP not available")
 
 @asynccontextmanager
@@ -80,10 +81,10 @@ async def lifespan(app: FastAPI):
     """Manage service lifecycle - includes FastMCP lifespan if available"""
 
     # If FastMCP is available, nest its lifespan with ours
-    if HAS_FASTMCP and mcp_app and hasattr(mcp_app, 'lifespan'):
-        async with mcp_app.lifespan(app):
-            # Run all our startup/shutdown inside FastMCP's lifespan context
-            async with kb_service_lifespan(app):
+    if HAS_FASTMCP and http_mcp_app and hasattr(http_mcp_app, 'lifespan'):
+        # Nest lifespans: KB service -> MCP transport
+        async with kb_service_lifespan(app):
+            async with http_mcp_app.lifespan(app):
                 yield
     else:
         # No FastMCP, just run our lifespan
@@ -706,24 +707,16 @@ app.include_router(game_commands_router)
 app.include_router(experience_router)
 logger.info("✅ KB Agent, Waypoints, and Game Commands endpoints added")
 
-# Mount FastMCP endpoint for Claude Code integration
-try:
-    from .kb_fastmcp_server import mcp
-
-    # Mount streamable-http transport for Claude Code
-    http_app = mcp.http_app(path="/", transport="streamable-http")
-    app.mount("/mcp", http_app)
-    logger.info("✅ FastMCP HTTP endpoint mounted at /mcp")
-
-    # Mount SSE transport for Gemini CLI
-    sse_app = mcp.sse_app(path="/")
-    app.mount("/mcp/sse", sse_app)
-    logger.info("✅ FastMCP SSE endpoint mounted at /mcp/sse")
-
-except ImportError as e:
-    logger.warning(f"FastMCP not available: {e}")
-except Exception as e:
-    logger.error(f"Failed to mount FastMCP endpoints: {e}", exc_info=True)
+# Mount FastMCP endpoint for Claude Code and Gemini CLI
+if HAS_FASTMCP:
+    try:
+        # Mount the pre-created transport app (same instance used in lifespan)
+        app.mount("/mcp", http_mcp_app)
+        logger.info("✅ FastMCP endpoint mounted at /mcp (9 KB tools available)")
+    except Exception as e:
+        logger.error(f"Failed to mount FastMCP endpoint: {e}", exc_info=True)
+else:
+    logger.warning("FastMCP not available - MCP endpoint not mounted")
 
 from datetime import datetime
 
