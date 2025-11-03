@@ -710,15 +710,20 @@ logger.info("✅ KB Agent, Waypoints, and Game Commands endpoints added")
 try:
     from .kb_fastmcp_server import mcp
 
-    # Use streamable-http transport (recommended over SSE)
-    # This transport handles lifespan internally without coordination
-    mcp_app = mcp.http_app(path="/", transport="streamable-http")
-    app.mount("/mcp", mcp_app)
-    logger.info("✅ FastMCP HTTP endpoint mounted at /mcp (8 KB tools available)")
+    # Mount streamable-http transport for Claude Code
+    http_app = mcp.http_app(path="/", transport="streamable-http")
+    app.mount("/mcp", http_app)
+    logger.info("✅ FastMCP HTTP endpoint mounted at /mcp")
+
+    # Mount SSE transport for Gemini CLI
+    sse_app = mcp.sse_app(path="/")
+    app.mount("/mcp/sse", sse_app)
+    logger.info("✅ FastMCP SSE endpoint mounted at /mcp/sse")
+
 except ImportError as e:
     logger.warning(f"FastMCP not available: {e}")
 except Exception as e:
-    logger.error(f"Failed to mount FastMCP endpoint: {e}", exc_info=True)
+    logger.error(f"Failed to mount FastMCP endpoints: {e}", exc_info=True)
 
 from datetime import datetime
 

@@ -36,7 +36,8 @@ mcp = FastMCP(
     - Semantic search using natural language
 
     Use search_kb for keyword searches, search_semantic for conceptual queries.
-    """
+    """,
+    transports=["streamable-http", "sse"]
 )
 
 # =============================================================================
