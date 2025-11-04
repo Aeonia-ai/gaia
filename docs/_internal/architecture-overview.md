@@ -335,7 +335,9 @@ Subjects:
 ├── gaia.service.ready      # Startup coordination
 ├── gaia.auth.*            # Auth events (login, logout)
 ├── gaia.asset.generation.* # Asset lifecycle
-└── gaia.chat.*            # Chat events
+├── gaia.chat.*            # Chat events
+└── world.updates.user.*   # AR/VR real-time world state (Phase 1B)
+    └── world.updates.user.{user_id} # User-specific game state updates
 ```
 
 **Event-Driven Patterns**:
@@ -343,6 +345,16 @@ Subjects:
 - Asset generation lifecycle
 - Authentication events
 - Chat message processing
+- **Real-time AR/VR world state synchronization** (Phase 1B)
+  - Per-request NATS subscriptions during SSE streaming
+  - User-specific world update channels
+  - Automatic cleanup on stream close
+  - Graceful degradation if NATS unavailable
+
+**NATS Integration Phases**:
+- **Phase 1B** (✅ Complete): Per-request subscriptions during SSE streams
+- **Phase 2** (Planned): Persistent WebSocket connections with NATS
+- **Phase 3** (Future): JetStream for event replay and offline sync
 
 ## Deployment Architecture
 
