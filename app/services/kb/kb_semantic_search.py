@@ -282,8 +282,10 @@ class SemanticIndexer:
                     if not chunks:
                         continue
 
-                    # Generate embeddings for all chunks
-                    embeddings = model.encode(chunks, convert_to_numpy=True)
+                    # Generate embeddings for all chunks (offloaded to thread pool to avoid blocking event loop)
+                    embeddings = await asyncio.to_thread(
+                        model.encode, chunks, convert_to_numpy=True
+                    )
 
                     # Store in database (direct await - no nested loop needed)
                     async with self.db.acquire() as conn:
