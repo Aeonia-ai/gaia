@@ -1,13 +1,41 @@
 # GAIA Development TODO
 
+**Last Updated**: 2025-11-04
+**Current Status**: Phase 1B Complete ✅ → Phase 1A Next 🎯
+
+---
+
+## ✅ Completed Work
+
+### Phase 1B: Chat Service NATS Subscriptions (COMPLETE)
+
+**Completed**: 2025-11-04
+**Implementation**: Per-request NATS subscriptions during SSE streaming
+**Git Commits**: eff101d, dd4353f, 9a5f1fa
+
+**What Works**:
+- Chat Service subscribes to `world.updates.user.{user_id}` during SSE streams
+- Automatic cleanup when streams close
+- Graceful degradation if NATS unavailable
+- Integration tests passing
+
+**What's Missing**:
+- KB Service does NOT publish events yet
+- No events being generated server-side
+- Unity would need to inject events for testing
+
+**Full Details**: `docs/scratchpad/PHASE-1B-ACTUAL-COMPLETION.md`
+
+---
+
 ## Active Work
 
 ### Phase 1A: NATS World Updates - KB Service Publishing (2-3h)
 
-**Status**: 🚧 In Progress
-**Started**: 2025-11-02
-**Owner**: server-coder
-**Coordination**: Unity team via Symphony "directives" room (Phase 2 in parallel)
+**Status**: 🎯 Ready to Start
+**Started**: TBD (November 4, 2025)
+**Owner**: TBD
+**Prerequisites**: ✅ Phase 1B complete (NATS subscriptions working)
 
 **Objective**: KB Service publishes state delta events to NATS after world state changes
 
@@ -73,23 +101,12 @@
 
 **Complete Checklist**: docs/scratchpad/nats-world-updates-implementation-analysis.md:997-1020
 
+**Why Phase 1A Now (After Phase 1B)**:
+Phase 1B proved the subscription infrastructure works. Now we add KB publishing to generate the events that Phase 1B will forward. This completes the full server→client real-time pipeline.
+
 ---
 
 ## Next Phases
-
-### Phase 1B: Chat Service SSE Forwarding (3-4h)
-
-**Status**: 📅 Pending (after Phase 1A)
-**Objective**: Chat Service subscribes to NATS and forwards world_update events to SSE stream
-
-- [ ] Create merge_async_streams() utility in app/shared/stream_utils.py
-- [ ] Add NATS subscription in unified_chat.py:process_stream()
-- [ ] Multiplex world_update events into SSE stream
-- [ ] Handle subscription cleanup on disconnect
-- [ ] Add error handling for NATS failures
-- [ ] Unit tests for stream multiplexing
-
-**Documentation**: docs/scratchpad/nats-world-updates-implementation-analysis.md (Phase 2 section)
 
 ### Phase 3: Integration Testing (2-3h)
 
@@ -114,9 +131,23 @@
 
 ---
 
-**Last Updated**: 2025-11-02
-**Total Estimated Time**: 9-13 hours (server-side only)
-**Target**: 100-user prototype with sub-100ms perceived latency
+## Current Status Summary
+
+**Completed** (November 4, 2025):
+- ✅ Phase 1B: Chat Service NATS subscriptions (3 hours actual)
+- ✅ Bug fixes: NATS subscription tracking, AuthenticationResult compatibility
+- ✅ Integration tests: Subscription lifecycle validation
+- ✅ Documentation: 500+ lines of guides and examples
+
+**Next** (2-3 hours):
+- 🎯 Phase 1A: KB Service publishing (this document)
+
+**After Phase 1A**:
+- Phase 3: End-to-end integration testing (2-3 hours)
+- Unity Phase 2: DirectiveQueue interpretation (3 hours, Unity team)
+
+**Total Remaining Time**: 7-9 hours (server + testing + Unity)
+**Target**: Full real-time pipeline with sub-100ms perceived latency for December 15 demo
 
 ---
 

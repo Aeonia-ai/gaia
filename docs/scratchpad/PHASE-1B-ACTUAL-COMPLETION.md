@@ -133,22 +133,64 @@ The original Phase 1A (KB Service publishing world updates) is NOT implemented.
 
 ## Migration Path Forward
 
-### Immediate Next Steps (Optional)
-1. **Event Injection Testing**: Unity publishes test events, Chat forwards to SSE
-2. **Measure Latency**: Verify <200ms event delivery
-3. **Demo Prep**: Test with Wylding Woods scenario
+### ✅ CURRENT STATUS (November 4, 2025)
+- Phase 1B subscription infrastructure: **COMPLETE**
+- NATS subscriptions working and tested
+- Foundation ready for KB publishing
 
-### Phase 2: Persistent Subscriptions (Q1 2026)
+### 🎯 NEXT: Phase 1A - KB Publishing (2-3 hours)
+
+**Goal**: KB Service publishes world state changes to NATS after game logic updates
+
+**Implementation Plan**:
+1. Define `WorldUpdateEvent` schema in `app/shared/events.py`
+2. Add `_publish_world_update()` method to `UnifiedStateManager`
+3. Call publishing method in `update_world_state()` and `update_player_view()`
+4. Inject NATS client in KB service startup
+5. Add unit tests for event publishing
+6. Test with manual NATS subscriber script
+
+**Expected Flow After Implementation**:
+```
+Player: "take dream bottle"
+    ↓
+KB executes command & updates state
+    ↓
+KB publishes to NATS: world.updates.user.{user_id}
+    ↓
+Chat Service receives (already subscribed from Phase 1B)
+    ↓
+Chat forwards via SSE to Unity
+    ↓
+Unity sees real-time update <100ms
+```
+
+**Files to Modify**:
+- `app/shared/events.py` - Add WorldUpdateEvent schema
+- `app/services/kb/unified_state_manager.py` - Add publishing logic
+- `app/services/kb/main.py` - Inject NATS client
+- `tests/unit/test_world_update_publishing.py` - Unit tests
+
+**Detailed Implementation Guide**: See `docs/scratchpad/TODO.md` (lines 14-75)
+
+**Estimated Time**: 2-3 hours
+
+**Success Criteria**:
+- KB publishes events after state changes
+- Events visible in NATS monitoring
+- Chat Service receives and forwards events
+- Full end-to-end flow working
+
+### Phase 2: Persistent Subscriptions (Future - Q1 2026)
 - WebSocket connections replace SSE
 - Subscriptions persist across requests
 - Enables autonomous world events
 - Supports multi-player
 
-### Phase 3: KB Publishing + JetStream (Q2 2026)
-- KB Service publishes state changes to NATS
+### Phase 3: JetStream Enhancement (Future - Q2 2026)
 - JetStream for event replay and offline sync
-- Full server-authoritative architecture
-- Event sourcing capabilities
+- Full event sourcing capabilities
+- Catch-up after disconnect
 
 ---
 
