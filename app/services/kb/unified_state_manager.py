@@ -25,6 +25,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# NATS integration for real-time world updates
+try:
+    from app.shared.nats_client import NATSClient, NATSSubjects
+    from app.shared.events import WorldUpdateEvent
+    NATS_AVAILABLE = True
+except ImportError:
+    logger.warning("NATS modules not available - real-time updates disabled")
+    NATS_AVAILABLE = False
+
 
 class StateManagerError(Exception):
     """Base exception for state manager errors"""
@@ -59,12 +68,13 @@ class UnifiedStateManager:
     - Optimistic versioning for conflict detection
     """
 
-    def __init__(self, kb_root: Path):
+    def __init__(self, kb_root: Path, nats_client: Optional['NATSClient'] = None):
         """
         Initialize state manager.
 
         Args:
             kb_root: Root path to knowledge base (contains /experiences/, /players/)
+            nats_client: Optional NATS client for real-time world update events
         """
         self.kb_root = Path(kb_root)
         self.experiences_path = self.kb_root / "experiences"
@@ -73,7 +83,12 @@ class UnifiedStateManager:
         # Cache loaded configs in memory
         self._config_cache: Dict[str, Dict[str, Any]] = {}
 
+        # NATS client for real-time updates (optional)
+        self.nats_client = nats_client if NATS_AVAILABLE else None
+
         logger.info(f"UnifiedStateManager initialized with KB root: {kb_root}")
+        if self.nats_client:
+            logger.info("Real-time NATS updates enabled")
 
     # ===== CONFIG MANAGEMENT =====
 
@@ -251,6 +266,62 @@ class UnifiedStateManager:
 
     # ===== WORLD STATE MANAGEMENT =====
 
+    async def _publish_world_update(
+        self,
+        experience: str,
+        user_id: str,
+        changes: Dict[str, Any]
+    ) -> None:
+        """
+        Publish world state update to NATS for real-time client synchronization.
+
+        This method implements graceful degradation - if NATS is unavailable or
+        publishing fails, the error is logged but game logic continues unaffected.
+
+        Args:
+            experience: Experience ID (e.g., 'wylding-woods')
+            user_id: User ID that this update applies to
+            changes: State delta describing what changed
+        """
+        if not NATS_AVAILABLE or not self.nats_client:
+            # NATS not configured - this is expected in many deployments
+            return
+
+        if not self.nats_client.is_connected:
+            logger.debug(f"NATS client not connected - skipping world update publish")
+            return
+
+        try:
+            # Create world update event
+            event = WorldUpdateEvent(
+                experience=experience,
+                user_id=user_id,
+                changes=changes,
+                timestamp=int(time.time() * 1000),  # Unix timestamp in milliseconds
+                metadata={
+                    "source": "kb_service",
+                    "state_model": "shared"  # TODO: Get from config if needed
+                }
+            )
+
+            # Publish to user-specific NATS subject
+            subject = NATSSubjects.world_update_user(user_id)
+            await self.nats_client.publish(subject, event.model_dump())
+
+            logger.info(
+                f"Published world_update to NATS: "
+                f"experience={experience}, user={user_id}, "
+                f"changes_count={len(changes)}, subject={subject}"
+            )
+
+        except Exception as e:
+            # Graceful degradation: log error but don't raise
+            # Game logic must continue even if real-time updates fail
+            logger.warning(
+                f"Failed to publish world_update to NATS "
+                f"(experience={experience}, user={user_id}): {e}"
+            )
+
     async def get_world_state(
         self,
         experience: str,
@@ -341,14 +412,21 @@ class UnifiedStateManager:
         config = self.load_config(experience)
         state_model = config["state"]["model"]
 
+        # Perform state update
         if state_model == "shared":
-            return await self._update_shared_world_state(
+            updated_state = await self._update_shared_world_state(
                 experience, config, updates, use_locking
             )
         else:  # isolated
-            return await self._update_isolated_world_state(
+            updated_state = await self._update_isolated_world_state(
                 experience, config, updates, user_id
             )
+
+        # Publish real-time update to NATS (if user_id available)
+        if user_id:
+            await self._publish_world_update(experience, user_id, updates)
+
+        return updated_state
 
     async def _update_shared_world_state(
         self,
@@ -600,7 +678,12 @@ class UnifiedStateManager:
             )
 
         # No locking needed for player views (each player has own file)
-        return await self._direct_update(view_path, updates)
+        updated_view = await self._direct_update(view_path, updates)
+
+        # Publish real-time update to NATS
+        await self._publish_world_update(experience, user_id, updates)
+
+        return updated_view
 
     # ===== BOOTSTRAP =====
 

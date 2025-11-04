@@ -97,10 +97,11 @@ async def kb_service_lifespan(app: FastAPI):
     log_service_startup("kb", "1.0", settings.SERVICE_PORT)
 
     # Initialize NATS connection for service coordination
+    nats_client = None  # Initialize to None in case connection fails
     try:
         nats_client = await ensure_nats_connection()
         logger.info("Connected to NATS for service coordination")
-        
+
         # Publish service startup event
         startup_event = ServiceHealthEvent(
             service_name="kb",
@@ -140,6 +141,11 @@ async def kb_service_lifespan(app: FastAPI):
     try:
         await kb_agent.initialize(kb_storage)
         logger.info("KB Intelligent Agent initialized and ready")
+
+        # Inject NATS client into state manager for real-time updates
+        if kb_agent.state_manager and nats_client:
+            kb_agent.state_manager.nats_client = nats_client
+            logger.info("NATS client injected into UnifiedStateManager - real-time updates enabled")
     except Exception as e:
         logger.error(f"Failed to initialize KB Agent: {e}")
     
