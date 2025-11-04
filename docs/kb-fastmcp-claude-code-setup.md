@@ -208,6 +208,13 @@ Claude Code: Uses delegate_tasks tool
 
 ### MCP Endpoint Not Responding
 
+**Common Causes:**
+1. **FastMCP lifespan integration bug** - ✅ FIXED (Nov 2025)
+   - Symptom: "Task group is not initialized" error
+   - Cause: Different MCP app instances for lifespan vs mounting
+   - Solution: Use same `http_mcp_app` instance everywhere (commit `0f6f69e`)
+
+2. **Service startup issues**:
 ```bash
 # Check if kb-docs container is running
 docker compose ps kb-docs
@@ -217,6 +224,13 @@ docker compose logs kb-docs --tail 50
 
 # Verify pgvector indexing status
 curl http://localhost:8005/health
+
+# Test MCP endpoint specifically
+curl -X POST http://localhost:8005/mcp/ \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"ping","id":1}' \
+  --max-time 5
 
 # Restart kb-docs if needed
 docker compose restart kb-docs
@@ -241,7 +255,10 @@ curl http://localhost:8005/mcp/health
 1. **Initial indexing**: First startup indexes all files (can take time for large KBs with 1000+ files)
 2. **Incremental indexing**: Subsequent startups only index changed files (much faster)
 3. **Database queries**: Check PostgreSQL performance with `docker stats gaia-db-1`
-4. **Indexing in progress**: Searches may be blocked if indexing is running - wait for completion
+4. **Indexing in progress**: ✅ Service remains responsive during indexing (fixed Nov 2025)
+   - MCP endpoints respond in ~200ms even during active indexing
+   - Uses `asyncio.to_thread()` to prevent event loop blocking
+   - See `docs/scratchpad/semantic-search-pgvector-debugging-2025-11-03.md` for details
 
 ## Production Deployment
 
