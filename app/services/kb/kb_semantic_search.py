@@ -317,13 +317,13 @@ class SemanticIndexer:
                                 await conn.execute(
                                     """
                                     INSERT INTO kb_semantic_chunk_ids
-                                    (relative_path, chunk_id, chunk_index, chunk_text, embedding)
-                                    VALUES ($1, $2, $3, $4, $5::vector)
+                                    (namespace, relative_path, chunk_id, chunk_index, chunk_text, embedding)
+                                    VALUES ($1, $2, $3, $4, $5, $6::vector)
                                     ON CONFLICT (chunk_id) DO UPDATE
                                     SET chunk_text = EXCLUDED.chunk_text,
                                         embedding = EXCLUDED.embedding
                                     """,
-                                    relative_path, chunk_id, chunk_index, chunk_text, embedding_list
+                                    namespace, relative_path, chunk_id, chunk_index, chunk_text, embedding_list
                                 )
 
                     total_chunks_indexed += len(chunks)
