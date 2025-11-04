@@ -22,6 +22,8 @@ from app.services.llm import LLMProvider
 import httpx
 from app.shared.config import settings
 from .kb_tools import KB_TOOLS, KBToolExecutor
+from app.shared.nats_client import NATSSubjects
+from app.shared.stream_utils import merge_async_streams
 
 logger = logging.getLogger(__name__)
 
@@ -717,7 +719,13 @@ class UnifiedChatHandler:
         """
         Process message with intelligent routing and streaming response.
 
-        Yields OpenAI-compatible SSE chunks for streaming.
+        Integrates NATS world_update events for real-time game state changes.
+
+        NATS Integration: Subscribes to world.updates.user.{user_id} to receive
+        real-time state changes (location updates, inventory changes, world events).
+        These events are interleaved with LLM narrative chunks for immersive AR experiences.
+
+        Yields OpenAI-compatible SSE chunks for streaming, with NATS events prioritized.
 
         TODO: REFACTOR NEEDED - Code Duplication with process()
         ========================================================================
@@ -795,6 +803,34 @@ class UnifiedChatHandler:
 
         # Track accumulated response for saving after streaming
         accumulated_response = ""
+
+        # NATS world_update subscription
+        # Subscribe to user-specific NATS subject for real-time state updates
+        nats_client = None
+        nats_subject = None
+        nats_queue = asyncio.Queue()
+
+        user_id = auth.get("user_id") or auth.get("sub")
+        if user_id:
+            try:
+                # Import global NATS client from main
+                from app.services.chat.main import nats_client as global_nats_client
+                nats_client = global_nats_client
+
+                if nats_client and nats_client.is_connected:
+                    nats_subject = NATSSubjects.world_update_user(user_id)
+
+                    # NATS callback: forward events to queue
+                    async def nats_event_handler(data):
+                        await nats_queue.put(data)
+
+                    await nats_client.subscribe(nats_subject, nats_event_handler)
+                    logger.info(f"[{request_id}] Subscribed to NATS: {nats_subject}")
+                else:
+                    logger.warning(f"[{request_id}] NATS client not connected, proceeding without world updates")
+            except Exception as e:
+                logger.warning(f"[{request_id}] Could not subscribe to NATS: {e}")
+                nats_client = None  # Graceful degradation
 
         try:
             # Emit conversation metadata as first event for V0.3 streaming
@@ -1452,6 +1488,15 @@ class UnifiedChatHandler:
                 buffer = StreamBuffer(preserve_json=True, chunking_mode="phrase")
                 print(f"[TTFC DEBUG] Starting buffer.process() loop...")
                 async for chunk_text in buffer.process(content):
+                    # Check for NATS events first (prioritized over LLM chunks)
+                    while not nats_queue.empty():
+                        try:
+                            nats_event = nats_queue.get_nowait()
+                            logger.info(f"[{request_id}] Yielding NATS event: {nats_event.get('type', 'unknown')}")
+                            yield nats_event  # Yield NATS event directly
+                        except asyncio.QueueEmpty:
+                            break
+
                     print(f"[TTFC DEBUG] Got chunk from buffer, length: {len(chunk_text)}")
                     # Track first content chunk timing
                     if first_content_time is None:
@@ -1524,6 +1569,14 @@ class UnifiedChatHandler:
                 }
             }
         finally:
+            # Clean up NATS subscription
+            if nats_client and nats_subject:
+                try:
+                    await nats_client.unsubscribe(nats_subject)
+                    logger.info(f"[{request_id}] Unsubscribed from NATS: {nats_subject}")
+                except Exception as e:
+                    logger.warning(f"[{request_id}] Error unsubscribing from NATS: {e}")
+
             # Save conversation messages after streaming completes (success or error)
             if accumulated_response:
                 try:

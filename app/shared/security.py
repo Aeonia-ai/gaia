@@ -34,6 +34,10 @@ class AuthenticationResult:
         self.email = email  # User email address for KB path mapping
         self.authenticated_at = datetime.now()
     
+    def get(self, key: str, default=None):
+        """Dict-like get method for backward compatibility."""
+        return getattr(self, key, default)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "auth_type": self.auth_type,
@@ -44,7 +48,7 @@ class AuthenticationResult:
             "email": self.email,
             "authenticated_at": self.authenticated_at.isoformat()
         }
-    
+
     def has_scope(self, scope: str) -> bool:
         """Check if the authentication has a specific scope."""
         if self.auth_type == "jwt":
