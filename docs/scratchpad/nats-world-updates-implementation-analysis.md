@@ -17,6 +17,34 @@ Treat all metrics as **directional guidance** for architectural decision-making,
 
 ---
 
+## ⚠️ TRANSPORT LAYER SUPERSEDED - Read This First
+
+**Status**: SSE-based implementation described in this document has been superseded.
+
+**Current Approach**: WebSocket with persistent NATS subscriptions
+- See: `docs/scratchpad/websocket-migration-plan.md` for current implementation
+- Migration strategy: Dual support (SSE + WebSocket) → WebSocket primary → WebSocket only
+
+**What Remains Valid**:
+- ✅ NATS pub/sub backend architecture (unchanged)
+- ✅ WorldUpdateEvent schema (version="0.3", unchanged)
+- ✅ KB Service publishing patterns (transport-agnostic)
+- ✅ State delta concepts (abstract server, concrete client)
+
+**What Changed**:
+- ❌ SSE per-request subscriptions → WebSocket persistent subscriptions
+- ❌ Unidirectional SSE → Bidirectional WebSocket
+- ❌ Phase 1B/2 SSE roadmap → Phase 1-3 WebSocket migration plan
+
+**Use This Document For**:
+- Understanding NATS backend architecture (still accurate)
+- Historical context (SSE implementation completed Nov 4, 2025)
+- NATS pub/sub patterns (transport-agnostic concepts)
+
+**For Current Implementation**, refer to `websocket-migration-plan.md`.
+
+---
+
 ## Executive Summary
 
 This document analyzes the GAIA platform's readiness to implement the **NATS-based real-time world updates architecture** proposed by the server-architect agent. The proposal addresses a critical architectural challenge: enabling the KB Service (which executes game logic and knows state changes) to push real-time updates to clients whose connections are owned by the Chat Service.

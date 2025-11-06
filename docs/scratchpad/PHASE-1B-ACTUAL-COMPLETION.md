@@ -2,6 +2,20 @@
 
 **Date**: 2025-11-04
 **Status**: ✅ COMPLETE - Foundation Layer Implemented
+**Updated**: 2025-11-05 - WebSocket migration plan available
+
+---
+
+## ⚠️ SSE Implementation Complete - WebSocket Migration Next
+
+**This Document**: Describes the completed SSE-based NATS integration (per-request subscriptions).
+
+**Next Phase**: WebSocket migration to enable persistent subscriptions and autonomous events.
+- See: `docs/scratchpad/websocket-migration-plan.md` for WebSocket implementation guide
+- Timeline: 9-13 hours (server) + 3-4 hours (Unity client)
+- Strategy: Dual support (run both SSE and WebSocket simultaneously)
+
+**Key Insight**: The SSE implementation proved the NATS subscription/cleanup lifecycle works correctly. WebSocket migration is transport-layer only - all NATS backend logic remains unchanged.
 
 ---
 

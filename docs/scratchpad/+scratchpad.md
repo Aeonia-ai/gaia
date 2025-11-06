@@ -23,3 +23,5 @@ Temporary notes and architectural outlines.
 
 **Quick Resume**:
 - `RESUME-PROMPT.md` - Simple prompt to restore context from progress file for future Claude sessions
+- `documentation-update-plan.md` - **Documentation Update Plan for `experience/interact` Endpoint** (2025-11-05) - Outlines necessary updates to reflect the current GAIA platform architecture, focusing on the `POST /experience/interact` endpoint and its two-pass LLM architecture.
+- `resume-prompt-doc-update.md` - **Resume Prompt: Documentation Update for GAIA Architecture** - A prompt for future me to continue the documentation update process.

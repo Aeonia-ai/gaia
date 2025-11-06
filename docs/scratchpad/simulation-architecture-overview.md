@@ -13,7 +13,7 @@ The Aeonia Knowledge Base (KB) employs a unique, distributed approach to "simula
 *   **Symbolic Server Authority:** GAIA maintains the high-level, symbolic state of the world and its entities. It does not perform real-time physics or complex environmental simulations. Instead, it issues abstract directives to clients.
 *   **Client-Side Physical Resolution:** The Unity client is responsible for translating GAIA's symbolic directives into concrete, physically resolved actions within the game world. This offloads computationally intensive tasks from the server.
 *   **Markdown-Driven Game Logic:** Game rules, interactions, and state transitions are defined in human-readable markdown files, interpreted and executed by an LLM. This provides a flexible, content-driven approach to game design.
-*   **Event-Driven Communication:** Server-Sent Events (SSE) facilitate real-time, unidirectional streaming of LLM responses and state updates from GAIA to connected clients.
+*   **Event-Driven Communication:** WebSocket connections facilitate real-time, bidirectional streaming of game state updates between GAIA and connected clients. For the AEO-65 demo, the KB Service directly manages this connection. The long-term architecture involves a dedicated Session Service. See `websocket-architecture-decision.md` for details.
 
 ## 2. Key Architectural Components & Interactions:
 
@@ -21,7 +21,7 @@ The Aeonia Knowledge Base (KB) employs a unique, distributed approach to "simula
 *   **Symbolic State Management:** Stores and manages the abstract state of entities (e.g., `entity_id`, `goal`).
 *   **Directive Emitter:** Generates and sends high-level commands to clients (e.g., `{"entity_id":"bottle_of_joy","goal":"instantiate_at_spot","spot_id":"ww_store.shelf_a.slot_3"}`).
 *   **Markdown Logic Execution:** Utilizes an LLM to interpret and execute game logic defined in markdown files, leading to state changes and new directives.
-*   **SSE Streaming:** Pushes real-time LLM responses and metadata to clients.
+*   **WebSocket Streaming:** Pushes real-time world state updates to clients.
 *   **State Reconciliation:** Receives acknowledgement payloads from clients to keep its symbolic state accurate based on client-side physical resolution outcomes.
 
 ### Unity Client:
@@ -74,33 +74,32 @@ Projected: Sub-100ms (based on NATS pub/sub architecture)
 The architecture prioritizes perceived latency through:
 
 1. **Immediate Visual Feedback** (NATS world updates):
-   - KB Service publishes state changes to NATS immediately after applying updates
-   - Chat Service streams `world_update` events to client via SSE
-   - Client updates 3D scene before narrative arrives
-   - **Projected Result**: Sub-100ms perceived latency (based on NATS messaging patterns)
+   - KB Service publishes state changes to NATS immediately after applying updates.
+   - The WebSocket connection manager (in the KB service for the demo, or a future Session Service) receives the NATS event and forwards the `world_update` to the client via WebSocket.
+   - Client updates 3D scene before any narrative arrives.
+   - **Projected Result**: Sub-100ms perceived latency (based on NATS messaging patterns).
 
-2. **Asynchronous Narrative Delivery** (SSE streaming):
-   - Narrative generation happens in parallel with visual updates
-   - Client displays text progressively as it streams
-   - Users tolerate multi-second narrative delays if visuals respond instantly
-   - **Design Principle**: Visual changes feel instant, narrative provides context
+2. **Asynchronous Narrative Delivery** (Separate Chat Service):
+   - Narrative generation happens in the Chat Service, decoupled from the game-action loop.
+   - Client displays narrative text progressively as it streams from the Chat Service's SSE endpoint.
+   - Users tolerate multi-second narrative delays if visuals respond instantly.
+   - **Design Principle**: Visual changes feel instant, narrative provides context.
 
 3. **Client-Side Prediction** (optional, future):
-   - Unity client can predict outcomes locally (optimistic UI)
-   - Server confirms or corrects prediction via world_update
-   - **Trade-off**: Requires rollback logic for incorrect predictions
+   - Unity client can predict outcomes locally (optimistic UI).
+   - Server confirms or corrects prediction via `world_update`.
+   - **Trade-off**: Requires rollback logic for incorrect predictions.
 
 ### **Projected Latency Budget Breakdown** *(architectural estimate)*
 
 For a "take bottle" interaction:
 ```
    0ms - User clicks bottle in Unity
- ~10ms - HTTP request to Gateway (local network)
- ~20ms - Gateway → KB Service (Docker internal network)
- ~50ms - KB Service processes command, updates state
- ~60ms - NATS publish (world_update)
- ~70ms - Chat Service receives NATS event
- ~80ms - SSE event sent to client
+ ~10ms - WebSocket message to KB Service (local network)
+ ~40ms - KB Service processes command, updates state
+ ~50ms - NATS publish (world_update)
+ ~60ms - WebSocket connection manager receives NATS event
+ ~70ms - WebSocket message sent to client
 ~100ms - Client receives world_update, bottle disappears ✅
 
 [User sees visual change - feels instant!]
