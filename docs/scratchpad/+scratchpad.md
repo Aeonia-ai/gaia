@@ -8,6 +8,8 @@ Temporary notes and architectural outlines.
 - `simulation-architecture-overview.md` - Architectural Overview: KB's Distributed Simulation & State Management
 - `kb-experience-architecture-deep-dive.md` - KB Experience Endpoints and State Logic: An Architectural Deep Dive
 - `nats-world-updates-implementation-analysis.md` - **NATS-Based Real-Time World Updates: Implementation Analysis** (2025-11-02) - Codebase analysis, latency optimization focus, and 4-phase implementation roadmap for NATS pub/sub integration
+- `websocket-and-kb-content-analysis.md` - **WebSocket and KB Content Analysis for Wylding Woods** (2025-11-06) - Detailed trace of WebSocket authentication, message flow, game command organization, and experience capabilities for 'wylding-woods'.
+- `command-system-refactor-proposal.md` - **Command System Refactor Proposal: Unified ExperienceCommandProcessor** (2025-11-06) - Proposal for a unified command processing architecture, including hybrid command execution and refined LLM roles.
 
 ### Task Tracking & Progress
 
