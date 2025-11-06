@@ -153,6 +153,13 @@ async def kb_service_lifespan(app: FastAPI):
         from .experience_connection_manager import ExperienceConnectionManager
         websocket_module.experience_manager = ExperienceConnectionManager(nats_client=nats_client)
         logger.info("ExperienceConnectionManager initialized for WebSocket connections")
+
+        # Initialize and register command handlers
+        from .command_processor import command_processor
+        from .handlers.collect_item import handle_collect_item
+        command_processor.register("collect_item", handle_collect_item)
+        logger.info("Command handlers registered with the processor")
+
     except Exception as e:
         logger.error(f"Failed to initialize KB Agent: {e}")
     

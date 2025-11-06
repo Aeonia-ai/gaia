@@ -197,6 +197,9 @@ async def handle_message_loop(
             await send_error(websocket, "processing_error", str(e))
 
 
+from app.services.kb.command_processor import command_processor
+
+
 async def handle_action(
     websocket: WebSocket,
     connection_id: str,
@@ -205,161 +208,72 @@ async def handle_action(
     message: Dict[str, Any]
 ):
     """
-    Handle action message from client.
-
-    Actions include:
-    - collect_bottle: Pick up a bottle from the world
-    - drop_item: Drop an item from inventory
-    - interact_object: Generic object interaction
-
-    Args:
-        websocket: WebSocket connection
-        connection_id: Connection ID
-        user_id: User ID
-        experience: Experience ID
-        message: Action message dict
+    Handle action message from client by passing it to the central command processor.
     """
     action = message.get("action")
-
     if not action:
         await send_error(websocket, "missing_action", "Action message must have 'action' field")
         return
 
     logger.info(
-        f"Processing action: connection_id={connection_id}, "
-        f"action={action}, user_id={user_id}"
+        f"Routing action to command processor: action={action}, user_id={user_id}"
     )
 
+    # Ensure player is initialized before processing any command
     try:
-        # Route to specific action handler
-        if action == "collect_bottle":
-            await handle_collect_bottle(websocket, user_id, experience, message)
-        elif action == "drop_item":
-            await handle_drop_item(websocket, user_id, experience, message)
-        elif action == "interact_object":
-            await handle_interact_object(websocket, user_id, experience, message)
-        else:
-            logger.warning(f"Unknown action: {action}")
-            await send_error(websocket, "unknown_action", f"Unknown action: {action}")
-
-    except Exception as e:
-        logger.error(f"Action handler error (action={action}): {e}", exc_info=True)
-        await send_error(websocket, "action_failed", str(e))
-
-
-async def handle_collect_bottle(
-    websocket: WebSocket,
-    user_id: str,
-    experience: str,
-    message: Dict[str, Any]
-):
-    """
-    Handle bottle collection action.
-
-    Expected message format:
-    {
-        "type": "action",
-        "action": "collect_bottle",
-        "item_id": "bottle_of_joy_3",
-        "spot_id": "woander_store.shelf_a.slot_1"
-    }
-
-    Response format:
-    {
-        "type": "action_response",
-        "action": "collect_bottle",
-        "success": true,
-        "item_id": "bottle_of_joy_3"
-    }
-
-    Side effects:
-    - UnifiedStateManager updates world state
-    - NATS world_update event published automatically
-    - Quest progress updated if applicable
-    """
-    item_id = message.get("item_id")
-    spot_id = message.get("spot_id")
-
-    if not item_id:
-        await send_error(websocket, "missing_item_id", "collect_bottle requires 'item_id'")
-        return
-
-    logger.info(
-        f"Collecting bottle: user_id={user_id}, item_id={item_id}, spot_id={spot_id}"
-    )
-
-    try:
-        # Get state manager
         state_manager = kb_agent.state_manager
         if not state_manager:
             raise Exception("State manager not initialized")
+        await state_manager.ensure_player_initialized(experience, user_id)
+    except Exception as e:
+        logger.error(f"Failed to ensure player is initialized: {e}", exc_info=True)
+        await send_error(websocket, "initialization_failed", str(e))
+        return
 
-        # Load current player view (auto-bootstraps on first access)
-        player_view = await state_manager.get_player_view(experience, user_id)
+    # Process the command through the central processor
+    result = await command_processor.process_command(user_id, experience, message)
 
-        # Build state update: remove from world, add to inventory
-        updates = {
-            "player": {
-                "inventory": {
-                    "$append": {
-                        "id": item_id,
-                        "type": "collectible",
-                        "collected_at": datetime.utcnow().isoformat() + "Z"
-                    }
-                }
-            }
-        }
+    # Send a response back to the client based on the result
+    response_message = {
+        "type": "action_response",
+        "action": action,
+        "success": result.success,
+        "message": result.message_to_player,
+        "timestamp": int(datetime.utcnow().timestamp() * 1000)
+    }
+    if result.metadata:
+        response_message["metadata"] = result.metadata
 
-        # Update player view (this triggers NATS publish automatically!)
-        updated_view = await state_manager.update_player_view(
-            experience=experience,
-            user_id=user_id,
-            updates=updates
-        )
+    await websocket.send_json(response_message)
 
-        # Send success response
-        await websocket.send_json({
-            "type": "action_response",
-            "action": "collect_bottle",
-            "success": True,
-            "item_id": item_id,
-            "timestamp": int(datetime.utcnow().timestamp() * 1000)
-        })
+    # TODO: This is temporary for the demo. Quest logic should be a proper command.
+    if result.success and action == "collect_item":
+        try:
+            state_manager = kb_agent.state_manager
+            updated_view = await state_manager.get_player_view(experience, user_id)
+            inventory = updated_view.get("player", {}).get("inventory", [])
+            bottles_collected = sum(1 for item in inventory if item.get("type") == "collectible")
+            bottles_total = 7  # Hardcoded for demo
 
-        # Check quest progress
-        inventory = updated_view.get("player", {}).get("inventory", [])
-        bottles_collected = sum(1 for item in inventory if item.get("type") == "collectible")
-
-        # TODO: Get bottles_total from quest config
-        bottles_total = 7  # Hardcoded for demo
-
-        # Send quest update
-        await websocket.send_json({
-            "type": "quest_update",
-            "quest_id": "bottle_quest",
-            "status": "in_progress" if bottles_collected < bottles_total else "complete",
-            "bottles_collected": bottles_collected,
-            "bottles_total": bottles_total,
-            "timestamp": int(datetime.utcnow().timestamp() * 1000)
-        })
-
-        # Win condition
-        if bottles_collected >= bottles_total:
             await websocket.send_json({
-                "type": "quest_complete",
+                "type": "quest_update",
                 "quest_id": "bottle_quest",
-                "message": "Congratulations! You collected all the bottles!",
+                "status": "in_progress" if bottles_collected < bottles_total else "complete",
+                "bottles_collected": bottles_collected,
+                "bottles_total": bottles_total,
                 "timestamp": int(datetime.utcnow().timestamp() * 1000)
             })
 
-        logger.info(
-            f"Bottle collected successfully: user_id={user_id}, "
-            f"item_id={item_id}, bottles_collected={bottles_collected}/{bottles_total}"
-        )
+            if bottles_collected >= bottles_total:
+                await websocket.send_json({
+                    "type": "quest_complete",
+                    "quest_id": "bottle_quest",
+                    "message": "Congratulations! You collected all the bottles!",
+                    "timestamp": int(datetime.utcnow().timestamp() * 1000)
+                })
+        except Exception as e:
+            logger.error(f"Error processing quest update after collect_item: {e}", exc_info=True)
 
-    except Exception as e:
-        logger.error(f"Failed to collect bottle: {e}", exc_info=True)
-        await send_error(websocket, "collection_failed", str(e))
 
 
 async def handle_drop_item(

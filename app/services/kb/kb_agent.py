@@ -847,6 +847,60 @@ If action invalid or target not found, return:
                     pass
             return False
 
+    async def process_llm_command(self, user_id: str, experience_id: str, command_data: Dict[str, Any]) -> "CommandResult":
+        """
+        Processes a command using the two-pass LLM/Markdown system.
+        This is the core of the "Flexible Logic Path".
+        """
+        from app.shared.models.command_result import CommandResult
+
+        message = command_data.get("message") or command_data.get("action") # Support both message and action based commands
+        if not message:
+            return CommandResult(success=False, message_to_player="Command message is empty.")
+
+        try:
+            # Load state and config
+            player_view = await self.state_manager.get_player_view(experience_id, user_id)
+            config = self.state_manager.load_config(experience_id)
+            state_model = config.get("state", {}).get("model", "isolated")
+            world_state = await self.state_manager.get_world_state(experience_id) if state_model == "shared" else player_view
+
+            # Step 1: Detect command type
+            command_type, _ = await self._detect_command_type(message, experience_id)
+
+            # Step 2: Load markdown
+            markdown_content = await self._load_command_markdown(experience_id, command_type)
+            if not markdown_content:
+                return CommandResult(success=False, message_to_player=f"I don't understand how to '{command_type}'.")
+
+            # Step 3: Execute two-pass LLM command
+            logic_result = await self._execute_markdown_command(
+                markdown_content, message, player_view, world_state, config, user_id
+            )
+
+            # Step 4: Apply state updates
+            state_updates = logic_result.get("state_updates")
+            if state_updates:
+                await self._apply_state_updates(
+                    experience_id, user_id, state_updates, state_model
+                )
+
+            # Step 5: Generate narrative (Pass 2)
+            # For now, we will use a simplified narrative. The full Pass 2 is deferred.
+            narrative = logic_result.get("narrative", "Action completed.")
+
+            return CommandResult(
+                success=logic_result.get("success", False),
+                state_changes=state_updates,
+                message_to_player=narrative, # Using simplified narrative for now
+                metadata=logic_result.get("metadata")
+            )
+
+        except Exception as e:
+            logger.error(f"Error in process_llm_command: {e}", exc_info=True)
+            return CommandResult(success=False, message_to_player="A system error occurred while processing the command.")
+
+
     async def _save_player_state_atomic(self, user_id: str, experience: str, state: Dict[str, Any]) -> bool:
         """
         Atomically save player state.
@@ -866,6 +920,433 @@ If action invalid or target not found, return:
         state["last_modified"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
         return await self._save_instance_atomic(player_state_path, state)
+
+    async def _discover_available_commands(self, experience: str) -> tuple[dict[str, list[str]], dict[str, bool]]:
+        """
+        Discover available commands by scanning game-logic and admin-logic directories for .md files.
+
+        Args:
+            experience: Experience ID
+
+        Returns:
+            Tuple of (commands dict, admin_required dict):
+            - commands: Dict mapping command name to list of aliases/synonyms
+            - admin_required: Dict mapping command name to whether admin permission is required
+        """
+        kb_root = Path(settings.KB_PATH)
+
+        commands = {}
+        admin_required = {}
+
+        # Scan both game-logic and admin-logic directories
+        directories = [
+            ("game-logic", False),  # (dir_name, default_admin_required)
+            ("admin-logic", True)   # Admin commands default to requiring permissions
+        ]
+
+        for dir_name, default_admin in directories:
+            logic_dir = kb_root / "experiences" / experience / dir_name
+
+            if not logic_dir.exists():
+                if dir_name == "game-logic":
+                    logger.warning(f"Game logic directory not found: {logic_dir}")
+                continue
+
+            try:
+                # Scan for .md files
+                for md_file in logic_dir.glob("*.md"):
+                    try:
+                        content = md_file.read_text()
+
+                        # Parse frontmatter to extract command name and aliases
+                        if content.startswith("---"):
+                            frontmatter_end = content.find("---", 3)
+                            if frontmatter_end != -1:
+                                frontmatter = content[3:frontmatter_end].strip()
+
+                                # Extract command name, aliases, and admin requirement
+                                command_name = None
+                                aliases = []
+                                requires_admin = default_admin
+
+                                for line in frontmatter.split("\n"):
+                                    line = line.strip()
+                                    if line.startswith("command:"):
+                                        command_name = line.split(":", 1)[1].strip()
+                                    elif line.startswith("aliases:"):
+                                        # Parse aliases list: [move, walk, travel]
+                                        aliases_str = line.split(":", 1)[1].strip()
+                                        if aliases_str.startswith("[") and aliases_str.endswith("]"):
+                                            aliases_str = aliases_str[1:-1]
+                                            aliases = [a.strip() for a in aliases_str.split(",")]
+                                    elif line.startswith("requires_admin:"):
+                                        # Check if admin required
+                                        admin_val = line.split(":", 1)[1].strip().lower()
+                                        requires_admin = admin_val == "true"
+
+                                if command_name:
+                                    # Combine command name with aliases
+                                    all_keywords = [command_name] + aliases
+                                    commands[command_name] = all_keywords
+                                    admin_required[command_name] = requires_admin
+
+                                    cmd_type = "admin" if requires_admin else "player"
+                                    logger.info(f"Discovered {cmd_type} command '{command_name}' with aliases: {aliases}")
+
+                    except Exception as e:
+                        logger.error(f"Error parsing command file {md_file}: {e}")
+                        continue
+
+            except Exception as e:
+                logger.error(f"Error scanning {dir_name} directory for {experience}: {e}")
+
+        return commands, admin_required
+
+    async def _detect_command_type(self, message: str, experience: str) -> tuple[str, bool]:
+        """
+        Use LLM to detect which command type the user is trying to execute.
+
+        Args:
+            kb_agent_instance: KB agent for LLM access
+            message: User's message
+            experience: Experience ID
+
+        Returns:
+            Tuple of (command_type, requires_admin):
+            - command_type: Command name (e.g., "look", "collect", "list-waypoints")
+            - requires_admin: Whether this command requires admin permissions
+        """
+        # Discover available commands from markdown files
+        command_mappings, admin_required = await self._discover_available_commands(experience)
+        available_commands = list(command_mappings.keys())
+
+        # 1. Direct check for admin commands (prefixed with '@')
+        if message.startswith('@'):
+            # Extract the potential command name and add the '@' prefix back for lookup
+            parts = message[1:].split(' ', 1)
+            potential_admin_cmd = f"@{parts[0].lower()}"
+
+            if potential_admin_cmd in available_commands and admin_required.get(potential_admin_cmd, False):
+                logger.info(f"Detected direct admin command: '{potential_admin_cmd}'")
+                return potential_admin_cmd, True
+            else:
+                logger.warning(f"Message starts with '@' but not a recognized admin command: '{potential_admin_cmd}'")
+                # Fall through to LLM for interpretation if not a direct admin command,
+                # or if it's an admin command but not marked as such in frontmatter (shouldn't happen if frontmatter is correct)
+
+        # Fallback to LLM for natural language command detection
+
+        # Build command mapping text for LLM
+        mapping_lines = []
+        for cmd, keywords in command_mappings.items():
+            mapping_lines.append(f"- {cmd}: {', '.join(keywords)}")
+
+        detection_prompt = f"""You are a command parser for a text adventure game.
+
+User message: "{message}"
+Available commands: {", ".join(available_commands)}
+
+Analyze the user's message and determine which command they're trying to execute.
+Consider synonyms and natural language variations.
+
+Command mappings:
+{chr(10).join(mapping_lines)}
+
+Respond with ONLY the command name (one word, lowercase).
+If you're not sure, default to "look".
+
+Command:"""
+
+        try:
+            # Use fast model for quick detection
+            response = await self.llm_service.chat_completion(
+                messages=[
+                    {"role": "system", "content": "You are a command parser. Respond with ONLY the command name."},
+                    {"role": "user", "content": detection_prompt}
+                ],
+                model="claude-haiku-4-5",  # This model IS registered
+                user_id="system",
+                temperature=0.1
+            )
+
+            command_type = response["response"].strip().lower()
+
+            # Validate it's a known command
+            if command_type not in available_commands:
+                logger.warning(f"Unknown command '{command_type}', defaulting to 'look'")
+                command_type = "look"
+
+            # Check if command requires admin permissions
+            requires_admin = admin_required.get(command_type, False)
+
+            return command_type, requires_admin
+
+        except Exception as e:
+            logger.error(f"Error detecting command type: {e}")
+            return "look", False  # Safe default (non-admin)
+
+    async def _load_command_markdown(
+        self, experience: str, command_type: str, is_admin_command: bool = False
+    ) -> Optional[str]:
+        """
+        Load markdown file for a command.
+
+        Args:
+            experience: Experience ID
+            command_type: Command type (e.g., "look", "collect", "list-waypoints")
+            is_admin_command: Whether to look in admin-logic directory
+
+        Returns:
+            Markdown file content or None if not found
+        """
+        kb_root = Path(settings.KB_PATH)
+
+        # Choose directory based on command type
+        logic_dir = "admin-logic" if is_admin_command else "game-logic"
+        markdown_path = kb_root / "experiences" / experience / logic_dir / f"{command_type}.md"
+
+        try:
+            if markdown_path.exists():
+                logger.info(f"Loading {logic_dir} command: {command_type}")
+                return markdown_path.read_text()
+            else:
+                logger.warning(f"Markdown command file not found: {markdown_path}")
+                return None
+        except Exception as e:
+            logger.error(f"Error loading markdown file {markdown_path}: {e}")
+            return None
+
+    async def _execute_markdown_command(
+        self,
+        markdown_content: str,
+        user_message: str,
+        player_view: Dict[str, Any],
+        world_state: Dict[str, Any],
+        config: Dict[str, Any],
+        user_id: str
+    ) -> Dict[str, Any]:
+        """
+        Execute a command by having LLM follow markdown instructions using a two-pass approach.
+        Pass 1 (Logic): Deterministically generate JSON for state changes and actions.
+        Pass 2 (Narrative): Creatively generate narrative based on the logic outcome.
+        """
+        print(f"[DIAGNOSTIC] Executing markdown command for user: {user_id}")
+
+        try:
+            # ===== PASS 1: LOGIC (DETERMINISTIC) =====
+            logic_prompt = f"""You are a game logic engine. Your task is to interpret a player's command based on game rules and state, then return ONLY a structured JSON object representing the outcome. DO NOT generate any narrative text.
+
+## Markdown Command Instructions:
+{markdown_content}
+
+## User's Message:
+\"{user_message}\"
+
+## Current Player State:
+```json
+{json.dumps(player_view, indent=2)}
+```
+
+## Current World State:
+```json
+{json.dumps(world_state, indent=2)}
+```
+
+## Your Task:
+Follow the markdown instructions to determine the outcome. Respond with ONLY a valid JSON object containing:
+- `success`: boolean
+- `state_updates`: object or null (changes to world or player state)
+- `available_actions`: array of strings (suggested next actions)
+- `metadata`: object with diagnostic info
+
+## CRITICAL RULES:
+- DO NOT include a "narrative" field.
+- Your entire response must be a single, raw JSON object.
+- If the command is purely observational (like 'look'), `state_updates` should be null.
+- Use ONLY data from the provided Player State and World State - DO NOT invent or hallucinate items, locations, or state.
+- If player.inventory is empty ([]), the metadata items list MUST be empty ([]).
+- If a location has no items, do NOT fabricate items - report accurately what exists.
+"""
+
+            logic_response_raw = await self.llm_service.chat_completion(
+                messages=[
+                    {"role": "system", "content": "You are a game logic engine. You MUST respond with ONLY a valid JSON object. Use ONLY data from the provided game state - never invent or hallucinate data."},
+                    {"role": "user", "content": logic_prompt}
+                ],
+                model="claude-sonnet-4-5",
+                user_id=user_id,
+                temperature=0.1  # Low temperature for deterministic logic
+            )
+
+            logic_response_text = logic_response_raw["response"].strip()
+            if logic_response_text.startswith("```"):
+                logic_response_text = logic_response_text.split("```")[1]
+                if logic_response_text.startswith("json"):
+                    logic_response_text = logic_response_text[4:]
+                logic_response_text = logic_response_text.strip()
+
+            logic_result = json.loads(logic_response_text)
+            logger.warning(f"[DIAGNOSTIC-PASS-1] Logic result: {logic_result}")
+
+            # ===== PASS 2: NARRATIVE (CREATIVE) =====
+            narrative_prompt = f"""You are a creative storyteller for a text adventure game. A game event has just occurred. Your task is to write a short, engaging, and atmospheric narrative to describe this event to the player.
+
+## Game Rules for Context:
+{markdown_content}
+
+## Player's Command:
+\"{user_message}\"
+
+## Game Outcome (The event you need to describe):
+```json
+{json.dumps(logic_result, indent=2)}
+```
+
+## Your Task:
+Write a compelling narrative for the player that describes what just happened.
+- If `success` is true, describe the successful action.
+- If `success` is false, describe the failure in a helpful way.
+- Use the style and tone suggested by the game rules.
+- DO NOT output JSON or any other structured data. Just the story.
+"""
+
+            narrative_response_raw = await self.llm_service.chat_completion(
+                messages=[
+                    {"role": "system", "content": "You are a creative storyteller. Respond ONLY with the narrative text."},
+                    {"role": "user", "content": narrative_prompt}
+                ],
+                model="claude-sonnet-4-5",
+                user_id=user_id,
+                temperature=0.7  # Higher temperature for creative narrative
+            )
+
+            narrative = narrative_response_raw["response"].strip()
+            logger.warning(f"[DIAGNOSTIC-PASS-2] Narrative result: {narrative}")
+
+            # ===== COMBINE RESULTS =====
+            final_result = {
+                "success": logic_result.get("success", False),
+                "narrative": narrative,
+                "state_updates": logic_result.get("state_updates"),
+                "available_actions": logic_result.get("available_actions", []),
+                "metadata": logic_result.get("metadata", {})
+            }
+
+            return final_result
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse LLM response as JSON in Pass 1: {e}\nResponse: {logic_response_text}")
+            return {
+                "success": False,
+                "narrative": "I had trouble understanding the logic of that command. Please try rephrasing.",
+                "available_actions": ["look around", "check inventory"],
+                "metadata": {"error": "json_parse_failed"}
+            }
+        except Exception as e:
+            logger.error(f"Error executing two-pass markdown command: {e}", exc_info=True)
+            return {
+                "success": False,
+                "narrative": f"A system error occurred: {str(e)}",
+                "available_actions": ["look around"],
+                "metadata": {"error": str(e)}
+            }
+
+    async def _apply_state_updates(
+        self,
+        experience: str,
+        user_id: str,
+        state_updates: Dict[str, Any],
+        state_model: str
+    ) -> None:
+        """
+        Apply state updates returned by command execution.
+
+        Args:
+            state_manager: UnifiedStateManager instance
+            experience: Experience ID
+            user_id: User ID
+            state_updates: State updates dict from command execution
+            state_model: "shared" or "isolated"
+        """
+        try:
+            # Apply world state updates
+            if "world" in state_updates:
+                world_update = state_updates["world"]
+                path = world_update.get("path", "")
+                operation = world_update.get("operation", "update")
+
+                # Accept multiple field names for data (flexible format)
+                data = world_update.get("data") or world_update.get("item_id") or world_update.get("item") or {}
+
+                # Convert path to nested dict update
+                updates = self._path_to_nested_dict(path, data, operation)
+
+                await self.state_manager.update_world_state(
+                    experience,
+                    updates,
+                    user_id if state_model == "isolated" else None
+                )
+                logger.debug(f"Applied world state update: {operation} at {path}")
+
+            # Apply player state updates
+            if "player" in state_updates:
+                player_update = state_updates["player"]
+                path = player_update.get("path", "")
+                operation = player_update.get("operation", "update")
+
+                # Accept multiple field names for data (flexible format)
+                data = player_update.get("data") or player_update.get("item_id") or player_update.get("item") or {}
+
+                logger.warning(f"[APPLY] Player update - path='{path}', operation='{operation}', data type={type(data)}")
+                updates = self._path_to_nested_dict(path, data, operation)
+                logger.warning(f"[APPLY] Nested dict result: {json.dumps(updates, indent=2)[:500]}")
+
+                await self.state_manager.update_player_view(
+                    experience,
+                    user_id,
+                    updates
+                )
+                logger.debug(f"Applied player state update: {operation} at {path}")
+
+            logger.info(f"Applied state updates for user {user_id} in {experience}")
+
+        except Exception as e:
+            logger.error(f"Error applying state updates: {e}", exc_info=True)
+            raise
+
+    def _path_to_nested_dict(self, path: str, data: Any, operation: str) -> Dict[str, Any]:
+        """
+        Convert a dotted path like "locations.waypoint_28a.items" to nested dict.
+
+        Args:
+            path: Dotted path string
+            data: Data to set at path
+            operation: "add", "remove", "update"
+
+        Returns:
+            Nested dict structure
+        """
+        if not path:
+            return data if isinstance(data, dict) else {}
+
+        parts = path.split(".")
+        result = {}
+        current = result
+
+        for i, part in enumerate(parts[:-1]):
+            current[part] = {}
+            current = current[part]
+
+        # Handle operation
+        last_part = parts[-1]
+        if operation == "add":
+            current[last_part] = {"$append": data}
+        elif operation == "remove":
+            current[last_part] = {"$remove": data}
+        else:  # update
+            current[last_part] = data
+
+        return result
 
     async def _find_instances_at_location(
         self,

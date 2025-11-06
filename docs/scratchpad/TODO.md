@@ -1,7 +1,7 @@
 # GAIA Development TODO
 
-**Last Updated**: 2025-11-05
-**Current Status**: WebSocket Implementation Complete (KB Service) ✅ → Testing & Deployment Next 🎯
+**Last Updated**: 2025-11-06
+**Current Status**: State Management Refactored ✅ → Game Commands Gap Identified 🎯
 
 **Architecture Decision**: Hybrid Approach Approved
 - Ship: WebSocket in KB Service for AEO-65 demo (Friday deadline)
@@ -35,6 +35,33 @@
 ---
 
 ## ✅ Completed Work
+
+### Cleaner State Management Pattern (1.5h)
+
+**Completed**: 2025-11-06
+**Implementation**: Refactored player initialization to single entry point pattern
+**Status**: ✅ COMPLETE
+
+**Problem Solved**:
+- "Player view not found" errors when new players tried actions
+- Inconsistent auto-bootstrap scattered across methods
+- No clear contract for when initialization happens
+
+**Solution Implemented**:
+- **`ensure_player_initialized()`** - Single entry point for player bootstrap validation
+- All state methods now assume files exist (clear contract)
+- Called at all entry points: WebSocket handler, chat endpoint
+- Removed hidden auto-bootstrap from `get_player_view()` and `update_player_view()`
+
+**Files Modified**:
+- `app/services/kb/unified_state_manager.py` - Added ensure_player_initialized(), updated docstrings
+- `app/services/kb/websocket_experience.py` - Calls ensure_player_initialized() before actions
+- `app/services/kb/experience_endpoints.py` - Calls ensure_player_initialized() before chat
+
+**Testing**:
+- ✅ WebSocket tests passing (7/7 bottles collected)
+- ✅ Pattern validation script: `scripts/experience/test-player-initialization.sh`
+- ✅ Prevents regression with static code analysis
 
 ### WebSocket Experience Endpoint - KB Service Implementation (2.5h)
 
@@ -87,9 +114,134 @@
 
 **Next Step**: Design session to answer open questions and define schemas/protocols
 
+### Game Command Implementation Gap
+
+**Status**: ✅ CORRECTED - Most commands already exist, documentation was outdated
+**Discovered**: 2025-11-06 during command/response testing framework creation
+**Corrected**: 2025-11-06 during implementation review
+
+**✅ ACTUALLY IMPLEMENTED** (in `game-logic/` directory):
+- ✅ `talk to [NPC]` - NPC conversations with trust/relationship tracking (`talk.md`)
+- ✅ `inventory` / `check inventory` - View player inventory (`inventory.md`)
+- ✅ `collect [item]` - Item collection (working in WebSocket) (`collect.md`)
+- ✅ `look around` - Environmental description/observation (`look.md`)
+- ✅ `examine [item]` - Detailed item inspection (alias in `look.md`)
+- ✅ `go to [location]` - Movement between locations and sublocations (`go.md`)
+- ✅ Admin commands - `@list-waypoints`, `@inspect-waypoint`, `@create-waypoint`, `@delete-waypoint`, `@edit-waypoint`, `@list-items`, `@inspect-item`, `@reset-experience`
+
+**❌ ACTUALLY MISSING** (only 3 commands):
+- ❌ `help` - List available commands with descriptions
+- ❌ `quest status` / `quests` - View active quest progress
+- ❌ `list quests` - Show available/completed quests
+
+**Impact**:
+- Much smaller scope than originally thought!
+- Testing framework ready - most tests should pass
+- Only missing: help system and quest viewing commands
+- Discovery flow IS complete (look/examine/go all work)
+
+**Test Framework Created**:
+- `scripts/experience/test-commands.sh` - General command/response testing
+- Ready to test existing commands immediately
+- Supports multiple test suites: basic, movement, items, NPCs, quests, performance, errors
+
+**Next Steps** → See "Game Command Implementation" in Active Work (reduced scope)
+
+### WebSocket Command Processing Limitation
+
+**Status**: ⚠️ ARCHITECTURAL GAP DISCOVERED (2025-11-06)
+**Discovered During**: Testing help.md and quests.md commands on both HTTP and WebSocket protocols
+**Impact**: High - Affects demo capabilities and post-demo roadmap
+
+**The Gap**:
+- **HTTP `/experience/interact`**: Full LLM-powered command processing via markdown files ✅
+  - Supports ALL commands: help, quests, talk, look, examine, go, inventory, collect, admin commands
+  - Uses sophisticated 2-pass LLM system (deterministic logic + creative narrative)
+  - Reads game-logic/*.md files with YAML frontmatter and JSON response schemas
+
+- **WebSocket `/ws/experience`**: Hardcoded actions only ❌
+  - ONLY supports: `collect_bottle`, `drop_item`, `interact_object`
+  - Bypasses LLM entirely for demo speed
+  - `handle_chat()` is a stub with canned responses (lines 420-431 in websocket_experience.py)
+  - Natural language commands NOT supported
+
+**What Works**:
+- ✅ HTTP: `help`, `quests`, `talk to Louisa`, `look around`, `go to`, etc. (all commands)
+- ✅ WebSocket: `collect_bottle`, `drop_item`, `interact_object` (3 hardcoded actions)
+
+**What Doesn't Work**:
+- ❌ WebSocket: `help`, `quests`, `talk`, `look`, `examine`, etc. (no LLM processing)
+- ❌ WebSocket: Natural language input (e.g., "what can I do here?")
+
+**Why This Exists**:
+- Intentional simplification for AEO-65 demo (Friday deadline)
+- WebSocket implementation labeled "SIMPLIFIED implementation" in code comments
+- Fast path for bottle collection demo scenario
+- Full command processing deferred to Command Bus refactoring (post-demo)
+
+**Post-Demo Solution**: Command Bus Architecture
+- **Document**: `docs/scratchpad/command-system-refactor-proposal.md` (created 2025-11-06)
+- **References**: `docs/scratchpad/command-bus-industry-references.md` (industry validation)
+- **Timeline**: Post-demo implementation (Q1 2026)
+- **Estimated Effort**: 8-10 hours (Phase 1), 3-4 hours (Phase 2 optimization)
+
+**Command Bus Benefits**:
+- Single `ExperienceCommandProcessor` for both HTTP and WebSocket
+- Hybrid handlers: fast path (10-50ms) for structured commands, slow path (1-3s) for LLM
+- Transport-agnostic design (works with any protocol)
+- Standardized command contract across all handlers
+- Industry-validated pattern (confirmed via Perplexity AI research)
+
+**Immediate Workaround**:
+- Demo focuses on bottle collection (works on WebSocket)
+- Complex interactions use HTTP endpoint (works now)
+- Full WebSocket parity deferred to post-demo Command Bus implementation
+
+**Related Work**:
+- Symphony discussion with server-architect confirms Command Bus approach
+- Friday demo deadline prioritizes working bottle collection over full command parity
+- NPC voice/chat stays on SSE for now (not in WebSocket for demo)
+
 ---
 
 ## Active Work
+
+### Game Command Implementation (Medium Priority)
+
+**Status**: ✅ COMPLETE (2025-11-06)
+**Actual Time**: 1 hour (est. 1-2 hours)
+**Priority**: Medium (most core commands already existed)
+
+**Completed Work**:
+
+**Phase 1: Help Command** ✅
+- ✅ Implemented `help.md` - Lists all available commands with descriptions
+- ✅ Shows command categories: Movement, Items, NPCs, Quests
+- ✅ Includes aliases and usage examples
+- ✅ Tested successfully via HTTP `/experience/interact` endpoint
+
+**Phase 2: Quest Commands** ✅
+- ✅ Implemented `quests.md` - Single command handles all quest viewing
+  - Shows active quests with progress
+  - Lists offered quests not yet accepted
+  - Displays completed quests
+  - Handles empty quest log gracefully
+- ✅ Integrated with existing quest tracking from talk.md
+- ✅ Tested successfully - returns proper "no quests yet" message
+
+**Phase 3: Testing** ✅
+- ✅ Verified help command works correctly
+- ✅ Verified quests command works correctly
+- ✅ Both commands return proper JSON response format
+- ✅ LLM generates narrative wrapping for responses
+
+**Commands Now Complete**:
+- ✅ look.md, go.md, inventory.md, collect.md, talk.md (pre-existing)
+- ✅ help.md (new)
+- ✅ quests.md (new)
+- ✅ Admin commands: @list-waypoints, @inspect-waypoint, etc. (pre-existing)
+
+**All critical player commands are now implemented!**
 
 ### WebSocket Testing & Deployment (1-2h) - IMMEDIATE
 

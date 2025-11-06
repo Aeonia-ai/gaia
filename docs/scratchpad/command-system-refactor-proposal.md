@@ -63,6 +63,8 @@ The central piece of the refactor is to introduce a new component: the `Experien
 
 ### 3.3. Hybrid Command Implementation (Two Types of Handlers)
 
+**Implementation Note:** For the initial refactoring, all commands will default to the **LLM-Interpreted Logic Path** to ensure all existing Markdown-based commands function correctly through the new processor. The implementation of hardcoded Python handlers for the "Fast Path" will be deferred as a subsequent performance optimization.
+
 The `ExperienceCommandProcessor` will route commands to handlers whose implementations can be one of two types:
 
 *   **Hardcoded Python Handlers (The "Fast Path"):**

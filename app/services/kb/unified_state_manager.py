@@ -364,17 +364,13 @@ class UnifiedStateManager:
 
         else:  # isolated
             # Load player's copy of world state
+            # ASSUMES: Player has been initialized via ensure_player_initialized()
             if not user_id:
                 raise ConfigValidationError(
                     f"user_id required to get world state for isolated experience '{experience}'"
                 )
 
             view_path = self._get_player_view_path(experience, user_id)
-
-            if not view_path.exists():
-                raise StateNotFoundError(
-                    f"Player view not found for user '{user_id}' in '{experience}': {view_path}"
-                )
 
             with open(view_path, 'r') as f:
                 view = json.load(f)
@@ -460,18 +456,17 @@ class UnifiedStateManager:
         updates: Dict[str, Any],
         user_id: Optional[str]
     ) -> Dict[str, Any]:
-        """Update isolated world state (player's copy)."""
+        """
+        Update isolated world state (player's copy).
+
+        ASSUMES: Player has been initialized via ensure_player_initialized().
+        """
         if not user_id:
             raise ConfigValidationError(
                 f"user_id required to update isolated world state for '{experience}'"
             )
 
         view_path = self._get_player_view_path(experience, user_id)
-
-        if not view_path.exists():
-            raise StateNotFoundError(
-                f"Player view not found for user '{user_id}' in '{experience}': {view_path}"
-            )
 
         # No locking needed for isolated model (each player has own file)
         return await self._direct_update(view_path, updates)
@@ -623,6 +618,32 @@ class UnifiedStateManager:
 
     # ===== PLAYER VIEW MANAGEMENT =====
 
+    async def ensure_player_initialized(
+        self,
+        experience: str,
+        user_id: str
+    ) -> None:
+        """
+        Ensure player state file exists for experience.
+
+        Call this ONCE per session/connection before any state operations.
+        If player view doesn't exist, bootstraps them automatically.
+
+        Design principle: Single entry point for initialization validation.
+        All other methods assume files exist.
+
+        Args:
+            experience: Experience ID
+            user_id: User ID
+        """
+        view_path = self._get_player_view_path(experience, user_id)
+
+        if not view_path.exists():
+            logger.info(f"First-time join: bootstrapping player '{user_id}' for '{experience}'")
+            await self.bootstrap_player(experience, user_id)
+        else:
+            logger.debug(f"Player '{user_id}' already initialized for '{experience}'")
+
     async def get_player_view(
         self,
         experience: str,
@@ -631,25 +652,26 @@ class UnifiedStateManager:
         """
         Get player's view for experience.
 
-        Auto-bootstraps player on first access (lazy initialization).
-        Industry standard: WoW, Minecraft, Roblox all init on first join.
-
-        Always loads /players/{user}/{exp}/view.json.
-        If doesn't exist, automatically calls bootstrap_player().
+        ASSUMES: Player has been initialized via ensure_player_initialized().
+        No auto-bootstrap - callers must ensure initialization first.
 
         Args:
             experience: Experience ID
             user_id: User ID
 
         Returns:
-            Player view dict (never None - will bootstrap if needed)
+            Player view dict
+
+        Raises:
+            StateNotFoundError: If player view doesn't exist (caller didn't initialize)
         """
         view_path = self._get_player_view_path(experience, user_id)
 
         if not view_path.exists():
-            # First time joining this experience - auto-bootstrap
-            logger.info(f"First-time join: auto-bootstrapping player '{user_id}' for '{experience}'")
-            return await self.bootstrap_player(experience, user_id)
+            raise StateNotFoundError(
+                f"Player view not found for user '{user_id}' in '{experience}'. "
+                f"Call ensure_player_initialized() first."
+            )
 
         with open(view_path, 'r') as f:
             view = json.load(f)
@@ -666,6 +688,8 @@ class UnifiedStateManager:
         """
         Update player's view.
 
+        ASSUMES: Player has been initialized via ensure_player_initialized().
+
         Args:
             experience: Experience ID
             user_id: User ID
@@ -673,13 +697,11 @@ class UnifiedStateManager:
 
         Returns:
             Updated player view
+
+        Raises:
+            StateNotFoundError: If player view doesn't exist (caller didn't initialize)
         """
         view_path = self._get_player_view_path(experience, user_id)
-
-        if not view_path.exists():
-            raise StateNotFoundError(
-                f"Player view not found for user '{user_id}' in '{experience}': {view_path}"
-            )
 
         # No locking needed for player views (each player has own file)
         logger.warning(f"[UPDATE-PLAYER-VIEW] BEFORE _direct_update: exp={experience}, user={user_id}")
