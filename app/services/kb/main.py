@@ -44,6 +44,8 @@ from .waypoints_api import router as waypoints_router
 from .game_commands_api import router as game_commands_router
 from .experience_endpoints import router as experience_router
 from .kb_agent import kb_agent
+from .websocket_experience import router as websocket_router
+import app.services.kb.websocket_experience as websocket_module
 from app.models.kb import WriteRequest, DeleteRequest, MoveRequest
 from .kb_semantic_search import semantic_indexer
 from .kb_semantic_endpoints import (
@@ -146,6 +148,11 @@ async def kb_service_lifespan(app: FastAPI):
         if kb_agent.state_manager and nats_client:
             kb_agent.state_manager.nats_client = nats_client
             logger.info("NATS client injected into UnifiedStateManager - real-time updates enabled")
+
+        # Initialize WebSocket ExperienceConnectionManager
+        from .experience_connection_manager import ExperienceConnectionManager
+        websocket_module.experience_manager = ExperienceConnectionManager(nats_client=nats_client)
+        logger.info("ExperienceConnectionManager initialized for WebSocket connections")
     except Exception as e:
         logger.error(f"Failed to initialize KB Agent: {e}")
     
@@ -711,7 +718,8 @@ app.include_router(agent_router)
 app.include_router(waypoints_router)
 app.include_router(game_commands_router)
 app.include_router(experience_router)
-logger.info("✅ KB Agent, Waypoints, and Game Commands endpoints added")
+app.include_router(websocket_router)
+logger.info("✅ KB Agent, Waypoints, Game Commands, and WebSocket endpoints added")
 
 # Mount FastMCP endpoint for Claude Code and Gemini CLI
 if HAS_FASTMCP:

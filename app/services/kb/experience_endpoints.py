@@ -124,15 +124,12 @@ async def interact_with_experience(
         # Still no experience, return selection prompt
         return await _prompt_experience_selection(state_manager, user_id)
 
-    # Step 3: Ensure player is bootstrapped
+    # Step 3: Get player view (auto-bootstraps on first access)
     try:
         player_view = await state_manager.get_player_view(experience, user_id)
-        if not player_view:
-            logger.info(f"Bootstrapping new player '{user_id}' for '{experience}'")
-            player_view = await state_manager.bootstrap_player(experience, user_id)
     except Exception as e:
-        logger.error(f"Error bootstrapping player: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to initialize player: {e}")
+        logger.error(f"Error loading player view: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load player: {e}")
 
     # Step 4: Get world state
     try:

@@ -8,7 +8,7 @@ import jwt
 import os
 import logging
 import hashlib
-from fastapi import HTTPException, Security, Depends, status, Request
+from fastapi import HTTPException, Security, Depends, status, Request, WebSocket
 from fastapi.security import APIKeyHeader, HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Union, Dict, Any
 from datetime import datetime
@@ -211,6 +211,84 @@ async def validate_supabase_jwt(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during authentication",
+        )
+
+async def get_current_user_ws(websocket: WebSocket, token: str) -> dict:
+    """
+    Validate JWT token for WebSocket connections.
+
+    WebSocket-specific authentication that validates JWT from query parameters.
+    Returns the JWT payload if valid, closes WebSocket with error if invalid.
+
+    Args:
+        websocket: FastAPI WebSocket connection
+        token: JWT token string from query params
+
+    Returns:
+        JWT payload dict containing user_id, email, etc.
+
+    Raises:
+        HTTPException: If token is invalid (also closes WebSocket)
+    """
+    if not token:
+        logger.error("WebSocket authentication failed: no token provided")
+        await websocket.close(code=1008, reason="Authentication required")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No authentication token provided"
+        )
+
+    # Generate cache key from token hash
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    cache_key = CacheManager.auth_cache_key(token_hash)
+
+    # Try to get cached validation result
+    if redis_client.is_connected():
+        try:
+            cached_payload = redis_client.get_json(cache_key)
+            if cached_payload:
+                logger.debug("WebSocket JWT validation cache hit")
+                return cached_payload
+        except Exception as e:
+            logger.warning(f"WebSocket JWT cache lookup failed: {e}")
+
+    try:
+        jwt_secret = os.getenv("SUPABASE_JWT_SECRET")
+        if not jwt_secret:
+            logger.error("SUPABASE_JWT_SECRET environment variable not set")
+            await websocket.close(code=1011, reason="Server configuration error")
+            raise ValueError("SUPABASE_JWT_SECRET environment variable not set")
+
+        payload = jwt.decode(
+            token,
+            jwt_secret,
+            audience="authenticated",
+            algorithms=["HS256"]
+        )
+
+        # Cache successful validation for 15 minutes
+        if redis_client.is_connected():
+            try:
+                redis_client.set_json(cache_key, payload, ex=900)  # 15 minutes
+                logger.debug("WebSocket JWT validation cached")
+            except Exception as e:
+                logger.warning(f"WebSocket JWT cache set failed: {e}")
+
+        return payload
+
+    except jwt.PyJWTError as e:
+        logger.error(f"WebSocket JWT validation error: {str(e)}")
+        await websocket.close(code=1008, reason="Invalid or expired token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during WebSocket JWT validation: {str(e)}")
+        await websocket.close(code=1011, reason="Authentication error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during authentication"
         )
 
 async def get_current_auth(

@@ -631,21 +631,25 @@ class UnifiedStateManager:
         """
         Get player's view for experience.
 
+        Auto-bootstraps player on first access (lazy initialization).
+        Industry standard: WoW, Minecraft, Roblox all init on first join.
+
         Always loads /players/{user}/{exp}/view.json.
-        Returns minimal view if doesn't exist (doesn't auto-create).
+        If doesn't exist, automatically calls bootstrap_player().
 
         Args:
             experience: Experience ID
             user_id: User ID
 
         Returns:
-            Player view dict, or None if not found
+            Player view dict (never None - will bootstrap if needed)
         """
         view_path = self._get_player_view_path(experience, user_id)
 
         if not view_path.exists():
-            logger.debug(f"Player view not found for user '{user_id}' in '{experience}'")
-            return None
+            # First time joining this experience - auto-bootstrap
+            logger.info(f"First-time join: auto-bootstrapping player '{user_id}' for '{experience}'")
+            return await self.bootstrap_player(experience, user_id)
 
         with open(view_path, 'r') as f:
             view = json.load(f)
@@ -678,10 +682,14 @@ class UnifiedStateManager:
             )
 
         # No locking needed for player views (each player has own file)
+        logger.warning(f"[UPDATE-PLAYER-VIEW] BEFORE _direct_update: exp={experience}, user={user_id}")
         updated_view = await self._direct_update(view_path, updates)
+        logger.warning(f"[UPDATE-PLAYER-VIEW] AFTER _direct_update, BEFORE _publish_world_update")
 
         # Publish real-time update to NATS
-        await self._publish_world_update(experience, user_id, updates)
+        logger.warning(f"[UPDATE-PLAYER-VIEW] About to call _publish_world_update: method={self._publish_world_update}, nats_client={self.nats_client}")
+        result = await self._publish_world_update(experience, user_id, updates)
+        logger.warning(f"[UPDATE-PLAYER-VIEW] AFTER _publish_world_update call, result={result}")
 
         return updated_view
 
