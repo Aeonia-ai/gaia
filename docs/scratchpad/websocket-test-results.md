@@ -245,12 +245,81 @@ None - All WebSocket infrastructure created in previous session.
 
 ---
 
+## Message Flow Analysis
+
+### Dual Message Path (Current)
+
+The test results show clients receive messages via two paths:
+
+**Path A - Immediate Response:**
+```
+✅ Action response: success=True     ← Handler sends immediately
+🎯 Quest update: 1/7 bottles         ← Handler sends immediately
+```
+
+**Path B - NATS Echo:**
+```
+🌍 World update received (version 0.3)  ← NATS subscription forwards
+📨 NATS event: quest_update             ← NATS subscription forwards
+```
+
+### Why This Redundancy is Acceptable
+
+**Common Pattern:**
+- Discord, Slack, and other real-time systems do this
+- Immediate response = good UX (fast feedback)
+- NATS broadcast = enables future features (multi-client, observers)
+
+**Will Be Fixed by Migration:**
+When WebSocket moves to Session Service (Q1 2026):
+- Session Service can't send immediate responses (no direct state access)
+- Only NATS events forwarded to client
+- Single message path, cleaner architecture
+- Migration naturally eliminates redundancy
+
+See `websocket-architecture-decision.md` for detailed analysis.
+
+---
+
+## Auto-Bootstrap Implementation
+
+### Problem Solved
+
+Initial tests failed with: `"Player view not found for user {user_id}"`
+
+**Root Cause:** Player initialization was protocol-layer responsibility (duplicated in chat endpoint).
+
+**Solution Implemented:**
+- Centralized in `UnifiedStateManager.get_player_view()`
+- Industry standard lazy initialization (WoW/Minecraft/Roblox pattern)
+- Auto-bootstraps on first experience access
+- Works for ALL protocols (HTTP, WebSocket, future GraphQL)
+
+**Test Results After Fix:**
+```
+🍾 Collecting first bottle (bottle_of_joy_1)...
+✅ Action response: success=True
+🎯 Quest update: 1/7 bottles
+🌍 World update received (version 0.3)
+```
+
+All 7 bottles collected successfully, proving auto-bootstrap works.
+
+---
+
 ## Conclusion
 
-**WebSocket Infrastructure: ✅ PRODUCTION READY**
+**WebSocket Infrastructure: ✅ COMPLETE & SHIPPED**
 
-The core WebSocket implementation is complete, tested, and ready for deployment. The protocol layer (connection, authentication, messaging, NATS integration) is fully functional.
+- Commit: 5b51ae1 on feature/unified-experience-system (2025-11-05)
+- Local testing: All tests passing (7/7 bottles, NATS events working)
+- Auto-bootstrap: Implemented and validated
+- Message flow: Understood and documented
 
-The remaining work (player view initialization) is a KB service concern, not a WebSocket protocol issue. We can proceed with deployment and address player initialization in parallel or post-demo.
+**Architecture Quality:**
+- Protocol layer fully functional
+- Player initialization centralized (major improvement)
+- Technical debt documented with clear migration path
+- Migration naturally improves architecture
 
-**Recommendation**: Deploy to dev by Wednesday EOD as planned, provide Unity team with test user that has initialized state (Option A), and schedule KB improvements for post-demo.
+**Ready for:** Dev deployment when Unity team is ready for integration testing.

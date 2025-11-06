@@ -309,6 +309,55 @@ If we ship Option A, document as:
 
 ---
 
+## Message Flow Analysis
+
+### Current Flow (WebSocket in KB Service)
+
+**Redundant but Functional:**
+```
+Unity → WebSocket: collect_bottle
+  ↓
+KB Handler → update_player_view()
+  ↓
+State Manager: write to disk + publish NATS
+  ↓
+Two paths:
+  Path A (Immediate): Handler → Client (action_response, quest_update)
+  Path B (NATS Echo): NATS → Same Connection → Client (world_update)
+```
+
+**Why This is Acceptable Technical Debt:**
+- Immediate response = good UX (fast feedback)
+- NATS echo = enables future multi-client scenarios
+- Common pattern in real-time systems (Discord, Slack do this)
+
+### After Migration (Session Service - Cleaner)
+
+**Single Message Path:**
+```
+Unity → Session Service WebSocket: collect_bottle
+  ↓
+Session Service → HTTP POST to KB Service API
+  ↓
+KB Service: update state + publish NATS
+  ↓
+Session Service NATS subscription receives event
+  ↓
+Session Service → WebSocket Client (SINGLE source of truth)
+```
+
+**Natural Architecture Improvements:**
+- ✅ No direct state manager access (can't send immediate responses)
+- ✅ Single message path (only NATS events)
+- ✅ Session Service is pure message forwarder
+- ✅ Consistent with Chat SSE (same NATS events)
+- ✅ Eliminates redundancy automatically
+
+**Migration Benefits:**
+Not just moving code - forces cleaner architecture naturally. WebSocket becomes "dumb pipe" forwarding NATS events, which is exactly what it should be.
+
+---
+
 ## Conclusion
 
 **Shipping with technical debt is a valid engineering decision when:**
@@ -316,5 +365,11 @@ If we ship Option A, document as:
 - Debt is documented (✅ This document)
 - Migration path exists (✅ Clear, non-breaking)
 - Code quality is high (✅ Modular, testable)
+- Migration naturally fixes the debt (✅ Session Service eliminates redundancy)
 
 **Recommendation**: Ship Option A for demo, migrate to Option C post-demo.
+
+**Status**: ✅ SHIPPED (2025-11-05)
+- Commit: 5b51ae1 on feature/unified-experience-system
+- Local testing: All tests passing (7/7 bottles, NATS working)
+- Auto-bootstrap: Implemented (industry standard lazy init)
