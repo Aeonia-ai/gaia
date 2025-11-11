@@ -20,9 +20,13 @@ tests/manual/
 └── README.md                    ✅ Documentation
 
 scripts/experience/
-├── test-commands.sh             ✅ HTTP command testing
+├── test-commands.sh              ✅ HTTP command testing
 ├── test-player-initialization.sh ✅ Pattern validation
-└── README.md                    ✅ Documentation (created 2025-11-06)
+├── test_websocket_v04.py         ✅ v0.4 WorldUpdate WebSocket test (60s timeouts) 🆕 2025-11-10
+├── test_websocket_v04_simple.py  ✅ Simple v0.4 WebSocket test 🆕 2025-11-10
+├── test_websocket_debug.py       ✅ Debug WebSocket test (minimal) 🆕 2025-11-10
+├── test_websocket_hybrid.py      ✅ Hybrid HTTP + WebSocket test 🆕 2025-11-10
+└── README.md                     ✅ Documentation (updated 2025-11-10)
 ```
 
 ### What Each Test Does
@@ -48,6 +52,32 @@ scripts/experience/
 - **Tests**: `ensure_player_initialized()` pattern compliance
 - **Speed**: <1s
 - **Use Case**: Regression prevention for state management pattern
+
+**`scripts/experience/test_websocket_v04.py`** (Python) 🆕 **v0.4 VALIDATION**
+- **Protocol**: WebSocket (`ws://localhost:8001/ws/experience`)
+- **Tests**: v0.4 WorldUpdate format, natural language commands, LLM processing
+- **Commands**: Full markdown-driven commands (go, collect, look)
+- **Speed**: 60-90s (includes 25-30s LLM processing per command)
+- **Timeouts**: 60-second action timeouts (required for LLM processing)
+- **Use Case**: v0.4 WorldUpdate event validation, Unity integration testing
+- **Created**: 2025-11-10 (validated against local server)
+
+**`scripts/experience/test_websocket_v04_simple.py`** (Python)
+- **Protocol**: WebSocket (same as above)
+- **Tests**: Simplified v0.4 validation with step-by-step output
+- **Use Case**: Quick v0.4 validation, debugging command flows
+
+**`scripts/experience/test_websocket_debug.py`** (Python)
+- **Protocol**: WebSocket (same as above)
+- **Tests**: Minimal connection + single action test
+- **Speed**: ~30 seconds
+- **Use Case**: Isolating WebSocket connection issues, debugging timeouts
+
+**`scripts/experience/test_websocket_hybrid.py`** (Python)
+- **Protocol**: HTTP (action trigger) + WebSocket (event listener)
+- **Tests**: Separates action execution from event observation
+- **Speed**: 15-20 seconds
+- **Use Case**: Testing HTTP `/experience/interact` + WebSocket events separately
 
 #### Infrastructure Testing
 

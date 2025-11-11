@@ -854,6 +854,7 @@ If action invalid or target not found, return:
         """
         from app.shared.models.command_result import CommandResult
 
+        request_id = command_data.get("request_id", "unknown")
         message = command_data.get("message") or command_data.get("action") # Support both message and action based commands
         if not message:
             return CommandResult(success=False, message_to_player="Command message is empty.")
@@ -875,7 +876,7 @@ If action invalid or target not found, return:
 
             # Step 3: Execute two-pass LLM command
             logic_result = await self._execute_markdown_command(
-                markdown_content, message, player_view, world_state, config, user_id
+                markdown_content, message, player_view, world_state, config, user_id, request_id
             )
 
             # Step 4: Apply state updates
@@ -1123,7 +1124,8 @@ Command:"""
         player_view: Dict[str, Any],
         world_state: Dict[str, Any],
         config: Dict[str, Any],
-        user_id: str
+        user_id: str,
+        request_id: str
     ) -> Dict[str, Any]:
         """
         Execute a command by having LLM follow markdown instructions using a two-pass approach.
@@ -1167,6 +1169,12 @@ Follow the markdown instructions to determine the outcome. Respond with ONLY a v
 - If player.inventory is empty ([]), the metadata items list MUST be empty ([]).
 - If a location has no items, do NOT fabricate items - report accurately what exists.
 """
+            t_logic_start = time.perf_counter()
+            logger.info(json.dumps({
+                "event": "timing_analysis",
+                "request_id": request_id,
+                "stage": "llm_logic_pass_start"
+            }))
 
             logic_response_raw = await self.llm_service.chat_completion(
                 messages=[
@@ -1177,6 +1185,14 @@ Follow the markdown instructions to determine the outcome. Respond with ONLY a v
                 user_id=user_id,
                 temperature=0.1  # Low temperature for deterministic logic
             )
+
+            logic_elapsed_ms = (time.perf_counter() - t_logic_start) * 1000
+            logger.info(json.dumps({
+                "event": "timing_analysis",
+                "request_id": request_id,
+                "stage": "llm_logic_pass_end",
+                "elapsed_ms": logic_elapsed_ms
+            }))
 
             logic_response_text = logic_response_raw["response"].strip()
             if logic_response_text.startswith("```"):
@@ -1209,6 +1225,12 @@ Write a compelling narrative for the player that describes what just happened.
 - Use the style and tone suggested by the game rules.
 - DO NOT output JSON or any other structured data. Just the story.
 """
+            t_narrative_start = time.perf_counter()
+            logger.info(json.dumps({
+                "event": "timing_analysis",
+                "request_id": request_id,
+                "stage": "llm_narrative_pass_start"
+            }))
 
             narrative_response_raw = await self.llm_service.chat_completion(
                 messages=[
@@ -1219,6 +1241,14 @@ Write a compelling narrative for the player that describes what just happened.
                 user_id=user_id,
                 temperature=0.7  # Higher temperature for creative narrative
             )
+
+            narrative_elapsed_ms = (time.perf_counter() - t_narrative_start) * 1000
+            logger.info(json.dumps({
+                "event": "timing_analysis",
+                "request_id": request_id,
+                "stage": "llm_narrative_pass_end",
+                "elapsed_ms": narrative_elapsed_ms
+            }))
 
             narrative = narrative_response_raw["response"].strip()
             logger.warning(f"[DIAGNOSTIC-PASS-2] Narrative result: {narrative}")

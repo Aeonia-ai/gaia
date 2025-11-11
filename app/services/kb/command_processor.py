@@ -2,6 +2,8 @@
 
 import logging
 from typing import Any, Callable, Coroutine, Dict
+import time
+import json
 
 from app.shared.models.command_result import CommandResult
 
@@ -23,6 +25,8 @@ class ExperienceCommandProcessor:
     async def process_command(self, user_id: str, experience_id: str, command_data: Dict[str, Any]) -> CommandResult:
         """Process an incoming command by routing it to the correct handler."""
         action = command_data.get("action")
+        request_id = command_data.get("request_id", "unknown")
+
         if not action:
             return CommandResult(success=False, message_to_player="Command is missing the 'action' field.")
 
@@ -39,7 +43,27 @@ class ExperienceCommandProcessor:
         # Flexible Logic Path (LLM-Interpreted): If no hardcoded handler is found, pass to the kb_agent.
         from .kb_agent import kb_agent
         logger.info(f"No fast path handler for '{action}', routing to LLM-based system.")
-        return await kb_agent.process_llm_command(user_id, experience_id, command_data)
+        
+        t_start = time.perf_counter()
+        logger.info(json.dumps({
+            "event": "timing_analysis",
+            "request_id": request_id,
+            "stage": "processing_llm_start",
+            "action": action
+        }))
+
+        result = await kb_agent.process_llm_command(user_id, experience_id, command_data)
+        
+        elapsed_ms = (time.perf_counter() - t_start) * 1000
+        logger.info(json.dumps({
+            "event": "timing_analysis",
+            "request_id": request_id,
+            "stage": "processing_llm_end",
+            "action": action,
+            "elapsed_ms": elapsed_ms
+        }))
+
+        return result
 
 # Create a singleton instance
 command_processor = ExperienceCommandProcessor()

@@ -178,6 +178,8 @@ async def handle_message_loop(
                 await handle_ping(websocket, connection_id, message)
             elif message_type == "chat":
                 await handle_chat(websocket, connection_id, user_id, experience, message)
+            elif message_type == "update_location":
+                await handle_update_location(websocket, connection_id, user_id, experience, message)
             else:
                 logger.warning(f"Unknown message type: {message_type}")
                 await send_error(
@@ -198,6 +200,8 @@ async def handle_message_loop(
 
 
 from app.services.kb.command_processor import command_processor
+import time
+import uuid
 
 
 async def handle_action(
@@ -210,14 +214,22 @@ async def handle_action(
     """
     Handle action message from client by passing it to the central command processor.
     """
+    t0 = time.perf_counter()
+    request_id = f"req_{uuid.uuid4().hex[:8]}"
+    
     action = message.get("action")
     if not action:
         await send_error(websocket, "missing_action", "Action message must have 'action' field")
         return
 
-    logger.info(
-        f"Routing action to command processor: action={action}, user_id={user_id}"
-    )
+    logger.info(json.dumps({
+        "event": "timing_analysis",
+        "request_id": request_id,
+        "stage": "action_received",
+        "action": action,
+        "user_id": user_id,
+        "elapsed_ms": 0.0
+    }))
 
     # Ensure player is initialized before processing any command
     try:
@@ -229,6 +241,9 @@ async def handle_action(
         logger.error(f"Failed to ensure player is initialized: {e}", exc_info=True)
         await send_error(websocket, "initialization_failed", str(e))
         return
+
+    # Add request_id to the command data for downstream logging
+    message["request_id"] = request_id
 
     # Process the command through the central processor
     result = await command_processor.process_command(user_id, experience, message)
@@ -243,6 +258,16 @@ async def handle_action(
     }
     if result.metadata:
         response_message["metadata"] = result.metadata
+
+    total_elapsed_ms = (time.perf_counter() - t0) * 1000
+    logger.info(json.dumps({
+        "event": "timing_analysis",
+        "request_id": request_id,
+        "stage": "response_sent",
+        "action": action,
+        "user_id": user_id,
+        "elapsed_ms": total_elapsed_ms
+    }))
 
     await websocket.send_json(response_message)
 
@@ -340,6 +365,87 @@ async def handle_chat(
         "voice": "cheerful",
         "timestamp": int(datetime.utcnow().timestamp() * 1000)
     })
+
+
+async def handle_update_location(
+    websocket: WebSocket,
+    connection_id: str,
+    user_id: str,
+    experience: str,
+    message: Dict[str, Any]
+):
+    """
+    Handle location update from client.
+
+    Client sends GPS coordinates, server responds with Area of Interest (AOI)
+    containing zone data, items, NPCs, and player state for that location.
+
+    Args:
+        websocket: WebSocket connection
+        connection_id: Connection ID
+        user_id: Authenticated user ID
+        experience: Experience ID
+        message: Message containing lat/lng coordinates
+    """
+    # Extract GPS coordinates
+    lat = message.get("lat")
+    lng = message.get("lng")
+
+    if lat is None or lng is None:
+        await send_error(websocket, "missing_coordinates", "GPS coordinates required (lat, lng)")
+        return
+
+    logger.info(f"Location update: user_id={user_id}, lat={lat}, lng={lng}")
+
+    # Find nearby locations
+    from app.services.locations.location_finder import find_nearby_locations
+
+    nearby_waypoints = await find_nearby_locations(
+        lat=lat,
+        lng=lng,
+        radius_m=1000,  # 1km search radius
+        experience=experience
+    )
+
+    # Get state manager
+    state_manager = kb_agent.state_manager
+    if not state_manager:
+        await send_error(websocket, "server_error", "State manager not initialized")
+        return
+
+    # Build AOI
+    aoi = await state_manager.build_aoi(
+        experience=experience,
+        user_id=user_id,
+        nearby_waypoints=nearby_waypoints
+    )
+
+    if aoi:
+        # Send AOI to client
+        await websocket.send_json({
+            "type": "area_of_interest",
+            "timestamp": int(datetime.utcnow().timestamp() * 1000),
+            **aoi
+        })
+        logger.info(
+            f"Sent AOI to user {user_id}: zone={aoi['zone']['id']}, "
+            f"areas={len(aoi['areas'])}"
+        )
+    else:
+        # No locations nearby - send empty response (industry standard)
+        await websocket.send_json({
+            "type": "area_of_interest",
+            "timestamp": int(datetime.utcnow().timestamp() * 1000),
+            "snapshot_version": int(datetime.utcnow().timestamp() * 1000),
+            "zone": None,
+            "areas": {},
+            "player": {
+                "current_location": None,
+                "current_area": None,
+                "inventory": []
+            }
+        })
+        logger.info(f"Sent empty AOI to user {user_id} (no waypoints nearby)")
 
 
 async def send_error(

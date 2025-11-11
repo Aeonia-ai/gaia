@@ -23,6 +23,8 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import logging
 
+from app.services.kb.template_loader import get_template_loader
+
 logger = logging.getLogger(__name__)
 
 # NATS integration for real-time world updates
@@ -85,6 +87,9 @@ class UnifiedStateManager:
 
         # NATS client for real-time updates (optional)
         self.nats_client = nats_client if NATS_AVAILABLE else None
+
+        # Template loader for entity blueprints
+        self.template_loader = get_template_loader(kb_root)
 
         logger.info(f"UnifiedStateManager initialized with KB root: {kb_root}")
         if self.nats_client:
@@ -270,10 +275,12 @@ class UnifiedStateManager:
         self,
         experience: str,
         user_id: str,
-        changes: Dict[str, Any]
+        changes: Dict[str, Any],
+        base_version: int,
+        snapshot_version: int
     ) -> None:
         """
-        Publish world state update to NATS for real-time client synchronization.
+        Publish world state update to NATS for real-time client synchronization (v0.4).
 
         This method implements graceful degradation - if NATS is unavailable or
         publishing fails, the error is logged but game logic continues unaffected.
@@ -281,7 +288,9 @@ class UnifiedStateManager:
         Args:
             experience: Experience ID (e.g., 'wylding-woods')
             user_id: User ID that this update applies to
-            changes: State delta describing what changed
+            changes: State delta describing what changed (v0.3 format from caller)
+            base_version: Version number this delta applies on top of
+            snapshot_version: New version number after applying delta
         """
         if not NATS_AVAILABLE or not self.nats_client:
             # NATS not configured - this is expected in many deployments
@@ -292,11 +301,16 @@ class UnifiedStateManager:
             return
 
         try:
-            # Create world update event
+            # Convert v0.3 dict format to v0.4 array format
+            formatted_changes = await self._format_world_update_changes(changes, experience, user_id)
+
+            # Create world update event (v0.4)
             event = WorldUpdateEvent(
                 experience=experience,
                 user_id=user_id,
-                changes=changes,
+                base_version=base_version,
+                snapshot_version=snapshot_version,
+                changes=formatted_changes,
                 timestamp=int(time.time() * 1000),  # Unix timestamp in milliseconds
                 metadata={
                     "source": "kb_service",
@@ -309,9 +323,10 @@ class UnifiedStateManager:
             await self.nats_client.publish(subject, event.model_dump())
 
             logger.info(
-                f"Published world_update to NATS: "
+                f"Published world_update v0.4 to NATS: "
                 f"experience={experience}, user={user_id}, "
-                f"changes_count={len(changes)}, subject={subject}"
+                f"base_version={base_version}, snapshot_version={snapshot_version}, "
+                f"changes_count={len(formatted_changes)}, subject={subject}"
             )
 
         except Exception as e:
@@ -321,6 +336,117 @@ class UnifiedStateManager:
                 f"Failed to publish world_update to NATS "
                 f"(experience={experience}, user={user_id}): {e}"
             )
+
+    async def _format_world_update_changes(
+        self,
+        changes: Dict[str, Any],
+        experience: str,
+        user_id: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Convert v0.3 dict-based changes to v0.4 array format with instance_id/template_id.
+
+        Args:
+            changes: v0.3 format changes (dict with paths as keys)
+            experience: Experience ID
+            user_id: User ID
+
+        Returns:
+            v0.4 format changes (array of change objects)
+        """
+        formatted_changes = []
+
+        for path, change_data in changes.items():
+            # Handle player.inventory changes
+            if path == "player.inventory" and isinstance(change_data, dict) and "$append" in change_data:
+                # Item added to inventory
+                item_data = change_data["$append"]
+                instance_id = item_data.get("id") or item_data.get("instance_id")
+
+                # Load template data if we have template_id
+                template_id = item_data.get("type") or item_data.get("template_id")
+                merged_item = await self._merge_item_with_template(
+                    experience=experience,
+                    instance_id=instance_id,
+                    template_id=template_id,
+                    item_data=item_data
+                )
+
+                formatted_changes.append({
+                    "operation": "add",
+                    "area_id": None,
+                    "path": "player.inventory",
+                    "item": merged_item
+                })
+
+            # Handle world.locations changes (item removed from world)
+            elif path.startswith("world.locations.") and "items" in path:
+                # Extract location and area from path
+                # Example: world.locations.woander_store.sublocations.spawn_zone_1.items
+                parts = path.split(".")
+                location_id = parts[2] if len(parts) > 2 else None
+                area_id = parts[4] if len(parts) > 4 else None
+
+                if isinstance(change_data, dict) and "$remove" in change_data:
+                    # Item removed from world
+                    item_to_remove = change_data["$remove"]
+                    instance_id = item_to_remove.get("id") or item_to_remove.get("instance_id")
+
+                    formatted_changes.append({
+                        "operation": "remove",
+                        "area_id": area_id,
+                        "instance_id": instance_id
+                    })
+
+        return formatted_changes
+
+    async def _merge_item_with_template(
+        self,
+        experience: str,
+        instance_id: str,
+        template_id: str,
+        item_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Merge item instance data with template properties.
+
+        Args:
+            experience: Experience ID
+            instance_id: Item instance ID
+            template_id: Item template ID
+            item_data: Item instance data
+
+        Returns:
+            Merged item with template properties
+        """
+        # Load template if template_id provided
+        if template_id and self.template_loader:
+            try:
+                template = await self.template_loader.load_template(
+                    experience=experience,
+                    entity_type="items",
+                    template_id=template_id
+                )
+                if template:
+                    # Merge template + instance
+                    return self.template_loader.merge_template_instance(
+                        template=template,
+                        instance={
+                            "instance_id": instance_id,
+                            "template_id": template_id,
+                            **item_data
+                        }
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to load template {template_id}: {e}")
+
+        # Fallback: just use instance data with normalized fields
+        return {
+            "instance_id": instance_id,
+            "template_id": template_id,
+            "type": item_data.get("type", template_id),
+            **{k: v for k, v in item_data.items() if k not in ("id", "type")}
+        }
 
     async def get_world_state(
         self,
@@ -686,7 +812,7 @@ class UnifiedStateManager:
         updates: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Update player's view.
+        Update player's view with version tracking.
 
         ASSUMES: Player has been initialized via ensure_player_initialized().
 
@@ -703,15 +829,29 @@ class UnifiedStateManager:
         """
         view_path = self._get_player_view_path(experience, user_id)
 
-        # No locking needed for player views (each player has own file)
-        logger.warning(f"[UPDATE-PLAYER-VIEW] BEFORE _direct_update: exp={experience}, user={user_id}")
-        updated_view = await self._direct_update(view_path, updates)
-        logger.warning(f"[UPDATE-PLAYER-VIEW] AFTER _direct_update, BEFORE _publish_world_update")
+        # Read current version before update
+        with open(view_path, 'r') as f:
+            current_view = json.load(f)
 
-        # Publish real-time update to NATS
-        logger.warning(f"[UPDATE-PLAYER-VIEW] About to call _publish_world_update: method={self._publish_world_update}, nats_client={self.nats_client}")
-        result = await self._publish_world_update(experience, user_id, updates)
-        logger.warning(f"[UPDATE-PLAYER-VIEW] AFTER _publish_world_update call, result={result}")
+        base_version = current_view.get("snapshot_version", int(time.time() * 1000))
+        new_version = int(time.time() * 1000)
+
+        # Add version increment to updates
+        if "snapshot_version" not in updates:
+            updates["snapshot_version"] = new_version
+
+        # No locking needed for player views (each player has own file)
+        logger.debug(f"[UPDATE-PLAYER-VIEW] Updating view: exp={experience}, user={user_id}, base={base_version}, new={new_version}")
+        updated_view = await self._direct_update(view_path, updates)
+
+        # Publish real-time update to NATS with version info
+        await self._publish_world_update(
+            experience=experience,
+            user_id=user_id,
+            changes=updates,
+            base_version=base_version,
+            snapshot_version=new_version
+        )
 
         return updated_view
 
@@ -804,7 +944,8 @@ class UnifiedStateManager:
             "metadata": {
                 "_version": 1,
                 "_created_at": datetime.utcnow().isoformat() + "Z"
-            }
+            },
+            "snapshot_version": int(time.time() * 1000)  # Initial version (timestamp-based)
         }
 
         return view
@@ -1222,3 +1363,146 @@ class UnifiedStateManager:
 
         logger.info(f"Reset complete for '{experience}': {results}")
         return results
+
+    # ===== AREA OF INTEREST (AOI) =====
+
+    async def build_aoi(
+        self,
+        experience: str,
+        user_id: str,
+        nearby_waypoints: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Build Area of Interest (AOI) payload for client.
+
+        Constructs complete world state snapshot for player's current location,
+        including zone info, areas with items/NPCs, and player state.
+
+        Args:
+            experience: Experience ID (e.g., "wylding-woods")
+            user_id: User ID
+            nearby_waypoints: Waypoints from find_nearby_locations() (GPS-filtered)
+
+        Returns:
+            AOI dict with zone, areas, player state, and snapshot_version
+            None if no waypoints nearby
+        """
+        if not nearby_waypoints:
+            logger.debug(f"No waypoints nearby for user {user_id}")
+            return None
+
+        # Use first waypoint as primary zone
+        # TODO: Handle multiple overlapping zones (disambiguation)
+        primary_waypoint = nearby_waypoints[0]
+        zone_id = primary_waypoint.get("id")
+
+        logger.debug(f"Building AOI for zone '{zone_id}' (user: {user_id})")
+
+        # Load world state to get items/NPCs at this location
+        try:
+            world_state = await self.get_world_state(experience)
+        except StateNotFoundError:
+            logger.warning(f"World state not found for experience '{experience}'")
+            world_state = {"locations": {}}
+
+        # Load player view for inventory/state
+        try:
+            player_view = await self.get_player_view(experience, user_id)
+        except StateNotFoundError:
+            logger.warning(f"Player view not found for user '{user_id}'")
+            player_view = {"player": {"current_location": None, "inventory": []}}
+
+        # Extract location data from world state
+        locations = world_state.get("locations", {})
+        zone_data = locations.get(zone_id, {})
+
+        # Build areas dict (sublocations with their items/NPCs)
+        areas = {}
+        for area_id, area_data in zone_data.get("sublocations", {}).items():
+            areas[area_id] = {
+                "id": area_id,
+                "name": area_data.get("name", area_id),
+                "description": area_data.get("description", ""),
+                "items": [],  # Build normalized items below
+                "npcs": []
+            }
+
+            # Load templates and merge with instance data
+            for item_instance in area_data.get("items", []):
+                instance_id = item_instance.get("instance_id") or item_instance.get("id")
+                template_id = item_instance.get("template_id") or item_instance.get("type")
+
+                if not template_id:
+                    logger.warning(
+                        f"Item instance {instance_id} missing template_id, skipping"
+                    )
+                    continue
+
+                # Load template definition from markdown
+                template = await self.template_loader.load_template(
+                    experience=experience,
+                    entity_type="items",
+                    template_id=template_id
+                )
+
+                if not template:
+                    logger.warning(
+                        f"Template not found: {template_id} (instance: {instance_id}), "
+                        f"using instance data only"
+                    )
+                    # Fallback: use instance data if template not found
+                    template = {}
+
+                # Merge template + instance (instance overrides template)
+                merged_item = self.template_loader.merge_template_instance(
+                    template=template,
+                    instance={
+                        "instance_id": instance_id,
+                        "template_id": template_id,
+                        "state": item_instance.get("state", {})
+                    }
+                )
+
+                areas[area_id]["items"].append(merged_item)
+
+            # Add NPC if present in this area
+            npc_id = area_data.get("npc")
+            if npc_id:
+                npc_data = world_state.get("npcs", {}).get(npc_id)
+                if npc_data:
+                    areas[area_id]["npcs"].append({
+                        "instance_id": f"{npc_id}_1",  # Synthetic instance ID
+                        "template_id": npc_id,
+                        **npc_data
+                    })
+
+        # Build zone info from waypoint + world state
+        zone = {
+            "id": zone_id,
+            "name": primary_waypoint.get("name", zone_id),
+            "description": zone_data.get("description") or primary_waypoint.get("description", ""),
+            "gps": primary_waypoint.get("location")  # Raw GPS dict {lat, lng}
+        }
+
+        # Extract player state
+        player_state = player_view.get("player", {})
+        player_info = {
+            "current_location": player_state.get("current_location"),
+            "current_area": player_state.get("current_sublocation"),
+            "inventory": player_state.get("inventory", [])
+        }
+
+        # Construct AOI payload
+        aoi = {
+            "zone": zone,
+            "areas": areas,
+            "player": player_info,
+            "snapshot_version": int(time.time() * 1000)  # Timestamp-based version
+        }
+
+        logger.info(
+            f"Built AOI for zone '{zone_id}' with {len(areas)} areas "
+            f"(user: {user_id})"
+        )
+
+        return aoi

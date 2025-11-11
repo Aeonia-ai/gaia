@@ -14,9 +14,13 @@ async def handle_collect_item(user_id: str, experience_id: str, command_data: Di
     Handles the 'collect_item' action directly for high performance.
     Bypasses the LLM and interacts directly with the state manager.
     """
-    item_id = command_data.get("item_id")
+    # Accept instance_id (preferred) or item_id (legacy) during transition
+    item_id = command_data.get("instance_id") or command_data.get("item_id")
     if not item_id:
-        return CommandResult(success=False, message_to_player="Action 'collect_item' requires an 'item_id'.")
+        return CommandResult(
+            success=False,
+            message_to_player="Action 'collect_item' requires 'instance_id' or 'item_id' field."
+        )
 
     try:
         state_manager = kb_agent.state_manager

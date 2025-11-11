@@ -463,6 +463,7 @@ See [Testing Guide](docs/testing/TESTING_GUIDE.md) for comprehensive documentati
 ### 📚 API Reference
 - [API Contracts](docs/api/api-contracts.md) - Which endpoints require authentication
 - [Chat Endpoints](docs/api/chat-endpoints.md) - LLM interaction patterns
+- [WebSocket AOI Client Guide](docs/scratchpad/websocket-aoi-client-guide.md) - Real-time world state delivery for AR clients (design phase)
 - [API Authentication Guide](docs/api/api-authentication-guide.md) - API authentication patterns
 - [Redis Integration](docs/redis-integration.md) - Caching implementation
 
