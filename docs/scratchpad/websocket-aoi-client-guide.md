@@ -316,9 +316,11 @@ Sent immediately after successful connection.
 
 ### 2. Initial State (Automatic)
 
-**Status**: 🚧 **Proposed Feature** - Not yet implemented (pending Unity team confirmation)
+**Status**: 💭 **Future Feature** - Deferred for room-based games only
 
-**Proposal**: Sent automatically after `connected` message with player's current room state.
+**Unity Team Feedback (2025-11-12)**: Use `area_of_interest` for GPS/AR games instead. Initial state only makes sense for indoor/room-based games (MUD-style) where player location is deterministic from database.
+
+**Proposal**: For future room-based games, send automatically after `connected` message with player's current room state.
 
 ```json
 {
@@ -363,17 +365,32 @@ Sent immediately after successful connection.
 }
 ```
 
-**Purpose**: Clients can immediately render the room without waiting for GPS or making additional requests.
+**Use Cases**:
+- ✅ Indoor/room-based games (MUD-style text adventures)
+- ✅ Turn-based games where location is saved in database
+- ❌ GPS/AR games (use `area_of_interest` instead - GPS is source of truth)
 
-**When Sent**: Automatically after successful authentication, before any player commands.
+**Why NOT for GPS/AR Games**:
+- Player's physical location changes in real world
+- Database state could be stale (player moved since last session)
+- Client sends GPS coordinates immediately after connection anyway
+- No practical "blind connection" period
 
-**Scope**: Only includes current area (minimal data transfer). Use `area_of_interest` for full zone data.
+**For GPS/AR Games** (like Wylding Woods):
+Use the standard flow: `connected` → client sends `update_location` → server responds with `area_of_interest`
 
 ---
 
 ### 3. Area of Interest (World State)
 
 Sent in response to `update_location`. Contains everything visible at your location (GPS/AR mode).
+
+**Scope Clarification** (Unity feedback 2025-11-12):
+- Returns **ONE Zone** (nearest to GPS coordinates)
+- Includes **ALL Areas** within that Zone
+- Client spawns all items/NPCs across all areas simultaneously
+
+**Example**: GPS at Woander's Shop returns entire "woander_store" Zone with all 5 areas: spawn_zone_1, spawn_zone_2, counter, entrance, fairy_door_main.
 
 ```json
 {
@@ -1220,3 +1237,47 @@ Breaking changes will increment version number. Non-breaking additions (new opti
 - ✅ `areas` do NOT have `location`, `accessible_from`, or `ambient` fields
 - ✅ `snapshot_version` is Unix timestamp in milliseconds
 - ✅ This structure has been tested and matches actual server implementation
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The core architectural and implementation claims in this document have been verified against the source code.
+
+-   **✅ Spatial Terminology (Section "Spatial Terminology" of this document):**
+    *   **Claim:** The system uses Geography, Zone, and Area for spatial organization.
+    *   **Verification:** Confirmed the usage of these concepts in `app/services/kb/unified_state_manager.py` (e.g., `get_zone_by_geography`, `_build_aoi`).
+
+-   **✅ Client → Server Messages (Section "Client → Server Messages" of this document):**
+    *   **Claim:** `update_location` and various "Fast Commands" (`go`, `collect_item`, etc.) are supported.
+    *   **Code Reference:** `app/services/kb/websocket_experience.py` (lines 347-402 for `update_location`), `app/services/kb/command_processor.py` (lines 10-60 for command routing).
+    *   **Verification:** Confirmed the `update_location` handler and the routing of fast commands through the `ExperienceCommandProcessor`.
+
+-   **✅ Server → Client Messages - Connected (Section "Server → Client Messages - Connected" of this document):**
+    *   **Claim:** A `connected` message is sent after successful connection.
+    *   **Code Reference:** `app/services/kb/websocket_experience.py` (lines 98-105).
+    *   **Verification:** Confirmed the `connected` message is sent with the specified payload.
+
+-   **❌ Discrepancy: Server → Client Messages - Initial State (Section "Server → Client Messages - Initial State" of this document):**
+    *   **Claim:** An `initial_state` message is "Proposed Feature - Not yet implemented" but the client action states "Wait for `initial_state` (automatic)".
+    *   **Verification:** The `initial_state` message is indeed *not* implemented in `app/services/kb/websocket_experience.py`. The client must send an `update_location` message to receive the `area_of_interest`. This is a discrepancy between the client guide's expectation and the server's current implementation.
+
+-   **✅ Server → Client Messages - Area of Interest (Section "Server → Client Messages - Area of Interest" of this document):**
+    *   **Claim:** An `area_of_interest` message is sent in response to `update_location`, containing `zone`, `areas`, `items`, `npcs`, and `player` data, with template/instance merging.
+    *   **Code Reference:** `app/services/kb/websocket_experience.py` (lines 380-402), `app/services/kb/unified_state_manager.py` (lines 1321-1390 for `_build_aoi`).
+    *   **Verification:** Confirmed the `area_of_interest` message structure and content, including the merging of template and instance data as described.
+
+-   **✅ Server → Client Messages - World Update (Section "Server → Client Messages - World Update" of this document):**
+    *   **Claim:** `world_update` messages (v0.4) are sent for real-time changes, including `base_version` and `snapshot_version`.
+    *   **Code Reference:** `app/shared/events.py` (lines 11-97 for `WorldUpdateEvent`), `app/services/kb/experience_connection_manager.py` (lines 146-160 for forwarding).
+    *   **Verification:** Confirmed the `WorldUpdateEvent` structure and the mechanism for forwarding these NATS events to WebSocket clients.
+
+-   **✅ Template/Instance Architecture (Section "Template/Instance Architecture" of this document):**
+    *   **Claim:** Items are a merge of templates (immutable blueprints) and instances (runtime entities).
+    *   **Code Reference:** `app/services/kb/template_loader.py` (lines 10-281), `app/services/kb/unified_state_manager.py` (lines 1294-1330).
+    *   **Verification:** Confirmed the `TemplateLoader` and its integration into the `UnifiedStateManager` to perform the described merging.
+
+**Conclusion:** The `websocket-aoi-client-guide.md` accurately describes the implemented AOI and WebSocket message flows, with the exception of the `initial_state` message, which is documented as expected by the client but not yet implemented on the server. This document is **PARTIALLY VERIFIED** due to this specific discrepancy.
