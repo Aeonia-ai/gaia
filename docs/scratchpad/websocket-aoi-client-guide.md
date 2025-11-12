@@ -1,8 +1,8 @@
 # WebSocket Area of Interest (AOI) - Client Integration Guide
 
-**Version**: 0.3
-**Last Updated**: 2025-11-10
-**Status**: Phase 1 MVP - Implemented and Tested
+**Version**: 0.4
+**Last Updated**: 2025-11-12
+**Status**: Phase 1 MVP Complete + Fast Command Handlers Implemented
 **Source of Truth**: [AOI WebSocket Design](./aoi-websocket-design-2025-11-10.md)
 **Implementation**: `/app/services/kb/unified_state_manager.py` (build_aoi at line 1226)
 
@@ -16,8 +16,10 @@ This guide describes how Unity (or other AR) clients connect to GAIA's WebSocket
 
 **Key Concept**: Progressive Loading
 - Connect first, authenticate, get connection acknowledgment
-- Send your GPS location when ready
+- **Receive initial room state automatically** (new in v0.4)
+- Send your GPS location when ready (for AR experiences)
 - Receive Area of Interest (AOI) with nearby items, NPCs, locations
+- Use fast commands for instant gameplay (<10ms response time)
 - Receive real-time updates as world changes
 
 ### Phase 1 vs Phase 2 Features
@@ -126,30 +128,159 @@ Tell server your current GPS coordinates to receive nearby content.
 
 ---
 
-### 2. Action Commands
+### 2. Action Commands (Legacy - Slow Path)
 
-Execute game actions (collect items, interact with objects).
+⚠️ **Deprecated**: Use Fast Commands (section 3) for better performance. This path routes through LLM processing (25-30s response time).
+
+Execute game actions via natural language processing.
+
+```json
+{
+  "type": "action",
+  "action": "collect the dream bottle",
+  "location": "woander_store"
+}
+```
+
+**Response**: `action_response` message (slow: 25-30s)
+
+---
+
+### 3. Fast Commands (Recommended)
+
+**Performance**: <10ms response time (5,000x faster than LLM path)
+
+Execute structured game commands with instant server response. These bypass LLM processing for production-ready gameplay.
+
+#### 3.1 Navigation (go)
+
+Move between areas within your current location.
+
+```json
+{
+  "type": "action",
+  "action": "go",
+  "destination": "spawn_zone_1"
+}
+```
+
+**Response**: `action_response` + `world_update` (6ms avg)
+
+---
+
+#### 3.2 Collect Item (collect_item)
+
+Pick up an item from the world.
 
 ```json
 {
   "type": "action",
   "action": "collect_item",
-  "instance_id": "dream_bottle_1",
-  "location": "woander_store"
+  "instance_id": "dream_bottle_1"
 }
 ```
 
-**Common Actions**:
-- `collect_item` - Pick up an item
-- `talk` - Interact with NPC
-- `look` - Examine object
-- `inventory` - Check player inventory
+**Validation**: Player must be in same location/area as item. Item must be `collectible: true`.
 
-**Response**: `action_response` message
+**Response**: `action_response` + `world_update` (1-10ms)
 
 ---
 
-### 3. Ping (Health Check)
+#### 3.3 Drop Item (drop_item)
+
+Drop an item from inventory into the world at your current location.
+
+```json
+{
+  "type": "action",
+  "action": "drop_item",
+  "instance_id": "health_potion_1"
+}
+```
+
+**Validation**: Item must exist in player inventory.
+
+**Response**: `action_response` + `world_update` (7ms avg)
+
+---
+
+#### 3.4 Examine Item (examine)
+
+Inspect an item for detailed information (read-only, no state change).
+
+```json
+{
+  "type": "action",
+  "action": "examine",
+  "instance_id": "dream_bottle_2"
+}
+```
+
+**Search Order**: Player inventory → current area → current location
+
+**Response**: `action_response` with formatted description (2-3ms)
+
+---
+
+#### 3.5 Use Item (use_item)
+
+Consume or activate an item from inventory.
+
+```json
+{
+  "type": "action",
+  "action": "use_item",
+  "instance_id": "health_potion_1"
+}
+```
+
+**Effects**:
+- Health restoration: Updates `player.stats.health`
+- Status effects: Adds to `player.status_effects[]`
+- Consumables: Removed from inventory after use
+
+**Response**: `action_response` + `world_update` (4ms avg)
+
+---
+
+#### 3.6 Inventory List (inventory)
+
+Get formatted list of items in player inventory (read-only).
+
+```json
+{
+  "type": "action",
+  "action": "inventory"
+}
+```
+
+**Response**: `action_response` with grouped item list (2ms avg)
+
+---
+
+#### 3.7 Give Item (give_item)
+
+Transfer item from player to NPC or another player.
+
+```json
+{
+  "type": "action",
+  "action": "give_item",
+  "instance_id": "dream_bottle_1",
+  "target_npc_id": "louisa"
+}
+```
+
+**Validation**:
+- Item must be in player inventory
+- Player must be in same location/area as target
+- NPC must exist (player-to-player transfer not yet implemented)
+
+**Response**: `action_response` with NPC dialogue (5ms avg)
+
+---
+
+### 4. Ping (Health Check)
 
 ```json
 {
@@ -179,13 +310,70 @@ Sent immediately after successful connection.
 }
 ```
 
-**Client Action**: Send `update_location` to request world state
+**Client Action**: Wait for `initial_state` (automatic), then optionally send `update_location` for AR/GPS features
 
 ---
 
-### 2. Area of Interest (World State)
+### 2. Initial State (Automatic)
 
-Sent in response to `update_location`. Contains everything visible at your location.
+**Status**: 🚧 **Proposed Feature** - Not yet implemented (pending Unity team confirmation)
+
+**Proposal**: Sent automatically after `connected` message with player's current room state.
+
+```json
+{
+  "type": "initial_state",
+  "timestamp": 1731439200000,
+  "player": {
+    "current_location": "woander_store",
+    "current_area": "spawn_zone_1",
+    "inventory": [],
+    "stats": {
+      "health": 100,
+      "max_health": 100
+    }
+  },
+  "location": {
+    "id": "woander_store",
+    "name": "Woander's Magical Shop",
+    "description": "The entrance to Woander's mystical shop where magical items and curiosities are sold."
+  },
+  "area": {
+    "id": "spawn_zone_1",
+    "name": "Display Shelf Area",
+    "description": "A shelf displaying various magical curiosities and glowing bottles.",
+    "items": [
+      {
+        "instance_id": "dream_bottle_2",
+        "template_id": "dream_bottle",
+        "semantic_name": "adventurous dream bottle",
+        "description": "A bottle with warm amber radiance...",
+        "collectible": true,
+        "visible": true,
+        "state": {
+          "glowing": true,
+          "dream_type": "adventurous",
+          "symbol": "star"
+        }
+      }
+    ],
+    "npcs": [],
+    "exits": ["entrance", "counter", "fairy_door_main", "spawn_zone_2"]
+  }
+}
+```
+
+**Purpose**: Clients can immediately render the room without waiting for GPS or making additional requests.
+
+**When Sent**: Automatically after successful authentication, before any player commands.
+
+**Scope**: Only includes current area (minimal data transfer). Use `area_of_interest` for full zone data.
+
+---
+
+### 3. Area of Interest (World State)
+
+Sent in response to `update_location`. Contains everything visible at your location (GPS/AR mode).
 
 ```json
 {
@@ -363,7 +551,7 @@ If no locations nearby:
 
 ---
 
-### 3. World Update (Real-time Changes) - v0.4
+### 4. World Update (Real-time Changes) - v0.4
 
 Sent when world state changes (someone collects item, NPC moves, etc.).
 
@@ -561,7 +749,7 @@ Client: Resets to fresh state
 
 ---
 
-### 4. Action Response
+### 5. Action Response
 
 Sent after processing your `action` message.
 
@@ -583,7 +771,7 @@ Sent after processing your `action` message.
 
 ---
 
-### 5. Error Messages
+### 6. Error Messages
 
 ```json
 {
@@ -614,34 +802,58 @@ Sent after processing your `action` message.
 ```
 1. Client: Connect to ws://host/ws/experience?token=JWT&experience=wylding-woods
 
-2. Server: {"type": "connected", "user_id": "...", ...}
+2. Server: {"type": "connected", "user_id": "...", "experience": "wylding-woods"}
 
-3. Client: {"type": "update_location", "lat": 37.906, "lng": -122.544}
+3. Server: {"type": "initial_state", "player": {...}, "location": {...}, "area": {...}}
+   → Client immediately renders current room
+   → Client spawns items/NPCs in spawn_zone_1
+   → Client displays exits: ["entrance", "counter", "fairy_door_main"]
 
-4. Server: {"type": "area_of_interest", "snapshot_version": 12345, "zone": {...}, "areas": {...}}
-   → Client spawns 3 bottles in spawn_zone_1
-   → Client renders NPC at counter
+4. Client: {"type": "action", "action": "collect_item", "instance_id": "dream_bottle_1"}
 
-5. Client: {"type": "action", "action": "collect_item", "item_id": "dream_bottle_1"}
+5. Server: {"type": "action_response", "success": true, "message": "You picked up..."} (1-10ms)
 
-6. Server: {"type": "action_response", "success": true, "message": "You picked up..."}
-
-7. Server: {"type": "world_update", "version": 12346, "changes": {"player.inventory": {"operation": "add"...}}}
-   → Client removes bottle from world
+6. Server: {"type": "world_update", "version": "0.4", "changes": [{"operation": "remove"...}]}
+   → Client removes bottle from world (instance_id: dream_bottle_1)
    → Client adds bottle to inventory UI
 
-8. Client moves 50m away
+7. Client: {"type": "action", "action": "go", "destination": "counter"}
 
-9. Client: {"type": "update_location", "lat": 37.908, "lng": -122.545}
+8. Server: {"type": "action_response", "success": true} (6ms)
 
-10. Server: {"type": "area_of_interest", "snapshot_version": 12350, "zone": {"id": "waypoint_28a", ...}}
-    → Client despawns old zone
-    → Client spawns new zone content
+9. Server: {"type": "world_update", "changes": [{"operation": "update", "path": "player.current_area"...}]}
+   → Client transitions to counter area
+   → Client renders Woander NPC
+
+10. (Optional) Client sends GPS for AR features:
+    Client: {"type": "update_location", "lat": 37.906, "lng": -122.544}
+
+11. Server: {"type": "area_of_interest", "snapshot_version": 12345, "zone": {...}, "areas": {...}}
+    → Client validates GPS alignment
+    → Client may update zone boundaries/geofencing
 ```
 
 ---
 
 ## Best Practices
+
+### Performance: Fast Commands vs Legacy Path
+
+**Use Fast Commands** for gameplay actions:
+
+| Command | Fast Path | Legacy Path | Speedup |
+|---------|-----------|-------------|---------|
+| go | 6ms | 25-30s | 5,000x |
+| collect_item | 1-10ms | 25-30s | 3,000x |
+| drop_item | 7ms | 25-30s | 4,000x |
+| examine | 2-3ms | 25-30s | 10,000x |
+| use_item | 4ms | 25-30s | 7,000x |
+| inventory | 2ms | 25-30s | 15,000x |
+| give_item | 5ms | 25-30s | 6,000x |
+
+**Rule of Thumb**: If the action has structured parameters (instance_id, destination, etc.), use fast commands. Reserve legacy `"action"` type for natural language interactions.
+
+---
 
 ### Connection Management
 
@@ -650,11 +862,14 @@ Sent after processing your `action` message.
 - Reconnect on disconnect with exponential backoff
 - Send ping every 30s to keep connection alive
 - Buffer `world_update` messages if processing slowly
+- Use fast commands for all gameplay actions
+- Wait for `initial_state` before allowing player input
 
 ❌ **Don't**:
 - Don't send location updates more than once per second
 - Don't ignore `snapshot_version` - leads to desync
 - Don't send actions for items not in your current AOI
+- Don't use legacy action path for structured commands
 
 ### GPS Updates
 
@@ -894,13 +1109,19 @@ wscat -c "ws://localhost:8666/ws/experience?token=YOUR_JWT&experience=wylding-wo
 
 ## API Versioning
 
-**Current Version**: `0.3`
+**Current Version**: `0.4`
+
+**What's New in v0.4**:
+- Fast command handlers (<10ms response time)
+- Automatic initial_state push (proposed, pending Unity confirmation)
+- v0.4 WorldUpdate format (instance_id/template_id)
+- 7 production-ready command handlers
 
 Breaking changes will increment version number. Non-breaking additions (new optional fields) maintain version.
 
-**Version Header** (future):
+**Version Header**:
 ```json
-{"type": "connected", "api_version": "0.3", ...}
+{"type": "connected", "experience": "wylding-woods", ...}
 ```
 
 ---
