@@ -74,7 +74,7 @@ await websocket.send_json({
     // Player's current state
     "player": {
         "current_location": "woander_store",
-        "current_sublocation": null,
+        "current_area": null,
         "inventory": []
     },
 
@@ -83,7 +83,7 @@ await websocket.send_json({
         "location_id": "woander_store",
         "name": "Woander's Magical Shop",
         "description": "The entrance to Woander's mystical shop...",
-        "sublocations": {
+        "areas": {
             "spawn_zone_1": {
                 "id": "spawn_zone_1",
                 "name": "Display Shelf Area",
@@ -104,7 +104,7 @@ await websocket.send_json({
             },
             "spawn_zone_2": { /* ... bottle 2 ... */ },
             "spawn_zone_3": { /* ... bottle 3 ... */ }
-            // ... other woander_store sublocations
+            // ... other woander_store areas
         },
         "npcs": {
             "woander": { /* NPC data */ },
@@ -142,7 +142,7 @@ await websocket.send_json({
     "area_of_interest": {
         "location_id": "waypoint_28a",
         "name": "Dream Weaver's Clearing",
-        "sublocations": {
+        "areas": {
             "shelf_1": { /* bottle 4 */ },
             "shelf_2": { /* bottle 5 */ },
             "shelf_3": { /* bottle 6 */ },
@@ -201,7 +201,7 @@ await websocket.send_json({
         "location_id": current_location,
         "name": current_area.get("name"),
         "description": current_area.get("description"),
-        "sublocations": current_area.get("sublocations", {}),
+        "areas": current_area.get("areas", {}),
         "npcs": nearby_npcs
     },
 
@@ -259,7 +259,7 @@ except Exception as e:
 Unity tested: `woander_store.entrance` (no bottle there - correct!)
 
 Unity needs:
-- `spot_id` format: `{location}.{sublocation}`
+- `spot_id` format: `{location}.{area}`
 - `item_id` for each bottle
 - Item metadata: `type`, `semantic_name`, `state` (for visual effects)
 
@@ -281,7 +281,7 @@ python3 tests/manual/test_websocket_experience.py --via-gateway
 
 # Expected output includes:
 ✅ "area_of_interest": { "location_id": "woander_store", ... }
-✅ "sublocations": { "spawn_zone_1": { "items": [...] } }
+✅ "areas": { "spawn_zone_1": { "items": [...] } }
 ✅ 3 bottles visible in area_of_interest
 ```
 
@@ -290,7 +290,7 @@ python3 tests/manual/test_websocket_experience.py --via-gateway
 **Unity Developer Actions:**
 1. Connect to `ws://Byrne.local:8666/ws/experience`
 2. Receive welcome message
-3. Parse `area_of_interest.sublocations`
+3. Parse `area_of_interest.areas`
 4. For each item where `collectible: true`, spawn prefab at spot_id
 5. Verify 3 bottles appear in AR view
 

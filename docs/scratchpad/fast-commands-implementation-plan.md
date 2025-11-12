@@ -1044,6 +1044,150 @@ curl https://gaia-kb-dev.fly.dev/health
 
 ---
 
+## Task 3: drop_item Handler ✅ COMPLETE
+
+**Goal**: Enable players to drop items from inventory into the world
+
+**Priority**: HIGH - Completes collect/drop cycle, enables player-to-player item sharing
+
+**Implementation** (`app/services/kb/handlers/drop_item.py`):
+- ✅ Validate item exists in player inventory
+- ✅ Remove from `player.inventory` (using `$remove` operation)
+- ✅ Add to world state at current location/area (using nested dict `$append`)
+- ✅ Publish WorldUpdate v0.4 event
+- ✅ Return helpful error if item not in inventory
+
+**Actual LOC**: 227 lines (handler + tests)
+**Actual Response Time**: **6.7ms** (3x faster than target!)
+**Testing**: `scripts/experience/test-fast-drop.sh` - ALL TESTS PASSING
+
+**Test Results**:
+- ✅ Fast path confirmed: 6.7ms response time
+- ✅ State sync verified: Item removed from inventory, added to world
+- ✅ Validation working: Rejects dropping items not in inventory
+- ✅ Complete cycle: Drop → collect works perfectly
+
+---
+
+## Task 4: examine Handler 📋
+
+**Goal**: Fast item inspection (read-only, no state changes)
+
+**Priority**: MEDIUM - Quality of life, helps players make decisions
+
+**Implementation** (`app/services/kb/handlers/examine.py`):
+- Look up item by instance_id in world or inventory
+- Load template data for full description/properties
+- Return detailed item info
+- No state changes, no WorldUpdate events
+
+**Estimated LOC**: ~40 lines
+**Response Time Target**: <5ms (read-only)
+**Testing**: `scripts/experience/test-fast-examine.sh`
+
+---
+
+## Task 5: use_item Handler 📋
+
+**Goal**: Item consumption with effects (potions, keys, consumables)
+
+**Priority**: MEDIUM - Enables core gameplay mechanics
+
+**Implementation** (`app/services/kb/handlers/use_item.py`):
+- Validate item in player inventory
+- Check item is usable (consumable, key, etc.)
+- Apply effects based on template:
+  - Healing potions → update player.stats.health
+  - Keys → unlock doors/areas
+  - Buffs → apply temporary effects
+- Remove if consumable (single-use items)
+- Keep if permanent (keys, equipment)
+- Publish WorldUpdate for visible effects
+
+**Estimated LOC**: ~80 lines
+**Response Time Target**: <15ms
+**Testing**: `scripts/experience/test-fast-use.sh`
+
+**Future Enhancement**: Effect system architecture (status effects, buffs, debuffs)
+
+---
+
+## Task 6: inventory Handler 📋
+
+**Goal**: Fast inventory listing (read-only)
+
+**Priority**: LOW - Nice to have, simple read operation
+
+**Implementation** (`app/services/kb/handlers/inventory.py`):
+- Return `player.inventory` array from player view
+- Format for display (group by template_id, show counts)
+- Enrich with template data (names, descriptions)
+- No state changes
+
+**Estimated LOC**: ~20 lines
+**Response Time Target**: <2ms (read-only)
+**Testing**: `scripts/experience/test-fast-inventory.sh`
+
+---
+
+## Task 7: give_item Handler 📋
+
+**Goal**: Transfer items between players or to NPCs
+
+**Priority**: LOW - Social feature, requires proximity checks
+
+**Implementation** (`app/services/kb/handlers/give_item.py`):
+- Validate item in giver's inventory
+- Check receiver is nearby (same location/area)
+- Check receiver can accept (player online, NPC allows, inventory space)
+- Remove from giver inventory
+- Add to receiver inventory or NPC state
+- Publish WorldUpdate to both players
+- Support both player-to-player and player-to-NPC
+
+**Estimated LOC**: ~60 lines
+**Response Time Target**: <10ms
+**Testing**: `scripts/experience/test-fast-give.sh`
+
+**Future Enhancement**: Trading system with accept/reject, item exchange
+
+---
+
+## Implementation Order Recommendation
+
+**Phase 1 (Next Sprint)**:
+1. **Task 3: drop_item** - High value, completes core item cycle
+2. **Task 5: use_item** - Enables gameplay mechanics
+
+**Phase 2 (Future)**:
+3. **Task 4: examine** - Quality of life
+4. **Task 6: inventory** - Simple utility
+5. **Task 7: give_item** - Social features
+
+**Rationale**: Prioritize gameplay enablement (drop, use) over convenience (examine, inventory, give).
+
+---
+
+## Shared Patterns
+
+All handlers follow the established pattern from `collect_item.py`:
+
+1. **Validation** - Check preconditions (location, permissions, item exists)
+2. **State Updates** - Use nested dict format for world updates
+3. **Event Publishing** - `update_player_view()` auto-publishes WorldUpdate v0.4
+4. **Error Handling** - Helpful messages, suggest corrections
+5. **Documentation** - Full docstrings with Args/Returns/Examples
+6. **Testing** - Comprehensive scripts validating all scenarios
+
+**Performance Targets**:
+- Read-only operations: <5ms
+- State-modifying operations: <20ms
+- Complex operations (use_item with effects): <50ms
+
+All significantly faster than LLM path (25-30s).
+
+---
+
 ## Contact
 
 **Questions**: Symphony `websockets` room

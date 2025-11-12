@@ -86,7 +86,7 @@ python3 tests/manual/test_websocket_experience.py --url ws://localhost:8001/ws/e
 - Server processes commands via markdown-driven LLM system
 - LLM processing takes 10-30 seconds (2-pass system: logic + narrative)
 - Synthetic Python test clients timeout before responses arrive
-- Game logic requires player be in correct sublocation to collect items
+- Game logic requires player be in correct area to collect items
 - **This is expected behavior** - Unity client will have proper timeout handling
 
 **Verdict**: ✅ **WORKING** - Server infrastructure correct, LLM processing time expected
@@ -163,7 +163,7 @@ class WorldUpdateEvent(BaseModel):
   },
   "locations": {
     "woander_store": {
-      "sublocations": {
+      "areas": {
         "spawn_zone_1": {
           "items": [
             {
