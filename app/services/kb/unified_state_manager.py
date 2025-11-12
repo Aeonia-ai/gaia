@@ -382,7 +382,7 @@ class UnifiedStateManager:
             # Handle world.locations changes (item removed from world)
             elif path.startswith("world.locations.") and "items" in path:
                 # Extract location and area from path
-                # Example: world.locations.woander_store.sublocations.spawn_zone_1.items
+                # Example: world.locations.woander_store.areas.spawn_zone_1.items
                 parts = path.split(".")
                 location_id = parts[2] if len(parts) > 2 else None
                 area_id = parts[4] if len(parts) > 4 else None
@@ -925,13 +925,13 @@ class UnifiedStateManager:
         view = {
             "player": {
                 "current_location": starting_location,
-                "current_sublocation": None,
+                "current_area": None,
                 "inventory": starting_inventory.copy(),
                 "stats": {}
             },
             "progress": {
                 "visited_locations": [],
-                "discovered_sublocations": [],
+                "discovered_areas": [],
                 "quest_states": {},
                 "achievements": [],
                 "observations": {}
@@ -1416,9 +1416,9 @@ class UnifiedStateManager:
         locations = world_state.get("locations", {})
         zone_data = locations.get(zone_id, {})
 
-        # Build areas dict (sublocations with their items/NPCs)
+        # Build areas dict with their items/NPCs
         areas = {}
-        for area_id, area_data in zone_data.get("sublocations", {}).items():
+        for area_id, area_data in zone_data.get("areas", {}).items():
             areas[area_id] = {
                 "id": area_id,
                 "name": area_data.get("name", area_id),
@@ -1488,7 +1488,7 @@ class UnifiedStateManager:
         player_state = player_view.get("player", {})
         player_info = {
             "current_location": player_state.get("current_location"),
-            "current_area": player_state.get("current_sublocation"),
+            "current_area": player_state.get("current_area"),
             "inventory": player_state.get("inventory", [])
         }
 

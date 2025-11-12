@@ -859,6 +859,32 @@ If action invalid or target not found, return:
         if not message:
             return CommandResult(success=False, message_to_player="Command message is empty.")
 
+        # Check if this is an admin command (Python-coded, not markdown)
+        if message.strip().startswith("@"):
+            # Get user context for permission check
+            user_context = {
+                "user_id": user_id,
+                "role": command_data.get("role", "admin")  # TODO: Get role from JWT claims, for now default to admin
+            }
+
+            # Check admin permission
+            if user_context["role"] != "admin":
+                return CommandResult(
+                    success=False,
+                    message_to_player="🚫 You don't have permission to use admin commands."
+                )
+
+            # Execute Python-coded admin command
+            result_dict = await self._execute_admin_command(message.strip(), experience_id, user_context)
+
+            # Convert dict result to CommandResult
+            return CommandResult(
+                success=result_dict.get("success", False),
+                message_to_player=result_dict.get("narrative", result_dict.get("message", "Command executed")),
+                metadata=result_dict.get("data"),
+                state_changes=result_dict.get("state_changes")
+            )
+
         try:
             # Load state and config
             player_view = await self.state_manager.get_player_view(experience_id, user_id)
@@ -3474,7 +3500,7 @@ Write a compelling narrative for the player that describes what just happened.
                 }
 
         elif target_type == "experience":
-            # Reset entire experience (nuclear option)
+            # Reset entire experience using unified state manager
             if len(args) < 1:
                 return {
                     "success": False,
@@ -3485,61 +3511,60 @@ Write a compelling narrative for the player that describes what just happened.
             confirm = args[0].upper()
 
             if confirm != "CONFIRM":
-                # Count what will be reset
-                manifest = await self._load_manifest(experience)
-                instance_count = len(manifest.get("instances", []))
-
+                # Preview what will be reset
                 kb_path = getattr(settings, 'KB_PATH', '/kb')
+
+                # Count player views
                 players_dir = f"{kb_path}/players"
                 player_count = 0
                 if os.path.exists(players_dir):
                     for user_dir in os.listdir(players_dir):
-                        player_progress_file = f"{players_dir}/{user_dir}/{experience}/progress.json"
-                        if os.path.exists(player_progress_file):
+                        player_view_file = f"{players_dir}/{user_dir}/{experience}/view.json"
+                        if os.path.exists(player_view_file):
                             player_count += 1
+
+                # Check world state
+                world_file = f"{kb_path}/experiences/{experience}/state/world.json"
+                world_exists = os.path.exists(world_file)
 
                 return {
                     "success": False,
                     "error": {"code": "missing_confirm", "message": "CONFIRM required"},
-                    "narrative": f"⚠️  This will reset:\n   - {instance_count} instances (all set to uncollected)\n   - {player_count} player progress files (all deleted)\n\n   Add CONFIRM to proceed: @reset experience CONFIRM"
+                    "narrative": f"⚠️  This will reset '{experience}' to initial state:\n   - Restore world.json from template/Git{' ✓' if world_exists else ' (not found)'}\n   - Delete {player_count} player view(s)\n   - Create backup before reset\n\n   Add CONFIRM to proceed: @reset experience CONFIRM"
                 }
 
-            # Reset all instances
-            manifest = await self._load_manifest(experience)
-            kb_path = getattr(settings, 'KB_PATH', '/kb')
-            instances_reset = 0
+            # Use unified state manager to reset
+            if not self.state_manager:
+                return {
+                    "success": False,
+                    "error": {"code": "no_state_manager", "message": "State manager not initialized"},
+                    "narrative": "❌ State manager not initialized"
+                }
 
-            for inst in manifest.get("instances", []):
-                instance_file = f"{kb_path}/experiences/{experience}/instances/{inst['instance_file']}"
+            try:
+                result = await self.state_manager.reset_experience(
+                    experience=experience,
+                    reset_type="full",  # Safe: restores world + deletes all player views
+                    create_backup_file=True
+                )
 
-                if os.path.exists(instance_file):
-                    with open(instance_file, 'r') as f:
-                        instance_data = json.load(f)
+                backup_msg = f"\n   - Backup: {result['backup_created']}" if result.get('backup_created') else ""
+                world_msg = "✓ Restored" if result.get('world_restored') else "✗ Not restored"
 
-                    # Reset state
-                    if instance_data["state"].get("collected_by") is not None:
-                        instance_data["state"]["collected_by"] = None
-                        instance_data["metadata"]["last_modified"] = datetime.now().isoformat()
-                        instance_data["metadata"]["_version"] = instance_data["metadata"].get("_version", 1) + 1
-                        await self._save_instance_atomic(instance_file, instance_data)
-                        instances_reset += 1
+                return {
+                    "success": True,
+                    "narrative": f"✅ Experience '{experience}' reset complete\n   - World state: {world_msg}\n   - Player views deleted: {result.get('player_views_deleted', 0)}{backup_msg}",
+                    "data": result,
+                    "actions": []
+                }
 
-            # Delete all player progress files
-            players_dir = f"{kb_path}/players"
-            players_reset = 0
-            if os.path.exists(players_dir):
-                for user_dir in os.listdir(players_dir):
-                    player_progress_file = f"{players_dir}/{user_dir}/{experience}/progress.json"
-                    if os.path.exists(player_progress_file):
-                        os.remove(player_progress_file)
-                        players_reset += 1
-
-            return {
-                "success": True,
-                "narrative": f"✅ Experience '{experience}' reset to initial state\n   - {instances_reset} instances reset to uncollected\n   - {players_reset} player progress files deleted",
-                "data": {"instances_reset": instances_reset, "players_reset": players_reset},
-                "actions": []
-            }
+            except Exception as e:
+                logger.error(f"Experience reset failed: {e}", exc_info=True)
+                return {
+                    "success": False,
+                    "error": {"code": "reset_failed", "message": str(e)},
+                    "narrative": f"❌ Reset failed: {str(e)}"
+                }
 
         else:
             return {
