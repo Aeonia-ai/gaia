@@ -158,10 +158,12 @@ async def kb_service_lifespan(app: FastAPI):
         from .command_processor import command_processor
         from .handlers.collect_item import handle_collect_item
         from .handlers.drop_item import handle_drop_item
+        from .handlers.examine import handle_examine
         from .handlers.go import handle_go
         from .handlers.use_item import handle_use_item
         command_processor.register("collect_item", handle_collect_item)
         command_processor.register("drop_item", handle_drop_item)
+        command_processor.register("examine", handle_examine)
         command_processor.register("go", handle_go)
         command_processor.register("use_item", handle_use_item)
         logger.info("Command handlers registered with the processor")
