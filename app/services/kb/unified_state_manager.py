@@ -1394,9 +1394,14 @@ class UnifiedStateManager:
         # Use first waypoint as primary zone
         # TODO: Handle multiple overlapping zones (disambiguation)
         primary_waypoint = nearby_waypoints[0]
-        zone_id = primary_waypoint.get("id")
 
-        logger.debug(f"Building AOI for zone '{zone_id}' (user: {user_id})")
+        # Use location_id if available (explicit mapping), fall back to waypoint id
+        zone_id = primary_waypoint.get("location_id") or primary_waypoint.get("id")
+
+        logger.debug(
+            f"Building AOI for zone '{zone_id}' from waypoint '{primary_waypoint.get('id')}' "
+            f"(user: {user_id})"
+        )
 
         # Load world state to get items/NPCs at this location
         try:
@@ -1454,13 +1459,10 @@ class UnifiedStateManager:
                     template = {}
 
                 # Merge template + instance (instance overrides template)
+                # Pass full item_instance so world.json booleans override template strings
                 merged_item = self.template_loader.merge_template_instance(
                     template=template,
-                    instance={
-                        "instance_id": instance_id,
-                        "template_id": template_id,
-                        "state": item_instance.get("state", {})
-                    }
+                    instance=item_instance  # Pass full instance data
                 )
 
                 areas[area_id]["items"].append(merged_item)
