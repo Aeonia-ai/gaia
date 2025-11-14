@@ -30,6 +30,16 @@ class ExperienceCommandProcessor:
         if not action:
             return CommandResult(success=False, message_to_player="Command is missing the 'action' field.")
 
+        # Admin Command Path: Route all @ commands through the admin router
+        if action.startswith("@"):
+            logger.info(f"Processing admin command '{action}' for user {user_id}")
+            try:
+                from .handlers.admin_command_router import route_admin_command
+                return await route_admin_command(user_id, experience_id, command_data)
+            except Exception as e:
+                logger.error(f"Error in admin command router for '{action}': {e}", exc_info=True)
+                return CommandResult(success=False, message_to_player=f"An error occurred while processing admin command: {action}")
+
         # Fast Path: Check for a registered, hardcoded Python handler first.
         handler = self._handlers.get(action)
         if handler:
