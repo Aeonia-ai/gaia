@@ -1,10 +1,12 @@
 # WebSocket Area of Interest (AOI) - Client Integration Guide
 
-**Version**: 0.4
-**Last Updated**: 2025-11-12
-**Status**: Phase 1 MVP Complete + Fast Command Handlers Implemented
+**Version**: 0.5
+**Last Updated**: 2025-11-14
+**Status**: Phase 1 MVP Complete + Hierarchical Spots Implemented
 **Source of Truth**: [AOI WebSocket Design](./aoi-websocket-design-2025-11-10.md)
-**Implementation**: `/app/services/kb/unified_state_manager.py` (build_aoi at line 1226)
+**Implementation**: `/app/services/kb/unified_state_manager.py` (build_aoi method)
+
+⚠️ **BREAKING CHANGE in v0.5**: Areas now contain `spots` (not direct `items`/`npcs` arrays)
 
 ---
 
@@ -46,8 +48,10 @@ The system uses industry-standard game hierarchy (matches Unity/Unreal/MMO conve
 
 - **Geography**: GPS anchor (real-world waypoint), may have optional region metadata
 - **Zone**: Experience-specific themed location at a Geography (e.g., "Woander's Shop" at Waypoint 28A)
-- **Area**: Functional subdivisions within a Zone (e.g., "counter", "display_shelf")
-- **Spot**: Precise interactable points (not yet in AOI, future feature)
+- **Area**: Functional rooms/regions within a Zone (e.g., "main_room", "entrance")
+- **Spot**: Precise interactable positions within an Area (e.g., "spot_1", "counter", "fairy_door")
+
+**NEW in v0.5**: Items and NPCs now appear at **spots within areas**, not directly in areas.
 
 **Client queries by GPS distance** - the server returns the nearest Zone, not hierarchical navigation.
 
@@ -74,6 +78,51 @@ wss://gaia-gateway-prod.fly.dev/ws/experience?token=<JWT>&experience=wylding-woo
 |-----------|----------|-------------|
 | `token` | ✅ Yes | JWT token from authentication |
 | `experience` | ✅ Yes | Experience ID (e.g., `wylding-woods`) |
+
+#### Understanding the Experience Parameter
+
+The `experience` query parameter determines which game world the client connects to. **You must specify it in the WebSocket URL** - the server does not look up which experience you're "currently in" from a database.
+
+**How It Works**:
+```
+ws://.../ws/experience?token=JWT&experience=wylding-woods
+                                           ^^^^^^^^^^^^^^
+                                    This parameter tells the server
+                                    which world to load for THIS connection
+```
+
+The experience parameter:
+- Selects the world state file: `/kb/experiences/{experience}/state/world.json`
+- Determines player data location: `/players/{user_id}/{experience}/view.json`
+- Loads experience-specific content (NPCs, items, locations, quests)
+- Each experience is an isolated game world with its own state
+
+**Key Architectural Point**:
+Unlike many MMOs that store "current zone" in a database, GAIA requires you to **explicitly declare the experience in every WebSocket URL**. This means:
+
+✅ You can connect to multiple experiences simultaneously (different tabs/connections)
+✅ No server-side "current experience" to get out of sync
+✅ Switching experiences = open new WebSocket with different parameter
+❌ Server does NOT remember your last experience and auto-load it
+
+**Default Behavior**:
+- If not specified, defaults to `"wylding-woods"`
+- Recommended: Always explicitly specify the experience parameter
+
+**Multiple Experiences Example**:
+A single player can have connections to different experiences at the same time:
+```javascript
+// Connection 1: Playing wylding-woods
+const ws1 = new WebSocket('ws://server/ws/experience?token=JWT&experience=wylding-woods');
+
+// Connection 2: Playing crystal-caves simultaneously
+const ws2 = new WebSocket('ws://server/ws/experience?token=JWT&experience=crystal-caves');
+```
+Each connection maintains separate state, inventory, and progress.
+
+**Available Experiences**:
+- `wylding-woods` - Dream bottle quest with fairies
+- Additional experiences defined in `/kb/experiences/` directory
 
 ### Connection Flow
 
@@ -293,6 +342,35 @@ Transfer item from player to NPC or another player.
 
 ---
 
+### 5. Command Discovery (get_commands)
+
+**NEW in v0.5** - Protocol introspection for dynamic client capabilities.
+
+Request available commands and their schemas. Enables self-documenting API, runtime validation, and auto-generated UIs.
+
+```json
+{
+  "type": "get_commands"
+}
+```
+
+**Response**: `commands_schema` message with JSON Schema definitions
+
+**Use Cases:**
+- Dynamic client updates without redeployment
+- Runtime command validation before sending
+- Auto-generated command interfaces
+- IDE autocomplete integration
+- API documentation tools
+
+**Performance**: <5ms response time (cached schema)
+
+**Design**: Based on GraphQL introspection and gRPC reflection patterns, adapted for WebSocket protocols. Uses JSON Schema (draft-07) for maximum tooling compatibility.
+
+**Security**: In production, this endpoint may be rate-limited or require elevated permissions.
+
+---
+
 ## Server → Client Messages
 
 ### 1. Connected (Welcome)
@@ -411,45 +489,74 @@ Sent in response to `update_location`. Contains everything visible at your locat
   # NOTE: Phase 1 MVP structure - geography_id and geofence_radius_m coming in Phase 2
 
   "areas": {
-    "spawn_zone_1": {
-      "id": "spawn_zone_1",
-      "name": "Display Shelf Area",
-      "description": "A shelf displaying various magical curiosities...",
-      "items": [
-        {
-          "instance_id": "dream_bottle_1",
-          "template_id": "dream_bottle",
-          "type": "dream_bottle",
-          "semantic_name": "peaceful dream bottle",
-          "description": "A bottle glowing with soft azure light...",
-          "collectible": true,
-          "visible": true,
-          "state": {
-            "glowing": true,
-            "dream_type": "peaceful",
-            "symbol": "spiral"
-          }
+    "main_room": {
+      "id": "main_room",
+      "name": "Main Room",
+      "description": "The main room of Woander's magical shop...",
+      "spots": {
+        "spot_1": {
+          "id": "spot_1",
+          "name": "Spot 1",
+          "description": "A shelf displaying various magical curiosities...",
+          "items": [
+            {
+              "instance_id": "bottle_mystery",
+              "template_id": "bottle_mystery",
+              "type": "dream_bottle",
+              "semantic_name": "Bottle of Mystery",
+              "description": "A bottle with deep turquoise glow...",
+              "collectible": true,
+              "visible": true,
+              "state": {
+                "glowing": true,
+                "dream_type": "mystery",
+                "symbol": "spiral"
+              }
+            }
+          ],
+          "npcs": []
+        },
+        "spot_2": {
+          "id": "spot_2",
+          "name": "Spot 2",
+          "description": "Near the window where light streams in...",
+          "items": [
+            {
+              "instance_id": "bottle_energy",
+              "template_id": "bottle_energy",
+              "semantic_name": "Bottle of Energy",
+              "description": "A bottle radiating bright amber light...",
+              "collectible": true,
+              "visible": true,
+              "state": {
+                "glowing": true,
+                "dream_type": "energy",
+                "symbol": "star"
+              }
+            }
+          ],
+          "npcs": []
+        },
+        "counter": {
+          "id": "counter",
+          "name": "Shop Counter",
+          "description": "The main counter where Woander conducts business...",
+          "items": [],
+          "npcs": [
+            {
+              "instance_id": "woander_1",
+              "template_id": "woander",
+              "name": "Woander",
+              "type": "shopkeeper_fairy",
+              "description": "A cheerful blue elf shopkeeper...",
+              "state": {
+                "greeting_given": false,
+                "shop_open": true
+              }
+            }
+          ]
         }
-      ],
-      "npcs": []
-    },
-    "counter": {
-      "id": "counter",
-      "name": "Shop Counter",
-      "npcs": [
-        {
-          "instance_id": "woander_1",
-          "template_id": "woander",
-          "name": "Woander",
-          "type": "shopkeeper_fairy",
-          "description": "A cheerful blue elf shopkeeper...",
-          "state": {
-            "greeting_given": false,
-            "shop_open": true
-          }
-        }
-      ],
-      "items": []
+      }
     }
   },
 
@@ -478,12 +585,18 @@ Sent in response to `update_location`. Contains everything visible at your locat
 - `geography_id`: Shared geography identifier across experiences
 - `geofence_radius_m`: Radius for zone boundary detection in gps object
 
-**`areas`**: Sublocations within zone
+**`areas`**: Rooms/regions within zone
 - Dictionary keyed by area ID
-- Each area contains `items` and `npcs` arrays
-- Use for spatial organization and rendering
+- **NEW in v0.5**: Each area contains `spots` dictionary (not direct `items`/`npcs` arrays)
+- Use for high-level spatial organization
 
-**`items[]`**: Collectible/interactive items
+**`spots`**: Precise positions within an area
+- Dictionary keyed by spot ID
+- Each spot contains `items` and `npcs` arrays
+- Use for exact placement and interaction points
+- Examples: "spot_1", "counter", "fairy_door"
+
+**`items[]`**: Collectible/interactive items (now in spots)
 - `instance_id`: Unique runtime ID (use for actions)
 - `template_id`: Item type/blueprint
 - `collectible`: Can player pick this up?
@@ -585,18 +698,20 @@ Sent when world state changes (someone collects item, NPC moves, etc.).
   "changes": [
     {
       "operation": "remove",
-      "area_id": "spawn_zone_1",
-      "instance_id": "dream_bottle_woander_1"
+      "zone_id": "woander_store",
+      "area_id": "main_room",
+      "spot_id": "spot_1",
+      "instance_id": "bottle_mystery"
     },
     {
       "operation": "add",
       "area_id": null,
       "path": "player.inventory",
       "item": {
-        "instance_id": "dream_bottle_woander_1",
-        "template_id": "dream_bottle",
-        "semantic_name": "dream bottle",
-        "description": "A bottle glowing with inner light...",
+        "instance_id": "bottle_mystery",
+        "template_id": "bottle_mystery",
+        "semantic_name": "Bottle of Mystery",
+        "description": "A bottle with deep turquoise glow...",
         "collectible": true,
         "visible": true,
         "state": {
@@ -676,8 +791,10 @@ localSnapshotVersion = update.snapshot_version;
 ```json
 {
   "operation": "remove",
-  "area_id": "spawn_zone_1",  // Where item was
-  "instance_id": "dream_bottle_woander_1"  // Which instance
+  "zone_id": "woander_store",  // Zone containing item
+  "area_id": "main_room",  // Area (room) containing item
+  "spot_id": "spot_1",  // Spot (position) where item was
+  "instance_id": "bottle_mystery"  // Which instance
 }
 ```
 - Look up instance in `_activeInstances[instance_id]`
@@ -688,7 +805,9 @@ localSnapshotVersion = update.snapshot_version;
 ```json
 {
   "operation": "add",
-  "area_id": "spawn_zone_1",  // Where to spawn
+  "zone_id": "woander_store",  // Zone to spawn in
+  "area_id": "main_room",  // Area (room) to spawn in
+  "spot_id": "spot_1",  // Spot (position) to spawn at
   "item": {
     "instance_id": "new_item_1",
     "template_id": "dream_bottle",
@@ -697,7 +816,7 @@ localSnapshotVersion = update.snapshot_version;
 }
 ```
 - Load prefab from `template_id`
-- Instantiate at area location
+- Instantiate at spot location (zone > area > spot)
 - Store in `_activeInstances[instance_id]`
 
 **Add to Inventory**:
@@ -809,6 +928,224 @@ Sent after processing your `action` message.
 | `unknown_message_type` | Unrecognized message type |
 | `processing_error` | Exception during command handling |
 | `not_implemented` | Feature not yet available |
+
+---
+
+### 7. Commands Schema (Protocol Introspection)
+
+**NEW in v0.5** - Sent in response to `get_commands` request.
+
+Provides JSON Schema definitions for all available commands, enabling dynamic client capabilities and self-documenting API.
+
+#### Response Structure
+
+```json
+{
+  "type": "commands_schema",
+  "timestamp": 1730678400000,
+  "schema_version": "1.0",
+  "commands": {
+    "go": { /* JSON Schema */ },
+    "collect_item": { /* JSON Schema */ },
+    "drop_item": { /* JSON Schema */ },
+    "examine": { /* JSON Schema */ },
+    "use_item": { /* JSON Schema */ },
+    "inventory": { /* JSON Schema */ },
+    "give_item": { /* JSON Schema */ },
+    "update_location": { /* JSON Schema */ },
+    "ping": { /* JSON Schema */ }
+  }
+}
+```
+
+#### Complete Command Schemas
+
+**All 9 commands** are returned with full JSON Schema draft-07 definitions:
+
+##### 1. go - Navigate Between Areas (6ms)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Navigate Command",
+  "description": "Move between areas within your current location",
+  "required": ["type", "action", "destination"],
+  "properties": {
+    "type": {"const": "action"},
+    "action": {"const": "go"},
+    "destination": {"type": "string", "description": "Target area ID"}
+  },
+  "examples": [{"type": "action", "action": "go", "destination": "spawn_zone_1"}],
+  "metadata": {
+    "avg_response_time_ms": 6,
+    "response_types": ["action_response", "world_update"]
+  }
+}
+```
+
+##### 2. collect_item - Pick Up Items (5ms)
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Collect Item Command",
+  "description": "Pick up an item from the world",
+  "required": ["type", "action", "instance_id"],
+  "properties": {
+    "type": {"const": "action"},
+    "action": {"const": "collect_item"},
+    "instance_id": {"type": "string", "description": "Unique item identifier"}
+  },
+  "examples": [{"type": "action", "action": "collect_item", "instance_id": "dream_bottle_1"}],
+  "metadata": {
+    "avg_response_time_ms": 5,
+    "response_types": ["action_response", "world_update"],
+    "validation": [
+      "Player must be in same location/area as item",
+      "Item must be collectible: true"
+    ]
+  }
+}
+```
+
+##### 3. drop_item - Drop Items (7ms)
+```json
+{
+  "title": "Drop Item Command",
+  "description": "Drop an item from inventory into the world at your current location",
+  "required": ["type", "action", "instance_id"],
+  "properties": {
+    "instance_id": {"type": "string", "description": "Item from inventory"}
+  },
+  "metadata": {
+    "avg_response_time_ms": 7,
+    "validation": ["Item must exist in player inventory"]
+  }
+}
+```
+
+##### 4. examine - Inspect Items (3ms)
+```json
+{
+  "title": "Examine Item Command",
+  "description": "Inspect an item for detailed information (read-only)",
+  "required": ["type", "action", "instance_id"],
+  "metadata": {
+    "avg_response_time_ms": 3,
+    "response_types": ["action_response"],
+    "search_order": "Player inventory → current area → current location"
+  }
+}
+```
+
+##### 5. use_item - Consume/Activate Items (4ms)
+```json
+{
+  "title": "Use Item Command",
+  "description": "Consume or activate an item from inventory",
+  "required": ["type", "action", "instance_id"],
+  "metadata": {
+    "avg_response_time_ms": 4,
+    "response_types": ["action_response", "world_update"],
+    "effects": [
+      "Health restoration: Updates player.stats.health",
+      "Status effects: Adds to player.status_effects[]",
+      "Consumables: Removed from inventory after use"
+    ]
+  }
+}
+```
+
+##### 6. inventory - List Items (2ms)
+```json
+{
+  "title": "Inventory List Command",
+  "description": "Get formatted list of items in player inventory (read-only)",
+  "required": ["type", "action"],
+  "metadata": {
+    "avg_response_time_ms": 2,
+    "response_types": ["action_response"]
+  }
+}
+```
+
+##### 7. give_item - Transfer to NPC (5ms)
+```json
+{
+  "title": "Give Item Command",
+  "description": "Transfer item from player to NPC or another player",
+  "required": ["type", "action", "instance_id", "target_npc_id"],
+  "properties": {
+    "instance_id": {"type": "string", "description": "Item from inventory"},
+    "target_npc_id": {"type": "string", "description": "NPC identifier"}
+  },
+  "examples": [{"type": "action", "action": "give_item", "instance_id": "dream_bottle_1", "target_npc_id": "louisa"}],
+  "metadata": {
+    "avg_response_time_ms": 5,
+    "validation": [
+      "Item must be in player inventory",
+      "Player must be in same location/area as target",
+      "NPC must exist (player-to-player transfer not yet implemented)"
+    ]
+  }
+}
+```
+
+##### 8. update_location - GPS Update (15ms)
+```json
+{
+  "title": "Update Location Command",
+  "description": "Send GPS coordinates to receive nearby Area of Interest (AOI)",
+  "required": ["type", "gps"],
+  "properties": {
+    "gps": {
+      "type": "object",
+      "required": ["latitude", "longitude"],
+      "properties": {
+        "latitude": {"type": "number", "minimum": -90, "maximum": 90},
+        "longitude": {"type": "number", "minimum": -180, "maximum": 180},
+        "accuracy": {"type": "number", "description": "GPS accuracy in meters (optional)"}
+      }
+    }
+  },
+  "examples": [{"type": "update_location", "gps": {"latitude": 37.7749, "longitude": -122.4194, "accuracy": 10}}],
+  "metadata": {
+    "avg_response_time_ms": 15,
+    "response_types": ["area_of_interest"]
+  }
+}
+```
+
+##### 9. ping - Health Check (1ms)
+```json
+{
+  "title": "Ping Command",
+  "description": "Health check / connection keep-alive",
+  "required": ["type"],
+  "properties": {
+    "timestamp": {"type": "integer", "description": "Client timestamp in ms (optional)"}
+  },
+  "metadata": {
+    "avg_response_time_ms": 1,
+    "response_types": ["pong"]
+  }
+}
+```
+
+**Schema Format**: JSON Schema draft-07 for maximum tooling compatibility
+
+**Use Cases:**
+- **Runtime validation**: Validate commands before sending to server
+- **Auto-generated UIs**: Build command interfaces dynamically
+- **IDE integration**: Enable autocomplete and inline documentation
+- **Client SDKs**: Generate typed client libraries automatically
+- **Documentation**: Self-documenting API without manual updates
+
+**Metadata Fields:**
+- `avg_response_time_ms`: Expected latency for command execution
+- `response_types`: Message types client will receive
+- `validation`: Business rules and constraints
+- `deprecated` (future): Indicates deprecated commands with migration guidance
+
+**Design Philosophy**: Inspired by GraphQL introspection (`__schema`, `__type` queries) and gRPC reflection service, adapted for WebSocket real-time protocols.
 
 ---
 
@@ -993,15 +1330,22 @@ public class GAIAWebSocketClient : MonoBehaviour
         var zone = data["zone"];
         var areas = data["areas"];
 
+        // NEW HIERARCHY: zone > areas > spots > items/npcs
         foreach (var area in areas)
         {
-            foreach (var item in area["items"])
+            var spots = area["spots"];
+            foreach (var spot in spots)
             {
-                WorldRenderer.SpawnItem(item);
-            }
-            foreach (var npc in area["npcs"])
-            {
-                WorldRenderer.SpawnNPC(npc);
+                // Spawn items at this spot
+                foreach (var item in spot["items"])
+                {
+                    WorldRenderer.SpawnItem(item, spot["id"]);
+                }
+                // Spawn NPCs at this spot
+                foreach (var npc in spot["npcs"])
+                {
+                    WorldRenderer.SpawnNPC(npc, spot["id"]);
+                }
             }
         }
     }
@@ -1126,7 +1470,13 @@ wscat -c "ws://localhost:8666/ws/experience?token=YOUR_JWT&experience=wylding-wo
 
 ## API Versioning
 
-**Current Version**: `0.4`
+**Current Version**: `0.5`
+
+**What's New in v0.5**:
+- **BREAKING**: New zone > area > spot hierarchy
+- Items and NPCs now appear in `spots` within `areas`, not directly in `areas`
+- WorldUpdate events include `zone_id`, `area_id`, and `spot_id` fields
+- All existing fast commands work with new hierarchy
 
 **What's New in v0.4**:
 - Fast command handlers (<10ms response time)
@@ -1179,46 +1529,53 @@ Breaking changes will increment version number. Non-breaking additions (new opti
   },
 
   "areas": {
-    "spawn_zone_1": {
-      "id": "spawn_zone_1",
-      "name": "Display Shelf Area",
-      "description": "A shelf displaying various magical curiosities...",
-      "items": [
-        {
-          "instance_id": "dream_bottle_1",
-          "template_id": "dream_bottle",
-          "type": "dream_bottle",
-          "semantic_name": "peaceful dream bottle",
-          "description": "A bottle glowing with soft azure light...",
-          "collectible": true,
-          "visible": true,
-          "state": {
-            "glowing": true,
-            "dream_type": "peaceful",
-            "symbol": "spiral"
-          }
+    "main_room": {
+      "id": "main_room",
+      "name": "Main Room",
+      "description": "The main room of Woander's magical shop, filled with wonder and enchanted items.",
+      "spots": {
+        "spot_1": {
+          "id": "spot_1",
+          "name": "Spot 1",
+          "description": "A shelf displaying various magical curiosities...",
+          "items": [
+            {
+              "instance_id": "bottle_mystery",
+              "template_id": "bottle_mystery",
+              "type": "dream_bottle",
+              "semantic_name": "Bottle of Mystery",
+              "description": "A bottle with deep turquoise glow, swirling with mysterious dreams...",
+              "collectible": true,
+              "visible": true,
+              "state": {
+                "glowing": true,
+                "dream_type": "mystery",
+                "symbol": "spiral"
+              }
+            }
+          ],
+          "npcs": []
+        },
+        "counter": {
+          "id": "counter",
+          "name": "Shop Counter",
+          "description": "The main counter where Woander conducts business...",
+          "items": [],
+          "npcs": [
+            {
+              "instance_id": "woander_1",
+              "template_id": "woander",
+              "name": "Woander",
+              "type": "shopkeeper_fairy",
+              "description": "A cheerful blue elf shopkeeper...",
+              "state": {
+                "greeting_given": false,
+                "shop_open": true
+              }
+            }
+          ]
         }
-      ],
-      "npcs": []
-    },
-    "counter": {
-      "id": "counter",
-      "name": "Shop Counter",
-      "description": "The main counter...",
-      "items": [],
-      "npcs": [
-        {
-          "instance_id": "woander_1",
-          "template_id": "woander",
-          "name": "Woander",
-          "type": "shopkeeper_fairy",
-          "description": "A cheerful blue elf shopkeeper...",
-          "state": {
-            "greeting_given": false,
-            "shop_open": true
-          }
-        }
-      ]
+      }
     }
   },
 
@@ -1233,7 +1590,8 @@ Breaking changes will increment version number. Non-breaking additions (new opti
 **Key Points**:
 - ✅ `zone.gps` contains ONLY `lat` and `lng` (no `geofence_radius_m`)
 - ✅ `zone` does NOT have `geography_id` field
-- ✅ `areas` contain ONLY `id`, `name`, `description`, `items[]`, `npcs[]`
+- ✅ **NEW in v0.5**: `areas` contain `spots` dictionary (not direct `items`/`npcs` arrays)
+- ✅ `spots` contain `id`, `name`, `description`, `items[]`, `npcs[]`
 - ✅ `areas` do NOT have `location`, `accessible_from`, or `ambient` fields
 - ✅ `snapshot_version` is Unix timestamp in milliseconds
 - ✅ This structure has been tested and matches actual server implementation

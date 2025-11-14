@@ -18,8 +18,9 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo "========================================"
-echo "Fast 'collect_item' Command Test (v0.4)"
+echo "Fast 'collect_item' Command Test (v0.5)"
 echo "========================================"
+echo "NEW HIERARCHY: zone > area > spot > items"
 echo ""
 
 # Get JWT token
@@ -75,9 +76,9 @@ EOF
 
 echo ""
 
-# Test 2: Navigate to spawn_zone_1
+# Test 2: Navigate to main_room (NEW v0.5 area)
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Setup: Navigate to spawn_zone_1"
+echo "Setup: Navigate to main_room"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -94,7 +95,7 @@ async def navigate():
         await ws.send(json.dumps({
             "type": "action",
             "action": "go",
-            "destination": "spawn_zone_1"
+            "destination": "main_room"
         }))
 
         response = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
@@ -108,11 +109,11 @@ EOF
 
 echo ""
 
-# Test 3: Fast collect_item with instance_id
+# Test 3: Fast collect_item with instance_id (v0.5 bottle IDs)
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Test 1: Fast 'collect_item' (structured)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Command: {\"action\": \"collect_item\", \"instance_id\": \"dream_bottle_1\"}"
+echo "Command: {\"action\": \"collect_item\", \"instance_id\": \"bottle_mystery\"}"
 echo "Expected: <100ms (fast path, no LLM)"
 echo ""
 
@@ -131,7 +132,7 @@ async def test_collect():
         await ws.send(json.dumps({
             "type": "action",
             "action": "collect_item",
-            "instance_id": "dream_bottle_1"
+            "instance_id": "bottle_mystery"
         }))
 
         # Collect both messages (might get world_update + action_response)
@@ -183,11 +184,12 @@ WORLD_FILE="/Users/jasbahr/Development/Aeonia/Vaults/gaia-knowledge-base/experie
 PLAYER_FILE="/Users/jasbahr/Development/Aeonia/Vaults/gaia-knowledge-base/players/$USER_ID/wylding-woods/view.json"
 
 if [ -f "$WORLD_FILE" ]; then
-    ITEMS_IN_ZONE=$(jq '.locations.woander_store.areas.spawn_zone_1.items | length' "$WORLD_FILE")
-    echo "Items in spawn_zone_1: $ITEMS_IN_ZONE"
+    # NEW v0.5: Check items in spot_1 within main_room area
+    ITEMS_IN_SPOT=$(jq '.locations.woander_store.areas.main_room.spots.spot_1.items | length' "$WORLD_FILE")
+    echo "Items in main_room.spot_1: $ITEMS_IN_SPOT"
 
-    if [ "$ITEMS_IN_ZONE" -eq 0 ]; then
-        echo -e "${GREEN}✅ Item removed from world state${NC}"
+    if [ "$ITEMS_IN_SPOT" -eq 0 ]; then
+        echo -e "${GREEN}✅ Item removed from world state (spot hierarchy)${NC}"
     else
         echo -e "${RED}❌ Item still in world state${NC}"
     fi
@@ -195,10 +197,10 @@ fi
 
 if [ -f "$PLAYER_FILE" ]; then
     INVENTORY_SIZE=$(jq '.player.inventory | length' "$PLAYER_FILE")
-    HAS_BOTTLE=$(jq '[.player.inventory[] | select(.instance_id == "dream_bottle_1")] | length' "$PLAYER_FILE")
+    HAS_BOTTLE=$(jq '[.player.inventory[] | select(.instance_id == "bottle_mystery")] | length' "$PLAYER_FILE")
 
     echo "Player inventory size: $INVENTORY_SIZE"
-    echo "Has dream_bottle_1: $HAS_BOTTLE"
+    echo "Has bottle_mystery: $HAS_BOTTLE"
 
     if [ "$HAS_BOTTLE" -eq 1 ]; then
         echo -e "${GREEN}✅ Item added to player inventory${NC}"
@@ -228,7 +230,7 @@ async def test_duplicate():
         await ws.send(json.dumps({
             "type": "action",
             "action": "collect_item",
-            "instance_id": "dream_bottle_1"
+            "instance_id": "bottle_mystery"
         }))
 
         response = json.loads(await asyncio.wait_for(ws.recv(), timeout=5))
@@ -247,8 +249,9 @@ echo "========================================"
 echo "Test Summary"
 echo "========================================"
 echo "✅ Fast path: <100ms response time"
+echo "✅ v0.5 hierarchy: zone > area > spot > items"
 echo "✅ v0.4 format: Uses instance_id/template_id"
-echo "✅ State sync: Removes from world, adds to inventory"
+echo "✅ State sync: Removes from spots, adds to inventory"
 echo "✅ WorldUpdate v0.4: Publishes to all players"
 echo "✅ Validation: Prevents duplicate collection"
 echo ""
