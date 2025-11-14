@@ -1434,8 +1434,14 @@ class UnifiedStateManager:
 
             # Load templates and merge with instance data
             for item_instance in area_data.get("items", []):
-                instance_id = item_instance.get("instance_id") or item_instance.get("id")
-                template_id = item_instance.get("template_id") or item_instance.get("type")
+                # Handle items stored as strings (e.g., "dream_bottle_1")
+                if isinstance(item_instance, str):
+                    instance_id = item_instance
+                    template_id = item_instance  # Use instance_id as template_id
+                    item_instance = {"instance_id": instance_id, "template_id": template_id}
+                else:
+                    instance_id = item_instance.get("instance_id") or item_instance.get("id")
+                    template_id = item_instance.get("template_id") or item_instance.get("type")
 
                 if not template_id:
                     logger.warning(
