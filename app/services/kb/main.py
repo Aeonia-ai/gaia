@@ -163,6 +163,16 @@ async def kb_service_lifespan(app: FastAPI):
         from .handlers.go import handle_go
         from .handlers.inventory import handle_inventory
         from .handlers.use_item import handle_use_item
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # ⚠️  MVP KLUDGE - NPC Talk Handler (routes to Chat Service)
+        # ═══════════════════════════════════════════════════════════════════════════
+        # This is a TEMPORARY solution for Phase 1 demo.
+        # Refactor after demo to handle NPC dialogue directly in KB service.
+        # See: docs/scratchpad/npc-llm-dialogue-system.md for proper architecture
+        from .handlers.talk import handle_talk
+
+        # Register player commands (fast path)
         command_processor.register("collect_item", handle_collect_item)
         command_processor.register("drop_item", handle_drop_item)
         command_processor.register("examine", handle_examine)
@@ -170,6 +180,11 @@ async def kb_service_lifespan(app: FastAPI):
         command_processor.register("go", handle_go)
         command_processor.register("inventory", handle_inventory)
         command_processor.register("use_item", handle_use_item)
+        command_processor.register("talk", handle_talk)  # ⚠️  MVP KLUDGE - routes to Chat Service
+
+        # Note: Admin commands (@ prefix) are routed through admin_command_router
+        # See app/services/kb/command_processor.py and handlers/admin_command_router.py
+
         logger.info("Command handlers registered with the processor")
 
     except Exception as e:

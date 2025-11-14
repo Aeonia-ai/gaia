@@ -167,7 +167,167 @@ KB_TOOLS = [
                 "required": ["message"]
             }
         }
+    },
+    # ═══════════════════════════════════════════════════════════════════════════
+    # ⚠️  MVP KLUDGE WARNING - NPC INTERACTION TOOLS
+    # ═══════════════════════════════════════════════════════════════════════════
+    #
+    # The following tools are a TEMPORARY solution for the Phase 1 demo.
+    #
+    # CURRENT ARCHITECTURE (MVP KLUDGE):
+    #   Unity → WebSocket → KB Service (receives "talk" action)
+    #                       ↓
+    #                       Chat Service (Louisa persona with these tools)
+    #                       ↓
+    #                       KB Service tools (check quest, accept bottle, etc.)
+    #                       ↓
+    #   Unity ← WebSocket ← KB Service (wraps chat response)
+    #
+    # WHY THIS IS A KLUDGE:
+    #   1. Double-hop through services (KB → Chat → KB)
+    #   2. Chat service needs game mechanic knowledge (quest IDs, bottle IDs)
+    #   3. Tightly couples persona definitions to game state structure
+    #   4. Inefficient HTTP calls for simple state checks
+    #
+    # PROPER FUTURE ARCHITECTURE:
+    #   - Move LLM dialogue generation INTO KB service directly
+    #   - NPC templates in KB markdown with personality/situation
+    #   - KB service generates dialogue using MultiProviderChatService
+    #   - Trust system, conversation history managed in KB state
+    #   - See: docs/scratchpad/npc-llm-dialogue-system.md for full design
+    #
+    # TIMELINE: Refactor after Phase 1 demo (estimated 1-2 days)
+    #
+    # ═══════════════════════════════════════════════════════════════════════════
+    {
+        "type": "function",
+        "function": {
+            "name": "check_quest_state",
+            "description": "Check the player's current quest state and progress. Use when Louisa needs to know if player has accepted quest, how many bottles collected, etc.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "quest_id": {
+                        "type": "string",
+                        "description": "Quest ID to check (e.g., 'find_dream_bottles')"
+                    },
+                    "experience": {
+                        "type": "string",
+                        "description": "Experience ID (e.g., 'wylding-woods')",
+                        "default": "wylding-woods"
+                    }
+                },
+                "required": ["quest_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "accept_bottle_from_player",
+            "description": "Accept a dream bottle from the player when they give it to Louisa. Removes bottle from player inventory, updates quest progress.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bottle_id": {
+                        "type": "string",
+                        "description": "Bottle instance ID (e.g., 'bottle_mystery', 'bottle_joy', 'bottle_energy', 'bottle_nature')"
+                    },
+                    "experience": {
+                        "type": "string",
+                        "description": "Experience ID",
+                        "default": "wylding-woods"
+                    }
+                },
+                "required": ["bottle_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "grant_quest_reward",
+            "description": "Grant a reward to the player for completing a quest or milestone. Use when player completes Louisa's quest.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reward_type": {
+                        "type": "string",
+                        "enum": ["item", "trust", "quest_complete"],
+                        "description": "Type of reward to grant"
+                    },
+                    "reward_data": {
+                        "type": "object",
+                        "description": "Reward-specific data (item_id for items, trust_amount for trust, etc.)"
+                    },
+                    "experience": {
+                        "type": "string",
+                        "description": "Experience ID",
+                        "default": "wylding-woods"
+                    }
+                },
+                "required": ["reward_type"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_player_inventory",
+            "description": "Get the player's current inventory to see what bottles they're carrying. Use before accepting bottles to verify player has them.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "experience": {
+                        "type": "string",
+                        "description": "Experience ID",
+                        "default": "wylding-woods"
+                    }
+                },
+                "required": []
+            }
+        }
     }
+]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Organized Tool Lists by Persona Type
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# These organized lists allow different personas to have different tool access.
+# This prevents confusion like Louisa trying to read your filesystem, or
+# a general assistant trying to accept quest items.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+
+# NPC-specific tools (for Louisa and other NPCs)
+NPC_TOOLS = [
+    KB_TOOLS[7],  # check_quest_state
+    KB_TOOLS[8],  # accept_bottle_from_player
+    KB_TOOLS[9],  # grant_quest_reward
+    KB_TOOLS[10], # get_player_inventory
+]
+
+# Experience/Game tools (for Game Master)
+EXPERIENCE_TOOLS = [
+    KB_TOOLS[6],  # interact_with_experience
+]
+
+# KB search/read tools (for Game Master to look up lore)
+KB_SEARCH_TOOLS = [
+    KB_TOOLS[0],  # search_knowledge_base
+    KB_TOOLS[2],  # read_kb_file
+]
+
+# General KB tools (for default personas like Mu)
+GENERAL_KB_TOOLS = [
+    KB_TOOLS[0],  # search_knowledge_base
+    KB_TOOLS[1],  # load_kos_context
+    KB_TOOLS[2],  # read_kb_file
+    KB_TOOLS[3],  # list_kb_directory
+    KB_TOOLS[4],  # load_kb_context
+    KB_TOOLS[5],  # synthesize_kb_information
 ]
 
 
@@ -224,6 +384,33 @@ class KBToolExecutor:
                 arguments.get("message"),
                 arguments.get("experience"),
                 arguments.get("force_experience_selection", False)
+            )
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # ⚠️  MVP KLUDGE - NPC Interaction Tool Executors
+        # ═══════════════════════════════════════════════════════════════════════════
+        elif tool_name == "check_quest_state":
+            return await self._check_quest_state(
+                arguments.get("quest_id"),
+                arguments.get("experience", "wylding-woods")
+            )
+
+        elif tool_name == "accept_bottle_from_player":
+            return await self._accept_bottle_from_player(
+                arguments.get("bottle_id"),
+                arguments.get("experience", "wylding-woods")
+            )
+
+        elif tool_name == "grant_quest_reward":
+            return await self._grant_quest_reward(
+                arguments.get("reward_type"),
+                arguments.get("reward_data", {}),
+                arguments.get("experience", "wylding-woods")
+            )
+
+        elif tool_name == "get_player_inventory":
+            return await self._get_player_inventory(
+                arguments.get("experience", "wylding-woods")
             )
 
         else:
@@ -563,3 +750,146 @@ class KBToolExecutor:
                     "message": str(e)
                 }
             }
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # ⚠️  MVP KLUDGE - NPC Interaction Tool Implementations
+    # ═══════════════════════════════════════════════════════════════════════════
+    #
+    # These methods make HTTP calls to KB service endpoints that DON'T EXIST YET.
+    # They will need to be implemented in KB service as part of the demo work.
+    #
+    # Required KB endpoints:
+    #   POST /experience/{exp}/quest/state
+    #   POST /experience/{exp}/npc/accept_item
+    #   POST /experience/{exp}/quest/reward
+    #   GET  /experience/{exp}/player/inventory
+    #
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    async def _check_quest_state(self, quest_id: str, experience: str) -> Dict[str, Any]:
+        """
+        Check player's quest state.
+
+        MVP KLUDGE: Makes HTTP call to KB service.
+        Future: KB service would handle this internally when generating NPC dialogue.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{KB_SERVICE_URL}/experience/{experience}/quest/state",
+                    json={
+                        "quest_id": quest_id,
+                        "user_id": self.auth_principal.get("user_id")
+                    },
+                    headers=self.headers,
+                    timeout=10.0
+                )
+
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    return {
+                        "success": False,
+                        "error": f"HTTP {response.status_code}"
+                    }
+
+        except Exception as e:
+            logger.error(f"Check quest state error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _accept_bottle_from_player(self, bottle_id: str, experience: str) -> Dict[str, Any]:
+        """
+        Accept a bottle from the player's inventory.
+
+        MVP KLUDGE: Makes HTTP call to KB service.
+        Future: KB service would handle this as part of "give_item" fast command.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{KB_SERVICE_URL}/experience/{experience}/npc/accept_item",
+                    json={
+                        "item_id": bottle_id,
+                        "npc_id": "louisa",  # Hardcoded for MVP
+                        "user_id": self.auth_principal.get("user_id")
+                    },
+                    headers=self.headers,
+                    timeout=10.0
+                )
+
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    return {
+                        "success": False,
+                        "error": f"HTTP {response.status_code}"
+                    }
+
+        except Exception as e:
+            logger.error(f"Accept bottle error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _grant_quest_reward(
+        self,
+        reward_type: str,
+        reward_data: Dict[str, Any],
+        experience: str
+    ) -> Dict[str, Any]:
+        """
+        Grant a quest reward to the player.
+
+        MVP KLUDGE: Makes HTTP call to KB service.
+        Future: KB service would handle rewards as part of quest completion logic.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{KB_SERVICE_URL}/experience/{experience}/quest/reward",
+                    json={
+                        "reward_type": reward_type,
+                        "reward_data": reward_data,
+                        "user_id": self.auth_principal.get("user_id")
+                    },
+                    headers=self.headers,
+                    timeout=10.0
+                )
+
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    return {
+                        "success": False,
+                        "error": f"HTTP {response.status_code}"
+                    }
+
+        except Exception as e:
+            logger.error(f"Grant reward error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _get_player_inventory(self, experience: str) -> Dict[str, Any]:
+        """
+        Get player's current inventory.
+
+        MVP KLUDGE: Makes HTTP call to KB service.
+        Future: KB service would include inventory in NPC dialogue context automatically.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{KB_SERVICE_URL}/experience/{experience}/player/inventory",
+                    headers=self.headers,
+                    params={"user_id": self.auth_principal.get("user_id")},
+                    timeout=10.0
+                )
+
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    return {
+                        "success": False,
+                        "error": f"HTTP {response.status_code}"
+                    }
+
+        except Exception as e:
+            logger.error(f"Get inventory error: {e}")
+            return {"success": False, "error": str(e)}

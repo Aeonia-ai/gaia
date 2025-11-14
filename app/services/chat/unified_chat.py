@@ -21,7 +21,14 @@ from app.services.chat.lightweight_chat_hot import hot_chat_service
 from app.services.llm import LLMProvider
 import httpx
 from app.shared.config import settings
-from .kb_tools import KB_TOOLS, KBToolExecutor
+from .kb_tools import (
+    KB_TOOLS,
+    KBToolExecutor,
+    NPC_TOOLS,
+    EXPERIENCE_TOOLS,
+    KB_SEARCH_TOOLS,
+    GENERAL_KB_TOOLS
+)
 from app.shared.nats_client import NATSSubjects
 from app.shared.stream_utils import merge_async_streams
 
@@ -127,7 +134,11 @@ class UnifiedChatHandler:
         # Pre-initialized services (hot-loaded)
         self.mcp_hot_service = hot_chat_service  # Already initialized at startup
         self.multiagent_orchestrator = None  # TODO: Initialize when available
-        
+        self.include_aux_tools = settings.CHAT_INCLUDE_AUX_TOOLS
+        self._experience_cache = {"timestamp": 0.0, "data": []}
+        self._experience_cache_ttl = settings.CHAT_EXPERIENCE_CACHE_TTL_SECONDS
+        self._current_persona_name = "default"  # Track current persona for tool filtering
+
         # Routing tools definition (for services that need routing)
         self.routing_tools = [
             {
@@ -206,7 +217,54 @@ class UnifiedChatHandler:
             "avg_routing_time_ms": 0,
             "avg_total_time_ms": 0
         }
-    
+
+    def _get_routing_tools_for_persona(self, persona_name: str) -> List[Dict]:
+        """
+        Get routing tools filtered by persona type.
+
+        Different personas have different access levels:
+        - NPCs (Louisa): No routing tools (in-game characters shouldn't access external systems)
+        - Game Master: Only use_asset_service (for generating game assets)
+        - Default: All routing tools (general assistant needs full access)
+        """
+        persona_lower = persona_name.lower()
+
+        if persona_lower == "louisa":
+            # NPCs get NO routing tools - they're in-game characters
+            return []
+
+        elif persona_lower in ["game master", "gamemaster"]:
+            # Game Master gets only asset service (for generating game content)
+            return [tool for tool in self.routing_tools
+                    if tool["function"]["name"] == "use_asset_service"]
+
+        else:
+            # Default: All routing tools
+            return self.routing_tools
+
+    def _get_kb_tools_for_persona(self, persona_name: str) -> List[Dict]:
+        """
+        Get KB tools filtered by persona type.
+
+        Different personas need different KB tools:
+        - NPCs (Louisa): NPC-specific tools (quest, inventory, rewards)
+        - Game Master: Experience tools + search tools (for game & lore lookup)
+        - Default: General KB tools (personal knowledge management)
+        """
+        persona_lower = persona_name.lower()
+
+        if persona_lower == "louisa":
+            # NPCs get only NPC-specific tools
+            return NPC_TOOLS
+
+        elif persona_lower in ["game master", "gamemaster"]:
+            # Game Master gets experience tools + search for lore lookup
+            return EXPERIENCE_TOOLS + KB_SEARCH_TOOLS
+
+        else:
+            # Default: General KB tools
+            return GENERAL_KB_TOOLS
+
     async def process(
         self,
         message: str,
@@ -332,9 +390,12 @@ class UnifiedChatHandler:
             print(f"[PERSONA FIX] System prompt passed via parameter, not in messages")
             for i, msg in enumerate(messages):
                 print(f"[MESSAGES DEBUG] Message {i} - Role: {msg['role']}, Content preview: {msg['content'][:100]}...")
-            
-            # Combine routing tools with KB tools
-            all_tools = self.routing_tools + KB_TOOLS
+
+            # Filter tools based on persona type
+            routing_tools = self._get_routing_tools_for_persona(self._current_persona_name)
+            kb_tools = self._get_kb_tools_for_persona(self._current_persona_name)
+            all_tools = routing_tools + kb_tools
+            logger.info(f"[TOOL FILTERING] Persona '{self._current_persona_name}' gets {len(routing_tools)} routing tools + {len(kb_tools)} KB tools")
             
             # Use chat service with all available tools
             routing_response = await chat_service.chat_completion(
@@ -868,8 +929,11 @@ class UnifiedChatHandler:
                 "content": message
             })
 
-            # Combine routing tools with KB tools (matches non-streaming at line 320)
-            all_tools = self.routing_tools + KB_TOOLS
+            # Filter tools based on persona type (matches non-streaming)
+            routing_tools = self._get_routing_tools_for_persona(self._current_persona_name)
+            kb_tools = self._get_kb_tools_for_persona(self._current_persona_name)
+            all_tools = routing_tools + kb_tools
+            logger.info(f"[TOOL FILTERING STREAM] Persona '{self._current_persona_name}' gets {len(routing_tools)} routing tools + {len(kb_tools)} KB tools")
 
             # First, make routing decision (non-streaming)
             routing_response = await chat_service.chat_completion(
@@ -1594,33 +1658,108 @@ class UnifiedChatHandler:
         """
         System prompt that helps LLM make routing decisions with persona.
         """
-        # Get persona prompt first
+        # Get persona prompt and name
         user_id = context.get('user_id', 'unknown')
         try:
             from app.shared.prompt_manager import PromptManager
-            persona_prompt = await PromptManager.get_system_prompt(user_id=user_id)
-            logger.info(f"[PERSONA DEBUG] Loaded persona for user {user_id}: {persona_prompt[:100]}...")
+            persona_prompt, persona_name = await PromptManager.get_system_prompt_and_persona(user_id=user_id)
+            self._current_persona_name = persona_name  # Store for tool filtering
+            logger.info(f"[PERSONA DEBUG] Loaded persona '{persona_name}' for user {user_id}: {persona_prompt[:100]}...")
         except Exception as e:
             logger.error(f"[PERSONA DEBUG] Failed to load persona for user {user_id}: {e}")
             persona_prompt = "You are a helpful AI assistant."
+            self._current_persona_name = "default"
         
-        # Build the tools/routing section
-        tools_section = f"""You have access to specialized tools when needed.
+        experiences = await self._get_experience_catalog()
+        if experiences:
+            max_entries = 5
+            experience_lines = []
+            for exp in experiences[:max_entries]:
+                name = exp.get("name") or exp.get("id") or "unknown"
+                identifier = exp.get("id") or name
+                description = (exp.get("description") or "").strip()
+                if description and len(description) > 140:
+                    description = description[:140].rstrip() + "…"
+                capabilities = exp.get("capabilities") or []
+                cap_text = f" (capabilities: {', '.join(capabilities)})" if capabilities else ""
+                detail = description or ""
+                suffix = f" {detail}" if detail else ""
+                experience_lines.append(f"- **{name}** (`{identifier}`){cap_text}{suffix}")
+            experience_list = "\n".join(experience_lines)
+        else:
+            experience_list = "- Experiences are discovered dynamically. Say \"I want to play <experience>\" to select one."
 
-Current context:
+        tools_section = f"""### Experience Interaction
+- Always call `interact_with_experience` for gameplay, quests, NPC conversations, inventory, or admin commands.
+- Pass the player's natural-language instruction in `message`. The tool remembers the current experience for each user.
+- To switch experiences, send `message: \"I want to play <experience>\"` (optionally set `experience`).
+- Admin commands use the same tool but MUST start with `@` (e.g., `@list waypoints`). Never execute admin logic directly.
+- After the tool responds, summarize the narrative/state updates instead of fabricating outcomes.
+
+**Current context**
 - User: {context.get('user_id', 'unknown')}
 - Conversation: {context.get('conversation_id', 'new')}
 - Message count: {context.get('message_count', 0)}
 
-Available tools:
-- interact_with_experience: Game commands and experience interactions
-- search_knowledge_base: Search stored knowledge and documents
-- read_kb_file: Read specific knowledge base files
-- use_mcp_agent: File system operations, web searches, system commands
-- use_asset_service: Generate images, 3D models, audio
+**Available experiences**
+{experience_list}
 
-Tool usage is controlled by your persona instructions above. Follow the persona's guidance on when to use tools."""
-        
+**Discovery tips**
+- Ask the user what they want to do, then forward that request verbatim to `interact_with_experience`.
+- Call the tool with `message: \"help\"` or ask for available actions whenever you need the command list.
+- Use `force_experience_selection=true` when the user has not chosen an experience yet and needs the selection prompt.
+"""
+
+        if self.include_aux_tools:
+            tools_section += """
+
+### Auxiliary tools (enabled)
+- `search_knowledge_base` / `read_kb_file`: Only for documentation requests outside gameplay.
+- `use_mcp_agent`: Use exclusively for filesystem/web/system operations explicitly requested by the user.
+- `use_asset_service`: Generate new media assets when the user explicitly asks for images/audio/3D models.
+"""
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # ⚠️  MVP KLUDGE - NPC Interaction Tools Documentation
+        # ═══════════════════════════════════════════════════════════════════════════
+        # Add documentation for NPC-specific tools when this is an NPC persona
+        # This is part of the temporary MVP architecture for Phase 1 demo
+        # Future: Remove when NPC dialogue moves into KB service
+        # ═══════════════════════════════════════════════════════════════════════════
+        tools_section += """
+
+### NPC Interaction Tools (for Louisa persona)
+Use these tools to interact with the game state when talking to players:
+
+**Quest Management:**
+- `check_quest_state`: Check player's quest progress before offering quests or accepting items
+  - Use when: Player asks about quests, or before accepting bottles
+  - Example: `check_quest_state(quest_id="find_dream_bottles")`
+
+**Item Handling:**
+- `accept_bottle_from_player`: Accept a dream bottle when player gives it to you
+  - Use when: Player says "here's the bottle" or "I'm giving you the [bottle name]"
+  - Example: `accept_bottle_from_player(bottle_id="bottle_mystery")`
+  - Bottle IDs: bottle_mystery, bottle_joy, bottle_energy, bottle_nature
+
+- `get_player_inventory`: Check what items the player is carrying
+  - Use when: You need to verify player has items before accepting them
+  - Example: `get_player_inventory()`
+
+**Rewards:**
+- `grant_quest_reward`: Give rewards when player completes tasks
+  - Use when: Player completes quest, returns all bottles, or earns trust
+  - Types: "trust" (increase relationship), "item" (give item), "quest_complete" (mark done)
+  - Example: `grant_quest_reward(reward_type="trust", reward_data={"amount": 10})`
+
+**Guidelines:**
+- Always check quest state BEFORE accepting bottles (verify quest is active)
+- Check inventory BEFORE accepting items (verify player actually has them)
+- Grant trust rewards naturally during conversation (small amounts: 2-5 points)
+- Only mark quest complete when ALL bottles have been returned
+- Stay in character - use tools naturally, don't mention them explicitly
+"""
+
         # Check for directive-enhanced context and add JSON-RPC directive instructions
         if self._is_directive_enhanced_context(context):
             directive_section = """
@@ -1659,6 +1798,33 @@ Guidelines:
             final_prompt = f"{persona_prompt}\n\n{tools_section}"
         
         return final_prompt
+
+    async def _get_experience_catalog(self) -> List[Dict[str, Any]]:
+        """Fetch and cache experience metadata for prompt construction."""
+        now = time.time()
+        if (
+            self._experience_cache["data"]
+            and (now - self._experience_cache["timestamp"] < self._experience_cache_ttl)
+        ):
+            return self._experience_cache["data"]
+
+        url = f"{settings.KB_SERVICE_URL.rstrip('/')}/experience/list"
+        headers = {"Content-Type": "application/json"}
+        if settings.API_KEY:
+            headers["X-API-Key"] = settings.API_KEY
+
+        experiences: List[Dict[str, Any]] = []
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, headers=headers)
+                response.raise_for_status()
+                payload = response.json()
+                experiences = payload.get("experiences", [])
+        except Exception as e:
+            logger.warning(f"Failed to fetch experience catalog: {e}")
+
+        self._experience_cache = {"timestamp": now, "data": experiences}
+        return experiences
     
     def _is_directive_enhanced_context(self, context: dict) -> bool:
         """
