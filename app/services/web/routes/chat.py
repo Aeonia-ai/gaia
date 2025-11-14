@@ -146,7 +146,16 @@ def setup_routes(app):
                     // Add event listener for form clearing and conversation updates
                     document.body.addEventListener('htmx:afterRequest', function(evt) {
                         if (evt.detail.elt && evt.detail.elt.id === 'chat-form') {
+                            // CRITICAL: Preserve conversation_id before reset
+                            const convInput = document.getElementById('conversation-id-input');
+                            const convId = convInput ? convInput.value : '';
+
                             evt.detail.elt.reset();
+
+                            // Restore conversation_id after reset
+                            if (convInput && convId) {
+                                convInput.value = convId;
+                            }
                             
                             // Hide welcome message when first message is sent
                             const welcome = document.getElementById('welcome-message');
@@ -252,7 +261,10 @@ def setup_routes(app):
             
             # Get messages from chat service
             messages_list = await chat_service_client.get_messages(conversation_id, jwt_token)
-            
+            logger.info(f"Messages retrieved: {len(messages_list)} messages")
+            if messages_list:
+                logger.info(f"First message structure: {messages_list[0]}")
+
             # Build message content - show welcome if no messages, otherwise show messages
             if not messages_list:
                 message_content = [
@@ -642,21 +654,23 @@ def setup_routes(app):
         async def event_generator():
             logger.info(f"Starting SSE generator for conversation {conversation_id}")
             try:
-                # Get conversation history from chat service
-                if conversation_id:
-                    messages_history = await chat_service_client.get_messages(conversation_id, jwt_token)
-                    messages = [
-                        {"role": m["role"], "content": m["content"]} 
-                        for m in messages_history 
-                        if m.get("content", "").strip()
-                    ]
-                else:
-                    messages = [{"role": "user", "content": message}]
-                
+                # IMPORTANT: Don't send conversation history from web UI!
+                # The chat service will load it using conversation_id.
+                # Web UI only sends the current message.
+                messages = [{"role": "user", "content": message}]
+
+                logger.info(f"[WEB UI] Sending current message only (conversation_id={conversation_id})")
+                logger.info(f"[WEB UI] Chat service will load history for conversation {conversation_id}")
+
                 # Start streaming from gateway
                 response_content = ""
                 async with GaiaAPIClient() as client:
-                    async for chunk in client.chat_completion_stream(messages, jwt_token, response_format="v0.3"):
+                    async for chunk in client.chat_completion_stream(
+                        messages,
+                        jwt_token,
+                        conversation_id=conversation_id,  # Pass conversation_id so chat service can load history
+                        response_format="v0.3"
+                    ):
                         try:
                             # Parse the chunk
                             import json
@@ -725,7 +739,18 @@ def setup_routes(app):
                 logger.error(f"Streaming error: {e}", exc_info=True)
                 yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
             finally:
-                logger.info(f"SSE generator completed - response_saved={conversation_id and response_content and 'will_save' or 'no_save'}")
+                # CRITICAL: Save assistant response even if [DONE] wasn't received
+                # This handles cases where the stream ends without explicit [DONE] marker
+                if conversation_id and response_content:
+                    logger.info(f"Saving AI response in finally block: conversation_id={conversation_id}, content_length={len(response_content)}")
+                    try:
+                        await chat_service_client.add_message(conversation_id, "assistant", response_content, jwt_token=jwt_token)
+                        logger.info(f"Successfully saved AI response in finally block")
+                        await chat_service_client.update_conversation(user_id, conversation_id, preview=response_content, jwt_token=jwt_token)
+                    except Exception as save_error:
+                        logger.error(f"Failed to save AI response in finally block: {save_error}", exc_info=True)
+
+                logger.info(f"SSE generator completed - response_saved={bool(conversation_id and response_content)}")
         
         return StreamingResponse(
             event_generator(),
@@ -958,51 +983,65 @@ def setup_routes(app):
         # Check authentication
         jwt_token = request.session.get("jwt_token")
         user = request.session.get("user")
+
+        logger.debug(f"[WEB] get_conversations - jwt_token present: {jwt_token is not None}, user present: {user is not None}")
+        if user:
+            logger.debug(f"[WEB] User from session: {user.get('email')}")
+        if jwt_token:
+            logger.debug(f"[WEB] JWT token (first 30 chars): {jwt_token[:30] if jwt_token else None}...")
+
         if not user or not jwt_token:
             # FastHTML best practice: return 401 with HTML fragment for HTMX endpoints
+            logger.warning(f"[WEB] No authentication in session - user: {user is not None}, jwt: {jwt_token is not None}")
             response = HTMLResponse(
                 content=str(gaia_error_message("Please log in to view conversations")),
                 status_code=401
             )
             return response
-        
+
         user_id = user.get("id", "dev-user-id")
-        
-        # Pass JWT token to chat service for authentication
-        conversations = await chat_service_client.get_conversations(user_id, jwt_token=jwt_token)
-        
-        # Return updated conversation list with smooth animations
-        conversation_items = [gaia_conversation_item(conv) for conv in conversations]
-        
-        return Div(
-            *conversation_items,
-            cls="space-y-2 stagger-children animate-fadeIn",
-            id="conversation-list",
-            style="--stagger-delay: 0;"
-        )
+
+        try:
+            # Pass JWT token to chat service for authentication
+            logger.debug(f"[WEB] Calling chat service get_conversations for user {user_id}")
+            conversations = await chat_service_client.get_conversations(user_id, jwt_token=jwt_token)
+
+            # Return updated conversation list with smooth animations
+            conversation_items = [gaia_conversation_item(conv) for conv in conversations]
+
+            return Div(
+                *conversation_items,
+                cls="space-y-2 stagger-children animate-fadeIn",
+                id="conversation-list",
+                style="--stagger-delay: 0;"
+            )
+        except Exception as e:
+            logger.error(f"[WEB] Error getting conversations: {e}", exc_info=True)
+            return gaia_error_message(f"Failed to load conversations: {str(e)[:100]}")
     
     @app.delete("/api/conversations/{conversation_id}")
     async def delete_conversation(request, conversation_id: str):
         """Delete a conversation"""
         # Check authentication
+        jwt_token = request.session.get("jwt_token")
         user = request.session.get("user")
-        if not user:
+        if not user or not jwt_token:
             return gaia_error_message("Please log in to delete conversations")
-        
+
         user_id = user.get("id", "dev-user-id")
-        
+
         logger.info(f"Deleting conversation {conversation_id} for user {user_id}")
-        
+
         try:
             # Delete the conversation using chat service
-            success = await chat_service_client.delete_conversation(user_id, conversation_id)
-            
+            success = await chat_service_client.delete_conversation(user_id, conversation_id, jwt_token=jwt_token)
+
             if not success:
                 logger.warning(f"Failed to delete conversation {conversation_id}")
                 return gaia_error_message("Conversation not found or could not be deleted")
-            
+
             # Get updated conversation list from chat service
-            conversations = await chat_service_client.get_conversations(user_id)
+            conversations = await chat_service_client.get_conversations(user_id, jwt_token=jwt_token)
             conversation_items = [gaia_conversation_item(conv) for conv in conversations]
             
             # Return updated conversation list

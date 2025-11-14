@@ -1902,8 +1902,9 @@ Guidelines:
         Build context for routing decision, including conversation history.
         """
         user_id = auth.get("user_id") or auth.get("sub") or "unknown"
+        user_email = auth.get("email") or auth.get("user_email") or auth.get("preferred_username")
         conversation_id = additional_context.get("conversation_id") if additional_context else None
-        
+
         context = {
             "user_id": user_id,
             "conversation_id": conversation_id or "new",
@@ -1911,16 +1912,17 @@ Guidelines:
             "timestamp": int(time.time()),
             "conversation_history": []
         }
-        
+
         # Load actual conversation history if conversation_id exists
         if conversation_id:
             try:
                 from .conversation_store import chat_conversation_store
-                
+
                 # First check if the conversation exists
                 # Use consistent user_id extraction
                 user_id = auth.get("user_id") or auth.get("sub") or "unknown"
-                conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
+                # CRITICAL: Pass user_email to get_conversation so it can find/create user properly
+                conversation = chat_conversation_store.get_conversation(user_id, conversation_id, user_email)
                 
                 if conversation is None:
                     # Conversation doesn't exist - don't use this invalid ID
