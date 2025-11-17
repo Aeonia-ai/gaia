@@ -117,10 +117,27 @@ def setup_routes(app):
                 result = await client.login(email, password)
             
             logger.info(f"Login successful for {email}")
-            
+
             # Extract user info from Supabase response
             session_data = result.get("session", {})
             user_data = result.get("user", {})
+
+            # Decode JWT to check token expiration
+            import jwt
+            import time
+            access_token = session_data.get("access_token")
+            if access_token:
+                try:
+                    decoded = jwt.decode(access_token, options={"verify_signature": False})
+                    exp = decoded.get("exp")
+                    iat = decoded.get("iat", int(time.time()))
+                    current_time = int(time.time())
+                    token_lifetime = exp - iat
+                    time_until_expiry = exp - current_time
+                    logger.info(f"✅ NEW TOKEN - Expires in {time_until_expiry} seconds ({time_until_expiry/3600:.1f} hours)")
+                    logger.info(f"✅ NEW TOKEN - Lifetime: {token_lifetime} seconds ({token_lifetime/3600:.1f} hours)")
+                except Exception as e:
+                    logger.error(f"Failed to decode JWT: {e}")
             
             # Check if email is confirmed
             email_confirmed_at = user_data.get("email_confirmed_at")
