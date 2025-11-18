@@ -54,6 +54,8 @@ ls scripts/                   # All automation scripts
 - `./scripts/experience/inspect-world.sh` - Check world state and bottle counts
 - `./scripts/experience/check-inventory.sh <user_id>` - Check player inventory
 - `./scripts/experience/reset-experience.sh` - Reset world to pristine state
+- `./scripts/experience/randomize-bottles.sh` - Randomize bottle placement across all 8 spots
+- `./scripts/experience/move-bottles-5-8.sh` - Move bottles from spots 1-4 to spots 5-8
 - `./scripts/experience/test-fast-*.sh` - Test fast commands (collect, drop, etc.)
 - `./scripts/experience/test-admin-*.sh` - Test admin commands
 
