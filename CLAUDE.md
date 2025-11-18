@@ -41,6 +41,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./scripts/test.sh --local chat "test message"  # Test functionality
 ```
 
+## 🚨 CRITICAL: Use Existing Scripts First!
+
+**BEFORE running any ad-hoc command, CHECK FOR EXISTING SCRIPTS:**
+
+```bash
+ls scripts/experience/        # Testing and admin command scripts
+ls scripts/                   # All automation scripts
+```
+
+**Common Scripts:**
+- `./scripts/experience/inspect-world.sh` - Check world state and bottle counts
+- `./scripts/experience/check-inventory.sh <user_id>` - Check player inventory
+- `./scripts/experience/reset-experience.sh` - Reset world to pristine state
+- `./scripts/experience/test-fast-*.sh` - Test fast commands (collect, drop, etc.)
+- `./scripts/experience/test-admin-*.sh` - Test admin commands
+
+**Complete Script Reference**: [WebSocket Fast Command Testing Scripts](docs/scratchpad/websocket-fast-command-testing-scripts.md)
+
+**Rules:**
+1. ✅ **USE SCRIPTS** - Always prefer existing scripts over manual commands
+2. ❌ **NO AD-HOC jq/grep** - If you catch yourself writing jq queries, there's probably a script
+3. 📝 **Suggest new scripts** - If you write the same command twice, propose a script
+
+**When user says "use the script" or "RTFM"** → Go read the scripts documentation immediately!
+
 ## 🚨 BEFORE YOU START: Required Reading
 
 1. **Database Setup** → MUST run [Database Initialization Guide](docs/current/development/database-initialization-guide.md) - Required for persona functionality
