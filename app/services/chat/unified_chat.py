@@ -1720,45 +1720,45 @@ class UnifiedChatHandler:
 """
 
         # ═══════════════════════════════════════════════════════════════════════════
-        # ⚠️  MVP KLUDGE - NPC Interaction Tools Documentation
+        # ⚠️  MVP KLUDGE - NPC Interaction Tools Documentation (DISABLED)
         # ═══════════════════════════════════════════════════════════════════════════
-        # Add documentation for NPC-specific tools when this is an NPC persona
-        # This is part of the temporary MVP architecture for Phase 1 demo
-        # Future: Remove when NPC dialogue moves into KB service
+        # DISABLED: NPC tools are commented out for pure conversational testing
+        # This documentation has been removed from the system prompt
+        # To re-enable: uncomment this section and uncomment tools in kb_tools.py
         # ═══════════════════════════════════════════════════════════════════════════
-        tools_section += """
-
-### NPC Interaction Tools (for Louisa persona)
-Use these tools to interact with the game state when talking to players:
-
-**Quest Management:**
-- `check_quest_state`: Check player's quest progress before offering quests or accepting items
-  - Use when: Player asks about quests, or before accepting bottles
-  - Example: `check_quest_state(quest_id="find_dream_bottles")`
-
-**Item Handling:**
-- `accept_bottle_from_player`: Accept a dream bottle when player gives it to you
-  - Use when: Player says "here's the bottle" or "I'm giving you the [bottle name]"
-  - Example: `accept_bottle_from_player(bottle_id="bottle_mystery")`
-  - Bottle IDs: bottle_mystery, bottle_joy, bottle_energy, bottle_nature
-
-- `get_player_inventory`: Check what items the player is carrying
-  - Use when: You need to verify player has items before accepting them
-  - Example: `get_player_inventory()`
-
-**Rewards:**
-- `grant_quest_reward`: Give rewards when player completes tasks
-  - Use when: Player completes quest, returns all bottles, or earns trust
-  - Types: "trust" (increase relationship), "item" (give item), "quest_complete" (mark done)
-  - Example: `grant_quest_reward(reward_type="trust", reward_data={"amount": 10})`
-
-**Guidelines:**
-- Always check quest state BEFORE accepting bottles (verify quest is active)
-- Check inventory BEFORE accepting items (verify player actually has them)
-- Grant trust rewards naturally during conversation (small amounts: 2-5 points)
-- Only mark quest complete when ALL bottles have been returned
-- Stay in character - use tools naturally, don't mention them explicitly
-"""
+        # tools_section += """
+        #
+        # ### NPC Interaction Tools (for Louisa persona)
+        # Use these tools to interact with the game state when talking to players:
+        #
+        # **Quest Management:**
+        # - `check_quest_state`: Check player's quest progress before offering quests or accepting items
+        #   - Use when: Player asks about quests, or before accepting bottles
+        #   - Example: `check_quest_state(quest_id="find_dream_bottles")`
+        #
+        # **Item Handling:**
+        # - `accept_bottle_from_player`: Accept a dream bottle when player gives it to you
+        #   - Use when: Player says "here's the bottle" or "I'm giving you the [bottle name]"
+        #   - Example: `accept_bottle_from_player(bottle_id="bottle_mystery")`
+        #   - Bottle IDs: bottle_mystery, bottle_joy, bottle_energy, bottle_nature
+        #
+        # - `get_player_inventory`: Check what items the player is carrying
+        #   - Use when: You need to verify player has items before accepting them
+        #   - Example: `get_player_inventory()`
+        #
+        # **Rewards:**
+        # - `grant_quest_reward`: Give rewards when player completes tasks
+        #   - Use when: Player completes quest, returns all bottles, or earns trust
+        #   - Types: "trust" (increase relationship), "item" (give item), "quest_complete" (mark done)
+        #   - Example: `grant_quest_reward(reward_type="trust", reward_data={"amount": 10})`
+        #
+        # **Guidelines:**
+        # - Always check quest state BEFORE accepting bottles (verify quest is active)
+        # - Check inventory BEFORE accepting items (verify player actually has them)
+        # - Grant trust rewards naturally during conversation (small amounts: 2-5 points)
+        # - Only mark quest complete when ALL bottles have been returned
+        # - Stay in character - use tools naturally, don't mention them explicitly
+        # """
 
         # Check for directive-enhanced context and add JSON-RPC directive instructions
         if self._is_directive_enhanced_context(context):
@@ -1794,9 +1794,16 @@ Guidelines:
             # Replace the placeholder with the tools section
             final_prompt = persona_prompt.replace("{tools_section}", tools_section)
         else:
-            # No placeholder, append tools section after persona
-            final_prompt = f"{persona_prompt}\n\n{tools_section}"
-        
+            # NPCs like Louisa should NOT get tools_section appended
+            # They have complete prompts and should stay purely conversational
+            persona_name_lower = context.get("persona_name", "").lower()
+            if persona_name_lower == "louisa":
+                # Pure conversational NPC - no tools section
+                final_prompt = persona_prompt
+            else:
+                # Default personas get tools section appended
+                final_prompt = f"{persona_prompt}\n\n{tools_section}"
+
         return final_prompt
 
     async def _get_experience_catalog(self) -> List[Dict[str, Any]]:

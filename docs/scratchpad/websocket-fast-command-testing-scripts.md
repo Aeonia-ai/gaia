@@ -177,6 +177,38 @@ Message: You collected Bottle of Mystery.
 
 ### Admin Command Scripts
 
+#### Spot Position Updates (World → Client)
+Use the unified state manager to tweak spot transforms and immediately push them to connected clients. Any nested dict passed to `update_world_state` is merged server-side, increments the `_version`, and emits the standard `world_update` delta over NATS.
+
+**Ad-hoc update example (Python REPL / `python3 - <<'PY'`):**
+```python
+await state_manager.update_world_state(
+    experience="wylding-woods",
+    user_id="da6dbf22-3209-457f-906a-7f5c63986d3e",  # whoever should receive the delta
+    updates={
+        "locations": {
+            "woander_store": {
+                "areas": {
+                    "main_room": {
+                        "spots": {
+                            "spot_6": {
+                                "position": {"x": 12.3, "y": 4.5, "z": 0.0},
+                                "rotation": {"y": 180}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
+```
+
+**Notes**
+- Always send nested dicts (no dotted paths); the merge logic and `_flatten_nested_changes` will broadcast the change automatically.
+- `user_id` determines which client receives the realtime delta; include a `connection_id` if you want the version tracker to align with a specific WebSocket.
+- These mutations live in `world.json`, so Unity/mobile clients get consistent positions after reconnect or world reload.
+
 #### `test-admin-examine.sh` - Admin Examine
 **Purpose**: Deep inspection of items/locations (admin-only)
 
@@ -330,6 +362,73 @@ Experience is now in pristine state! ✨
 - NPC states
 - Quest progress
 - Active events
+
+---
+
+### `randomize-bottles.sh` - Randomize Bottle Placement
+**Purpose**: Randomize bottle placement across all 8 spots in woander_store
+
+**Usage**:
+```bash
+./scripts/experience/randomize-bottles.sh
+```
+
+**What it does**:
+- Collects all 4 bottles from current locations
+- Randomly assigns them to any of spots 1-8
+- Increments world version
+- Updates world.json directly
+
+**Output**:
+```
+🎲 Randomizing bottle placement in woander_store...
+📦 Found 4 bottles
+🎯 New random placement:
+   spot_8: Bottle of Mystery
+   spot_2: Bottle of Energy
+   spot_1: Bottle of Joy
+   spot_6: Bottle of Nature
+
+🔧 Updating world.json...
+✅ World state updated
+   New version: 7
+
+✨ Bottle randomization complete!
+```
+
+**Use case**: Testing Unity's AOI refresh with different bottle placements
+
+---
+
+### `move-bottles-5-8.sh` - Move Bottles to Higher Spots
+**Purpose**: Move all bottles from spots 1-4 to spots 5-8
+
+**Usage**:
+```bash
+./scripts/experience/move-bottles-5-8.sh
+```
+
+**What it does**:
+- Moves bottle from spot_1 → spot_5
+- Moves bottle from spot_2 → spot_6
+- Moves bottle from spot_3 → spot_7
+- Moves bottle from spot_4 → spot_8
+- Increments world version
+
+**Output**:
+```
+🔄 Moving bottles from spots 1-4 to spots 5-8...
+📦 Found 4 bottles in spots 1-4
+✅ Bottles moved successfully
+   spot_1 → spot_5: Bottle of Mystery
+   spot_2 → spot_6: Bottle of Energy
+   spot_3 → spot_7: Bottle of Joy
+   spot_4 → spot_8: Bottle of Nature
+
+   New version: 7
+```
+
+**Use case**: Testing Unity's AOI update when bottles move without client disconnect
 
 ---
 

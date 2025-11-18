@@ -167,10 +167,13 @@ KB_TOOLS = [
                 "required": ["message"]
             }
         }
-    },
+    }
     # ═══════════════════════════════════════════════════════════════════════════
-    # ⚠️  MVP KLUDGE WARNING - NPC INTERACTION TOOLS
+    # ⚠️  MVP KLUDGE WARNING - NPC INTERACTION TOOLS (CURRENTLY DISABLED)
     # ═══════════════════════════════════════════════════════════════════════════
+    #
+    # DISABLED: These tools are commented out to test pure conversational NPCs
+    # without game mechanics. Uncomment to re-enable quest/inventory tools.
     #
     # The following tools are a TEMPORARY solution for the Phase 1 demo.
     #
@@ -199,95 +202,95 @@ KB_TOOLS = [
     # TIMELINE: Refactor after Phase 1 demo (estimated 1-2 days)
     #
     # ═══════════════════════════════════════════════════════════════════════════
-    {
-        "type": "function",
-        "function": {
-            "name": "check_quest_state",
-            "description": "Check the player's current quest state and progress. Use when Louisa needs to know if player has accepted quest, how many bottles collected, etc.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "quest_id": {
-                        "type": "string",
-                        "description": "Quest ID to check (e.g., 'find_dream_bottles')"
-                    },
-                    "experience": {
-                        "type": "string",
-                        "description": "Experience ID (e.g., 'wylding-woods')",
-                        "default": "wylding-woods"
-                    }
-                },
-                "required": ["quest_id"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "accept_bottle_from_player",
-            "description": "Accept a dream bottle from the player when they give it to Louisa. Removes bottle from player inventory, updates quest progress.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "bottle_id": {
-                        "type": "string",
-                        "description": "Bottle instance ID (e.g., 'bottle_mystery', 'bottle_joy', 'bottle_energy', 'bottle_nature')"
-                    },
-                    "experience": {
-                        "type": "string",
-                        "description": "Experience ID",
-                        "default": "wylding-woods"
-                    }
-                },
-                "required": ["bottle_id"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "grant_quest_reward",
-            "description": "Grant a reward to the player for completing a quest or milestone. Use when player completes Louisa's quest.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "reward_type": {
-                        "type": "string",
-                        "enum": ["item", "trust", "quest_complete"],
-                        "description": "Type of reward to grant"
-                    },
-                    "reward_data": {
-                        "type": "object",
-                        "description": "Reward-specific data (item_id for items, trust_amount for trust, etc.)"
-                    },
-                    "experience": {
-                        "type": "string",
-                        "description": "Experience ID",
-                        "default": "wylding-woods"
-                    }
-                },
-                "required": ["reward_type"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_player_inventory",
-            "description": "Get the player's current inventory to see what bottles they're carrying. Use before accepting bottles to verify player has them.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "experience": {
-                        "type": "string",
-                        "description": "Experience ID",
-                        "default": "wylding-woods"
-                    }
-                },
-                "required": []
-            }
-        }
-    }
+    # {
+    #     "type": "function",
+    #     "function": {
+    #         "name": "check_quest_state",
+    #         "description": "Check the player's current quest state and progress. Use when Louisa needs to know if player has accepted quest, how many bottles collected, etc.",
+    #         "parameters": {
+    #             "type": "object",
+    #             "properties": {
+    #                 "quest_id": {
+    #                     "type": "string",
+    #                     "description": "Quest ID to check (e.g., 'find_dream_bottles')"
+    #                 },
+    #                 "experience": {
+    #                     "type": "string",
+    #                     "description": "Experience ID (e.g., 'wylding-woods')",
+    #                     "default": "wylding-woods"
+    #                 }
+    #             },
+    #             "required": ["quest_id"]
+    #         }
+    #     }
+    # },
+    # {
+    #     "type": "function",
+    #     "function": {
+    #         "name": "accept_bottle_from_player",
+    #         "description": "Accept a dream bottle from the player when they give it to Louisa. Removes bottle from player inventory, updates quest progress.",
+    #         "parameters": {
+    #             "type": "object",
+    #             "properties": {
+    #                 "bottle_id": {
+    #                     "type": "string",
+    #                     "description": "Bottle instance ID (e.g., 'bottle_mystery', 'bottle_joy', 'bottle_energy', 'bottle_nature')"
+    #                 },
+    #                 "experience": {
+    #                     "type": "string",
+    #                     "description": "Experience ID",
+    #                     "default": "wylding-woods"
+    #                 }
+    #             },
+    #             "required": ["bottle_id"]
+    #         }
+    #     }
+    # },
+    # {
+    #     "type": "function",
+    #     "function": {
+    #         "name": "grant_quest_reward",
+    #         "description": "Grant a reward to the player for completing a quest or milestone. Use when player completes Louisa's quest.",
+    #         "parameters": {
+    #             "type": "object",
+    #             "properties": {
+    #                 "reward_type": {
+    #                     "type": "string",
+    #                     "enum": ["item", "trust", "quest_complete"],
+    #                     "description": "Type of reward to grant"
+    #                 },
+    #                 "reward_data": {
+    #                     "type": "object",
+    #                     "description": "Reward-specific data (item_id for items, trust_amount for trust, etc.)"
+    #                 },
+    #                 "experience": {
+    #                     "type": "string",
+    #                     "description": "Experience ID",
+    #                     "default": "wylding-woods"
+    #                 }
+    #             },
+    #             "required": ["reward_type"]
+    #         }
+    #     }
+    # },
+    # {
+    #     "type": "function",
+    #     "function": {
+    #         "name": "get_player_inventory",
+    #         "description": "Get the player's current inventory to see what bottles they're carrying. Use before accepting bottles to verify player has them.",
+    #         "parameters": {
+    #             "type": "object",
+    #             "properties": {
+    #                 "experience": {
+    #                     "type": "string",
+    #                     "description": "Experience ID",
+    #                     "default": "wylding-woods"
+    #                 }
+    #             },
+    #             "required": []
+    #         }
+    #     }
+    # }
 ]
 
 
@@ -302,12 +305,15 @@ KB_TOOLS = [
 # ═══════════════════════════════════════════════════════════════════════════
 
 # NPC-specific tools (for Louisa and other NPCs)
-NPC_TOOLS = [
-    KB_TOOLS[7],  # check_quest_state
-    KB_TOOLS[8],  # accept_bottle_from_player
-    KB_TOOLS[9],  # grant_quest_reward
-    KB_TOOLS[10], # get_player_inventory
-]
+# DISABLED: Empty list for pure conversational NPCs without game mechanics
+# To re-enable, uncomment tool definitions above and restore:
+# NPC_TOOLS = [
+#     KB_TOOLS[7],  # check_quest_state
+#     KB_TOOLS[8],  # accept_bottle_from_player
+#     KB_TOOLS[9],  # grant_quest_reward
+#     KB_TOOLS[10], # get_player_inventory
+# ]
+NPC_TOOLS = []
 
 # Experience/Game tools (for Game Master)
 EXPERIENCE_TOOLS = [
