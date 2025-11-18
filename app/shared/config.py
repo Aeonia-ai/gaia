@@ -162,7 +162,11 @@ class GaiaSettings(BaseSettings):
     # Performance and Scaling
     MAX_CONCURRENT_REQUESTS: int = int(os.getenv("MAX_CONCURRENT_REQUESTS", "100"))
     WORKER_POOL_SIZE: int = int(os.getenv("WORKER_POOL_SIZE", "4"))
-    
+
+    # Chat Service Configuration
+    CHAT_INCLUDE_AUX_TOOLS: bool = os.getenv("CHAT_INCLUDE_AUX_TOOLS", "true").lower() == "true"
+    CHAT_EXPERIENCE_CACHE_TTL_SECONDS: int = int(os.getenv("CHAT_EXPERIENCE_CACHE_TTL_SECONDS", "300"))
+
     class Config:
         env_file = ".env"
         case_sensitive = False
