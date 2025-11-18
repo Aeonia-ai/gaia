@@ -30,5 +30,31 @@ This document outlines the necessary updates to the existing documentation to ac
 
 ### 3. Deprecate/Archive (Low Priority - after critical updates are done):
 *   `docs/kb-fastmcp-claude-code-setup.md`: This document is likely outdated given the new architecture. Review and potentially archive or update with a clear deprecation notice.
-*   `docs/kb-fastmcp-integration-status.md`: This document is likely a historical status update and can be archived.
-*   `docs/kb-fastmcp-mcp-client-config.md`: Review if this is still relevant or needs to be updated for the new `experience/interact` flow.
+-   `docs/kb-fastmcp-integration-status.md`: This document is likely a historical status update and can be archived.
+-   `docs/kb-fastmcp-mcp-client-config.md`: Review if this is still relevant or needs to be updated for the new `experience/interact` flow.
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document proposes a plan to update documentation based on several key architectural changes. The verification confirms that the underlying architectural claims are accurate and reflect the current state of the codebase.
+
+-   **✅ Primary Endpoint (`POST /experience/interact`):** **VERIFIED**.
+    -   **Evidence:** The endpoint is defined in `app/services/kb/experience_endpoints.py` and is configured as the main entry point for game logic, delegating to the `ExperienceCommandProcessor`.
+
+-   **✅ Deprecated Endpoints (`/game/command`, `/game/test/simple-command`):** **VERIFIED**.
+    -   **Evidence:** These endpoints exist in `app/services/kb/game_commands_api.py` but are noted as legacy implementations, with the new `interact` endpoint being the replacement.
+
+-   **✅ Two-Pass LLM Architecture:** **VERIFIED**.
+    -   **Evidence:** The `process_llm_command` method in `app/services/kb/kb_agent.py` implements the described two-pass system, with the first pass for deterministic logic and the second for creative narrative generation.
+
+-   **✅ Game Logic Location:** **VERIFIED**.
+    -   **Evidence:** The `_load_command_markdown` method in `app/services/kb/kb_agent.py` constructs paths to `experiences/{experience_id}/game-logic/`, confirming this as the location for markdown-based game logic.
+
+-   **✅ NATS Integration:** **VERIFIED**.
+    -   **Evidence:** NATS integration for real-time updates is confirmed in `app/services/kb/unified_state_manager.py` (publishing) and `app/services/chat/unified_chat.py` (subscribing), matching the per-request subscription model described.
+
+**Conclusion:** The architectural premises of this documentation update plan are accurate. The plan correctly identifies the key architectural changes that need to be documented.

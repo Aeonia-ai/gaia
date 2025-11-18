@@ -281,3 +281,33 @@ Always check if dependent services are available before using them
 - [Service Initialization Pattern](service-initialization-pattern.md) - Correct initialization order
 - [Service Creation Automation](service-creation-automation.md) - Automated service creation
 - [Deferred Initialization Pattern](deferred-initialization-pattern.md) - Fast startup patterns
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document describes a service discovery architecture that is **partially implemented but not fully integrated**, leading to significant discrepancies between the documentation and the current operational behavior.
+
+-   **✅ Core Components & Service-Side Setup:**
+    *   **Claim:** A `ServiceRegistry` and `create_service_health_endpoint` function exist to allow services to expose their routes.
+    *   **Code Reference:** `app/shared/service_discovery.py`.
+    *   **Verification:** This is **VERIFIED**. The core components for service-side discovery are implemented as described.
+
+-   **✅ Services Updated:**
+    *   **Claim:** The `chat`, `auth`, `kb`, and `asset` services have been updated to use the enhanced health endpoints.
+    *   **Code References:** `app/services/chat/main.py`, `app/services/auth/main.py`, `app/services/kb/main.py`, `app/services/asset/main.py`.
+    *   **Verification:** This is **VERIFIED**. Each service's `main.py` file correctly calls `create_service_health_endpoint`.
+
+-   **❌ Gateway Integration:**
+    *   **Claim:** The gateway discovers services on startup using `discover_services_from_config` and dynamically checks for routes using `service_registry.get_service_routes`.
+    *   **Code Reference:** `app/gateway/main.py`.
+    *   **Verification:** This is **INCORRECT**. The gateway's `startup_event` does **not** call `discover_services_from_config` or use the `service_registry` for routing. It continues to use a hardcoded `SERVICE_URLS` dictionary populated from environment settings. The service discovery mechanism is not currently used by the gateway.
+
+-   **❌ New Gateway Features:**
+    *   **Claim:** The document lists several new endpoints in the gateway that demonstrate service discovery, such as `/chat/intelligent` and `/chat/fast`.
+    *   **Verification:** This is **INCORRECT**. As verified in other documents, these endpoints do not exist in the gateway. The functionality has been consolidated into the `/chat/unified` endpoint, which is routed via the hardcoded `SERVICE_URLS`.
+
+**Overall Conclusion:** The service-side part of the service discovery system is implemented, but the client-side (the gateway) does not use it. This means the primary benefit of the system—eliminating hardcoded routes in the gateway—has not been realized. The document is **outdated and misleading** regarding the gateway's actual behavior.

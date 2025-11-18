@@ -94,6 +94,8 @@ class GaiaSettings(BaseSettings):
     CHAT_SERVICE_URL: str = os.getenv("CHAT_SERVICE_URL", "http://localhost:8003")
     KB_SERVICE_URL: str = os.getenv("KB_SERVICE_URL", "http://localhost:8004")
     GATEWAY_URL: str = os.getenv("GATEWAY_URL", "http://localhost:8666")
+    CHAT_INCLUDE_AUX_TOOLS: bool = os.getenv("CHAT_INCLUDE_AUX_TOOLS", "false").lower() == "true"
+    CHAT_EXPERIENCE_CACHE_TTL_SECONDS: int = int(os.getenv("CHAT_EXPERIENCE_CACHE_TTL_SECONDS", "300"))
     
     # Service Configuration
     SERVICE_NAME: str = os.getenv("SERVICE_NAME", "unknown")

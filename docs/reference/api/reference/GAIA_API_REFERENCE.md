@@ -513,3 +513,44 @@ curl -X POST https://gaia-gateway-dev.fly.dev/api/v0.3/chat \
 - **Issues:** https://github.com/your-org/gaia/issues
 - **Status:** https://status.gaia.dev
 - **Contact:** support@gaia.dev
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The API endpoints described in this document have been verified against the gateway's routing implementation.
+
+-   **✅ Core Endpoints (v0.3 and v1 Chat):**
+    *   **Claim:** The document describes `POST /api/v0.3/chat` and `POST /api/v1/chat` for simple and OpenAI-compatible chat.
+    *   **Code Reference:** `app/gateway/main.py` (lines 909-955 for `v03_chat`, lines 501-532 for v1 `chat`).
+    *   **Verification:** This is **VERIFIED**. The gateway implements both endpoints and forwards them to the unified chat service.
+
+-   **✅ Conversation Management (v0.3):**
+    *   **Claim:** `GET` and `POST` endpoints exist at `/api/v0.3/conversations`.
+    *   **Code Reference:** `app/gateway/main.py` (lines 957-1011).
+    *   **Verification:** This is **VERIFIED**.
+
+-   **✅ AR/Location Endpoints:**
+    *   **Claim:** A `GET /api/v0.3/locations/nearby` endpoint is available for location-based queries.
+    *   **Code Reference:** `app/services/gateway/routes/locations_endpoints.py` (lines 16-148).
+    *   **Verification:** This is **VERIFIED**. The endpoint is implemented in a separate router included by the main gateway application.
+
+-   **✅ Authentication Endpoints:**
+    *   **Claim:** The document lists various authentication endpoints under `/api/v1/auth`.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1479-1575).
+    *   **Verification:** This is **VERIFIED**. All documented authentication endpoints are implemented and forwarded to the `auth` service.
+
+-   **⚠️ Persona Management:**
+    *   **Claim:** `GET /api/v1/chat/personas` to list and `PUT /api/v1/chat/personas` to set a persona.
+    *   **Code Reference:** `app/gateway/main.py` (lines 561-587).
+    *   **Verification:** This is **PARTIALLY VERIFIED**. The `GET` endpoint is correct. However, the code implements `POST /api/v1/chat/personas` for creating a persona, not `PUT` for setting one. This is a minor discrepancy.
+
+-   **⚠️ Asset Management:**
+    *   **Claim:** Endpoints for listing (`GET /api/v1/assets`), uploading (`POST /api/v1/assets`), and generating assets are available.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1102-1150).
+    *   **Verification:** This is **PARTIALLY VERIFIED**. The endpoints for listing (`GET /api/v1/assets`), generating (`POST /api/v1/assets/generate`), and retrieving a single asset (`GET /api/v1/assets/{asset_id}`) are implemented. However, the endpoint for uploading an asset (`POST /api/v1/assets`) is **not present** in the gateway code.
+
+**Overall Conclusion:** This document provides a good overview of the advanced API features. While most endpoints are correctly documented, there are minor discrepancies in the Persona Management section and a missing endpoint in the Asset Management section.

@@ -71,3 +71,28 @@ docker compose exec kb-service \
 ## Full Documentation
 
 See [KB Git Sync Guide](kb-git-sync-guide.md) for complete details.
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The setup instructions in this document have been verified against the current codebase.
+
+-   **✅ Configuration:**
+    *   **Claim:** The document lists environment variables for configuring the KB service, including `KB_STORAGE_MODE`, `KB_GIT_REPO_URL`, `KB_GIT_AUTH_TOKEN`, and `KB_GIT_AUTO_CLONE`.
+    *   **Code Reference:** `app/shared/config.py` and `app/services/kb/kb_startup.py`.
+    *   **Verification:** This is **VERIFIED**. These environment variables are defined in the config and used in the startup script to control the KB service's behavior.
+
+-   **✅ Startup Process:**
+    *   **Claim:** The service automatically clones the Git repository on startup if `KB_GIT_AUTO_CLONE` is true.
+    *   **Code Reference:** `app/services/kb/kb_startup.py`.
+    *   **Verification:** This is **VERIFIED**. The `initialize_kb_repository` function schedules a background task (`_background_clone`) to clone the repository.
+
+-   **✅ Daily Workflow:**
+    *   **Claim:** The recommended workflow involves pushing changes to the Git repository and restarting the `kb-service`.
+    *   **Verification:** This is **VERIFIED**. The service works with a local clone of the repository, so a restart is necessary to pull in the latest changes.
+
+**Overall Conclusion:** This document provides accurate and up-to-date instructions for setting up the KB service with a Git repository.

@@ -1970,9 +1970,8 @@ Guidelines:
         Returns the conversation_id.
         """
         conversation_id = context.get("conversation_id") if context else None
+        logger.info(f"[_get_or_create] incoming conversation_id={conversation_id}")
         user_id = auth.get("user_id") or auth.get("sub") or "unknown"
-
-        conversation_id: Optional[str] = None
         try:
             from .conversation_store import chat_conversation_store
 

@@ -343,3 +343,29 @@ CREATE INDEX idx_parent ON kb_documents(parent_path);
 - [KB Git Sync Guide](../guides/kb-git-sync-guide.md) - Current Git implementation
 - [Multi-User KB Guide](../guides/multi-user-kb-guide.md) - Multi-user features
 - [KB Deployment Checklist](../deployment/kb-deployment-checklist.md) - Production deployment
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The architectural descriptions in this document have been verified against the current codebase.
+
+-   **✅ Current Architecture (Git-Based):**
+    *   **Claim:** The default storage mode is Git-based.
+    *   **Code Reference:** `app/shared/config.py`.
+    *   **Verification:** This is **VERIFIED**. The `KB_STORAGE_MODE` environment variable defaults to `"git"`.
+
+-   **✅ Future Architecture Options (Database and Hybrid):**
+    *   **Claim:** Database and Hybrid storage modes are implemented but not enabled by default.
+    *   **Code References:** `app/services/kb/kb_database_storage.py`, `app/services/kb/kb_hybrid_storage.py`, `app/services/kb/kb_storage_manager.py`.
+    *   **Verification:** This is **VERIFIED**. The existence of the implementation files and the selection logic in `kb_storage_manager.py` confirm this.
+
+-   **✅ Multi-User Features (RBAC):**
+    *   **Claim:** RBAC support is implemented but disabled by default, controlled by `KB_MULTI_USER_ENABLED`.
+    *   **Code Reference:** `app/services/kb/main.py`.
+    *   **Verification:** This is **VERIFIED**. The `main.py` file for the KB service conditionally imports and includes an RBAC router based on this setting.
+
+**Overall Conclusion:** This document provides an accurate and up-to-date overview of the KB service's storage architecture, including both the current default and the available alternative configurations.

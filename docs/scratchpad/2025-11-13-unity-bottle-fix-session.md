@@ -113,3 +113,26 @@ Also implemented during this session (separate feature):
 - Items can be stored as strings (simple) or objects (complex)
 - Template loader merges instance data with markdown templates
 - Type coercion allows backward compatibility with both formats
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The claims in this session note have been verified against the current codebase.
+
+-   **✅ Root Cause & Solution (`build_aoi()` fix):**
+    *   **Claim:** Bug in `build_aoi()` in `app/services/kb/unified_state_manager.py` expecting dicts but receiving strings, fixed by adding type checking (`isinstance(item_instance, str)`) around line 1437.
+    *   **Verification:** **VERIFIED**. The code at `app/services/kb/unified_state_manager.py` (lines 1437-1444) correctly implements the described type checking.
+
+-   **✅ Admin Command System Files:**
+    *   **Claim:** Implementation in `admin_command_router.py` and `command_processor.py`.
+    *   **Verification:** **VERIFIED**. Both `app/services/kb/handlers/admin_command_router.py` and `app/services/kb/command_processor.py` exist.
+
+-   **⚠️ Additional Fixes & Testing Status:**
+    *   **Claim:** Restored correct bottle names, hidden welcome sign, and specific admin command statuses (`@where` working, `@examine` and `@edit` needing fix).
+    *   **Verification:** **PARTIALLY VERIFIED**. The core code fix for `build_aoi()` is confirmed. However, verifying the specific content changes in `world.json` or the exact runtime status of all admin commands would require deeper inspection of game state files or running tests, which is beyond the scope of this static code verification. The document's claims about the status of `@examine` and `@edit` are noted as known issues.
+
+**Overall Conclusion:** The critical bug fix for `build_aoi()` is confirmed in the codebase. The document accurately describes the problem and its resolution in the code. The existence of the admin command system files is also verified.

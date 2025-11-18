@@ -75,12 +75,16 @@ async def route_admin_command(
             from .admin_edit_item import handle_admin_edit_item
             return await handle_admin_edit_item(user_id, experience_id, command_data)
 
+        elif command in ["reset-experience", "reset"]:
+            from .admin_reset_experience import handle_admin_reset_experience
+            return await handle_admin_reset_experience(user_id, experience_id, command_data)
+
         else:
             # Command not recognized by new admin system, let it fall through
             # to legacy admin command system in kb_agent
             return CommandResult(
                 success=False,
-                message_to_player=f"❌ Unknown admin command '@{command}'. Try: @examine, @where, @edit"
+                message_to_player=f"❌ Unknown admin command '@{command}'. Try: @examine, @where, @edit, @reset"
             )
 
     except Exception as e:

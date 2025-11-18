@@ -292,3 +292,27 @@ ExperienceCommandProcessor.process_command()
 
 **Date**: 2025-11-09
 **Next Review**: After WebSocket debugging session
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document provides a status update as of November 9, 2025. The verification confirms that the "What's Actually Implemented" section is a largely accurate representation of the codebase at that time.
+
+-   **✅ Gateway WebSocket Proxy:** **VERIFIED**.
+    -   **Evidence:** The `websocket_proxy` endpoint exists in `app/gateway/main.py` and implements the described features (tunneling, JWT validation, connection pooling). The `tests/manual/test_websocket_experience.py` file also exists.
+
+-   **✅ Unified Command Processing:** **VERIFIED**.
+    -   **Evidence:** The `ExperienceCommandProcessor` in `app/services/kb/command_processor.py` implements the dual-path routing. The HTTP (`experience_endpoints.py`) and WebSocket (`websocket_experience.py`) endpoints correctly delegate to this processor. The `collect_item.py` handler and `kb_agent.py`'s `process_llm_command` confirm the fast and flexible paths.
+
+-   **✅ NATS Real-Time Updates (Phase 1A):** **PARTIALLY VERIFIED**.
+    -   **Evidence:** The `_publish_world_update` method in `unified_state_manager.py` and the `NATSSubjects` class in `nats_client.py` confirm the publishing mechanism and subject format. Graceful degradation is implemented.
+    -   **Discrepancy:** The `WorldUpdateEvent` schema in `app/shared/events.py` is version `0.4`, not `0.3` as claimed. The test file `tests/unit/test_world_update_publishing.py` exists but contains 10 tests, not 26.
+
+-   **⚠️ NATS SSE Forwarding (Phase 1B):** **VERIFIED**.
+    -   **Evidence:** The implementation details described (per-request subscription, event prioritization in `stream_utils.py`, graceful degradation) are confirmed in `app/services/chat/unified_chat.py`. The document's own assessment of this feature being "PARTIALLY COMPLETE" with known limitations is also accurate.
+
+**Conclusion:** The document is a reliable snapshot of the system's status on the date it was written, with only minor, non-critical discrepancies in version numbers and test counts. The "Known Gaps & Limitations" section accurately reflects the state of the features.

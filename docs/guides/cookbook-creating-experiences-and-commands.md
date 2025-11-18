@@ -187,3 +187,33 @@ async def _admin_spawn(self, args: List[str], experience: str, user_context: Dic
 ```
 
 This hybrid approach gives you the discoverability of markdown with the speed and reliability of direct Python execution for administrative tasks.
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The core claims in this document have been verified against the source code.
+
+-   **✅ Creating a New Experience (Sections 1-4):**
+    *   **Claim:** The `state.model` in `config.json` ("shared" vs. "isolated") controls how world state is handled.
+    *   **Code Reference:** `app/services/kb/unified_state_manager.py` (lines 501-541, `get_world_state` method).
+    *   **Verification:** Confirmed that the `get_world_state` method checks the `state_model` from the loaded config. For the "shared" model, it reads `experiences/{exp}/state/world.json`. For the "isolated" model, it reads the player-specific `players/{user}/{exp}/view.json`.
+
+-   **⚠️ Discrepancy in "Creating a New Experience":**
+    *   **Claim (Step 3):** For an "isolated" model, you must rename `state/world.json` to `state/world.template.json`.
+    *   **Code Reference:** `app/services/kb/unified_state_manager.py` (lines 968-995, `_copy_world_template_for_player` method).
+    *   **Verification:** The `_copy_world_template_for_player` method, which is called when bootstrapping a player for an "isolated" experience, loads the template from the path specified in `config["bootstrap"]["world_template_path"]`. This path defaults to `"state/world.json"` (line 270).
+    *   **Conclusion:** The cookbook's instruction to rename the file to `world.template.json` is incomplete. A user following this guide would also need to **manually update `config.json`** to change `world_template_path` to `"state/world.template.json"`. Without this change, the system would fail to find the template file.
+
+-   **✅ Adding a New Player Command (Sections 1-3):**
+    *   **Claim:** Player commands are defined in markdown files in the `game-logic/` directory and are interpreted by an LLM at runtime.
+    *   **Code Reference:** `app/services/kb/kb_agent.py` (lines 953-1049, `_discover_available_commands` and lines 1155-1268, `_execute_markdown_command`).
+    *   **Verification:** Confirmed that the `_discover_available_commands` method scans the `game-logic/` directory for `.md` files and parses their frontmatter. The `_execute_markdown_command` method then uses this markdown content to guide the LLM in executing the command.
+
+-   **✅ Adding a New Admin Command (Sections 1-2):**
+    *   **Claim:** Admin commands are prefixed with `@`, defined in `admin-logic/`, and executed by dedicated Python code for performance.
+    *   **Code Reference:** `app/services/kb/kb_agent.py` (lines 859-871, `process_llm_command` and lines 1805-1855, `_execute_admin_command`).
+    *   **Verification:** Confirmed that `process_llm_command` checks for the `@` prefix and routes the command to `_execute_admin_command`. This method then calls specific Python handlers (e.g., `_admin_spawn`), bypassing the LLM execution path. This matches the described hybrid "Content-and-Code" approach.

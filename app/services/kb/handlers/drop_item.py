@@ -114,6 +114,7 @@ async def handle_drop_item(
         )
 
     # Remove from inventory
+    # Use nested dict format for state merge (flattening happens in _flatten_nested_changes)
     inventory_updates = {
         "player": {
             "inventory": {

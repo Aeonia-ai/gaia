@@ -699,4 +699,32 @@ Error: "Where do you want to go?"
 **Next Steps**:
 1. ✅ v0.4 WorldUpdate validated via WebSocket
 2. ⏸️ Unity local testing with 60s timeouts
-3. ⏸️ Deploy to dev Monday after Unity validation
+- **Testing**: Unity + Server teams
+- **Deployment**: DevOps team
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document describes the markdown-driven command architecture. The verification confirms that the claims made in this document are accurate and reflect the current state of the codebase.
+
+-   **✅ Command Directory Structure:** **VERIFIED**.
+    -   **Evidence:** The `_load_command_markdown` method in `app/services/kb/kb_agent.py` constructs paths to `game-logic/` and `admin-logic/` directories for player and admin commands, respectively.
+
+-   **✅ Markdown Command Structure:** **VERIFIED**.
+    -   **Evidence:** The `_discover_available_commands` method in `app/services/kb/kb_agent.py` parses YAML frontmatter from markdown files to define commands, aliases, and permissions. The prompts in `_execute_markdown_command` are structured to interpret the various sections of the markdown files.
+
+-   **✅ Hierarchical State Paths:** **VERIFIED**.
+    -   **Evidence:** The `_build_nested_remove` and `_build_nested_add` helper functions in the `collect_item` and `drop_item` handlers, respectively, demonstrate the construction of nested dictionary paths for state updates, confirming this architectural pattern.
+
+-   **✅ Two-Pass LLM Processing:** **VERIFIED**.
+    -   **Evidence:** The `_execute_markdown_command` method in `app/services/kb/kb_agent.py` implements the described two-pass system, with the first pass for deterministic logic (JSON output) and the second for creative narrative generation.
+
+-   **✅ Command Discovery:** **PARTIALLY VERIFIED**.
+    -   **Evidence:** The `_discover_available_commands` method in `app/services/kb/kb_agent.py` implements auto-discovery of commands from markdown files. The `CommandResult` model includes an `available_actions` field.
+    -   **Discrepancy:** A dedicated `help` command handler was not found.
+
+**Conclusion:** The document accurately describes the implemented markdown-driven command architecture. All key claims have been verified, with the minor exception of a dedicated `help` command.

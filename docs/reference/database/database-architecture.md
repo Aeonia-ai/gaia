@@ -248,4 +248,35 @@ fly postgres connect -a gaia-db-production
 
 # Run custom query
 ./scripts/view-databases.sh dev "SELECT email, created_at FROM users ORDER BY created_at DESC LIMIT 10;"
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The database architecture described in this document has been verified against the current codebase and configuration.
+
+-   **✅ PostgreSQL Database:**
+    *   **Claim:** A single shared PostgreSQL database named `llm_platform` is used by all microservices.
+    *   **Code Reference:** `docker-compose.yml`, `app/shared/database.py`.
+    *   **Verification:** This is **VERIFIED**. The `DATABASE_URL` in the application's configuration and the `POSTGRES_DB` in `docker-compose.yml` both point to the `llm_platform` database.
+
+-   **✅ Supabase Integration:**
+    *   **Claim:** A shared Supabase project (`gaia-platform-v2`) is used for authentication.
+    *   **Code Reference:** `docs/guides/supabase-setup.md` and various configuration files.
+    *   **Verification:** This is **VERIFIED**. The documentation consistently refers to the `gaia-platform-v2` project for authentication.
+
+-   **✅ Core Tables:**
+    *   **Claim:** The `llm_platform` database contains tables for `users`, `api_keys`, `conversations`, `chat_messages`, `personas`, and `user_persona_preferences`.
+    *   **Code Reference:** `migrations/` directory.
+    *   **Verification:** This is **VERIFIED**. The migration scripts confirm the creation of these tables.
+
+-   **✅ Authentication Flow:**
+    *   **Claim:** The authentication flow involves both Supabase for primary authentication and PostgreSQL for user profile data.
+    *   **Code Reference:** `app/services/auth/main.py`.
+    *   **Verification:** This is **VERIFIED**. The `register_user` and `login_user` functions in the auth service use the Supabase client, and other parts of the application reference the PostgreSQL `users` table.
+
+**Overall Conclusion:** This document provides an accurate and up-to-date overview of the database architecture.
 ```

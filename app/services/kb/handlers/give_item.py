@@ -9,6 +9,7 @@ Current implementation: NPC item delivery only (player transfer deferred)
 """
 
 import logging
+from datetime import datetime
 from typing import Any, Dict
 
 from app.shared.models.command_result import CommandResult
@@ -163,6 +164,7 @@ async def _handle_npc_delivery(
     # Find NPC in world
     npc_location = None
     npc_area = None
+    npc_spot = None
     npc_name = npc_id.replace("_", " ").title()
 
     locations = world_state.get("locations", {})
@@ -182,6 +184,19 @@ async def _handle_npc_delivery(
                 npc_name = area_data.get("npc_name", npc_name)
                 break
 
+            # Check spots within this area (v0.5 hierarchy)
+            spots = area_data.get("spots", {})
+            for spot_id, spot_data in spots.items():
+                if spot_data.get("npc") == npc_id:
+                    npc_location = loc_id
+                    npc_area = area_id
+                    npc_spot = spot_id
+                    npc_name = spot_data.get("npc_name", npc_name)
+                    break
+
+            if npc_location:
+                break
+
         if npc_location:
             break
 
@@ -198,6 +213,8 @@ async def _handle_npc_delivery(
             message_to_player=f"You must be in the same location as {npc_name}."
         )
 
+    # If NPC is in an area (with or without spot), player must be in that area
+    # For MVP: Being in the same area is sufficient, even if NPC is at a specific spot
     if npc_area and current_area != npc_area:
         return CommandResult(
             success=False,
@@ -206,6 +223,7 @@ async def _handle_npc_delivery(
 
     # Remove item from player inventory
     try:
+        # Use flattened path format for v0.4 WorldUpdate event formatter
         await state_manager.update_player_view(
             experience=experience_id,
             user_id=user_id,
@@ -257,15 +275,13 @@ async def _process_npc_item(
     user_id: str
 ) -> Dict[str, Any]:
     """
-    Hook for future quest/reward system integration.
+    Hook for NPC-specific quest logic and reactions.
 
     This is called after item is removed from player inventory.
-    Future implementations can:
-    - Validate item requirements
-    - Award XP, reputation, items
-    - Update quest progress
-    - Return item if validation fails
-    - Trigger NPC dialogue sequences
+
+    Routes to specialized handlers for NPCs with custom quest logic:
+    - Louisa: Dream bottle collection quest
+    - Others: Generic acceptance dialogue
 
     Args:
         experience_id: Experience ID
@@ -278,11 +294,24 @@ async def _process_npc_item(
         {
             "accepted": bool,
             "dialogue": str,
-            "rewards": dict,  # Future: XP, items, reputation
-            "quest_updates": dict  # Future: Quest progress
+            "rewards": dict,
+            "quest_updates": dict
         }
     """
-    # MVP: Accept all items with generic dialogue
+    # Special handling for Louisa's dream bottle quest
+    if npc_id == "louisa":
+        template_id = item_data.get("template_id", "")
+
+        # Check if it's a dream bottle
+        if template_id.startswith("bottle_"):
+            return await _handle_louisa_bottle_delivery(
+                experience_id=experience_id,
+                user_id=user_id,
+                item_data=item_data,
+                npc_name=npc_name
+            )
+
+    # Default: Generic acceptance for all other NPCs/items
     item_name = item_data.get("semantic_name", item_data.get("name", "item"))
 
     return {
@@ -291,3 +320,122 @@ async def _process_npc_item(
         "rewards": {},
         "quest_updates": {}
     }
+
+
+async def _handle_louisa_bottle_delivery(
+    experience_id: str,
+    user_id: str,
+    item_data: Dict[str, Any],
+    npc_name: str
+) -> Dict[str, Any]:
+    """
+    Handle dream bottle delivery to Louisa with quest progression tracking.
+
+    Quest mechanics:
+    - Louisa needs 4 dream bottles to complete the quest
+    - Each bottle delivered increments counters in world state
+    - Dialogue changes based on progress (1/4, 2/4, 3/4, 4/4)
+    - Quest complete when all 4 bottles delivered
+
+    State updates:
+    - npcs.louisa.state.bottles_collected (incremented)
+    - global_state.dream_bottles_found (incremented)
+    - global_state.quest_started (set to true on first bottle)
+
+    Args:
+        experience_id: Experience ID (e.g., "wylding-woods")
+        user_id: Player delivering the bottle
+        item_data: Complete bottle data with instance_id, template_id, state
+        npc_name: NPC display name (e.g., "Louisa")
+
+    Returns:
+        {
+            "accepted": True,
+            "dialogue": str (quest-specific dialogue),
+            "quest_updates": {
+                "bottles_collected": int,
+                "quest_complete": bool
+            }
+        }
+    """
+    from ..kb_agent import kb_agent
+
+    state_manager = kb_agent.state_manager
+    if not state_manager:
+        logger.error("State manager not initialized for quest tracking")
+        return {
+            "accepted": True,
+            "dialogue": f"{npc_name}: Thank you for the bottle.",
+            "quest_updates": {}
+        }
+
+    try:
+        # Load world state to get current quest progress
+        world_state = await state_manager.get_world_state(experience_id)
+
+        # Get current bottle count from Louisa's state
+        louisa_state = world_state.get("npcs", {}).get("louisa", {}).get("state", {})
+        bottles_collected = louisa_state.get("bottles_collected", 0)
+        new_count = bottles_collected + 1
+
+        # Update quest state in world
+        await state_manager.update_world_state(
+            experience=experience_id,
+            updates={
+                "npcs": {
+                    "louisa": {
+                        "state": {
+                            "bottles_collected": new_count,
+                            "quest_active": True
+                        }
+                    }
+                },
+                "global_state": {
+                    "quest_started": True,
+                    "dream_bottles_found": new_count
+                }
+            },
+            user_id=None  # Global state update, no user-specific WorldUpdate
+        )
+
+        logger.info(
+            f"Quest progress: {user_id} delivered bottle to Louisa "
+            f"({new_count}/4 bottles collected)"
+        )
+
+        # Generate quest-specific dialogue based on progress
+        item_name = item_data.get("semantic_name", "dream bottle")
+
+        if new_count < 4:
+            # Quest in progress
+            dialogue = (
+                f"{npc_name}: Oh wonderful! You found {item_name}! "
+                f"That's {new_count} out of 4 bottles. "
+                f"Can you help me find the others?"
+            )
+        else:
+            # Quest complete!
+            dialogue = (
+                f"{npc_name}: You found them all! All four dream bottles are safe! "
+                f"Thank you so much! The dreams of the Wylding Woods are restored! ✨"
+            )
+            logger.info(f"Quest completed by {user_id}! All bottles collected.")
+
+        return {
+            "accepted": True,
+            "dialogue": dialogue,
+            "quest_updates": {
+                "bottles_collected": new_count,
+                "quest_complete": new_count >= 4
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to track quest progress: {e}", exc_info=True)
+        # Fallback: Accept the bottle but without quest tracking
+        item_name = item_data.get("semantic_name", "bottle")
+        return {
+            "accepted": True,
+            "dialogue": f"{npc_name}: Thank you for the {item_name}.",
+            "quest_updates": {}
+        }

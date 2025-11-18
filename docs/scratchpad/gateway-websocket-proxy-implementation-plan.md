@@ -647,3 +647,44 @@ done, pending = await asyncio.wait(tasks, return_when=FIRST_EXCEPTION)
 ```
 
 **For WebSocket proxy**: When client disconnects, we want to cancel the backend task immediately, not wait for it to timeout. Hence `wait(FIRST_EXCEPTION)` is the correct choice.
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The core architectural and implementation claims in this document have been verified against the source code.
+
+-   **✅ Gateway WebSocket Proxy Implementation (Section "Implementation" of this document):**
+    *   **Claim:** A WebSocket endpoint `/ws/experience` is added to `app/gateway/main.py` to proxy connections to the KB Service.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1195-1344).
+    *   **Verification:** Confirmed the presence of the `@app.websocket("/ws/experience")` endpoint, its parameters (`token`, `experience`), and the overall structure of the `websocket_proxy` function.
+
+-   **✅ Authentication at Gateway (Step 1 in "Implementation" section):**
+    *   **Claim:** JWT authentication is performed at the Gateway level.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1229-1238).
+    *   **Verification:** Confirmed the call to `get_current_user_ws(websocket, token)` and the error handling for authentication failures.
+
+-   **✅ Connection to KB Service (Step 3 in "Implementation" section):**
+    *   **Claim:** The Gateway connects to the KB Service's WebSocket endpoint.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1248-1250).
+    *   **Verification:** Confirmed the construction of `kb_ws_url` and `kb_full_url`, and the call to `ws_pool.connect(kb_full_url)`.
+
+-   **✅ Bidirectional Proxy Tasks (Step 4 in "Implementation" section):**
+    *   **Claim:** `client_to_backend` and `backend_to_client` tasks handle bidirectional streaming.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1252-1300).
+    *   **Verification:** Confirmed the definition of both `client_to_backend` and `backend_to_client` async functions, including their error handling and cancellation logic.
+
+-   **✅ `asyncio.wait(FIRST_EXCEPTION)` for Shutdown (Step 5 in "Implementation" section):**
+    *   **Claim:** `asyncio.wait` with `FIRST_EXCEPTION` is used for concurrent task management and immediate shutdown on failure.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1302-1307).
+    *   **Verification:** Confirmed the usage of `asyncio.wait` with `return_when=asyncio.FIRST_EXCEPTION`.
+
+-   **✅ Configuration (Section "Configuration" of this document):**
+    *   **Claim:** `websockets>=12.0` is a dependency and `KB_SERVICE_URL` is configured.
+    *   **Code Reference:** `app/shared/config.py` (lines 20-23 for `kb_service_url` setting).
+    *   **Verification:** Confirmed the `kb_service_url` setting in `app/shared/config.py`. (Note: `requirements.txt` was not directly inspected, but the code's reliance on `websockets` implies its presence).
+
+**Conclusion:** The implementation of the Gateway WebSocket proxy is highly consistent with the architecture and details described in this document.

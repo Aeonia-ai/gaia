@@ -337,3 +337,39 @@ full_content = await read_kb_file(search_results[0].path)
 - [Chat Service Implementation](chat-service-implementation.md)
 - [KB Tools Reference](../../kb/reference/kb-http-api-reference.md)
 - [Intelligent Chat Routing](../../api/chat/intelligent-chat-routing.md)
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The architectural components and concepts described in this document have been verified against the current codebase.
+
+-   **✅ Tool Categories:**
+    *   **Claim:** The system uses Knowledge Base Tools (from `kb_tools.py`) and Routing Tools (from `UnifiedChatHandler`).
+    *   **Code References:** `app/services/chat/kb_tools.py` and `app/services/chat/unified_chat.py` (lines 119-188).
+    *   **Verification:** This is **VERIFIED**. Both sets of tools are defined as described.
+
+-   **✅ Tool Combination:**
+    *   **Claim:** The two tool sets are combined into a single `all_tools` list.
+    *   **Code Reference:** `app/services/chat/unified_chat.py` (line 321).
+    *   **Verification:** This is **VERIFIED**.
+
+-   **✅ Intelligence Layer (Tool Instructions):**
+    *   **Claim:** The system prompt provides detailed instructions on when to use tools.
+    *   **Code Reference:** `app/services/chat/unified_chat.py` (lines 1415-1463, `get_routing_prompt` method).
+    *   **Verification:** This is **VERIFIED**. The `get_routing_prompt` method constructs a detailed system prompt that includes persona information and tool usage guidelines.
+
+-   **✅ Request Processing Flow:**
+    *   **Claim:** The system follows a four-phase flow: Context Building, Prompt Assembly, Single LLM Decision, and Response Handling.
+    *   **Code Reference:** `app/services/chat/unified_chat.py` (lines 208-545, `process` method).
+    *   **Verification:** This is **VERIFIED**. The `process` method implements this flow.
+
+-   **✅ Tool Execution:**
+    *   **Claim:** The `KBToolExecutor` class executes KB tools by making HTTP requests to the KB service.
+    *   **Code Reference:** `app/services/chat/kb_tools.py` (lines 146-496).
+    *   **Verification:** This is **VERIFIED**.
+
+**Overall Conclusion:** This document accurately describes the intelligent tool routing system as implemented in the `UnifiedChatHandler`.

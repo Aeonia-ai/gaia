@@ -538,3 +538,38 @@ These are **complementary systems**, not competing formats. Each serves a specif
 - [Wylding Woods Knowledge Base Inventory](wylding-woods-knowledge-base-inventory.md)
 - [Universal Action Vocabulary](../../Vaults/gaia-knowledge-base/shared/mmoirl-platform/commands/universal-actions.md)
 - [Simulation Architecture Overview](simulation-architecture-overview.md)
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document provides a comparative analysis of command and response formats. The verification confirms the existence and structure of these formats in the codebase.
+
+### Player Commands
+
+-   **WebSocket Format:** **VERIFIED**.
+    -   **Evidence:** The `handle_action` function in `app/services/kb/websocket_experience.py` processes messages with `type: "action"`, matching the described format.
+-   **HTTP Format:** **VERIFIED**.
+    -   **Evidence:** The `interact_with_experience` endpoint in `app/services/kb/experience_endpoints.py` accepts an `InteractRequest` with `message` and `experience` fields.
+
+### CommandResult
+
+-   **Internal Format (`CommandResult` model):** **PARTIALLY VERIFIED**.
+    -   **Evidence:** The `CommandResult` model exists in `app/shared/models/command_result.py`.
+    -   **Discrepancy:** The model defines `success`, `state_changes`, `message_to_player`, and `metadata`, but is **missing the `actions` field** claimed in the document.
+-   **WebSocket Response Translation:** **VERIFIED**.
+    -   **Evidence:** The `handle_action` function in `app/services/kb/websocket_experience.py` constructs an `action_response` that includes `success`, `message`, and `metadata`, but omits `state_changes` and `actions`, as claimed.
+-   **HTTP Response Translation:** **VERIFIED**.
+    -   **Evidence:** The `interact_with_experience` endpoint in `app/services/kb/experience_endpoints.py` returns an `InteractResponse` that includes `narrative` (from `message_to_player`) and `state_updates` (from `state_changes`), as claimed.
+
+### Directives
+
+-   **JSON-RPC Directives:** **VERIFIED**.
+    -   **Evidence:** The `directive_pattern` in `app/services/streaming_buffer.py` matches the `{"m":...,"p":...}` format. The `_is_directive_enhanced_context` method in `app/services/chat/unified_chat.py` confirms the conditions under which directives are enabled and that only `pause` is currently implemented.
+-   **Symbolic Server Directives (NATS):** **NOT APPLICABLE**.
+    -   **Reason:** This is explicitly marked as an "Architectural design" and is not expected to be in the current implementation.
+
+**Overall Conclusion:** The document is an accurate and reliable reference for the implemented command and response formats. The only minor discrepancy is the absence of the `actions` field in the `CommandResult` Pydantic model, which should be updated in either the code or the documentation for consistency.

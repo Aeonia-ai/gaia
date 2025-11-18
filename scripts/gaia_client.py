@@ -11,15 +11,14 @@ import sys
 import json
 import argparse
 import asyncio
+import getpass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import AsyncGenerator, Dict, Any, List, Optional
 import httpx
-from dotenv import load_dotenv
 import keyring
-
-# Load environment variables from .env
-load_dotenv()
 
 # GAIA API Configuration
 GAIA_ENVIRONMENTS = {
@@ -28,6 +27,174 @@ GAIA_ENVIRONMENTS = {
     "staging": "https://gaia-gateway-staging.fly.dev",
     "prod": "https://gaia-gateway-prod.fly.dev"
 }
+
+CONFIG_DIR = Path.home() / ".gaia"
+CONFIG_FILE = CONFIG_DIR / "gaia_client.settings.json"
+CONFIG_VERSION = 1
+
+
+class StreamEventType(str, Enum):
+    CONTENT = "content"
+    METADATA = "metadata"
+    DONE = "done"
+    ERROR = "error"
+    RAW = "raw"
+
+
+@dataclass
+class StreamEvent:
+    type: StreamEventType
+    content: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
+
+
+class TransportProtocol(str, Enum):
+    SSE = "sse"
+    WEBSOCKET = "websocket"
+
+
+class AuthMode(str, Enum):
+    """Authentication strategy preference for the CLI."""
+
+    AUTO = "auto"       # Prefer JWT if available, fall back to API key
+    JWT_ONLY = "jwt"    # Require JWT (email/password); never auto-use API keys
+    API_KEY = "api_key" # Always use API key (keyring/env/prompt)
+
+
+@dataclass
+class GaiaClientConfig:
+    """Persisted, non-sensitive client preferences."""
+
+    version: int = CONFIG_VERSION
+    environment: str = "local"
+    default_persona: str = "mu"
+    logging_enabled: bool = False
+    log_name: Optional[str] = None
+    last_conversation_id: Optional[str] = None
+    default_transport: TransportProtocol = TransportProtocol.SSE
+    conversation_aliases: Dict[str, str] = field(default_factory=dict)
+    auth_mode: AuthMode = AuthMode.AUTO
+
+    @classmethod
+    def load(cls) -> "GaiaClientConfig":
+        if not CONFIG_FILE.exists():
+            CONFIG_DIR.mkdir(exist_ok=True)
+            return cls()
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            version = raw.get("version", CONFIG_VERSION)
+            if version != CONFIG_VERSION:
+                raw["version"] = CONFIG_VERSION
+            raw.setdefault("default_transport", TransportProtocol.SSE.value)
+            raw.setdefault("auth_mode", AuthMode.AUTO.value)
+            auth_mode_value = raw.get("auth_mode", AuthMode.AUTO.value)
+            if auth_mode_value not in AuthMode._value2member_map_:
+                auth_mode_value = AuthMode.AUTO.value
+            return cls(
+                version=raw.get("version", CONFIG_VERSION),
+                environment=raw.get("environment", "local"),
+                default_persona=raw.get("default_persona", "mu"),
+                logging_enabled=raw.get("logging_enabled", False),
+                log_name=raw.get("log_name"),
+                last_conversation_id=raw.get("last_conversation_id"),
+                default_transport=TransportProtocol(
+                    raw.get("default_transport", TransportProtocol.SSE.value)
+                ),
+                conversation_aliases=raw.get("conversation_aliases", {}),
+                auth_mode=AuthMode(auth_mode_value),
+            )
+        except (json.JSONDecodeError, OSError, ValueError):
+            return cls()
+
+    def save(self):
+        CONFIG_DIR.mkdir(exist_ok=True)
+        data = asdict(self)
+        data["default_transport"] = self.default_transport.value
+        data["auth_mode"] = self.auth_mode.value
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        try:
+            os.chmod(CONFIG_FILE, 0o600)
+        except OSError:
+            pass
+
+    def update_alias(self, alias: str, conversation_id: str):
+        self.conversation_aliases[alias] = conversation_id
+        self.save()
+
+
+class ChatStreamTransport:
+    """Handles streaming transport (SSE today, WebSocket-ready)."""
+
+    def __init__(self, base_url: str, auth_manager: "GaiaAuthManager"):
+        self.base_url = base_url
+        self.auth = auth_manager
+
+    async def stream_chat(
+        self,
+        payload: Dict[str, Any],
+        protocol: TransportProtocol = TransportProtocol.SSE,
+    ) -> AsyncGenerator[StreamEvent, None]:
+        if protocol == TransportProtocol.SSE:
+            async for event in self._stream_via_sse(payload):
+                yield event
+        else:
+            raise NotImplementedError("WebSocket transport not implemented yet")
+
+    async def _stream_via_sse(
+        self, payload: Dict[str, Any]
+    ) -> AsyncGenerator[StreamEvent, None]:
+        await self.auth.ensure_valid_token()
+        headers = self.auth.get_headers()
+        headers["Content-Type"] = "application/json"
+        headers["Accept"] = "text/event-stream"
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream(
+                "POST",
+                f"{self.base_url}/api/v0.3/chat",
+                headers=headers,
+                json=payload,
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+                    data_str = line[6:].strip()
+                    if data_str == "[DONE]":
+                        yield StreamEvent(type=StreamEventType.DONE)
+                        break
+                    try:
+                        event_payload = json.loads(data_str)
+                        if "choices" in event_payload:
+                            delta = event_payload.get("choices", [{}])[0].get("delta", {})
+                            content = delta.get("content")
+                            if content:
+                                yield StreamEvent(
+                                    type=StreamEventType.CONTENT,
+                                    content=content,
+                                    data=event_payload,
+                                )
+                            continue
+                        event_type = event_payload.get("type", StreamEventType.CONTENT.value)
+                        if event_type in {"metadata", "model_selection"}:
+                            event_enum = StreamEventType.METADATA
+                        elif event_type in StreamEventType._value2member_map_:
+                            event_enum = StreamEventType(event_type)
+                        else:
+                            event_enum = StreamEventType.RAW
+                        yield StreamEvent(
+                            type=event_enum,
+                            content=event_payload.get("content"),
+                            data=event_payload,
+                        )
+                    except json.JSONDecodeError:
+                        yield StreamEvent(
+                            type=StreamEventType.RAW,
+                            content=data_str,
+                            data={"raw": data_str},
+                        )
 
 class ConversationLogger:
     """Handles logging of conversations to JSON files."""
@@ -119,67 +286,100 @@ class ConversationLogger:
 class GaiaAuthManager:
     """Manages authentication for GAIA API."""
     
-    def __init__(self, environment: str = "dev", base_url: str = None):
+    def __init__(
+        self,
+        environment: str = "dev",
+        base_url: str = None,
+        auth_mode: AuthMode = AuthMode.AUTO,
+    ):
         self.environment = environment
         self.service_name = f"gaia-client-{environment}"
         self.base_url = base_url
+        self.auth_mode = auth_mode
         self._token = None
         self._refresh_token = None
         self._token_expires_at = None
         self._api_key = None
         self._user_email = None
+        self._api_key_source: Optional[str] = None
         
         # Try to load saved tokens on init
         self._load_saved_tokens()
+
+    def set_auth_mode(self, mode: AuthMode):
+        self.auth_mode = mode
     
-    def get_api_key(self) -> Optional[str]:
-        """Get API key from environment or keyring."""
-        # First try environment variable
-        api_key = os.getenv('GAIA_API_KEY') or os.getenv('API_KEY')
-        if api_key:
-            return api_key
-        
-        # Try keyring
+    def get_api_key(self, prompt: bool = False, force_prompt: bool = False) -> Optional[str]:
+        """Fetch API key, preferring stored credentials over manual prompts."""
+        if self.auth_mode == AuthMode.JWT_ONLY and not force_prompt:
+            return None
+
+        if self._api_key and not force_prompt:
+            return self._api_key
+
+        # Keyring takes precedence so user logins persist
         try:
-            api_key = keyring.get_password(self.service_name, "api_key")
-            if api_key:
-                return api_key
+            if not force_prompt:
+                stored_key = keyring.get_password(self.service_name, "api_key")
+                if stored_key:
+                    self._api_key = stored_key
+                    self._api_key_source = "keyring"
+                    return stored_key
         except Exception:
             pass
-        
-        # Prompt user
-        api_key = input("Enter your GAIA API key: ").strip()
+
+        if not prompt and not force_prompt:
+            return None
+
+        api_key = self._prompt_and_store_api_key()
+        self._api_key = api_key
+        self._api_key_source = "keyring" if api_key else None
+        return api_key
+
+    def _prompt_and_store_api_key(self) -> Optional[str]:
+        print("\n🔑 Enter your GAIA API key (input hidden).")
+        api_key = getpass.getpass("API key: ").strip()
+        if not api_key:
+            print("⚠️ No API key entered.")
+            return None
+        try:
+            keyring.set_password(self.service_name, "api_key", api_key)
+            print("✅ API key saved securely")
+            self._api_key_source = "keyring"
+        except Exception:
+            print("⚠️ Could not save API key to keyring")
+        return api_key
+
+    def prompt_for_api_key(self) -> Optional[str]:
+        """Interactive helper for commands to store an API key."""
+        api_key = self._prompt_and_store_api_key()
         if api_key:
-            # Save to keyring for future use
-            try:
-                keyring.set_password(self.service_name, "api_key", api_key)
-                print("✅ API key saved securely")
-            except Exception:
-                print("⚠️ Could not save API key to keyring")
-        
+            self._api_key = api_key
+            self._api_key_source = "keyring"
         return api_key
     
     def _load_saved_tokens(self):
         """Load saved JWT tokens from keyring."""
         try:
             import keyring
-            # Load access token
+            # Load access token and metadata
             self._token = keyring.get_password(self.service_name, "access_token")
             self._refresh_token = keyring.get_password(self.service_name, "refresh_token")
             self._user_email = keyring.get_password(self.service_name, "user_email")
             
-            # Load and parse expiry time
             expiry_str = keyring.get_password(self.service_name, "token_expires_at")
             if expiry_str:
-                self._token_expires_at = datetime.fromisoformat(expiry_str)
-                
-                # Check if token is expired
-                if self._token and datetime.now() > self._token_expires_at:
-                    print("⚠️ Saved token has expired")
-                    self._clear_saved_tokens()
-                elif self._token:
+                try:
+                    self._token_expires_at = datetime.fromisoformat(expiry_str)
+                except ValueError:
+                    self._token_expires_at = None
+            
+            if self._token:
+                if self._token_expires_at and datetime.now() > self._token_expires_at:
+                    print("⚠️ Saved session expired — will attempt refresh automatically")
+                else:
                     print(f"✅ Loaded saved session for: {self._user_email}")
-        except Exception as e:
+        except Exception:
             # Silently fail if keyring is not available
             pass
     
@@ -217,7 +417,47 @@ class GaiaAuthManager:
         self._refresh_token = None
         self._user_email = None
         self._token_expires_at = None
-    
+
+    def clear_api_key(self):
+        try:
+            keyring.delete_password(self.service_name, "api_key")
+        except Exception:
+            pass
+        self._api_key = None
+        self._api_key_source = None
+
+    def has_keyring_api_key(self) -> bool:
+        try:
+            return keyring.get_password(self.service_name, "api_key") is not None
+        except Exception:
+            return False
+
+    @property
+    def api_key_source(self) -> Optional[str]:
+        return self._api_key_source
+
+    def describe_user_state(self) -> str:
+        if self._user_email:
+            return f"👤 User: {self._user_email} (JWT)"
+
+        source = self._api_key_source
+        if source == "keyring":
+            return "🔑 User: API key (keyring)"
+        if self._api_key:
+            return "🔑 User: API key (session)"
+
+        if self.has_keyring_api_key():
+            return "🔑 User: API key (keyring stored)"
+        return "❌ User: Not authenticated"
+
+    def has_credentials(self) -> bool:
+        return bool(
+            self._token
+            or self._user_email
+            or self._api_key
+            or self.has_keyring_api_key()
+        )
+
     async def login(self, email: str, password: str) -> bool:
         """Login with email and password to get JWT tokens."""
         try:
@@ -315,40 +555,66 @@ class GaiaAuthManager:
         return False
     
     async def ensure_valid_token(self) -> bool:
-        """Ensure we have a valid token, refreshing if needed."""
-        # Check if token exists and is not expired
+        """Ensure we have a valid JWT session, refreshing if necessary."""
+        # API key-only mode never needs JWT validation
+        if self.auth_mode == AuthMode.API_KEY:
+            return True
+
         if self._token and self._token_expires_at:
-            # Refresh if less than 5 minutes remaining
+            # Token still healthy
             if datetime.now() < self._token_expires_at - timedelta(minutes=5):
                 return True
-            
-            # Try to refresh
-            if await self.refresh_tokens():
-                return True
+            # Otherwise attempt refresh
+            return await self.refresh_tokens()
+
+        if self._token and not self._token_expires_at:
+            # No expiry info (shouldn't happen), trust current token
+            return True
+
+        if self._refresh_token:
+            return await self.refresh_tokens()
         
         return False
     
-    def get_headers(self) -> Dict[str, str]:
-        """Get authentication headers."""
-        if self._token:
+    def get_headers(self, prompt_for_api_key: bool = False) -> Dict[str, str]:
+        """Get authentication headers respecting the configured auth mode."""
+        prefer_jwt = self.auth_mode in {AuthMode.AUTO, AuthMode.JWT_ONLY}
+
+        if prefer_jwt and self._token:
             return {"Authorization": f"Bearer {self._token}"}
-        elif self._api_key:
-            return {"X-API-Key": self._api_key}
-        else:
-            self._api_key = self.get_api_key()
-            if not self._api_key:
-                raise ValueError("No authentication credentials available")
-            return {"X-API-Key": self._api_key}
+
+        if self.auth_mode == AuthMode.JWT_ONLY:
+            raise ValueError(
+                "JWT authentication required. Use /login <email> <password> to sign in."
+            )
+
+        if not self._api_key and prompt_for_api_key:
+            self._api_key = self.get_api_key(prompt=True)
+
+        if not self._api_key:
+            raise ValueError(
+                "No authentication credentials available. "
+                "Use /login <email> <password> for JWT or /api-key store to save an API key."
+            )
+
+        return {"X-API-Key": self._api_key}
 
 
 class GaiaClient:
     """GAIA API client with v0.3 endpoint support."""
     
-    def __init__(self, base_url: str, auth_manager: GaiaAuthManager):
+    def __init__(
+        self,
+        base_url: str,
+        auth_manager: GaiaAuthManager,
+        config: GaiaClientConfig,
+    ):
         self.base_url = base_url
         self.auth = auth_manager
-        self.current_conversation_id = None
-        self.current_persona = "mu"  # Default persona
+        self.config = config
+        self.current_conversation_id = config.last_conversation_id
+        self.current_persona = config.default_persona
+        self.transport = ChatStreamTransport(base_url, auth_manager)
     
     async def health_check(self) -> Dict[str, Any]:
         """Check gateway health."""
@@ -358,66 +624,97 @@ class GaiaClient:
     
     async def send_message(self, message: str, stream: bool = False) -> Dict[str, Any]:
         """Send a chat message using v0.3 API."""
-        headers = self.auth.get_headers()
-        headers["Content-Type"] = "application/json"
-        
-        data = {
+        payload = {
             "message": message,
             "conversation_id": self.current_conversation_id,
-            "stream": stream
+            "stream": stream,
         }
-        
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            if stream:
-                # Handle streaming response
-                async with client.stream(
-                    "POST",
-                    f"{self.base_url}/api/v0.3/chat",
-                    headers=headers,
-                    json=data
-                ) as response:
-                    response.raise_for_status()
+
+        if stream:
+            attempt = 0
+            while attempt < 2:
+                try:
                     full_response = ""
-                    
-                    async for line in response.aiter_lines():
-                        if line.startswith("data: "):
-                            data_str = line[6:]
-                            if data_str == "[DONE]":
-                                break
-                            
-                            try:
-                                event = json.loads(data_str)
-                                if event.get("type") == "content":
-                                    content = event.get("content", "")
-                                    print(content, end="", flush=True)
-                                    full_response += content
-                            except json.JSONDecodeError:
-                                pass
-                    
-                    print()  # New line after streaming
+                    async for event in self.stream_message(payload):
+                        if event.type == StreamEventType.METADATA and event.data:
+                            conversation_id = event.data.get("conversation_id")
+                            if conversation_id:
+                                self.set_conversation(conversation_id)
+                        elif event.type == StreamEventType.CONTENT and event.content:
+                            print(event.content, end="", flush=True)
+                            full_response += event.content
+                        elif event.type == StreamEventType.ERROR:
+                            raise RuntimeError(event.data or event.content)
+                    print()
                     return {
                         "response": full_response,
                         "conversation_id": self.current_conversation_id,
-                        "message": message
+                        "message": message,
                     }
-            else:
-                # Regular non-streaming request
-                response = await client.post(
-                    f"{self.base_url}/api/v0.3/chat",
-                    headers=headers,
-                    json=data
-                )
+                except httpx.HTTPStatusError as error:
+                    if self._reset_stale_conversation(error, payload):
+                        attempt += 1
+                        continue
+                    raise
+
+        await self.auth.ensure_valid_token()
+        headers = self.auth.get_headers()
+        headers["Content-Type"] = "application/json"
+
+        attempt = 0
+        while attempt < 2:
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    response = await client.post(
+                        f"{self.base_url}/api/v0.3/chat",
+                        headers=headers,
+                        json=payload,
+                    )
                 response.raise_for_status()
                 result = response.json()
-                
-                # Update conversation ID if returned
                 if "conversation_id" in result:
-                    self.current_conversation_id = result["conversation_id"]
-                
+                    self.set_conversation(result["conversation_id"])
                 return result
-    
+            except httpx.HTTPStatusError as error:
+                if self._reset_stale_conversation(error, payload):
+                    attempt += 1
+                    continue
+                raise
+
+    async def stream_message(
+        self,
+        payload: Dict[str, Any],
+        protocol: Optional[TransportProtocol] = None,
+    ) -> AsyncGenerator[StreamEvent, None]:
+        """Yield streaming events for a message (transport-agnostic)."""
+        payload = {**payload, "stream": True}
+        protocol = protocol or self.config.default_transport
+        async for event in self.transport.stream_chat(payload, protocol):
+            yield event
+
+    def set_conversation(self, conversation_id: Optional[str], persist: bool = True):
+        self.current_conversation_id = conversation_id
+        if persist:
+            self.config.last_conversation_id = conversation_id
+            self.config.save()
+
+    def _reset_stale_conversation(
+        self, error: httpx.HTTPStatusError, payload: Dict[str, Any]
+    ) -> bool:
+        """Clear invalid conversation IDs and signal caller to retry once."""
+        if error.response.status_code != 404:
+            return False
+        stale_id = payload.get("conversation_id")
+        if not stale_id:
+            return False
+        print(f"⚠️ Clearing missing conversation {stale_id}; starting fresh.")
+        self.set_conversation(None)
+        payload["conversation_id"] = None
+        return True
+
     async def list_conversations(self) -> List[Dict[str, Any]]:
         """List all conversations."""
+        await self.auth.ensure_valid_token()
         headers = self.auth.get_headers()
         
         async with httpx.AsyncClient() as client:
@@ -426,10 +723,20 @@ class GaiaClient:
                 headers=headers
             )
             response.raise_for_status()
-            return response.json().get("conversations", [])
+            conversations = response.json().get("conversations", [])
+
+        normalized: List[Dict[str, Any]] = []
+        for conv in conversations:
+            conv_id = conv.get("conversation_id") or conv.get("id")
+            if conv_id:
+                # Maintain backward compatibility for callers expecting `id`
+                conv = {**conv, "conversation_id": conv_id, "id": conv_id}
+            normalized.append(conv)
+        return normalized
     
     async def create_conversation(self, title: str = "New Conversation") -> Dict[str, Any]:
         """Create a new conversation."""
+        await self.auth.ensure_valid_token()
         headers = self.auth.get_headers()
         headers["Content-Type"] = "application/json"
         
@@ -441,11 +748,18 @@ class GaiaClient:
             )
             response.raise_for_status()
             result = response.json()
-            self.current_conversation_id = result.get("id")
-            return result
+
+        conversation_id = result.get("conversation_id") or result.get("id")
+        if conversation_id:
+            # Normalize both keys for downstream callers
+            result.setdefault("conversation_id", conversation_id)
+            result.setdefault("id", conversation_id)
+        self.set_conversation(conversation_id)
+        return result
     
     async def get_personas(self) -> List[Dict[str, Any]]:
         """Get available personas (v1 endpoint)."""
+        await self.auth.ensure_valid_token()
         headers = self.auth.get_headers()
         
         async with httpx.AsyncClient() as client:
@@ -458,6 +772,7 @@ class GaiaClient:
     
     async def set_persona(self, persona_id: str) -> Dict[str, Any]:
         """Set the active persona."""
+        await self.auth.ensure_valid_token()
         headers = self.auth.get_headers()
         headers["Content-Type"] = "application/json"
         
@@ -469,15 +784,23 @@ class GaiaClient:
             )
             response.raise_for_status()
             self.current_persona = persona_id
+            self.config.default_persona = persona_id
+            self.config.save()
             return response.json()
 
 
 class ChatCommands:
     """Interactive chat commands."""
     
-    def __init__(self, client: GaiaClient, auth_manager: GaiaAuthManager):
+    def __init__(
+        self,
+        client: GaiaClient,
+        auth_manager: GaiaAuthManager,
+        config: GaiaClientConfig,
+    ):
         self.client = client
         self.auth = auth_manager
+        self.config = config
     
     async def help(self, args: str = "") -> str:
         """Show available commands."""
@@ -487,6 +810,7 @@ class ChatCommands:
             "/new [title] - Start a new conversation",
             "/list - List all conversations",
             "/switch <id> - Switch to a conversation by ID",
+            "/alias <name> [conversation_id] - Map alias to a conversation",
             "/personas - List available personas",
             "/persona <id> - Switch to a persona",
             "/status - Show current status",
@@ -496,10 +820,13 @@ class ChatCommands:
             "=== Auth Commands ===",
             "/login <email> <password> - Login with email/password",
             "/register <email> <password> - Register new account",
-            "/logout - Logout current session",
+            "/api-key <store|clear|status> - Manage stored API keys",
+            "/logout - Logout current session and clear stored credentials",
             "/whoami - Show current user",
+            "/config [show|set key=value|reset] - Manage CLI preferences",
             "",
-            "/quit - Exit the chat"
+            "/quit - Exit the chat",
+            "/exit - Exit the chat"
         ]
         return "\n".join(commands)
     
@@ -508,7 +835,8 @@ class ChatCommands:
         title = args.strip() or "New Conversation"
         try:
             result = await self.client.create_conversation(title)
-            return f"✅ Created new conversation: {result['id']}"
+            conv_id = result.get("conversation_id") or result.get("id") or "unknown"
+            return f"✅ Created new conversation: {conv_id}"
         except Exception as e:
             return f"❌ Error creating conversation: {e}"
     
@@ -520,10 +848,13 @@ class ChatCommands:
                 return "No conversations found."
             
             output = "📚 Conversations:\n"
-            for conv in conversations[:10]:  # Show last 10
+            for index, conv in enumerate(conversations[:10], start=1):
                 created = conv.get('created_at', 'Unknown')[:10]
                 title = conv.get('title', 'Untitled')[:50]
-                output += f"- [{conv['id'][:8]}] {created} - {title}\n"
+                preview = (conv.get('preview') or '').strip()[:60]
+                preview_text = f" | {preview}" if preview else ""
+                conv_id = (conv.get('id') or conv.get('conversation_id') or 'unknown')[:8]
+                output += f"{index}. [{conv_id}] {created} - {title}{preview_text}\n"
             
             if len(conversations) > 10:
                 output += f"\n... and {len(conversations) - 10} more"
@@ -538,8 +869,31 @@ class ChatCommands:
             return "Usage: /switch <conversation_id>"
         
         conv_id = args.strip()
-        self.client.current_conversation_id = conv_id
+        conv_id = self.config.conversation_aliases.get(conv_id, conv_id)
+        self.client.set_conversation(conv_id)
         return f"✅ Switched to conversation: {conv_id}"
+
+    async def alias(self, args: str = "") -> str:
+        """Manage conversation aliases."""
+        if args.strip().lower() == "list":
+            if not self.config.conversation_aliases:
+                return "No aliases configured."
+            lines = ["🔖 Conversation Aliases:"]
+            for name, conv in self.config.conversation_aliases.items():
+                lines.append(f"- {name} → {conv}")
+            return "\n".join(lines)
+        parts = args.split()
+        if not parts:
+            return "Usage: /alias <name> [conversation_id]"
+        name = parts[0]
+        if len(parts) == 1:
+            if not self.client.current_conversation_id:
+                return "⚠️ No active conversation to alias."
+            conv_id = self.client.current_conversation_id
+        else:
+            conv_id = parts[1]
+        self.config.update_alias(name, conv_id)
+        return f"✅ Alias '{name}' saved for conversation {conv_id}"
     
     async def list_personas(self, args: str = "") -> str:
         """List available personas."""
@@ -571,20 +925,13 @@ class ChatCommands:
     
     async def status(self, args: str = "") -> str:
         """Show current status."""
-        # Get user identity
-        if self.auth._user_email:
-            user_info = f"👤 User: {self.auth._user_email} (JWT)"
-        elif self.auth._api_key or os.getenv('GAIA_API_KEY') or os.getenv('API_KEY'):
-            api_key = self.auth._api_key or os.getenv('GAIA_API_KEY') or os.getenv('API_KEY')
-            user_info = f"🔑 User: API Key ({api_key[:8]}...)"
-        else:
-            user_info = "❌ User: Not authenticated"
+        user_info = self.auth.describe_user_state()
 
         status_lines = [
             f"🌐 Environment: {self.client.base_url}",
             user_info,
+            f"🔐 Auth mode: {self.auth.auth_mode.value}",
             f"💬 Conversation: {self.client.current_conversation_id or 'None'}",
-            f"🎭 Persona: {self.client.current_persona}",
         ]
         
         # Check health
@@ -626,6 +973,11 @@ class ChatCommands:
         email, password = parts
         success = await self.auth.login(email, password)
         if success:
+            if (
+                not self.client.current_conversation_id
+                and self.config.last_conversation_id
+            ):
+                self.client.set_conversation(self.config.last_conversation_id)
             return f"✅ Logged in as {email}"
         return "❌ Login failed"
     
@@ -644,16 +996,116 @@ class ChatCommands:
     async def logout(self, args: str = "") -> str:
         """Logout current session."""
         self.auth._clear_saved_tokens()
-        return "✅ Logged out (session cleared)"
+        self.auth.clear_api_key()
+        return "✅ Logged out (session and API key cleared)"
+    
+    async def api_key(self, args: str = "") -> str:
+        """Manage stored API key."""
+        action = (args or "").strip().lower()
+        if action in {"", "help"}:
+            return "Usage: /api-key <store|clear|status>"
+        if action == "store":
+            key = self.auth.prompt_for_api_key()
+            if key and not self.client.current_conversation_id and self.config.last_conversation_id:
+                self.client.set_conversation(self.config.last_conversation_id)
+            return "✅ API key saved securely" if key else "⚠️ API key not saved"
+        if action == "clear":
+            self.auth.clear_api_key()
+            return "🗑️ API key removed from keyring"
+        if action == "status":
+            return (
+                "🔑 API key present in keyring"
+                if self.auth.has_keyring_api_key()
+                else "⚠️ No API key stored"
+            )
+        return "Usage: /api-key <store|clear|status>"
     
     async def whoami(self, args: str = "") -> str:
         """Show current user."""
-        if self.auth._user_email:
-            return f"👤 Logged in as: {self.auth._user_email} (JWT)"
-        elif self.auth._api_key or os.getenv('GAIA_API_KEY') or os.getenv('API_KEY'):
-            return f"🔑 Using API key authentication"
-        else:
-            return "❌ Not authenticated"
+        return self.auth.describe_user_state()
+
+    async def config_command(self, args: str = "") -> str:
+        """Inspect or update local config (non-secret)."""
+        if not args or args.strip().lower() == "show":
+            data = {
+                "environment": self.config.environment,
+                "default_persona": self.config.default_persona,
+                "logging_enabled": self.config.logging_enabled,
+                "log_name": self.config.log_name,
+                "default_transport": self.config.default_transport.value,
+                "last_conversation_id": self.config.last_conversation_id,
+                "aliases": self.config.conversation_aliases,
+                "auth_mode": self.config.auth_mode.value,
+                "config_path": str(CONFIG_FILE),
+            }
+            return json.dumps(data, indent=2)
+        lower = args.strip().lower()
+        if lower == "reset":
+            confirm = input(
+                "This will remove local preferences (not credentials). Continue? [y/N]: "
+            ).strip().lower()
+            if confirm == "y" and CONFIG_FILE.exists():
+                CONFIG_FILE.unlink()
+                self.config.__dict__.update(GaiaClientConfig().__dict__)
+                return "✅ Config reset. Restart client to reload defaults."
+            return "⚠️ Config reset cancelled"
+        if lower.startswith("set"):
+            parts = args.split(maxsplit=1)
+            if len(parts) == 1:
+                return "Usage: /config set key=value"
+            assignments = parts[1].split()
+            allowed = {
+                "environment",
+                "default_persona",
+                "logging_enabled",
+                "log_name",
+                "default_transport",
+                "auth_mode",
+            }
+            messages = []
+            for assignment in assignments:
+                if "=" not in assignment:
+                    continue
+                key, value = assignment.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                if key not in allowed:
+                    messages.append(f"⚠️ Unknown key: {key}")
+                    continue
+                if key == "environment":
+                    if value not in GAIA_ENVIRONMENTS:
+                        messages.append(f"⚠️ Invalid environment: {value}")
+                        continue
+                    self.config.environment = value
+                    messages.append(f"🌐 Environment set to {value} (takes effect next run)")
+                elif key == "default_persona":
+                    self.config.default_persona = value or self.config.default_persona
+                    messages.append(f"🎭 Default persona set to {self.config.default_persona}")
+                elif key == "logging_enabled":
+                    truthy = value.lower() in {"1", "true", "yes", "on"}
+                    self.config.logging_enabled = truthy
+                    messages.append(f"📝 Logging default set to {truthy}")
+                elif key == "log_name":
+                    self.config.log_name = value or None
+                    messages.append("📝 Log file name updated")
+                elif key == "default_transport":
+                    try:
+                        self.config.default_transport = TransportProtocol(value.lower())
+                        messages.append(f"📡 Default transport set to {value.lower()}")
+                    except ValueError:
+                        messages.append("⚠️ Transport must be 'sse' or 'websocket'")
+                        continue
+                elif key == "auth_mode":
+                    mode_value = value.lower()
+                    if mode_value not in AuthMode._value2member_map_:
+                        messages.append("⚠️ Auth mode must be one of: auto, jwt, api_key")
+                        continue
+                    self.config.auth_mode = AuthMode(mode_value)
+                    self.auth.set_auth_mode(self.config.auth_mode)
+                    messages.append(f"🔐 Auth mode set to {self.config.auth_mode.value}")
+            self.config.save()
+            return "\n".join(messages) if messages else "No config keys updated"
+        return "Usage: /config [show|set key=value|reset]"
 
 
 async def process_command(command: str, args: str, commands: ChatCommands) -> Optional[str]:
@@ -663,6 +1115,7 @@ async def process_command(command: str, args: str, commands: ChatCommands) -> Op
         'new': commands.new_conversation,
         'list': commands.list_conversations,
         'switch': commands.switch_conversation,
+        'alias': commands.alias,
         'personas': commands.list_personas,
         'persona': commands.set_persona,
         'status': commands.status,
@@ -670,8 +1123,10 @@ async def process_command(command: str, args: str, commands: ChatCommands) -> Op
         'clear': commands.clear_screen,
         'login': commands.login,
         'register': commands.register,
+        'api-key': commands.api_key,
         'logout': commands.logout,
         'whoami': commands.whoami,
+        'config': commands.config_command,
     }
     
     cmd = command.lower()
@@ -680,22 +1135,31 @@ async def process_command(command: str, args: str, commands: ChatCommands) -> Op
     return None
 
 
-async def interactive_mode(client: GaiaClient, auth_manager: GaiaAuthManager, logger: ConversationLogger):
+async def interactive_mode(
+    client: GaiaClient,
+    auth_manager: GaiaAuthManager,
+    logger: ConversationLogger,
+    config: GaiaClientConfig,
+):
     """Run interactive chat mode."""
-    commands = ChatCommands(client, auth_manager)
+    commands = ChatCommands(client, auth_manager, config)
     
     print("\n🤖 GAIA Chat Client v1.0")
     print("=" * 50)
-    print(await commands.status())
+    if auth_manager._user_email:
+        print(f"👤 Logged in as: {auth_manager._user_email}")
+    status_text = await commands.status()
+    print(status_text)
     print("=" * 50)
     print("Type /help for available commands")
     print("=" * 50)
     
     # Start logging session
-    logger.start_session(
-        client.current_conversation_id or "new",
-        client.current_persona
-    )
+    if logger.enabled:
+        logger.start_session(
+            client.current_conversation_id or "new",
+            client.current_persona,
+        )
     
     while True:
         try:
@@ -704,7 +1168,7 @@ async def interactive_mode(client: GaiaClient, auth_manager: GaiaAuthManager, lo
             if not message:
                 continue
             
-            if message.lower() == '/quit':
+            if message.lower() in ('/quit', '/exit'):
                 break
             
             # Handle commands
@@ -740,7 +1204,8 @@ async def interactive_mode(client: GaiaClient, auth_manager: GaiaAuthManager, lo
             break
     
     # End logging session
-    logger.end_session()
+    if logger.enabled:
+        logger.end_session()
 
 
 async def batch_mode(client: GaiaClient, message: str, logger: ConversationLogger):
@@ -801,23 +1266,49 @@ def setup():
     Path("logs").mkdir(exist_ok=True)
     print("✅ Created logs directory")
     
-    # Create config directory
-    config_dir = Path.home() / ".gaia"
-    config_dir.mkdir(exist_ok=True)
-    print(f"✅ Created config directory: {config_dir}")
-    
-    print("\n✅ Setup complete!")
-    print("\n📖 Usage examples:")
-    print("  # Interactive mode (default to dev environment)")
-    print(f"  python {__file__}")
-    print("\n  # Connect to production")
-    print(f"  python {__file__} --env prod")
-    print("\n  # Batch mode")
-    print(f'  python {__file__} --batch "What is the meaning of life?"')
-    print("\n  # With logging")
-    print(f"  python {__file__} --log")
-    print("\n💡 First time users will be prompted for their API key.")
-    print("   The key will be stored securely in your OS keyring.")
+    CONFIG_DIR.mkdir(exist_ok=True)
+    config = GaiaClientConfig.load()
+
+    print("\n🛠 Configure defaults (press Enter to keep current value)")
+    env_input = input(f"Preferred environment [{config.environment}]: ").strip() or config.environment
+    while env_input not in GAIA_ENVIRONMENTS:
+        env_input = input("Please choose from local/dev/staging/prod: ").strip().lower()
+    persona_input = input(f"Default persona [{config.default_persona}]: ").strip() or config.default_persona
+    logging_choice = input(
+        f"Enable conversation logging by default? [{'Y' if config.logging_enabled else 'N'}]: "
+    ).strip().lower()
+    log_name = input(
+        f"Default log name (blank for timestamped) [{config.log_name or 'auto'}]: "
+    ).strip()
+    transport_choice = input(
+        f"Preferred streaming transport (sse/websocket) [{config.default_transport.value}]: "
+    ).strip().lower() or config.default_transport.value
+    if transport_choice not in TransportProtocol._value2member_map_:
+        print("⚠️ Invalid transport, defaulting to SSE")
+        transport_choice = TransportProtocol.SSE.value
+    auth_mode_choice = input(
+        f"Preferred auth mode (auto/jwt/api_key) [{config.auth_mode.value}]: "
+    ).strip().lower() or config.auth_mode.value
+    if auth_mode_choice not in AuthMode._value2member_map_:
+        print("⚠️ Invalid auth mode, defaulting to auto")
+        auth_mode_choice = AuthMode.AUTO.value
+
+    config.environment = env_input
+    config.default_persona = persona_input
+    config.logging_enabled = logging_choice in {"y", "yes", "true", "1"}
+    config.log_name = log_name or None
+    config.default_transport = TransportProtocol(transport_choice)
+    config.auth_mode = AuthMode(auth_mode_choice)
+    config.save()
+    print(f"✅ Preferences saved to {CONFIG_FILE}")
+
+    store_key = input("Store an API key securely now? [y/N]: ").strip().lower()
+    if store_key == "y":
+        base_url = GAIA_ENVIRONMENTS[env_input]
+        auth = GaiaAuthManager(env_input, base_url, config.auth_mode)
+        auth.get_api_key(force_prompt=True)
+
+    print("\n✅ Setup complete! You can run `python gaia_client.py` to start chatting.")
 
 
 async def main():
@@ -851,8 +1342,8 @@ Examples:
     parser.add_argument(
         "--env",
         choices=["local", "dev", "staging", "prod"],
-        default="dev",
-        help="GAIA environment to connect to"
+        default=None,
+        help="Override configured environment"
     )
     parser.add_argument(
         "--batch",
@@ -889,6 +1380,21 @@ Examples:
         metavar="PASSWORD",
         help="Password for email login"
     )
+    parser.add_argument(
+        "--auth-mode",
+        choices=[mode.value for mode in AuthMode],
+        help="Override authentication strategy (auto/jwt/api_key)"
+    )
+    parser.add_argument(
+        "--store-api-key",
+        action="store_true",
+        help="Prompt once and store an API key in the OS keyring"
+    )
+    parser.add_argument(
+        "--config-reset",
+        action="store_true",
+        help="Delete saved client preferences and exit"
+    )
     
     args = parser.parse_args()
     
@@ -897,10 +1403,27 @@ Examples:
         setup()
         return
     
+    if args.config_reset:
+        if CONFIG_FILE.exists():
+            CONFIG_FILE.unlink()
+            print(f"🗑️ Deleted {CONFIG_FILE}")
+        else:
+            print("No config file to delete")
+        return
+    
+    config = GaiaClientConfig.load()
+    env_name = args.env or config.environment
+    base_url = GAIA_ENVIRONMENTS[env_name]
+    if config.environment != env_name:
+        config.environment = env_name
+        config.save()
+    runtime_auth_mode = AuthMode(args.auth_mode) if args.auth_mode else config.auth_mode
+    
     # Setup client
-    base_url = GAIA_ENVIRONMENTS[args.env]
-    auth_manager = GaiaAuthManager(args.env, base_url)
-    client = GaiaClient(base_url, auth_manager)
+    auth_manager = GaiaAuthManager(env_name, base_url, runtime_auth_mode)
+    if args.store_api_key:
+        auth_manager.get_api_key(force_prompt=True)
+    client = GaiaClient(base_url, auth_manager, config)
     
     # Handle email/password login if provided
     if args.email:
@@ -915,20 +1438,27 @@ Examples:
             print("❌ Login failed. Exiting.")
             sys.exit(1)
     
-    # Set conversation if specified
-    if args.conversation:
-        client.current_conversation_id = args.conversation
-    
-    # Set persona if specified
-    if args.persona:
+    # Apply CLI persona override
+    startup_persona = args.persona or config.default_persona
+    if startup_persona and startup_persona != client.current_persona:
         try:
-            await client.set_persona(args.persona)
-            print(f"✅ Set persona to: {args.persona}")
+            await client.set_persona(startup_persona)
+            print(f"✅ Set persona to: {startup_persona}")
         except Exception as e:
             print(f"⚠️ Could not set persona: {e}")
     
-    # Initialize logger
-    logger = ConversationLogger(enabled=args.log, log_name=args.log_name)
+    # Apply conversation override or remembered session
+    if args.conversation:
+        client.set_conversation(args.conversation)
+    elif config.last_conversation_id and auth_manager.has_credentials():
+        client.set_conversation(config.last_conversation_id)
+    else:
+        client.set_conversation(None, persist=False)
+    
+    # Initialize logger preferences
+    logging_enabled = args.log or config.logging_enabled or bool(args.log_name or config.log_name)
+    log_name = args.log_name or config.log_name
+    logger = ConversationLogger(enabled=logging_enabled, log_name=log_name)
     
     # Run appropriate mode
     if args.batch:
@@ -944,7 +1474,7 @@ Examples:
         
         await batch_mode(client, message, logger)
     else:
-        await interactive_mode(client, auth_manager, logger)
+        await interactive_mode(client, auth_manager, logger, config)
 
 
 if __name__ == "__main__":

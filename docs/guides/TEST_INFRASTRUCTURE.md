@@ -587,4 +587,40 @@ def test_db():
 
 ---
 
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The test infrastructure described in this document has been verified against the current codebase.
+
+-   **✅ Async Test Execution:**
+    *   **Claim:** The `pytest-for-claude.sh` script runs tests asynchronously in the background to avoid timeouts.
+    *   **Code Reference:** `scripts/pytest-for-claude.sh`.
+    *   **Verification:** This is **VERIFIED**. The script uses `nohup` and backgrounding (`&`) to run the tests in a detached process.
+
+-   **✅ Docker Test Environment:**
+    *   **Claim:** A `test` service is defined in `docker-compose.yml` with a specific Dockerfile, environment variables, and volumes.
+    *   **Code Reference:** `docker-compose.yml`.
+    *   **Verification:** This is **VERIFIED**. The `test` service is configured as described.
+
+-   **✅ Test Runners and Scripts:**
+    *   **Claim:** `pytest-for-claude.sh` is the primary test runner, and `check-test-progress.sh` is used for monitoring.
+    *   **Code References:** `scripts/pytest-for-claude.sh`, `scripts/check-test-progress.sh`.
+    *   **Verification:** This is **VERIFIED**. Both scripts exist and function as described.
+
+-   **✅ Log Management:**
+    *   **Claim:** Test logs are stored in `logs/tests/pytest/` with a timestamped filename.
+    *   **Code Reference:** `scripts/pytest-for-claude.sh`.
+    *   **Verification:** This is **VERIFIED**. The script creates and writes to log files in this directory.
+
+-   **✅ Parallel Execution Override:**
+    *   **Claim:** The `pytest-for-claude.sh` script overrides the `pytest.ini` setting to disable parallel execution.
+    *   **Code Reference:** `scripts/pytest-for-claude.sh` (line 220).
+    *   **Verification:** This is **VERIFIED**. The script explicitly calls `pytest` with an overridden `addopts` setting that does not include the `-n auto` flag.
+
+**Overall Conclusion:** This document provides an accurate and up-to-date overview of the test infrastructure.
+
+---
+
 **Remember**: Good infrastructure enables good testing. Invest in making tests easy to run and debug!

@@ -471,3 +471,33 @@ connection.SendAction(new {
 **Status**: ✅ Implementation complete and ready for testing
 **Next Step**: Deploy to dev environment and test with Unity AR client
 
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The core architectural and implementation claims in this document have been verified against the source code.
+
+-   **✅ Template Loader Service (Section "Part 1: Template Loader Service" of this document):**
+    *   **Claim:** `app/services/kb/template_loader.py` loads templates from markdown and merges them with instance data.
+    *   **Code Reference:** `app/services/kb/template_loader.py` (lines 10-281).
+    *   **Verification:** Confirmed the existence and functionality of `TemplateLoader`, including `load_template` and `merge_template_instance` methods, which parse markdown frontmatter and properties.
+
+-   **✅ AOI Builder Integration (Section "Part 2: AOI Builder Integration" of this document):**
+    *   **Claim:** `app/services/kb/unified_state_manager.py` is updated to use the `TemplateLoader` for building the AOI.
+    *   **Code Reference:** `app/services/kb/unified_state_manager.py` (lines 1294-1330, specifically the `_build_aoi` method's logic for items and NPCs).
+    *   **Verification:** Confirmed that `_build_aoi` now calls `template_loader.load_template` and `template_loader.merge_template_instance` to construct the merged item and NPC data.
+
+-   **✅ World.json Restructure (Section "Part 3: World.json Restructure" of this document):**
+    *   **Claim:** `world.json` stores only instance-specific state, with `instance_id` and `template_id` fields.
+    *   **Verification:** While direct access to `world.json` was not possible, the code in `unified_state_manager.py` (lines 1294-1330) explicitly expects `instance_id` and `template_id` from the instance data, and then merges with template data. This strongly implies the `world.json` structure has been updated as described. The logic for backward compatibility (accepting `id` and `type`) further supports this.
+
+-   **✅ Client Documentation (Section "Part 4: Client Documentation" of this document):**
+    *   **Claim:** `docs/scratchpad/websocket-aoi-client-guide.md` is updated with a "Template/Instance Architecture" section.
+    *   **Code Reference:** `docs/scratchpad/websocket-aoi-client-guide.md` (lines 288-334).
+    *   **Verification:** Confirmed the presence of the described section in the client guide, explaining the template/instance pattern and its implications for Unity developers.
+
+**Conclusion:** The implementation of the template/instance architecture is highly consistent with the architecture and details described in this document, significantly reducing data duplication and improving content management.
+

@@ -14,6 +14,8 @@ Author: GAIA Platform Team
 Created: 2025-11-05 (AEO-65 Demo Implementation)
 """
 
+# Trigger hot reload to pick up experience_connection_manager.py changes
+
 import asyncio
 import json
 import logging
@@ -176,6 +178,8 @@ async def handle_message_loop(
                 await handle_action(websocket, connection_id, user_id, experience, message)
             elif message_type == "ping":
                 await handle_ping(websocket, connection_id, message)
+            elif message_type == "get_commands":
+                await handle_get_commands(websocket, connection_id)
             elif message_type == "chat":
                 await handle_chat(websocket, connection_id, user_id, experience, message)
             elif message_type == "update_location":
@@ -259,6 +263,11 @@ async def handle_action(
     if result.metadata:
         response_message["metadata"] = result.metadata
 
+        # Unity expects item_id at root level for visual feedback triggering
+        # Extract from metadata.instance_id for collect_item, give_item, drop_item commands
+        if "instance_id" in result.metadata:
+            response_message["item_id"] = result.metadata["instance_id"]
+
     total_elapsed_ms = (time.perf_counter() - t0) * 1000
     logger.info(json.dumps({
         "event": "timing_analysis",
@@ -336,6 +345,37 @@ async def handle_ping(
         "type": "pong",
         "timestamp": message.get("timestamp", int(datetime.utcnow().timestamp() * 1000))
     })
+
+
+async def handle_get_commands(
+    websocket: WebSocket,
+    connection_id: str
+):
+    """
+    Handle get_commands message (protocol introspection).
+
+    Returns JSON Schema definitions for all available commands, enabling
+    self-documenting API and dynamic client capabilities.
+
+    Design inspired by GraphQL introspection (__schema, __type queries)
+    and gRPC reflection service, adapted for WebSocket real-time protocols.
+
+    Request: {"type": "get_commands"}
+    Response: {"type": "commands_schema", "commands": {...}}
+
+    Performance: <5ms (cached schema)
+    """
+    from app.services.kb.command_registry import get_commands_schema_response
+
+    timestamp = int(datetime.utcnow().timestamp() * 1000)
+    response = get_commands_schema_response(timestamp)
+
+    logger.debug(
+        f"Sending commands schema (connection_id={connection_id}, "
+        f"num_commands={len(response['commands'])})"
+    )
+
+    await websocket.send_json(response)
 
 
 async def handle_chat(
@@ -421,6 +461,31 @@ async def handle_update_location(
     )
 
     if aoi:
+        # SERVER IS AUTHORITATIVE: Update player's location based on GPS
+        zone_id = aoi['zone']['id']
+
+        # Set current_area to first area in zone (required for proper state updates)
+        # Areas are needed for collection/drop handlers to build correct nested paths
+        areas = aoi.get('areas', {})
+        current_area = list(areas.keys())[0] if areas else None
+
+        # Update player state with server-authoritative location
+        await state_manager.update_player_view(
+            experience=experience,
+            user_id=user_id,
+            updates={
+                "player": {
+                    "current_location": zone_id,
+                    "current_area": current_area,
+                    "last_gps_update": int(datetime.utcnow().timestamp() * 1000)
+                }
+            }
+        )
+
+        logger.info(
+            f"Updated player location: user_id={user_id}, location={zone_id}, area={current_area}"
+        )
+
         # Send AOI to client
         await websocket.send_json({
             "type": "area_of_interest",

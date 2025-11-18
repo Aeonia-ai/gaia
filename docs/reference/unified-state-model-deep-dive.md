@@ -385,3 +385,45 @@ When a player accepts this quest, a new entry is created in their personal `prog
 *   **Scalability:** The quest logic is defined once in the template and can be instantiated for thousands of players.
 *   **Clear State Management:** The player's `progress.json` becomes a clean record of their active and completed quest instances.
 
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document is a mix of accurate architectural descriptions, design proposals, and debugging advice. The following is a breakdown of its claims against the current codebase.
+
+-   **✅ Content Entity System (Section 1):**
+    *   **Claim:** The system uses a Template/Instance pattern.
+    *   **Code Reference:** `app/services/kb/template_loader.py` and `app/services/kb/unified_state_manager.py`.
+    *   **Verification:** This is **VERIFIED**. The `template_loader.py` loads markdown templates, and the `unified_state_manager.py` merges them with instance data.
+    *   **Claim:** The system uses a "Blueprint" concept as a schema for templates.
+    *   **Verification:** This is **NOT VERIFIED**. There is no code that implements or enforces a blueprint schema for templates. This appears to be a conceptual description or a future design goal.
+
+-   **✅ Architectural Deep Dive: The Dual State Models (Section 2):**
+    *   **Claim:** The system supports "shared" and "isolated" state models based on `config.json`.
+    *   **Code Reference:** `app/services/kb/unified_state_manager.py` (lines 501-541, `get_world_state` method).
+    *   **Verification:** This is **VERIFIED**. The `get_world_state` method correctly reads from `world.json` for the "shared" model and the player-specific `view.json` for the "isolated" model.
+
+-   **✅ The Truth About the Local Development Environment (Section 3):**
+    *   **Claim:** The `docker-compose.override.yml` file mounts the host's `../../Vaults/gaia-knowledge-base` directory to `/kb` in the `kb-service` container.
+    *   **Code Reference:** `docker-compose.override.yml.example`.
+    *   **Verification:** This is **VERIFIED**. The example override file contains the exact volume mount specified.
+
+-   **⚠️ Debugging Common Test Failures (Section 4):**
+    *   **Claim:** To fix `Connection aborted` errors, `KB_SEMANTIC_SEARCH_ENABLED: "false"` should be added to `docker-compose.override.yml`.
+    *   **Code Reference:** `docker-compose.override.yml.example`.
+    *   **Verification:** This is a **DISCREPANCY**. The `docker-compose.override.yml.example` file does **not** contain this environment variable. A user following this guide would need to add it manually.
+    *   **Claim:** Restarting the `kb-service` is the most reliable way to load file changes.
+    *   **Verification:** This is **VERIFIED**. The code in `unified_state_manager.py` and `template_loader.py` uses in-memory caches (`_config_cache`, and the cache within the `template_loader`), which would be cleared upon a service restart.
+
+-   **⚠️ Refinements (Sections 6 & 7):**
+    *   **Claim:** Templates should have "Rich Descriptors" for the LLM to use.
+    *   **Verification:** This is **NOT VERIFIED**. The `template_loader.py` does not have specific logic to parse "Descriptive Attributes" or "Symbol Variants" from markdown. This appears to be a design proposal for future implementation.
+    *   **Claim:** Quests are instantiable classes, with progress tracked in the player's `progress.json`.
+    *   **Code Reference:** `app/services/kb/unified_state_manager.py` (lines 932-966, `_create_minimal_player_view`) and `app/services/kb/kb_agent.py` (lines 1783-1791, `_return_item`).
+    *   **Verification:** This is **VERIFIED**. The `_create_minimal_player_view` method initializes a `progress.quest_states` object, and the `_return_item` method in the agent updates `player_state["quest_progress"]`, confirming the implementation of player-specific quest instances.
+
+**Overall Conclusion:** The document is a valuable resource but should be read with the understanding that it mixes implemented architecture with design proposals. The debugging advice is helpful but contains a minor omission in the example file.
+

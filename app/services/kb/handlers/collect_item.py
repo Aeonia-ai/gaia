@@ -95,17 +95,25 @@ async def handle_collect_item(user_id: str, experience_id: str, command_data: Di
 
         # Remove from world state first (this operation could fail)
         # Build nested dict update structure based on item_path
-        world_updates = _build_nested_remove(item_path, instance_id, current_location, current_area)
+        # Extract spot_id from item_path if present (e.g., "locations.store.areas.main_room.spots.spot_1.items")
+        spot_id = None
+        if ".spots." in item_path:
+            parts = item_path.split(".")
+            spot_index = parts.index("spots")
+            if spot_index + 1 < len(parts):
+                spot_id = parts[spot_index + 1]
 
-        # Update world state without publishing (user_id=None)
-        # WorldUpdate event will be published by update_player_view below
+        world_updates = _build_nested_remove(item_path, instance_id, current_location, current_area, spot_id)
+
+        # Update world state (now publishes event via _flatten_nested_changes)
         await state_manager.update_world_state(
             experience=experience_id,
             updates=world_updates,
-            user_id=None  # Don't publish here - let update_player_view handle it
+            user_id=user_id  # Publish world_update event with proper changes
         )
 
         # Add to player inventory (this auto-publishes WorldUpdate event)
+        # Use nested dict format for state merge
         inventory_updates = {
             "player": {
                 "inventory": {
@@ -154,37 +162,80 @@ async def _find_item_in_world(
     """
     Find item in world state at player's current location/area.
 
+    NEW HIERARCHY: zone > area (room) > spot (position) > items
+
     Args:
         world_state: Full world state dictionary
-        instance_id: Item instance ID to find (e.g., "dream_bottle_woander_1")
-        current_location: Player's current location ID
-        current_area: Player's current area ID (None if at top-level location)
+        instance_id: Item instance ID to find (e.g., "bottle_mystery")
+        current_location: Player's current location ID (zone)
+        current_area: Player's current area ID (None = search entire zone)
 
     Returns:
         Tuple of (item_data, item_path) where:
         - item_data: Full item dictionary if found, None otherwise
-        - item_path: Dotted path string (e.g., "locations.woander_store.areas.spawn_zone_1.items")
+        - item_path: Dotted path string (e.g., "locations.woander_store.areas.main_room.spots.spot_1.items")
     """
     location_data = world_state.get("locations", {}).get(current_location, {})
 
-    # Check items in current area first (most common case)
-    if current_area:
-        area_data = location_data.get("areas", {}).get(current_area, {})
-        items = area_data.get("items", [])
+    # MVP Demo: If current_area is None, player can access entire zone
+    # Search all areas and all spots within those areas
+    if current_area is None:
+        # Check top-level location items first (legacy support)
+        items = location_data.get("items", [])
+        for item in items:
+            if item.get("instance_id") == instance_id:
+                item_path = f"locations.{current_location}.items"
+                return (item, item_path)
 
+        # Search all areas in this location
+        areas = location_data.get("areas", {})
+        for area_id, area_data in areas.items():
+            # Check area-level items (legacy structure support)
+            items = area_data.get("items", [])
+            for item in items:
+                if item.get("instance_id") == instance_id:
+                    item_path = f"locations.{current_location}.areas.{area_id}.items"
+                    return (item, item_path)
+
+            # Search all spots within this area (NEW hierarchy)
+            spots = area_data.get("spots", {})
+            for spot_id, spot_data in spots.items():
+                items = spot_data.get("items", [])
+                for item in items:
+                    if item.get("instance_id") == instance_id:
+                        item_path = f"locations.{current_location}.areas.{area_id}.spots.{spot_id}.items"
+                        return (item, item_path)
+
+        return (None, None)
+
+    # Legacy: If current_area is specified, only search that specific area
+    else:
+        area_data = location_data.get("areas", {}).get(current_area, {})
+
+        # Check area-level items first (legacy support)
+        items = area_data.get("items", [])
         for item in items:
             if item.get("instance_id") == instance_id:
                 item_path = f"locations.{current_location}.areas.{current_area}.items"
                 return (item, item_path)
 
-    # Check top-level location items (if not in a specific area)
-    items = location_data.get("items", [])
-    for item in items:
-        if item.get("instance_id") == instance_id:
-            item_path = f"locations.{current_location}.items"
-            return (item, item_path)
+        # Search all spots within this area (NEW hierarchy)
+        spots = area_data.get("spots", {})
+        for spot_id, spot_data in spots.items():
+            items = spot_data.get("items", [])
+            for item in items:
+                if item.get("instance_id") == instance_id:
+                    item_path = f"locations.{current_location}.areas.{current_area}.spots.{spot_id}.items"
+                    return (item, item_path)
 
-    return (None, None)
+        # Fall back to top-level location items
+        items = location_data.get("items", [])
+        for item in items:
+            if item.get("instance_id") == instance_id:
+                item_path = f"locations.{current_location}.items"
+                return (item, item_path)
+
+        return (None, None)
 
 
 async def _find_item_anywhere(
@@ -194,7 +245,7 @@ async def _find_item_anywhere(
     """
     Find item anywhere in world state (used for helpful error messages).
 
-    Searches all locations and areas to determine if item exists somewhere else.
+    NEW HIERARCHY: Searches zone > area > spot > items
 
     Args:
         world_state: Full world state dictionary
@@ -206,17 +257,25 @@ async def _find_item_anywhere(
     locations = world_state.get("locations", {})
 
     for location_id, location_data in locations.items():
-        # Check top-level items
+        # Check top-level items (legacy support)
         for item in location_data.get("items", []):
             if item.get("instance_id") == instance_id:
                 return (item, f"locations.{location_id}.items")
 
-        # Check area items
+        # Check all areas
         areas = location_data.get("areas", {})
         for area_id, area_data in areas.items():
+            # Check area-level items (legacy support)
             for item in area_data.get("items", []):
                 if item.get("instance_id") == instance_id:
                     return (item, f"locations.{location_id}.areas.{area_id}.items")
+
+            # Check all spots within this area (NEW hierarchy)
+            spots = area_data.get("spots", {})
+            for spot_id, spot_data in spots.items():
+                for item in spot_data.get("items", []):
+                    if item.get("instance_id") == instance_id:
+                        return (item, f"locations.{location_id}.areas.{area_id}.spots.{spot_id}.items")
 
     return (None, None)
 
@@ -225,32 +284,56 @@ def _build_nested_remove(
     item_path: str,
     instance_id: str,
     location_id: str,
-    area_id: Optional[str]
+    area_id: Optional[str],
+    spot_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Build nested dictionary structure for removing item from world state.
 
-    CRITICAL: update_world_state() requires nested dicts, NOT dotted path strings.
-    This function converts logical path to proper nested structure.
+    NEW HIERARCHY: Supports zone > area > spot > items structure
+
+    Note: update_world_state() merges nested dicts for state updates, then
+    _flatten_nested_changes() converts them to flattened paths for v0.4 events.
 
     Args:
-        item_path: Dotted path string (e.g., "locations.store.areas.zone.items")
+        item_path: Dotted path string (e.g., "locations.store.areas.main_room.spots.spot_1.items")
         instance_id: Item instance ID to remove
         location_id: Location ID (e.g., "woander_store")
-        area_id: Area ID (e.g., "spawn_zone_1"), None for top-level items
+        area_id: Area ID (e.g., "main_room"), required if spot_id is provided, None for top-level items
+        spot_id: Spot ID (e.g., "spot_1"), None for area-level items
 
     Returns:
         Nested dict structure with $remove operation, e.g.:
-        {"locations": {"woander_store": {"areas": {"spawn_zone_1": {"items": {"$remove": {"instance_id": "..."}}}}}}}
+        {"locations": {"woander_store": {"areas": {"main_room": {"spots": {"spot_1": {"items": {"$remove": {...}}}}}}}}}
 
     Example:
-        >>> _build_nested_remove("locations.store.areas.zone.items", "bottle_1", "store", "zone")
-        {'locations': {'store': {'areas': {'zone': {'items': {'$remove': {'instance_id': 'bottle_1'}}}}}}}
+        >>> _build_nested_remove("...", "bottle_mystery", "woander_store", "main_room", "spot_1")
+        {'locations': {'woander_store': {'areas': {'main_room': {'spots': {'spot_1': {'items': {'$remove': {'instance_id': 'bottle_mystery'}}}}}}}}}
     """
     remove_op = {"$remove": {"instance_id": instance_id}}
 
-    if area_id:
-        # Item is in an area
+    if spot_id:
+        # NEW HIERARCHY: Item is in a spot within an area
+        # Must have area_id to build proper path
+        if not area_id:
+            raise ValueError(f"spot_id provided ({spot_id}) but area_id is None - cannot build nested path")
+        return {
+            "locations": {
+                location_id: {
+                    "areas": {
+                        area_id: {
+                            "spots": {
+                                spot_id: {
+                                    "items": remove_op
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    elif area_id:
+        # Legacy: Item is in an area (no spots)
         return {
             "locations": {
                 location_id: {

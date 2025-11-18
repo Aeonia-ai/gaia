@@ -359,3 +359,28 @@ curl http://localhost:8669/health | jq '.config'
 - [KB Architecture Guide](../developer/kb-architecture-guide.md) - Technical architecture details
 - [Multi-User KB Guide](multi-user-kb-guide.md) - Setting up team workspaces
 - [KB Git Sync Guide](kb-git-sync-guide.md) - Git-specific configuration
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The storage configurations described in this document have been verified against the current codebase.
+
+-   **✅ Storage Modes:**
+    *   **Claim:** The `KB_STORAGE_MODE` environment variable controls the storage backend (Git, Database, or Hybrid).
+    *   **Code Reference:** `app/services/kb/kb_storage_manager.py`.
+    *   **Verification:** This is **VERIFIED**. The `kb_storage_manager.py` file contains logic to select the appropriate storage backend based on this environment variable.
+
+-   **✅ Multi-User Support (RBAC):**
+    *   **Claim:** The `KB_MULTI_USER_ENABLED` environment variable enables role-based access control.
+    *   **Code Reference:** `app/services/kb/main.py`.
+    *   **Verification:** This is **VERIFIED**. The `main.py` file for the KB service conditionally imports and includes an RBAC router based on this setting.
+
+-   **⚠️ Database Schema:**
+    *   **Claim:** The document refers to `migrations/kb_storage_tables.sql` for the database schema.
+    *   **Verification:** This is a **MINOR DISCREPANCY**. The file is actually named `migrations/003_create_kb_tables.sql`. However, the tables created by this script (`kb_documents`, `kb_search_index`, etc.) are consistent with the features described in the document.
+
+**Overall Conclusion:** This document provides an accurate guide to configuring the KB service's storage backends. The claims are well-supported by the implementation, with only a minor error in a filename.

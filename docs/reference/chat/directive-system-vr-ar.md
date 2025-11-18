@@ -414,3 +414,29 @@ def test_directive_parsing():
 - [Chat Service Implementation](chat-service-implementation.md)
 - [Persona System Guide](../services/persona-system-guide.md)
 - [VR/AR Integration Guide](../../deployment/vr-ar-integration.md)
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The directive system's implementation has been verified against the current codebase.
+
+-   **✅ Core Concept and Implementation:**
+    *   **Claim:** The system uses inline JSON-RPC commands, with the `pause` method (`{"m":"pause","p":{"secs":...}}`) being the current implementation.
+    *   **Code Reference:** `app/services/chat/unified_chat.py` (within the `get_routing_prompt` method).
+    *   **Verification:** This is **VERIFIED**. The `directive_section` string within the `get_routing_prompt` method explicitly defines the `pause` directive and its format, which is then added to the system prompt for the LLM.
+
+-   **✅ Activation Logic:**
+    *   **Claim:** Directives are enabled for the v0.3 API or when an `enable_directives` flag is set in the context.
+    *   **Code Reference:** `app/services/chat/unified_chat.py` (the `_is_directive_enhanced_context` method).
+    *   **Verification:** This is **VERIFIED**. The method checks for `context.get("response_format") == "v0.3"` or a truthy `context.get("enable_directives")`.
+
+-   **✅ System Prompt Integration:**
+    *   **Claim:** When directives are enabled, a `directive_section` is added to the system prompt.
+    *   **Code Reference:** `app/services/chat/unified_chat.py` (the `get_routing_prompt` method).
+    *   **Verification:** This is **VERIFIED**. The method constructs the final system prompt by combining the persona prompt with the tools section, which includes the directives.
+
+**Overall Conclusion:** This document accurately describes the server-side implementation of the directive system. The logic for instructing the LLM to generate directives is correctly implemented in the `UnifiedChatHandler`. The actual execution of the directives is a client-side responsibility.

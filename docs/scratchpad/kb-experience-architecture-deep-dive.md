@@ -209,3 +209,49 @@ mileage will vary based on deployment specifics.
 **Conclusion:**
 
 The KB's experience endpoints and state logic represent a sophisticated, distributed architecture for LLM-driven interactive experiences. By separating symbolic server authority from client-side physical resolution, leveraging markdown for flexible game logic, and employing a robust file-system-based state manager with concurrency controls, the system achieves a balance of flexibility, scalability, and narrative depth. This design allows for rapid iteration on game content while maintaining a consistent and persistent world state.
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document provides a deep dive into the KB experience endpoints and state logic. The verification confirms that the claims made in this document are accurate and reflect the current state of the codebase.
+
+-   **✅ Experience Endpoints (`app/services/kb/experience_endpoints.py`):** **VERIFIED**.
+    -   **Evidence:** The `/experience/interact` endpoint is the core interaction point, and the `/experience/list` and `/experience/info/{experience_id}` endpoints function as described. The `interact_with_experience` function correctly orchestrates user identification, experience selection, bootstrapping, and delegation to the command processor.
+
+-   **✅ Unified State Manager (`app/services/kb/unified_state_manager.py`):** **VERIFIED**.
+    -   **Evidence:** The `UnifiedStateManager` class correctly manages `config.json` files, handles shared and isolated state models with file locking, publishes to NATS, supports `$append` and `$remove` via `_merge_updates`, and provides the described player profile, bootstrapping, and reset functionalities.
+
+-   **✅ Markdown Game Logic:** **VERIFIED**.
+    -   **Evidence:** The `_load_command_markdown` and `_discover_available_commands` methods in `app/services/kb/kb_agent.py` confirm that game logic is loaded from markdown files in the `game-logic/` and `admin-logic/` directories and that YAML frontmatter is used for command definition.
+
+-   **✅ Two-Pass LLM Architecture:** **VERIFIED**.
+    -   **Evidence:** The `_execute_markdown_command` method in `app/services/kb/kb_agent.py` implements the described two-pass system for logic and narrative generation.
+
+**Conclusion:** This document is a highly accurate and reliable description of the implemented architecture for the KB experience endpoints and state logic. All key claims have been verified.
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document provides a deep dive into the KB experience endpoints and state logic. The verification confirms that the claims made in this document are accurate and reflect the current state of the codebase.
+
+-   **✅ Experience Endpoints (`app/services/kb/experience_endpoints.py`):** **VERIFIED**.
+    -   **Evidence:** The `/experience/interact` endpoint is the core interaction point, and the `/experience/list` and `/experience/info/{experience_id}` endpoints function as described. The `interact_with_experience` function correctly orchestrates user identification, experience selection, bootstrapping, and delegation to the command processor.
+
+-   **✅ Unified State Manager (`app/services/kb/unified_state_manager.py`):** **VERIFIED**.
+    -   **Evidence:** The `UnifiedStateManager` class correctly manages `config.json` files, handles shared and isolated state models with file locking, publishes to NATS, supports `$append` and `$remove` via `_merge_updates`, and provides the described player profile, bootstrapping, and reset functionalities.
+
+-   **✅ Markdown Game Logic:** **VERIFIED**.
+    -   **Evidence:** The `_load_command_markdown` and `_discover_available_commands` methods in `app/services/kb/kb_agent.py` confirm that game logic is loaded from markdown files in the `game-logic/` and `admin-logic/` directories and that YAML frontmatter is used for command definition.
+
+-   **✅ Two-Pass LLM Architecture:** **VERIFIED**.
+    -   **Evidence:** The `_execute_markdown_command` method in `app/services/kb/kb_agent.py` implements the described two-pass system for logic and narrative generation.
+
+**Conclusion:** This document is a highly accurate and reliable description of the implemented architecture for the KB experience endpoints and state logic. All key claims have been verified.

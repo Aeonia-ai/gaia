@@ -529,3 +529,29 @@ docker logs gaia-kb-docs-1 --since 10m | grep "null value in column \"namespace\
 *Document created: Nov 3, 2025*
 *Last updated: Nov 3, 2025 16:45 PST*
 *Status: All critical bugs fixed! Indexing in progress (654/2000 files), service responsive*
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document is a debugging log from November 3, 2025. The verification confirms that the fixes described in this document have been implemented in the codebase.
+
+-   **✅ FastMCP Lifespan Integration:** **VERIFIED**.
+    -   **Evidence:** The `http_mcp_app` is created once at the module level in `app/services/kb/main.py` and used in both the `lifespan` function and the `app.mount` call.
+
+-   **✅ Missing `pgvector` Package:** **VERIFIED**.
+    -   **Evidence:** The `pgvector>=0.2.0` package is listed in `requirements.txt`.
+
+-   **✅ Wrong Database Schema:** **VERIFIED**.
+    -   **Evidence:** The migration file `migrations/008_fix_semantic_metadata_primary_key.sql` exists and correctly modifies the primary key of the `kb_semantic_index_metadata` table to a composite key of `(namespace, relative_path)`.
+
+-   **✅ Missing namespace in INSERT:** **VERIFIED**.
+    -   **Evidence:** The `_run_pgvector_index` method in `app/services/kb/kb_semantic_search.py` includes the `namespace` column in the INSERT statement for `kb_semantic_chunk_ids`.
+
+-   **✅ Blocking Event Loop During Indexing:** **VERIFIED**.
+    -   **Evidence:** The `_run_pgvector_index` method in `app/services/kb/kb_semantic_search.py` uses `await asyncio.to_thread(model.encode, ...)` to run the CPU-bound `model.encode()` call in a separate thread, preventing it from blocking the main event loop.
+
+**Conclusion:** The document accurately describes the problems and their resolutions. All claimed fixes have been verified in the codebase.

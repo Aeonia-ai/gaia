@@ -82,9 +82,14 @@ def get_jwt_token_for_user(email: str, password: str) -> str:
 
 def main():
     """Main entry point."""
-    # Use environment variables or defaults
-    email = os.getenv("GAIA_TEST_EMAIL", "websocket-test@example.com")
-    password = os.getenv("GAIA_TEST_PASSWORD", "WebSocket-Test-123!")
+    # Check for command-line arguments first, fall back to env vars
+    if len(sys.argv) >= 2:
+        email = sys.argv[1]
+        password = sys.argv[2] if len(sys.argv) >= 3 else os.getenv("GAIA_TEST_PASSWORD", "WebSocket-Test-123!")
+    else:
+        # Use environment variables or defaults
+        email = os.getenv("GAIA_TEST_EMAIL", "websocket-test@example.com")
+        password = os.getenv("GAIA_TEST_PASSWORD", "WebSocket-Test-123!")
 
     # Check for required Supabase credentials
     if not os.getenv("SUPABASE_SERVICE_KEY"):

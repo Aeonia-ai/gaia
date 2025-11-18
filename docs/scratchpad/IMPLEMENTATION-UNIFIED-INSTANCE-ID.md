@@ -235,3 +235,20 @@ Result: ✅ Collection succeeds - field names match
 
 **Status**: ✅ Implemented and ready for testing
 **Next**: Test with Unity AR client, deploy to dev environment
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document describes the implementation of a unified `instance_id`/`template_id` structure. The verification confirms that the claims made in this document are accurate and reflect the current state of the codebase.
+
+-   **✅ AOI Builder Normalization:** **VERIFIED**.
+    -   **Evidence:** The `build_aoi` method in `app/services/kb/unified_state_manager.py` (lines 1333-1360) iterates through items and normalizes them to include `instance_id` and `template_id`, mapping `id` to `instance_id` and `type` to `template_id` as described.
+
+-   **✅ Collect Handler Dual Support:** **VERIFIED**.
+    -   **Evidence:** The `handle_collect_item` function in `app/services/kb/handlers/collect_item.py` (lines 24-30) uses the line `instance_id = command_data.get("instance_id") or command_data.get("item_id")` to accept both the new `instance_id` and the legacy `item_id` fields, ensuring backward compatibility.
+
+**Conclusion:** The implementation of the unified `instance_id`/`template_id` structure is complete and accurately described in this document. All key claims have been verified.

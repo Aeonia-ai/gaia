@@ -175,6 +175,41 @@ Returns:
 - Total requests processed
 - Error rates
 
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document describes an architecture that is conceptually similar to the current implementation, but the specific details are **significantly outdated**. The core logic has been consolidated and refactored.
+
+-   **⚠️ Implementation Location:**
+    *   **Claim:** The implementation is in `app/services/chat/intelligent_router.py` and `app/services/chat/intelligent_chat.py`.
+    *   **Verification:** This is **INCORRECT**. These files are located in an `_archive_2025_01` directory. The current implementation is in `app/services/chat/unified_chat.py`.
+
+-   **✅ Core Architectural Concept:**
+    *   **Claim:** A single LLM call with `tool_choice="auto"` is used to decide between a direct response and routing.
+    *   **Code Reference:** `app/services/chat/unified_chat.py` (lines 323-331).
+    *   **Verification:** This is **VERIFIED**. The `UnifiedChatHandler.process` method uses a single call to `chat_service.chat_completion` with `tool_choice={"type": "auto"}`.
+
+-   **⚠️ Routing Paths:**
+    *   **Claim:** Requests are routed to `/chat/direct`, `/chat/mcp-agent-hot`, or `/chat/mcp-agent`.
+    *   **Verification:** This is **INCORRECT**. The routing logic in `unified_chat.py` does not forward requests to other HTTP endpoints. Instead, it calls other services/methods directly within the same process (e.g., `self.mcp_hot_service.process_chat`). The concept of different paths exists, but not as separate HTTP endpoints.
+
+-   **✅ Knowledge Base Integration:**
+    *   **Claim:** KB tools are provided to the LLM when needed.
+    *   **Code Reference:** `app/services/chat/unified_chat.py` (lines 321, 341).
+    *   **Verification:** This is **VERIFIED**. The `all_tools` variable includes `KB_TOOLS`, and if a KB tool is called, it is executed by `_execute_kb_tools`.
+
+-   **❌ Discrepancies in Endpoints:**
+    *   **Claim:** A `/chat/fast` endpoint exists to bypass routing.
+    *   **Verification:** This is **NOT VERIFIED**. This endpoint is not defined in `app/gateway/main.py` or `app/services/chat/unified_chat.py`.
+    *   **Claim:** A `/chat/intelligent/metrics` endpoint exists.
+    *   **Verification:** This is **NOT VERIFIED**. While the `UnifiedChatHandler` has a `get_metrics` method, it is not exposed as an HTTP endpoint.
+
+**Overall Conclusion:** This document is **outdated and should not be used as a reference for the current implementation**. While the high-level concept of intelligent routing via a single LLM call is correct, the specific file locations, routing mechanisms, and supporting endpoints have all changed. The current implementation is centralized in `app/services/chat/unified_chat.py`.
+
 ## Implementation Files
 
 - `app/services/chat/intelligent_router.py` - Classification logic

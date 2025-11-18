@@ -392,3 +392,32 @@ curl -X POST https://gaia-gateway-dev.fly.dev/api/v0.3/auth/login \
 **Staging:** `https://gaia-gateway-staging.fly.dev`  
 **Production:** `https://gaia-gateway-production.fly.dev`  
 **Local:** `http://localhost:8666`
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The API endpoints described in this document have been verified against the gateway's routing implementation.
+
+-   **✅ Authentication Endpoints:**
+    *   **Claim:** The document lists endpoints for `/auth/login`, `/register`, `/validate`, `/refresh`, `/logout`, `/confirm`, and `/resend-verification`.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1013-1045).
+    *   **Verification:** This is **VERIFIED**. The gateway defines all these v0.3 routes and correctly forwards them to the `auth` service.
+
+-   **✅ Chat Endpoints:**
+    *   **Claim:** The `POST /api/v0.3/chat` endpoint handles both streaming and non-streaming chat.
+    *   **Code Reference:** `app/gateway/main.py` (lines 909-955, `v03_chat` function).
+    *   **Verification:** This is **VERIFIED**. The `v03_chat` function forwards requests to the unified chat service and uses helper functions (`_convert_to_clean_streaming_format` and `_convert_to_clean_format`) to provide the clean v0.3 response format.
+
+-   **✅ Conversation Management:**
+    *   **Claim:** `GET` and `POST` requests to `/api/v0.3/conversations` are supported for listing and creating conversations.
+    *   **Code Reference:** `app/gateway/main.py` (lines 957-1011).
+    *   **Verification:** This is **VERIFIED**. The `v03_list_conversations` and `v03_create_conversation` functions correctly forward requests to the `chat` service's conversation endpoints.
+
+-   **✅ Error Responses and Rate Limits:**
+    *   **Verification:** The use of FastAPI's exception handling and the `slowapi` limiter in `app/gateway/main.py` confirms the implementation of consistent error responses and rate limiting.
+
+**Overall Conclusion:** The API endpoints and functionality described in this document are accurately implemented in the gateway service. The document provides a reliable reference for client-side developers.

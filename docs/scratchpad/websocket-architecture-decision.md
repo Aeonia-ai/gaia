@@ -373,3 +373,28 @@ Not just moving code - forces cleaner architecture naturally. WebSocket becomes 
 - Commit: 5b51ae1 on feature/unified-experience-system
 - Local testing: All tests passing (7/7 bottles, NATS working)
 - Auto-bootstrap: Implemented (industry standard lazy init)
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The core architectural claims in this document have been verified against the source code.
+
+-   **✅ Current Implementation (Option A: KB Service) (Section "Current Implementation" of this document):**
+    *   **Claim:** WebSocket endpoint is implemented in the KB Service.
+    *   **Code Reference:** `app/services/kb/websocket_experience.py` (lines 47-125).
+    *   **Verification:** Confirmed the presence of the WebSocket endpoint in the KB service, handling authentication and connection management.
+
+-   **✅ Alternative: Option B (Gateway Service) (Section "Alternative: Option B" of this document):**
+    *   **Claim:** A Gateway WebSocket proxy is implemented.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1195-1344).
+    *   **Verification:** Confirmed the implementation of the Gateway WebSocket proxy, which transparently tunnels connections to the KB Service. This aligns with the "Recommended Path: Hybrid Approach" to ship Option A for demo and migrate to Option C post-demo, with Option B being an interim step that has been implemented.
+
+-   **✅ Technical Debt Acknowledgment (Section "Technical Debt Tracking" of this document):**
+    *   **Claim:** The WebSocket in KB Service is acknowledged as technical debt with a remediation plan.
+    *   **Verification:** This document itself serves as the primary evidence of this acknowledgment and the planned migration to a dedicated Session Service (Option C). The modularity of `ExperienceConnectionManager` in `app/services/kb/experience_connection_manager.py` (lines 31-285) supports the ease of migration as described.
+
+**Conclusion:** The architectural decisions and the current state of the WebSocket implementation are highly consistent with the details described in this document. The document accurately reflects the "fast path" approach taken for the demo and the subsequent implementation of the Gateway proxy as an interim solution.

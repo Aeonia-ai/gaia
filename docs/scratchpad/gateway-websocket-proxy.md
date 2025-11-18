@@ -363,3 +363,24 @@ python3 tests/manual/test_websocket_experience.py  # Uses 8001 directly
 **Last Updated:** 2025-11-07
 **Implemented By:** server-coder
 **Tested:** ✅ Passing (2025-11-07 19:06 PST)
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document describes the implementation of a WebSocket proxy in the Gateway service. The verification confirms that the claims made in this document are accurate and reflect the current state of the codebase.
+
+-   **✅ Gateway WebSocket Proxy:** **VERIFIED**.
+    -   **Evidence:** The `websocket_proxy` endpoint is defined in `app/gateway/main.py` at `/ws/experience`. It correctly implements bidirectional tunneling, centralized JWT validation using `get_current_user_ws`, and connection pooling via the `WebSocketConnectionPool` class.
+
+-   **⚠️ Testing:** **PARTIALLY VERIFIED**.
+    -   **Evidence:** The test scripts `tests/manual/test_websocket_experience.py` and `tests/manual/test_command_system.py` exist.
+    -   **Discrepancy:** The document claims the test scripts support a `--via-gateway` flag. This is incorrect. The scripts have a `--url` argument, and the user must manually provide the gateway URL (e.g., `ws://localhost:8666/ws/experience`) to test the proxy.
+
+-   **✅ Client Implementation Guide:** **VERIFIED**.
+    -   **Evidence:** The provided client implementation examples correctly show the WebSocket URL as `ws://localhost:8666/ws/experience`.
+
+**Conclusion:** The document accurately describes the implemented WebSocket proxy. The core claims about its functionality are verified. The only discrepancy is the description of the test scripts' command-line arguments.

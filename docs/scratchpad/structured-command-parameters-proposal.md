@@ -583,3 +583,23 @@ async def test_structured_collect():
 5. **Unity Integration**: Coordinate with Unity team
 
 **Contact**: Discuss in Symphony `websockets` room
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+This document proposes a hybrid command system to improve performance for structured commands while maintaining natural language support. The verification confirms that the core features of this proposal have been implemented.
+
+-   **✅ Hybrid Command System:** **VERIFIED**.
+    -   **Evidence:** The `ExperienceCommandProcessor` in `app/services/kb/command_processor.py` implements a two-path execution logic. It first checks for a registered handler for the given `action` (fast path) and, if not found, falls back to the LLM-based `kb_agent.process_llm_command` (slow path).
+
+-   **✅ Fast Path Handlers:** **VERIFIED**.
+    -   **Evidence:** Fast-path handlers for `go` (`app/services/kb/handlers/go.py`) and `collect_item` (`app/services/kb/handlers/collect_item.py`) exist and are registered with the `command_processor` in `app/services/kb/main.py`. These handlers process structured parameters like `destination` and `instance_id` directly, bypassing the LLM.
+
+-   **✅ Backward Compatibility:** **VERIFIED**.
+    -   **Evidence:** The fallback mechanism in `command_processor.process_command` ensures that if a command does not have a registered fast-path handler, it is processed by the LLM-based system, thus maintaining support for natural language commands.
+
+**Conclusion:** The proposed hybrid command system has been successfully implemented. The architecture provides a clear path for optimizing performance-critical commands while retaining the flexibility of natural language processing.
