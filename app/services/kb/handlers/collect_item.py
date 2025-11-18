@@ -15,7 +15,12 @@ from app.services.kb.kb_agent import kb_agent # To access the state manager
 
 logger = logging.getLogger(__name__)
 
-async def handle_collect_item(user_id: str, experience_id: str, command_data: Dict[str, Any]) -> CommandResult:
+async def handle_collect_item(
+    user_id: str,
+    experience_id: str,
+    command_data: Dict[str, Any],
+    connection_id: Optional[str] = None
+) -> CommandResult:
     """
     Handles the 'collect_item' action directly for high performance.
     Bypasses the LLM and interacts directly with the state manager.
@@ -30,6 +35,7 @@ async def handle_collect_item(user_id: str, experience_id: str, command_data: Di
         user_id: User ID performing the collection
         experience_id: Experience ID (e.g., "wylding-woods")
         command_data: Command data containing 'instance_id' or 'item_id'
+        connection_id: Optional WebSocket connection ID for version tracking
 
     Returns:
         CommandResult with success status, message, and state changes
@@ -109,7 +115,8 @@ async def handle_collect_item(user_id: str, experience_id: str, command_data: Di
         await state_manager.update_world_state(
             experience=experience_id,
             updates=world_updates,
-            user_id=user_id  # Publish world_update event with proper changes
+            user_id=user_id,  # Publish world_update event with proper changes
+            connection_id=connection_id  # Track client version for delta base_version
         )
 
         # Add to player inventory (this auto-publishes WorldUpdate event)
@@ -127,6 +134,42 @@ async def handle_collect_item(user_id: str, experience_id: str, command_data: Di
             user_id=user_id,
             updates=inventory_updates
         )
+
+        # Publish second world_update delta for inventory ADD (version 7→8)
+        # Unity expects sequential deltas: REMOVE from world (6→7), then ADD to inventory (7→8)
+        if connection_id and state_manager.connection_manager:
+            # Get current client version (should be 7 after REMOVE delta)
+            base_version = state_manager.connection_manager.get_client_version(connection_id)
+
+            # Increment world version by making a minimal update
+            await state_manager.update_world_state(
+                experience=experience_id,
+                updates={},  # Empty update just to increment version
+                user_id=None,  # Don't publish delta yet
+                connection_id=None
+            )
+
+            # Get new world version (should be 8 now)
+            world_state = await state_manager.get_world_state(experience_id)
+            snapshot_version = world_state.get("metadata", {}).get("_version", 0)
+
+            # Publish inventory delta manually using v0.3 dict format
+            # _publish_world_update expects dict format, converts to v0.4 array internally
+            await state_manager._publish_world_update(
+                experience=experience_id,
+                user_id=user_id,
+                changes=inventory_updates,  # Use same format as update_player_view
+                base_version=base_version,
+                snapshot_version=snapshot_version
+            )
+
+            # Update client version tracking to 8
+            state_manager.connection_manager.update_client_version(connection_id, snapshot_version)
+
+            logger.info(
+                f"Published inventory ADD delta: base={base_version}, snap={snapshot_version}, "
+                f"item={instance_id}"
+            )
 
         # Get item name for message
         item_name = item_data.get("semantic_name") or item_data.get("template_id") or instance_id

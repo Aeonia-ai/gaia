@@ -1,7 +1,7 @@
 # app/services/kb/command_processor.py
 
 import logging
-from typing import Any, Callable, Coroutine, Dict
+from typing import Any, Callable, Coroutine, Dict, Optional
 import time
 import json
 
@@ -22,7 +22,13 @@ class ExperienceCommandProcessor:
         logger.info(f"Registering handler for action: {action}")
         self._handlers[action] = handler
 
-    async def process_command(self, user_id: str, experience_id: str, command_data: Dict[str, Any]) -> CommandResult:
+    async def process_command(
+        self,
+        user_id: str,
+        experience_id: str,
+        command_data: Dict[str, Any],
+        connection_id: Optional[str] = None
+    ) -> CommandResult:
         """Process an incoming command by routing it to the correct handler."""
         action = command_data.get("action")
         request_id = command_data.get("request_id", "unknown")
@@ -45,7 +51,7 @@ class ExperienceCommandProcessor:
         if handler:
             logger.info(f"Processing action '{action}' via fast path for user {user_id}")
             try:
-                return await handler(user_id, experience_id, command_data)
+                return await handler(user_id, experience_id, command_data, connection_id)
             except Exception as e:
                 logger.error(f"Error in fast path handler for action '{action}': {e}", exc_info=True)
                 return CommandResult(success=False, message_to_player=f"An error occurred while processing the command: {action}")

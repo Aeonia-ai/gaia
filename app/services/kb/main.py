@@ -154,6 +154,11 @@ async def kb_service_lifespan(app: FastAPI):
         websocket_module.experience_manager = ExperienceConnectionManager(nats_client=nats_client)
         logger.info("ExperienceConnectionManager initialized for WebSocket connections")
 
+        # Inject connection manager into state manager for client version tracking
+        if kb_agent.state_manager and websocket_module.experience_manager:
+            kb_agent.state_manager.connection_manager = websocket_module.experience_manager
+            logger.info("Connection manager injected into UnifiedStateManager - client version tracking enabled")
+
         # Initialize and register command handlers
         from .command_processor import command_processor
         from .handlers.collect_item import handle_collect_item

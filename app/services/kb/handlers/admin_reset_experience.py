@@ -190,6 +190,13 @@ async def _execute_reset(
         # Step 2: Restore world state from template
         await _restore_world_from_template(experience_id, state_manager)
 
+        # Step 2.5: Disconnect all WebSocket clients (force reconnect with new version)
+        from ..websocket_experience import experience_manager as websocket_manager
+        disconnected_count = 0
+        if websocket_manager:
+            disconnected_count = await _disconnect_experience_clients(experience_id, websocket_manager)
+            logger.info(f"Disconnected {disconnected_count} WebSocket clients for {experience_id}")
+
         # Step 3: Clear player data (unless world-only)
         player_count = 0
         if not world_only:
@@ -319,3 +326,41 @@ async def _clear_player_data(experience_id: str) -> int:
 
     logger.info(f"Cleared {cleared_count} player views")
     return cleared_count
+
+
+async def _disconnect_experience_clients(
+    experience_id: str,
+    connection_manager
+) -> int:
+    """
+    Disconnect all WebSocket clients connected to this experience.
+
+    Forces clients to reconnect and receive the new world version after reset.
+    This prevents version mismatch errors where clients have old snapshot_version
+    but server has incremented world._version.
+
+    Args:
+        experience_id: Experience ID (e.g., "wylding-woods")
+        connection_manager: ExperienceConnectionManager instance
+
+    Returns:
+        Number of clients disconnected
+    """
+    disconnected_count = 0
+
+    # Get all connection IDs to disconnect (iterate over copy to avoid modification during iteration)
+    connections_to_disconnect = []
+    for connection_id, metadata in list(connection_manager.connection_metadata.items()):
+        if metadata.get("experience") == experience_id:
+            connections_to_disconnect.append(connection_id)
+
+    # Disconnect each client
+    for connection_id in connections_to_disconnect:
+        try:
+            await connection_manager.disconnect(connection_id)
+            disconnected_count += 1
+            logger.info(f"Disconnected client for reset: connection_id={connection_id}")
+        except Exception as e:
+            logger.warning(f"Failed to disconnect client {connection_id}: {e}")
+
+    return disconnected_count

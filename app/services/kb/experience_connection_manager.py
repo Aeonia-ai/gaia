@@ -105,29 +105,41 @@ class ExperienceConnectionManager:
         self.active_connections[connection_id] = websocket
         self.user_connections[user_id] = connection_id
 
-        # Store metadata
-        self.connection_metadata[connection_id] = {
-            "user_id": user_id,
-            "experience": experience,
-            "connected_at": datetime.utcnow().isoformat() + "Z",
-            "messages_sent": 0,
-            "messages_received": 0
-        }
-
-        logger.info(
-            f"WebSocket connected: connection_id={connection_id}, "
-            f"user_id={user_id}, experience={experience}"
-        )
-
         # Initialize player state (create view file if first-time connection)
+        # Do this BEFORE storing metadata so we can get current world version
+        current_world_version = 0
         try:
             from app.services.kb.kb_agent import kb_agent
             if kb_agent.state_manager:
                 await kb_agent.state_manager.ensure_player_initialized(experience, user_id)
                 logger.debug(f"Player initialized for {user_id} in {experience}")
+
+                # Get current world version for client tracking initialization
+                try:
+                    world_state = await kb_agent.state_manager.get_world_state(experience)
+                    current_world_version = world_state.get("metadata", {}).get("_version", 0)
+                except Exception as e:
+                    logger.warning(f"Could not load world version, defaulting to 0: {e}")
+                    current_world_version = 0
         except Exception as e:
             logger.error(f"Failed to initialize player {user_id}: {e}", exc_info=True)
             # Continue anyway - state operations will fail gracefully
+
+        # Store metadata with initial snapshot_version
+        self.connection_metadata[connection_id] = {
+            "user_id": user_id,
+            "experience": experience,
+            "connected_at": datetime.utcnow().isoformat() + "Z",
+            "messages_sent": 0,
+            "messages_received": 0,
+            "snapshot_version": current_world_version  # Initialize to current world version
+        }
+
+        logger.info(
+            f"WebSocket connected: connection_id={connection_id}, "
+            f"user_id={user_id}, experience={experience}, "
+            f"initial_version={current_world_version}"
+        )
 
         # Create persistent NATS subscription
         logger.warning(
@@ -194,9 +206,42 @@ class ExperienceConnectionManager:
                     exc_info=True
                 )
 
+        # Calculate the subject we'll subscribe to
+        nats_subject = NATSSubjects.world_update_user(user_id)
+
+        # CRITICAL FIX: Clean up any existing subscriptions for this user
+        # This prevents zombie subscriptions when Unity reconnects
+        old_subscriptions_cleaned = 0
+        for old_conn_id, old_subject in list(self.nats_subscriptions.items()):
+            if old_subject == nats_subject and old_conn_id != connection_id:
+                logger.warning(
+                    f"[NATS-CLEANUP] Found old subscription for user {user_id}: "
+                    f"old_connection={old_conn_id}, new_connection={connection_id}"
+                )
+                try:
+                    await self.nats_client.unsubscribe(old_subject)
+                    old_subscriptions_cleaned += 1
+                    logger.warning(
+                        f"[NATS-CLEANUP] ✅ Cleaned up old subscription: "
+                        f"connection={old_conn_id}, subject={old_subject}"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[NATS-CLEANUP] ⚠️ Failed to cleanup old subscription "
+                        f"(connection={old_conn_id}): {e}"
+                    )
+                # Remove from tracking regardless of unsubscribe success
+                if old_conn_id in self.nats_subscriptions:
+                    del self.nats_subscriptions[old_conn_id]
+
+        if old_subscriptions_cleaned > 0:
+            logger.warning(
+                f"[NATS-CLEANUP] Cleaned up {old_subscriptions_cleaned} zombie "
+                f"subscription(s) for user {user_id}"
+            )
+
         try:
             # Subscribe to user-specific world updates
-            nats_subject = NATSSubjects.world_update_user(user_id)
             logger.warning(f"[NATS-SUB-DEBUG] Attempting to subscribe to: {nats_subject}")
             await self.nats_client.subscribe(nats_subject, nats_event_handler)
 
@@ -313,3 +358,37 @@ class ExperienceConnectionManager:
     def get_user_connection_id(self, user_id: str) -> Optional[str]:
         """Get connection ID for user (if connected)."""
         return self.user_connections.get(user_id)
+
+    def get_client_version(self, connection_id: str) -> int:
+        """
+        Get the client's current snapshot version.
+
+        This is the version that the client has in memory. When sending deltas,
+        we must use this as the base_version to ensure the client can apply them.
+
+        Args:
+            connection_id: Connection ID
+
+        Returns:
+            Client's current snapshot_version, or 0 if not tracked
+        """
+        metadata = self.connection_metadata.get(connection_id, {})
+        return metadata.get("snapshot_version", 0)
+
+    def update_client_version(self, connection_id: str, snapshot_version: int) -> None:
+        """
+        Update the client's snapshot version after successful delta application.
+
+        This must be called after publishing a world_update delta so we track
+        what version the client is at for future deltas.
+
+        Args:
+            connection_id: Connection ID
+            snapshot_version: New snapshot version after delta applied
+        """
+        if connection_id in self.connection_metadata:
+            self.connection_metadata[connection_id]["snapshot_version"] = snapshot_version
+            logger.debug(
+                f"[VERSION-TRACK] Updated client version: "
+                f"connection={connection_id}, snapshot_version={snapshot_version}"
+            )

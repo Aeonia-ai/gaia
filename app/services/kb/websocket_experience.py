@@ -250,7 +250,7 @@ async def handle_action(
     message["request_id"] = request_id
 
     # Process the command through the central processor
-    result = await command_processor.process_command(user_id, experience, message)
+    result = await command_processor.process_command(user_id, experience, message, connection_id)
 
     # Send a response back to the client based on the result
     response_message = {
@@ -469,7 +469,13 @@ async def handle_update_location(
         areas = aoi.get('areas', {})
         current_area = list(areas.keys())[0] if areas else None
 
+        # Check if player changed zones (optimization: only send AOI on zone change)
+        player_view = await state_manager.get_player_view(experience, user_id)
+        previous_zone = player_view.get("player", {}).get("current_location")
+        zone_changed = (previous_zone != zone_id)
+
         # Update player state with server-authoritative location
+        logger.warning(f"[GPS-DEBUG] About to update player location: zone={zone_id}, area={current_area}")
         await state_manager.update_player_view(
             experience=experience,
             user_id=user_id,
@@ -481,9 +487,15 @@ async def handle_update_location(
                 }
             }
         )
+        logger.warning(f"[GPS-DEBUG] Player location updated successfully")
 
+        logger.warning(f"[GPS-DEBUG] Checking zone change: previous={previous_zone}, current={zone_id}, changed={zone_changed}")
+
+        # TEMPORARY: Always send AOI (zone change optimization removed for now)
+        # TODO: Re-add optimization with proper "first GPS after connection" tracking
         logger.info(
-            f"Updated player location: user_id={user_id}, location={zone_id}, area={current_area}"
+            f"Sending AOI to user {user_id}: zone={zone_id}, "
+            f"previous_zone={previous_zone}"
         )
 
         # Send AOI to client
@@ -492,10 +504,15 @@ async def handle_update_location(
             "timestamp": int(datetime.utcnow().timestamp() * 1000),
             **aoi
         })
+
         logger.info(
             f"Sent AOI to user {user_id}: zone={aoi['zone']['id']}, "
             f"areas={len(aoi['areas'])}"
         )
+
+        # NOTE: Client version is initialized on connection (experience_connection_manager.py:135)
+        # DO NOT update it here - that would overwrite delta tracking and invalidate buffered deltas!
+        # Client version is only updated after successful delta application (update_world_state)
     else:
         # No locations nearby - send empty response (industry standard)
         await websocket.send_json({

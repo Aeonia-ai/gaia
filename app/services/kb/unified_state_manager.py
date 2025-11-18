@@ -70,13 +70,19 @@ class UnifiedStateManager:
     - Optimistic versioning for conflict detection
     """
 
-    def __init__(self, kb_root: Path, nats_client: Optional['NATSClient'] = None):
+    def __init__(
+        self,
+        kb_root: Path,
+        nats_client: Optional['NATSClient'] = None,
+        connection_manager: Optional['ExperienceConnectionManager'] = None
+    ):
         """
         Initialize state manager.
 
         Args:
             kb_root: Root path to knowledge base (contains /experiences/, /players/)
             nats_client: Optional NATS client for real-time world update events
+            connection_manager: Optional connection manager for client version tracking
         """
         self.kb_root = Path(kb_root)
         self.experiences_path = self.kb_root / "experiences"
@@ -88,12 +94,17 @@ class UnifiedStateManager:
         # NATS client for real-time updates (optional)
         self.nats_client = nats_client if NATS_AVAILABLE else None
 
+        # Connection manager for client version tracking (optional)
+        self.connection_manager = connection_manager
+
         # Template loader for entity blueprints
         self.template_loader = get_template_loader(kb_root)
 
         logger.info(f"UnifiedStateManager initialized with KB root: {kb_root}")
         if self.nats_client:
             logger.info("Real-time NATS updates enabled")
+        if self.connection_manager:
+            logger.info("Client version tracking enabled")
 
     # ===== CONFIG MANAGEMENT =====
 
@@ -426,7 +437,7 @@ class UnifiedStateManager:
                 instance_id = item_data.get("id") or item_data.get("instance_id")
 
                 # Load template data if we have template_id
-                template_id = item_data.get("type") or item_data.get("template_id")
+                template_id = item_data.get("template_id")
                 merged_item = await self._merge_item_with_template(
                     experience=experience,
                     instance_id=instance_id,
@@ -434,32 +445,50 @@ class UnifiedStateManager:
                     item_data=item_data
                 )
 
-                formatted_changes.append({
+                add_change = {
                     "operation": "add",
+                    "instance_id": instance_id,  # Top-level instance_id for Unity tracking
                     "area_id": None,
                     "path": "player.inventory",
                     "item": merged_item
-                })
+                }
+                logger.warning(
+                    f"[FORMAT-DEBUG] Adding ADD operation: "
+                    f"path=player.inventory, instance_id={instance_id}, has_item_data={merged_item is not None}"
+                )
+                formatted_changes.append(add_change)
 
             # Handle world.locations changes (item removed from world)
             elif path.startswith("world.locations.") and "items" in path:
-                # Extract location and area from path
-                # Example: world.locations.woander_store.areas.spawn_zone_1.items
+                # Extract location, area, and spot from path
+                # Example v0.5: world.locations.woander_store.areas.main_room.spots.spot_4.items
                 parts = path.split(".")
                 location_id = parts[2] if len(parts) > 2 else None
                 area_id = parts[4] if len(parts) > 4 else None
+                spot_id = parts[6] if len(parts) > 6 and parts[5] == "spots" else None
 
                 if isinstance(change_data, dict) and "$remove" in change_data:
                     # Item removed from world
                     item_to_remove = change_data["$remove"]
                     instance_id = item_to_remove.get("id") or item_to_remove.get("instance_id")
 
-                    formatted_changes.append({
+                    remove_change = {
                         "operation": "remove",
                         "area_id": area_id,
+                        "spot_id": spot_id,  # v0.5 spot hierarchy support
                         "instance_id": instance_id
-                    })
+                    }
+                    logger.warning(
+                        f"[FORMAT-DEBUG] Adding REMOVE operation: "
+                        f"path={path}, instance_id={instance_id}, area_id={area_id}, spot_id={spot_id}"
+                    )
+                    formatted_changes.append(remove_change)
 
+        # Log summary of formatted changes
+        change_summary = [f"op={c.get('operation')}, area={c.get('area_id')}" for c in formatted_changes]
+        logger.warning(
+            f"[FORMAT-DEBUG] Formatted {len(formatted_changes)} change(s): {change_summary}"
+        )
         return formatted_changes
 
     async def _merge_item_with_template(
@@ -572,7 +601,8 @@ class UnifiedStateManager:
         experience: str,
         updates: Dict[str, Any],
         user_id: Optional[str] = None,
-        use_locking: bool = True
+        use_locking: bool = True,
+        connection_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Update world state.
@@ -585,6 +615,7 @@ class UnifiedStateManager:
             updates: Dict of updates to apply (merged with existing state)
             user_id: User ID (required for isolated model)
             use_locking: Use file locking (for shared model)
+            connection_id: Optional connection ID for client version tracking
 
         Returns:
             Updated world state
@@ -597,16 +628,29 @@ class UnifiedStateManager:
         state_model = config["state"]["model"]
 
         # Get base version before update (for NATS event)
-        if state_model == "shared":
-            world_path = self._get_world_state_path(experience, config)
-            current_state = json.loads(world_path.read_text()) if world_path.exists() else {}
-        else:  # isolated
-            if user_id:
-                view_path = self._get_player_view_path(experience, user_id)
-                current_state = json.loads(view_path.read_text()) if view_path.exists() else {}
-            else:
-                current_state = {}
-        base_version = current_state.get("metadata", {}).get("_version", 0)
+        # CRITICAL: Use client's version if available, not server's version!
+        # This ensures deltas can be applied by Unity's version-checking system.
+        if connection_id and self.connection_manager:
+            base_version = self.connection_manager.get_client_version(connection_id)
+            logger.debug(
+                f"[VERSION-TRACK] Using client base_version: "
+                f"connection={connection_id}, base_version={base_version}"
+            )
+        else:
+            # Fallback: Use server's version (for non-WebSocket updates)
+            if state_model == "shared":
+                world_path = self._get_world_state_path(experience, config)
+                current_state = json.loads(world_path.read_text()) if world_path.exists() else {}
+            else:  # isolated
+                if user_id:
+                    view_path = self._get_player_view_path(experience, user_id)
+                    current_state = json.loads(view_path.read_text()) if view_path.exists() else {}
+                else:
+                    current_state = {}
+            base_version = current_state.get("metadata", {}).get("_version", 0)
+            logger.debug(
+                f"[VERSION-TRACK] Using server base_version (fallback): base_version={base_version}"
+            )
 
         # Perform state update
         if state_model == "shared":
@@ -630,6 +674,14 @@ class UnifiedStateManager:
                 base_version=base_version,
                 snapshot_version=snapshot_version
             )
+
+            # Update client's tracked version after successful delta publish
+            if connection_id and self.connection_manager:
+                self.connection_manager.update_client_version(connection_id, snapshot_version)
+                logger.debug(
+                    f"[VERSION-TRACK] Updated client to new snapshot_version: "
+                    f"connection={connection_id}, version={snapshot_version}"
+                )
 
         return updated_state
 
@@ -805,8 +857,17 @@ class UnifiedStateManager:
                 elif "$remove" in value:
                     # Remove operation: Remove item from array by ID
                     item_to_remove = value["$remove"]
+                    logger.warning(
+                        f"{indent}[MERGE-L{depth}] Processing $remove for key='{key}', "
+                        f"key_exists={key in result}, "
+                        f"current_type={type(result.get(key)).__name__ if key in result else 'N/A'}, "
+                        f"result_keys={list(result.keys())}"
+                    )
                     if key not in result or not isinstance(result[key], list):
-                        logger.warning(f"Cannot remove from non-existent or non-list field '{key}'")
+                        logger.warning(
+                            f"{indent}[MERGE-L{depth}] ❌ Cannot remove from non-existent or non-list field '{key}' "
+                            f"(exists={key in result}, is_list={isinstance(result.get(key), list)})"
+                        )
                         continue
 
                     # Remove item matching ID (check both 'instance_id' and 'id' fields)
@@ -935,8 +996,13 @@ class UnifiedStateManager:
         with open(view_path, 'r') as f:
             current_view = json.load(f)
 
-        base_version = current_view.get("snapshot_version", int(time.time() * 1000))
-        new_version = int(time.time() * 1000)
+        # CRITICAL: Use world's incremental _version, not timestamps
+        # This ensures consistency with update_world_state() versioning
+        world_state = await self.get_world_state(experience)
+        current_world_version = world_state.get("metadata", {}).get("_version", 0)
+
+        base_version = current_view.get("snapshot_version", current_world_version)
+        new_version = current_world_version  # Player view versions track world version
 
         # Add version increment to updates
         if "snapshot_version" not in updates:
@@ -946,14 +1012,9 @@ class UnifiedStateManager:
         logger.debug(f"[UPDATE-PLAYER-VIEW] Updating view: exp={experience}, user={user_id}, base={base_version}, new={new_version}")
         updated_view = await self._direct_update(view_path, updates)
 
-        # Publish real-time update to NATS with version info
-        await self._publish_world_update(
-            experience=experience,
-            user_id=user_id,
-            changes=updates,
-            base_version=base_version,
-            snapshot_version=new_version
-        )
+        # NOTE: Player view updates don't publish deltas - only world state changes do
+        # Player inventory/position changes come through update_world_state() deltas
+        # Publishing here would create duplicate/conflicting version updates
 
         return updated_view
 
@@ -1002,11 +1063,18 @@ class UnifiedStateManager:
             # Isolated model: Copy world template
             view = await self._copy_world_template_for_player(config, experience, user_id)
 
+        # Set snapshot_version to current world version (for delta tracking)
+        world_state = await self.get_world_state(experience)
+        view["snapshot_version"] = world_state.get("metadata", {}).get("_version", 0)
+
         # Write player view
         with open(view_path, 'w') as f:
             json.dump(view, f, indent=2)
 
-        logger.info(f"Bootstrapped player '{user_id}' for '{experience}' ({state_model} model)")
+        logger.info(
+            f"Bootstrapped player '{user_id}' for '{experience}' ({state_model} model), "
+            f"snapshot_version={view['snapshot_version']}"
+        )
         return view
 
     def _create_minimal_player_view(
@@ -1047,7 +1115,7 @@ class UnifiedStateManager:
                 "_version": 1,
                 "_created_at": datetime.utcnow().isoformat() + "Z"
             },
-            "snapshot_version": int(time.time() * 1000)  # Initial version (timestamp-based)
+            "snapshot_version": 0  # Will be set to world._version after initialization
         }
 
         return view
@@ -1616,11 +1684,14 @@ class UnifiedStateManager:
         }
 
         # Construct AOI payload
+        # Use server's authoritative version from world.json metadata
+        server_version = world_state.get("metadata", {}).get("_version", 0)
+
         aoi = {
             "zone": zone,
             "areas": areas,
             "player": player_info,
-            "snapshot_version": player_view.get("snapshot_version", int(time.time() * 1000))  # Use existing version from player view
+            "snapshot_version": server_version  # Server-authoritative version (not timestamp)
         }
 
         logger.info(
