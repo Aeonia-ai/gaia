@@ -123,11 +123,11 @@ class ChatConversationStore:
         finally:
             db.close()
     
-    def get_conversations(self, user_id: str) -> List[Dict[str, Any]]:
+    def get_conversations(self, user_id: str, user_email: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all conversations for a user"""
         db = self._get_db()
         try:
-            user = self._get_or_create_user(user_id)
+            user = self._get_or_create_user(user_id, user_email)
             
             conversations = db.query(Conversation).filter(
                 Conversation.user_id == user.id,
@@ -149,7 +149,7 @@ class ChatConversationStore:
         finally:
             db.close()
     
-    def get_conversation(self, user_id: str, conversation_id: str) -> Optional[Dict[str, Any]]:
+    def get_conversation(self, user_id: str, conversation_id: str, user_email: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get a specific conversation"""
         db = self._get_db()
         try:
@@ -159,8 +159,8 @@ class ChatConversationStore:
             except ValueError:
                 logger.warning(f"Invalid conversation ID format: {conversation_id}")
                 return None
-            
-            user = self._get_or_create_user(user_id)
+
+            user = self._get_or_create_user(user_id, user_email)
             
             conversation = db.query(Conversation).filter(
                 Conversation.id == conversation_id,
@@ -182,12 +182,12 @@ class ChatConversationStore:
         finally:
             db.close()
     
-    def update_conversation(self, user_id: str, conversation_id: str, 
-                          title: Optional[str] = None, preview: Optional[str] = None) -> bool:
+    def update_conversation(self, user_id: str, conversation_id: str,
+                          title: Optional[str] = None, preview: Optional[str] = None, user_email: Optional[str] = None) -> bool:
         """Update conversation metadata"""
         db = self._get_db()
         try:
-            user = self._get_or_create_user(user_id)
+            user = self._get_or_create_user(user_id, user_email)
             
             conversation = db.query(Conversation).filter(
                 Conversation.id == conversation_id,
@@ -211,11 +211,11 @@ class ChatConversationStore:
         finally:
             db.close()
     
-    def delete_conversation(self, user_id: str, conversation_id: str) -> bool:
+    def delete_conversation(self, user_id: str, conversation_id: str, user_email: Optional[str] = None) -> bool:
         """Delete a conversation (soft delete)"""
         db = self._get_db()
         try:
-            user = self._get_or_create_user(user_id)
+            user = self._get_or_create_user(user_id, user_email)
             
             conversation = db.query(Conversation).filter(
                 Conversation.id == conversation_id,

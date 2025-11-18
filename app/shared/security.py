@@ -518,23 +518,28 @@ async def get_current_auth_legacy(
     Legacy authentication format for backward compatibility.
     Returns dict format identical to LLM Platform.
     Checks .env API key first for local development, then falls back to database validation.
-    
+
     Note: Redis caching is handled gracefully in the underlying validation functions
     (validate_user_api_key and validate_supabase_jwt) with try/except blocks.
     """
     from app.shared.config import settings
-    
+
+    logger.info(f"[AUTH_LEGACY] FUNCTION ENTRY - Request path: {request.url.path}")
+    logger.debug(f"[AUTH_LEGACY] Called - credentials: {credentials is not None}, api_key: {api_key_header is not None}")
+    if credentials:
+        logger.debug(f"[AUTH_LEGACY] Bearer token present: {credentials.credentials[:30] if credentials.credentials else None}...")
+
     # Note: Removed hardcoded .env API key check - all API keys now validated through Supabase
-    
+
     # Otherwise use the standard authentication flow
     # This ensures production uses database validation
     try:
         from app.shared.database import get_database_session
-        
+
         # Get database session
         db_gen = get_database_session()
         db = next(db_gen)
-        
+
         try:
             auth_result = await get_current_auth(request, credentials, api_key_header)
             

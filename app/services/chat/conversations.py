@@ -76,9 +76,11 @@ async def create_conversation(
             # auth already populated from Depends(get_current_auth_legacy)
         
         user_id = auth.get("sub") or auth.get("user_id") or "unknown"
+        user_email = auth.get("email")
         conversation = chat_conversation_store.create_conversation(
             user_id=user_id,
-            title=title
+            title=title,
+            user_email=user_email
         )
         logger.info(f"Created conversation {conversation['id']} for user {user_id}")
         return ConversationResponse(**conversation)
@@ -92,8 +94,11 @@ async def list_conversations(
 ):
     """List all conversations for the authenticated user"""
     try:
+        logger.debug(f"[CONVERSATIONS] list_conversations called - auth: {auth}")
         user_id = auth.get("sub") or auth.get("user_id") or "unknown"
-        conversations = chat_conversation_store.get_conversations(user_id)
+        user_email = auth.get("email")
+        logger.debug(f"[CONVERSATIONS] Extracted user_id: {user_id}, email: {user_email}")
+        conversations = chat_conversation_store.get_conversations(user_id, user_email)
         logger.info(f"Retrieved {len(conversations)} conversations for user {user_id}")
         return ConversationsListResponse(
             conversations=[ConversationResponse(**conv) for conv in conversations]
@@ -110,7 +115,8 @@ async def get_conversation(
     """Get a specific conversation"""
     try:
         user_id = auth.get("sub") or auth.get("user_id") or "unknown"
-        conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
+        user_email = auth.get("email")
+        conversation = chat_conversation_store.get_conversation(user_id, conversation_id, user_email)
         if not conversation:
             raise HTTPException(status_code=404, detail="Conversation not found")
         
@@ -131,18 +137,20 @@ async def update_conversation(
     """Update a conversation"""
     try:
         user_id = auth.get("sub") or auth.get("user_id") or "unknown"
+        user_email = auth.get("email")
         success = chat_conversation_store.update_conversation(
             user_id=user_id,
             conversation_id=conversation_id,
             title=request.title,
-            preview=request.preview
+            preview=request.preview,
+            user_email=user_email
         )
-        
+
         if not success:
             raise HTTPException(status_code=404, detail="Conversation not found")
-        
+
         # Get updated conversation
-        conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
+        conversation = chat_conversation_store.get_conversation(user_id, conversation_id, user_email)
         logger.info(f"Updated conversation {conversation_id} for user {user_id}")
         return ConversationResponse(**conversation)
     except HTTPException:
@@ -159,7 +167,8 @@ async def delete_conversation(
     """Delete a conversation"""
     try:
         user_id = auth.get("sub") or auth.get("user_id") or "unknown"
-        success = chat_conversation_store.delete_conversation(user_id, conversation_id)
+        user_email = auth.get("email")
+        success = chat_conversation_store.delete_conversation(user_id, conversation_id, user_email)
         
         if not success:
             raise HTTPException(status_code=404, detail="Conversation not found")
