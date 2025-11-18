@@ -292,19 +292,26 @@ class UnifiedStateManager:
             base_version: Version number this delta applies on top of
             snapshot_version: New version number after applying delta
         """
+        logger.warning(f"[PUBLISH-DEBUG] _publish_world_update called: exp={experience}, user={user_id}, changes={list(changes.keys())}")
+
         if not NATS_AVAILABLE or not self.nats_client:
             # NATS not configured - this is expected in many deployments
+            logger.warning(f"[PUBLISH-DEBUG] NATS not available: NATS_AVAILABLE={NATS_AVAILABLE}, nats_client={'present' if self.nats_client else 'None'}")
             return
 
         if not self.nats_client.is_connected:
-            logger.debug(f"NATS client not connected - skipping world update publish")
+            logger.warning(f"[PUBLISH-DEBUG] NATS client not connected - skipping world update publish")
             return
 
+        logger.warning(f"[PUBLISH-DEBUG] Proceeding with publish - NATS connected")
         try:
             # Convert v0.3 dict format to v0.4 array format
+            logger.warning(f"[PUBLISH-DEBUG] Calling _format_world_update_changes...")
             formatted_changes = await self._format_world_update_changes(changes, experience, user_id)
+            logger.warning(f"[PUBLISH-DEBUG] Formatted changes count: {len(formatted_changes)}")
 
             # Create world update event (v0.4)
+            logger.warning(f"[PUBLISH-DEBUG] Creating WorldUpdateEvent...")
             event = WorldUpdateEvent(
                 experience=experience,
                 user_id=user_id,
@@ -320,10 +327,11 @@ class UnifiedStateManager:
 
             # Publish to user-specific NATS subject
             subject = NATSSubjects.world_update_user(user_id)
+            logger.warning(f"[PUBLISH-DEBUG] Publishing to subject: {subject}")
             await self.nats_client.publish(subject, event.model_dump())
 
-            logger.info(
-                f"Published world_update v0.4 to NATS: "
+            logger.warning(
+                f"[PUBLISH-DEBUG] ✅ Published world_update v0.4 to NATS: "
                 f"experience={experience}, user={user_id}, "
                 f"base_version={base_version}, snapshot_version={snapshot_version}, "
                 f"changes_count={len(formatted_changes)}, subject={subject}"
@@ -337,6 +345,54 @@ class UnifiedStateManager:
                 f"(experience={experience}, user={user_id}): {e}"
             )
 
+    def _flatten_nested_changes(
+        self,
+        changes: Dict[str, Any],
+        prefix: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Convert nested dict changes to flattened path format.
+
+        Recursively traverses nested dicts and builds dotted path strings as keys.
+        Stops at operation markers ($append, $remove) and preserves them.
+
+        Args:
+            changes: Nested dict changes (e.g., {"locations": {"store": {"items": {"$remove": ...}}}})
+            prefix: Current path prefix (used during recursion)
+
+        Returns:
+            Flattened dict (e.g., {"world.locations.store.items": {"$remove": ...}})
+
+        Example:
+            >>> _flatten_nested_changes({"locations": {"woander_store": {"areas": {"main_room": {"spots": {"spot_1": {"items": {"$remove": {"instance_id": "bottle_mystery"}}}}}}}})
+            {'world.locations.woander_store.areas.main_room.spots.spot_1.items': {'$remove': {'instance_id': 'bottle_mystery'}}}
+        """
+        result = {}
+
+        for key, value in changes.items():
+            # Build current path
+            current_path = f"{prefix}.{key}" if prefix else key
+
+            # Check if this is an operation marker
+            if isinstance(value, dict) and ("$append" in value or "$remove" in value):
+                # Preserve operation, add to result
+                # Add "world" prefix for world state changes
+                if current_path.startswith("locations."):
+                    current_path = f"world.{current_path}"
+                result[current_path] = value
+
+            # Check if this is a nested dict (not an operation)
+            elif isinstance(value, dict):
+                # Recursively flatten
+                nested_result = self._flatten_nested_changes(value, current_path)
+                result.update(nested_result)
+
+            else:
+                # Scalar value - keep as-is (shouldn't happen for state updates, but handle it)
+                result[current_path] = value
+
+        return result
+
     async def _format_world_update_changes(
         self,
         changes: Dict[str, Any],
@@ -346,8 +402,11 @@ class UnifiedStateManager:
         """
         Convert v0.3 dict-based changes to v0.4 array format with instance_id/template_id.
 
+        Handles both flattened path format (e.g., {"player.inventory": {...}}) and
+        nested dict format (e.g., {"locations": {"woander_store": {...}}}).
+
         Args:
-            changes: v0.3 format changes (dict with paths as keys)
+            changes: v0.3 format changes (dict with paths as keys OR nested dicts)
             experience: Experience ID
             user_id: User ID
 
@@ -356,7 +415,10 @@ class UnifiedStateManager:
         """
         formatted_changes = []
 
-        for path, change_data in changes.items():
+        # Convert nested dicts to flattened paths first
+        flattened_changes = self._flatten_nested_changes(changes)
+
+        for path, change_data in flattened_changes.items():
             # Handle player.inventory changes
             if path == "player.inventory" and isinstance(change_data, dict) and "$append" in change_data:
                 # Item added to inventory
@@ -534,6 +596,18 @@ class UnifiedStateManager:
         config = self.load_config(experience)
         state_model = config["state"]["model"]
 
+        # Get base version before update (for NATS event)
+        if state_model == "shared":
+            world_path = self._get_world_state_path(experience, config)
+            current_state = json.loads(world_path.read_text()) if world_path.exists() else {}
+        else:  # isolated
+            if user_id:
+                view_path = self._get_player_view_path(experience, user_id)
+                current_state = json.loads(view_path.read_text()) if view_path.exists() else {}
+            else:
+                current_state = {}
+        base_version = current_state.get("metadata", {}).get("_version", 0)
+
         # Perform state update
         if state_model == "shared":
             updated_state = await self._update_shared_world_state(
@@ -544,9 +618,18 @@ class UnifiedStateManager:
                 experience, config, updates, user_id
             )
 
+        # Get new version after update
+        snapshot_version = updated_state.get("metadata", {}).get("_version", 0)
+
         # Publish real-time update to NATS (if user_id available)
         if user_id:
-            await self._publish_world_update(experience, user_id, updates)
+            await self._publish_world_update(
+                experience=experience,
+                user_id=user_id,
+                changes=updates,
+                base_version=base_version,
+                snapshot_version=snapshot_version
+            )
 
         return updated_state
 
@@ -682,7 +765,7 @@ class UnifiedStateManager:
         logger.debug(f"Direct update completed for {file_path}")
         return updated_state
 
-    def _merge_updates(self, current: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+    def _merge_updates(self, current: Dict[str, Any], updates: Dict[str, Any], depth: int = 0) -> Dict[str, Any]:
         """
         Merge updates into current state (deep merge).
 
@@ -693,13 +776,16 @@ class UnifiedStateManager:
         Args:
             current: Current state dict
             updates: Updates to apply
+            depth: Recursion depth for logging
 
         Returns:
             Merged state dict
         """
         result = current.copy()
+        indent = "  " * depth
 
         for key, value in updates.items():
+            logger.warning(f"{indent}[MERGE-L{depth}] Processing key='{key}', value_type={type(value).__name__}")
             # Check if value is a merge operation marker
             if isinstance(value, dict):
                 if "$append" in value:
@@ -713,7 +799,7 @@ class UnifiedStateManager:
                         logger.warning(f"[MERGE] Converting non-list '{key}' to list (was {type(result[key])})")
                         result[key] = [result[key]]
                     result[key].append(item_to_append)
-                    logger.warning(f"[MERGE] Appended item to {key}: {item_to_append.get('id', 'unknown')}, new length={len(result[key])}")
+                    logger.warning(f"[MERGE] Appended item to {key}: {item_to_append.get('semantic_name') or item_to_append.get('instance_id', 'unknown')}, new length={len(result[key])}")
                     continue
 
                 elif "$remove" in value:
@@ -723,10 +809,23 @@ class UnifiedStateManager:
                         logger.warning(f"Cannot remove from non-existent or non-list field '{key}'")
                         continue
 
-                    # Remove item matching ID
-                    item_id = item_to_remove.get("id") if isinstance(item_to_remove, dict) else item_to_remove
+                    # Remove item matching ID (check both 'instance_id' and 'id' fields)
+                    if isinstance(item_to_remove, dict):
+                        # Extract the ID to match (prefer instance_id, fallback to id)
+                        item_id = item_to_remove.get("instance_id") or item_to_remove.get("id")
+                        if not item_id:
+                            logger.warning(f"$remove object has no 'instance_id' or 'id' field: {item_to_remove}")
+                            continue
+                    else:
+                        # Simple string/value
+                        item_id = item_to_remove
+
+                    # Remove items matching either instance_id or id
                     original_length = len(result[key])
-                    result[key] = [item for item in result[key] if item.get("id") != item_id]
+                    result[key] = [
+                        item for item in result[key]
+                        if item.get("instance_id") != item_id and item.get("id") != item_id
+                    ]
                     removed_count = original_length - len(result[key])
                     logger.debug(f"Removed {removed_count} item(s) with id '{item_id}' from {key}")
                     continue
@@ -734,8 +833,11 @@ class UnifiedStateManager:
                 # Not a merge operation, check if we should do recursive merge
                 elif key in result and isinstance(result[key], dict):
                     # Recursive merge for nested dicts
-                    result[key] = self._merge_updates(result[key], value)
+                    logger.warning(f"{indent}[MERGE-L{depth}] Recursing into '{key}'")
+                    result[key] = self._merge_updates(result[key], value, depth + 1)
                     continue
+                else:
+                    logger.warning(f"{indent}[MERGE-L{depth}] Direct replacement for '{key}' (key_exists={key in result}, is_dict={isinstance(result.get(key), dict)})")
 
             # Direct replacement for non-dict values or when key doesn't exist
             result[key] = value
@@ -1421,68 +1523,81 @@ class UnifiedStateManager:
         locations = world_state.get("locations", {})
         zone_data = locations.get(zone_id, {})
 
-        # Build areas dict with their items/NPCs
+        # Build areas dict with their spots/items/NPCs
+        # New structure: zone > areas > spots > items
         areas = {}
         for area_id, area_data in zone_data.get("areas", {}).items():
+            spots = {}
+
+            # Iterate over spots within this area
+            for spot_id, spot_data in area_data.get("spots", {}).items():
+                spots[spot_id] = {
+                    "id": spot_id,
+                    "name": spot_data.get("name", spot_id),
+                    "description": spot_data.get("description", ""),
+                    "items": [],  # Build normalized items below
+                    "npcs": []
+                }
+
+                # Load templates and merge with instance data for items at this spot
+                for item_instance in spot_data.get("items", []):
+                    # Handle items stored as strings (e.g., "dream_bottle_1")
+                    if isinstance(item_instance, str):
+                        instance_id = item_instance
+                        template_id = item_instance  # Use instance_id as template_id
+                        item_instance = {"instance_id": instance_id, "template_id": template_id}
+                    else:
+                        instance_id = item_instance.get("instance_id") or item_instance.get("id")
+                        template_id = item_instance.get("template_id") or item_instance.get("type")
+
+                    if not template_id:
+                        logger.warning(
+                            f"Item instance {instance_id} missing template_id, skipping"
+                        )
+                        continue
+
+                    # Load template definition from markdown
+                    template = await self.template_loader.load_template(
+                        experience=experience,
+                        entity_type="items",
+                        template_id=template_id
+                    )
+
+                    if not template:
+                        logger.warning(
+                            f"Template not found: {template_id} (instance: {instance_id}), "
+                            f"using instance data only"
+                        )
+                        # Fallback: use instance data if template not found
+                        template = {}
+
+                    # Merge template + instance (instance overrides template)
+                    # Pass full item_instance so world.json booleans override template strings
+                    merged_item = self.template_loader.merge_template_instance(
+                        template=template,
+                        instance=item_instance  # Pass full instance data
+                    )
+
+                    spots[spot_id]["items"].append(merged_item)
+
+                # Add NPC if present at this spot
+                npc_id = spot_data.get("npc")
+                if npc_id:
+                    npc_data = world_state.get("npcs", {}).get(npc_id)
+                    if npc_data:
+                        spots[spot_id]["npcs"].append({
+                            "instance_id": f"{npc_id}_1",  # Synthetic instance ID
+                            "template_id": npc_id,
+                            **npc_data
+                        })
+
+            # Build area with its spots
             areas[area_id] = {
                 "id": area_id,
                 "name": area_data.get("name", area_id),
                 "description": area_data.get("description", ""),
-                "items": [],  # Build normalized items below
-                "npcs": []
+                "spots": spots
             }
-
-            # Load templates and merge with instance data
-            for item_instance in area_data.get("items", []):
-                # Handle items stored as strings (e.g., "dream_bottle_1")
-                if isinstance(item_instance, str):
-                    instance_id = item_instance
-                    template_id = item_instance  # Use instance_id as template_id
-                    item_instance = {"instance_id": instance_id, "template_id": template_id}
-                else:
-                    instance_id = item_instance.get("instance_id") or item_instance.get("id")
-                    template_id = item_instance.get("template_id") or item_instance.get("type")
-
-                if not template_id:
-                    logger.warning(
-                        f"Item instance {instance_id} missing template_id, skipping"
-                    )
-                    continue
-
-                # Load template definition from markdown
-                template = await self.template_loader.load_template(
-                    experience=experience,
-                    entity_type="items",
-                    template_id=template_id
-                )
-
-                if not template:
-                    logger.warning(
-                        f"Template not found: {template_id} (instance: {instance_id}), "
-                        f"using instance data only"
-                    )
-                    # Fallback: use instance data if template not found
-                    template = {}
-
-                # Merge template + instance (instance overrides template)
-                # Pass full item_instance so world.json booleans override template strings
-                merged_item = self.template_loader.merge_template_instance(
-                    template=template,
-                    instance=item_instance  # Pass full instance data
-                )
-
-                areas[area_id]["items"].append(merged_item)
-
-            # Add NPC if present in this area
-            npc_id = area_data.get("npc")
-            if npc_id:
-                npc_data = world_state.get("npcs", {}).get(npc_id)
-                if npc_data:
-                    areas[area_id]["npcs"].append({
-                        "instance_id": f"{npc_id}_1",  # Synthetic instance ID
-                        "template_id": npc_id,
-                        **npc_data
-                    })
 
         # Build zone info from waypoint + world state
         zone = {
@@ -1505,7 +1620,7 @@ class UnifiedStateManager:
             "zone": zone,
             "areas": areas,
             "player": player_info,
-            "snapshot_version": int(time.time() * 1000)  # Timestamp-based version
+            "snapshot_version": player_view.get("snapshot_version", int(time.time() * 1000))  # Use existing version from player view
         }
 
         logger.info(

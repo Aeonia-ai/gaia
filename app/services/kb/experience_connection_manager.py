@@ -92,6 +92,8 @@ class ExperienceConnectionManager:
         Returns:
             Connection ID for this session
         """
+        logger.warning(f"[CONNECT-DEBUG] connect() called for user_id={user_id}, experience={experience}")
+
         # Generate connection ID if not provided
         if connection_id is None:
             connection_id = str(uuid.uuid4())
@@ -117,11 +119,28 @@ class ExperienceConnectionManager:
             f"user_id={user_id}, experience={experience}"
         )
 
+        # Initialize player state (create view file if first-time connection)
+        try:
+            from app.services.kb.kb_agent import kb_agent
+            if kb_agent.state_manager:
+                await kb_agent.state_manager.ensure_player_initialized(experience, user_id)
+                logger.debug(f"Player initialized for {user_id} in {experience}")
+        except Exception as e:
+            logger.error(f"Failed to initialize player {user_id}: {e}", exc_info=True)
+            # Continue anyway - state operations will fail gracefully
+
         # Create persistent NATS subscription
+        logger.warning(
+            f"[CONNECT-DEBUG] Checking NATS: "
+            f"nats_client={'present' if self.nats_client else 'None'}, "
+            f"is_connected={self.nats_client.is_connected if self.nats_client else 'N/A'}"
+        )
         if self.nats_client and self.nats_client.is_connected:
+            logger.warning(f"[CONNECT-DEBUG] Calling _subscribe_to_nats for connection_id={connection_id}")
             await self._subscribe_to_nats(connection_id, user_id, websocket)
         else:
             logger.warning(
+                f"[CONNECT-DEBUG] NATS check FAILED - "
                 f"NATS client not available for connection {connection_id} - "
                 f"real-time updates disabled"
             )
@@ -145,7 +164,17 @@ class ExperienceConnectionManager:
         # Define NATS event handler
         async def nats_event_handler(event_data: Dict[str, Any]):
             """Forward NATS event to WebSocket client."""
+            logger.warning(f"[WS-FORWARD-DEBUG] nats_event_handler called for connection {connection_id}, event_type={event_data.get('type')}")
+
+            # Check if connection is still active (prevent race condition)
+            if connection_id not in self.active_connections:
+                logger.warning(
+                    f"[WS-FORWARD-DEBUG] Skipping NATS event for closed connection: {connection_id}"
+                )
+                return
+
             try:
+                logger.warning(f"[WS-FORWARD-DEBUG] Sending event to WebSocket: connection_id={connection_id}")
                 # Send event to WebSocket
                 await websocket.send_json(event_data)
 
@@ -153,33 +182,35 @@ class ExperienceConnectionManager:
                 if connection_id in self.connection_metadata:
                     self.connection_metadata[connection_id]["messages_sent"] += 1
 
-                logger.debug(
-                    f"Forwarded NATS event to WebSocket: "
+                logger.warning(
+                    f"[WS-FORWARD-DEBUG] ✅ Forwarded NATS event to WebSocket: "
                     f"connection_id={connection_id}, "
                     f"event_type={event_data.get('type')}"
                 )
             except Exception as e:
                 logger.error(
-                    f"Failed to forward NATS event to WebSocket "
-                    f"(connection_id={connection_id}): {e}"
+                    f"[WS-FORWARD-DEBUG] ❌ Failed to forward NATS event to WebSocket "
+                    f"(connection_id={connection_id}): {e}",
+                    exc_info=True
                 )
 
         try:
             # Subscribe to user-specific world updates
             nats_subject = NATSSubjects.world_update_user(user_id)
+            logger.warning(f"[NATS-SUB-DEBUG] Attempting to subscribe to: {nats_subject}")
             await self.nats_client.subscribe(nats_subject, nats_event_handler)
 
             # Track subscription for cleanup
             self.nats_subscriptions[connection_id] = nats_subject
 
-            logger.info(
-                f"NATS subscription created: connection_id={connection_id}, "
+            logger.warning(
+                f"[NATS-SUB-DEBUG] ✅ NATS subscription created: connection_id={connection_id}, "
                 f"subject={nats_subject}"
             )
         except Exception as e:
             logger.error(
-                f"Failed to create NATS subscription for connection "
-                f"{connection_id}: {e}"
+                f"[NATS-SUB-DEBUG] ❌ Failed to create NATS subscription for connection "
+                f"{connection_id}: {e}", exc_info=True
             )
 
     async def disconnect(self, connection_id: str) -> None:

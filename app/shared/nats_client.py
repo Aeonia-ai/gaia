@@ -72,10 +72,13 @@ class NATSClient:
 
         async def message_handler(msg):
             try:
+                logger.warning(f"[NATS-CALLBACK-DEBUG] Message received on {subject}, size={len(msg.data)} bytes")
                 data = json.loads(msg.data.decode())
+                logger.warning(f"[NATS-CALLBACK-DEBUG] Decoded JSON, calling callback for {subject}")
                 await callback(data)
+                logger.warning(f"[NATS-CALLBACK-DEBUG] Callback completed successfully for {subject}")
             except Exception as e:
-                logger.error(f"Error processing message from {subject}: {e}")
+                logger.error(f"Error processing message from {subject}: {e}", exc_info=True)
 
         try:
             subscription = await self.nc.subscribe(subject, cb=message_handler, queue=queue)
