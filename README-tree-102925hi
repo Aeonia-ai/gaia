@@ -1,0 +1,378 @@
+docs
+├── _archive
+│   ├── +_archive.md
+│   ├── 2025-01-14-work-log.md
+│   ├── aeonia-website-content.md
+│   ├── architecture-overview.md
+│   ├── architecture-recent-updates.md
+│   ├── authentication-lessons-learned.md
+│   ├── current-directory-README.md
+│   ├── deployment-strategy.md
+│   ├── deprecated
+│   │   ├── +deprecated.md
+│   │   ├── bug-orchestrated-endpoint.md
+│   │   ├── claude-2025-01-25-thinking.md
+│   │   ├── kos-documentation-updates.md
+│   │   ├── kos-mmoirl-connection.md
+│   │   ├── missing-gateway-endpoints.md
+│   │   ├── mmoirl-cluster-architecture.md
+│   │   ├── multitenancy-migration-guide.md
+│   │   ├── quick-reference.md
+│   │   ├── redis-chat-architecture.md
+│   │   └── remote-auth-setup.md
+│   ├── kb_performance_comparison.md
+│   ├── kb-wiki-mockup.md
+│   ├── lessons-learned.md
+│   ├── phase-reports
+│   │   ├── +phase-reports.md
+│   │   ├── IMPLEMENTATION_STATUS.md
+│   │   ├── mtls-jwt-migration-plan.md
+│   │   ├── mtls-jwt-phase2-completion.md
+│   │   ├── PHASE_2_MARKERS_COMPLETE.md
+│   │   ├── PHASE_3_REORGANIZATION_COMPLETE.md
+│   │   ├── PHASE_TRANSITION_CHECKLIST.md
+│   │   ├── phase3-completion-report.md
+│   │   └── phase3-implementation-plan.md
+│   ├── README.md
+│   ├── READMEFIRST_PERSONAS_PROGRESS.md
+│   ├── session-states
+│   │   ├── +session-states.md
+│   │   ├── SESSION_STATE_2025-07-19_FINAL.md
+│   │   └── SESSION_STATE_2025-07-19.md
+│   └── test-reports
+│       ├── FLAKY_TESTS.md
+│       ├── TEST_FAILURE_REPORT.md
+│       ├── TEST_IMPROVEMENT_PLAN_COMPLETED.md
+│       ├── TEST_INVENTORY.md
+│       └── TEST_ORGANIZATION.md
+├── _debugging-guides
+│   ├── +_debugging-guides.md
+│   └── distributed-systems-debugging.md
+├── _future
+│   ├── +_future.md
+│   ├── CLIENT_SIDE_SERVER_PLAN.md
+│   ├── README.md
+│   ├── research
+│   │   ├── +research.md
+│   │   ├── multiagent-orchestration.html
+│   │   ├── n8n-integration.md
+│   │   ├── orchestrated-endpoint-design.md
+│   │   └── orchestrated-integration-proposal.md
+│   └── roadmap
+│       ├── +roadmap.md
+│       ├── fasthtml-web-service-plan.md
+│       ├── feature-roadmap.md
+│       └── web-ui-development-status.md
+├── _postmortems
+│   ├── +_postmortems.md
+│   └── 2024-08-04-ai-response-persistence.md
+├── _reports
+│   ├── +_reports.md
+│   ├── auth-test-security-audit.md
+│   ├── chat-service-meta-analysis.md
+│   ├── DOCUMENTATION_IMPROVEMENT_PLAN.md
+│   ├── e2e-test-analysis.md
+│   ├── email-sending-analysis.md
+│   ├── integration-test-final-analysis.md
+│   ├── persona-implementation-learnings.md
+│   ├── README.md
+│   ├── shared-test-user-implementation.md
+│   └── test-execution-findings.md
+├── _research
+│   ├── +_research.md
+│   └── kos-interface-exploration.md
+├── +docs.md
+├── adr
+│   ├── +adr.md
+│   ├── 001-supabase-first-authentication.md
+│   ├── 002-microservice-automation.md
+│   ├── 003-api-key-to-jwt-exchange.md
+│   ├── 003-postgresql-simplicity.md
+│   ├── 004-enabling-personas-with-tdd.md
+│   ├── 009-kb-ephemeral-storage.md
+│   ├── adr-008-user-deletion-cascade-cleanup.md
+│   └── README.md
+├── agents
+│   ├── +agents.md
+│   ├── AGENT_TEMPLATE.md
+│   ├── agent-architecture.md
+│   ├── how-to-invoke-agents.md
+│   ├── README.md
+│   └── tester.md
+├── api
+│   ├── +api.md
+│   ├── api-contracts.md
+│   ├── authentication
+│   │   ├── +authentication.md
+│   │   ├── api-authentication-guide.md
+│   │   ├── gateway-auth-api-contract.md
+│   │   └── oauth-2-extension-spec.md
+│   ├── chat
+│   │   ├── +chat.md
+│   │   └── chat-endpoint-variants-explained.md
+│   ├── clients
+│   │   ├── +clients.md
+│   │   ├── client-usage-guide.md
+│   │   └── GAIA_CLI_CLIENT.md
+│   ├── conversation-id-delivery-patterns.md
+│   ├── kb-driven-command-processing-spec.md
+│   ├── kb-endpoints.md
+│   ├── README.md
+│   ├── reference
+│   │   ├── +reference.md
+│   │   ├── CLIENT_API_REFERENCE.md
+│   │   ├── GAIA_API_MAP.md
+│   │   └── GAIA_API_REFERENCE.md
+│   ├── streaming
+│   │   ├── sse-chunking-implementation.md
+│   │   └── streaming-api-guide.md
+│   └── v03
+│       ├── +v03.md
+│       ├── v03-api-documentation.md
+│       └── v03-client-specification.md
+├── architecture
+│   ├── +architecture.md
+│   ├── chat
+│   │   ├── +chat.md
+│   │   ├── chat-service-cleanup-analysis.md
+│   │   ├── chat-service-implementation.md
+│   │   ├── chat-v2-clean-architecture.md
+│   │   ├── directive-system-vr-ar.md
+│   │   ├── intelligent-tool-routing.md
+│   │   ├── unified-chat-persistence.md
+│   │   └── web-ui-chat-flow.md
+│   ├── database
+│   │   ├── +database.md
+│   │   ├── database-architecture.md
+│   │   ├── portable-database-architecture.md
+│   │   └── postgresql-simplicity-lessons.md
+│   ├── gateway
+│   │   └── authentication-proxying-patterns.md
+│   ├── patterns
+│   │   ├── +patterns.md
+│   │   ├── deferred-initialization-pattern.md
+│   │   ├── service-creation-automation.md
+│   │   ├── service-discovery-guide.md
+│   │   └── service-initialization-pattern.md
+│   ├── README.md
+│   └── services
+│       ├── +services.md
+│       ├── adding-new-microservice.md
+│       ├── microservice-quick-reference.md
+│       ├── microservices-communication-solution.md
+│       ├── microservices-scaling.md
+│       ├── persona-system-guide.md
+│       └── scaling-architecture.md
+├── authentication
+│   ├── +authentication.md
+│   ├── api-key-configuration-guide.md
+│   ├── authentication-guide.md
+│   ├── authentication-status-july-2025.md
+│   ├── authentication-strategy.md
+│   ├── critical-secrets-dependencies.md
+│   ├── mtls-certificate-management.md
+│   ├── security-improvements.md
+│   ├── supabase-auth-implementation-guide.md
+│   ├── supabase-auth-migration-learnings.md
+│   └── troubleshooting-api-key-auth.md
+├── deployment
+│   ├── _archive
+│   │   └── deployment-old
+│   │       ├── database-migration-strategy.md
+│   │       ├── deployment-best-practices.md
+│   │       ├── deployment-pipeline.md
+│   │       ├── deployment-runbook.md
+│   │       ├── deployment-validation-checklist.md
+│   │       ├── production-deployment.md
+│   │       ├── smart-scripts-deployment.md
+│   │       ├── supabase-configuration.md
+│   │       ├── supabase-multi-environment-setup.md
+│   │       └── supabase-single-project-setup.md
+│   ├── +deployment.md
+│   ├── database-migration-strategy.md
+│   ├── deploy-chat.log
+│   ├── deployment-docs-comparison.md
+│   ├── deployment-guide.md
+│   ├── deployment-reference.md
+│   ├── flyio-deployment-config.md
+│   ├── flyio-setup.md
+│   ├── PROPOSED-CONSOLIDATION.md
+│   └── supabase-setup.md
+├── development
+│   ├── +development.md
+│   ├── BRANCH_NOTES.md
+│   ├── claude-code-commands-guide.md
+│   ├── command-reference.md
+│   ├── database-initialization-guide.md
+│   ├── dev-environment-achievement.md
+│   ├── dev-environment-setup.md
+│   ├── e2e-test-findings.md
+│   ├── gaia-refactoring-requirements.md
+│   ├── mcp-agent-hot-loading.md
+│   ├── README.md
+│   ├── redis-integration.md
+│   └── test-execution-strategy.md
+├── features
+│   └── dynamic-experiences
+│       ├── phase-1-mvp
+│       │   ├── 000-admin-commands-quick-start.md
+│       │   ├── 000-mvp-file-based-design.md
+│       │   ├── 001-kb-agent-api.md
+│       │   ├── 002-kb-agent-architecture.md
+│       │   ├── 003-developer-guide.md
+│       │   ├── 004-kb-repository-structure.md
+│       │   ├── 005-experiences-overview.md
+│       │   ├── 006-ai-character-integration.md
+│       │   ├── 007-experience-tools-api.md
+│       │   ├── 008-kb-llm-content-creation.md
+│       │   ├── 009-game-command-developer-guide.md
+│       │   ├── 010-chat-endpoint-execution-paths.md
+│       │   ├── 011-intelligent-chat-routing.md
+│       │   ├── 012-unified-chat-implementation.md
+│       │   ├── 013-unified-intelligent-chat-spec.md
+│       │   ├── 014-chat-request-response-flow.md
+│       │   ├── 015-tool-routing-improvement-spec.md
+│       │   ├── 016-conversation-id-streaming.md
+│       │   ├── 017-streaming-release-notes.md
+│       │   ├── 018-unity-client-guide.md
+│       │   ├── 019-conversation-id-delivery.md
+│       │   ├── 020-mvp-migration-to-classes.md
+│       │   ├── 021-kb-command-processing-spec.md
+│       │   ├── 022-location-tracking-admin-commands.md
+│       │   ├── 023-admin-commands-implementation-guide.md
+│       │   ├── 024-crud-navigation-implementation.md
+│       │   ├── 025-complete-admin-command-system.md
+│       │   ├── 026-instance-management-verification.md
+│       │   ├── 027-npc-communication-system.md
+│       │   ├── 028-game-command-markdown-migration.md
+│       │   ├── 029-game-command-architecture-comparison.md
+│       │   ├── 030-game-command-archival-report.md
+│       │   ├── 030-unified-state-model-implementation.md
+│       │   ├── 031-markdown-command-system.md
+│       │   ├── 032-chat-integration-complete.md
+│       │   ├── 033-admin-command-system.md
+│       │   ├── 034-npc-interaction-system.md
+│       │   ├── 035-product-demo-guide.md
+│       │   ├── 036-experience-reset-guide.md
+│       │   ├── 100-instance-management-implementation.md
+│       │   ├── 101-design-decisions.md
+│       │   └── 102-symphony-collaboration.md
+│       ├── phase-2-scale
+│       │   ├── 000-scale-instance-management-design.md
+│       │   ├── 001-scale-database-schema.md
+│       │   ├── 002-scale-player-progress.md
+│       │   ├── 003-scale-kb-agent-implementation.md
+│       │   └── 004-scale-chat-and-kb-architecture.md
+│       └── phase-3-future-work
+│           ├── 001-mcp-fastapi-integration.md
+│           ├── 002-mcp-integration-strategy.md
+│           ├── 003-multiagent-orchestration.md
+│           └── 004-orchestration-system.md
+├── fixes
+│   └── persona-lost-after-tool-calls.md
+├── kb
+│   ├── +kb.md
+│   ├── developer
+│   │   ├── kb-architecture-guide.md
+│   │   ├── kb-container-storage-migration.md
+│   │   ├── kb-feature-discovery.md
+│   │   ├── kb-git-clone-learnings.md
+│   │   ├── kb-git-sync-learnings.md
+│   │   ├── kb-web-ui-integration.md
+│   │   └── kb-wiki-interface-design.md
+│   ├── guides
+│   │   ├── +guides.md
+│   │   ├── kb-editing-strategy.md
+│   │   ├── kb-git-sync-guide.md
+│   │   ├── kb-integration-implementation.md
+│   │   ├── kb-quick-setup.md
+│   │   ├── kb-storage-configuration.md
+│   │   └── multi-user-kb-guide.md
+│   ├── kb-agent-overview.md
+│   ├── kb-multi-instance-architecture-proposal.md
+│   ├── pgvector-migration-plan.md
+│   ├── README.md
+│   ├── reference
+│   │   ├── +reference.md
+│   │   ├── kb-http-api-reference.md
+│   │   ├── rbac-role-examples.md
+│   │   ├── rbac-system-guide.md
+│   │   └── user-account-rbac-integration.md
+│   ├── semantic-search-guide.md
+│   └── troubleshooting
+│       ├── +troubleshooting.md
+│       ├── kb-deployment-checklist.md
+│       ├── kb-git-secrets-setup.md
+│       ├── kb-remote-deployment-auth.md
+│       ├── kb-remote-hosting-strategy.md
+│       └── kb-search-troubleshooting.md
+├── kb-fastmcp-claude-code-setup.md
+├── kb-fastmcp-integration-status.md
+├── kb-fastmcp-mcp-client-config.md
+├── kb-semantic-search-implementation.md
+├── persona-update-testing.md
+├── personas
+│   └── game-master-persona.md
+├── product
+├── README-FIRST.md
+├── README.md
+├── releases
+│   └── v3-streaming-buffer.md
+├── roadmap
+│   ├── +roadmap.md
+│   └── implementation-status.md
+├── security
+│   ├── +security.md
+│   └── admin-credential-security-recommendations.md
+├── services
+│   ├── +services.md
+│   └── llm-service.md
+├── shared
+│   ├── +shared.md
+│   ├── modules
+│   │   ├── +modules.md
+│   │   ├── instrumentation.md
+│   │   ├── prompt-manager.md
+│   │   └── tool-provider.md
+│   └── shared-modules.md
+├── technical-design
+│   └── v03-streaming-architecture.md
+├── testing
+│   ├── +testing.md
+│   ├── chat-game-testing-guide.md
+│   ├── CRITICAL_TESTING_PRINCIPLE_TESTS_DEFINE_TRUTH.md
+│   ├── mobile-testing-guide.md
+│   ├── README.md
+│   ├── remote-testing-strategy.md
+│   ├── security-testing-strategy.md
+│   ├── streaming-chunk-boundary-test-strategy.md
+│   ├── TEST_CONSOLIDATION_PLAN.md
+│   ├── TEST_INFRASTRUCTURE.md
+│   ├── test-improvement-summary.md
+│   └── TESTING_GUIDE.md
+├── troubleshooting
+│   ├── +troubleshooting.md
+│   ├── inter-service-communication.md
+│   ├── optimization-guide.md
+│   ├── playwright-eventsource-issue.md
+│   ├── sse-streaming-gotchas.md
+│   └── troubleshooting-flyio-dns.md
+├── unified-state-model
+│   ├── config-examples.md
+│   ├── experience-config-schema.md
+│   └── markdown-command-format.md
+├── unity
+│   └── unity-integration-guide.md
+├── unity-chatclient-feedback-action-items.md
+└── web-ui
+    ├── +web-ui.md
+    ├── auth-layout-isolation.md
+    ├── css-style-guide.md
+    ├── fasthtml-ft-async-guide.md
+    ├── fasthtml-web-service.md
+    ├── htmx-fasthtml-debugging-guide.md
+    ├── layout-constraints.md
+    ├── web-service-standardization-spec.md
+    └── web-testing-strategy-post-standardization.md
+
+58 directories, 318 files

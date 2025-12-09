@@ -156,6 +156,9 @@ services:
       - KB_MCP_ENABLED=true
       - KB_MODE=local
       - KB_MULTI_USER_ENABLED=false  # Disable for semantic search testing
+      # Development: Prevent Python bytecode caching for hot reload
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
     ports:
       - "8001:8000"  # Expose KB service for testing (avoid conflict with local services)
     depends_on:
@@ -173,7 +176,7 @@ services:
   kb-docs:
     build:
       context: .
-      dockerfile: Dockerfile.kb
+      dockerfile: Dockerfile.kb.docs
     volumes:
       - ./app:/app/app
       - ../../Vaults:/vaults:rw  # Direct filesystem mount for instant updates
@@ -290,6 +293,7 @@ services:
       context: .
       dockerfile: Dockerfile.test
     volumes:
+      - ./app:/app/app
       - ./tests:/app/tests
       - mcp_data:/app/data/kb
     env_file:

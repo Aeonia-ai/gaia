@@ -61,7 +61,7 @@ async def simple_lightweight_chat_endpoint(
         # Call Anthropic directly
         start_time = time.time()
         response = anthropic_client.messages.create(
-            model=request.model or "claude-3-5-sonnet-20241022",
+            model=request.model or "claude-sonnet-4-5",
             messages=messages,
             max_tokens=2000,
             temperature=0.7
@@ -86,7 +86,7 @@ async def simple_lightweight_chat_endpoint(
             "id": f"chat-{auth_key}-{len(chat_histories[auth_key])}",
             "object": "chat.completion",
             "created": int(time.time()),
-            "model": request.model or "claude-3-5-sonnet-20241022",
+            "model": request.model or "claude-sonnet-4-5",
             "choices": [{
                 "index": 0,
                 "message": {

@@ -20,10 +20,12 @@ import hashlib
 from datetime import datetime
 from typing import Dict, Any, Optional
 
-from fastapi import FastAPI, Request, Depends, HTTPException, status
+from fastapi import FastAPI, Request, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, Response
+import websockets
+from websockets.exceptions import ConnectionClosed, WebSocketException, InvalidURI
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -43,6 +45,8 @@ from app.shared import (
     database_health_check,
     supabase_health_check
 )
+from app.shared.security import get_current_user_ws
+from app.shared.config import GaiaSettings, get_settings
 from app.shared.redis_client import redis_client, CacheManager
 from app.gateway.cache_middleware import CacheMiddleware
 from app.services.gateway.routes.locations_endpoints import router as locations_router
@@ -1168,6 +1172,175 @@ async def v1_resend_verification(request: Request):
     except Exception as e:
         logger.error(f"Resend verification error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ========================================================================================
+# WEBSOCKET PROXY
+# ========================================================================================
+
+class WebSocketConnectionPool:
+    """Manages WebSocket connections to backend services with rate limiting."""
+
+    def __init__(self, max_connections: int = 100):
+        self.semaphore = asyncio.Semaphore(max_connections)
+        logger.info(f"WebSocket connection pool initialized (max: {max_connections})")
+
+    async def connect(self, uri: str):
+        """Connect to backend with rate limiting."""
+        async with self.semaphore:
+            return await websockets.connect(uri)
+
+# Initialize pool (singleton pattern)
+ws_pool = WebSocketConnectionPool(max_connections=100)
+
+@app.websocket("/ws/experience")
+async def websocket_proxy(
+    websocket: WebSocket,
+    token: str = Query(..., description="JWT authentication token"),
+    experience: str = Query(..., description="Experience ID (e.g., wylding-woods)"),
+    settings: GaiaSettings = Depends(get_settings)
+):
+    """
+    WebSocket proxy to KB Service experience endpoint.
+
+    Implements transparent bidirectional tunneling with authentication at Gateway
+    (defense-in-depth) and re-validation at KB Service. Uses asyncio tasks for
+    concurrent read/write streams with FIRST_EXCEPTION shutdown strategy.
+
+    Design Patterns:
+    - async-python-patterns Pattern 3: Task Creation and Management
+    - async-python-patterns Pattern 4: Error Handling in Async Code
+    - async-python-patterns Pattern 9: Semaphore for Rate Limiting
+    - fastapi-templates: Dependency Injection
+    - Perplexity: WebSocket Proxy with asyncio.wait(FIRST_EXCEPTION)
+
+    Args:
+        websocket: Client WebSocket connection
+        token: JWT token for authentication
+        experience: Experience identifier
+        settings: Application settings (injected via Depends)
+
+    WebSocket Close Codes:
+        1008: Authentication failed (invalid/expired JWT)
+        1011: Internal server error (backend unavailable, proxy error)
+    """
+    user_email: Optional[str] = None
+
+    # STEP 1: Authenticate at Gateway (defense-in-depth)
+    try:
+        await websocket.accept()
+        user_payload = await get_current_user_ws(websocket, token)
+        user_id = user_payload.get("sub")
+        user_email = user_payload.get("email")
+        logger.info(f"WebSocket proxy authenticated: {user_email} ({user_id})")
+    except Exception as e:
+        logger.error(f"WebSocket authentication failed: {e}")
+        return  # get_current_user_ws() already closed connection with code 1008
+
+    # STEP 2: Build backend URL
+    kb_ws_url = f"{settings.KB_SERVICE_URL.replace('http', 'ws')}/ws/experience"
+    kb_full_url = f"{kb_ws_url}?token={token}&experience={experience}"
+
+    backend_ws: Optional[websockets.WebSocketClientProtocol] = None
+
+    try:
+        # STEP 3: Connect to KB Service with connection pooling
+        backend_ws = await ws_pool.connect(kb_full_url)
+        logger.info(f"WebSocket proxy connected to KB Service for {user_email}")
+
+        # STEP 4: Define bidirectional proxy tasks
+        async def client_to_backend():
+            """Forward messages from client to KB Service."""
+            try:
+                while True:
+                    data = await websocket.receive_text()
+                    await backend_ws.send(data)
+                    logger.debug(f"Proxied client→KB: {data[:100]}")
+            except WebSocketDisconnect:
+                logger.info(f"Client disconnected: {user_email}")
+            except ConnectionClosed:
+                logger.info(f"Backend closed for: {user_email}")
+            except asyncio.CancelledError:
+                logger.debug(f"client_to_backend cancelled for: {user_email}")
+                raise
+            except Exception as e:
+                logger.error(f"Error in client→backend: {e}", exc_info=True)
+                raise
+
+        async def backend_to_client():
+            """Forward messages from KB Service to client."""
+            try:
+                while True:
+                    data = await backend_ws.recv()
+                    await websocket.send_text(data)
+                    logger.debug(f"Proxied KB→client: {data[:100]}")
+            except WebSocketDisconnect:
+                logger.info(f"Client disconnected: {user_email}")
+            except ConnectionClosed:
+                logger.info(f"Backend closed for: {user_email}")
+            except asyncio.CancelledError:
+                logger.debug(f"backend_to_client cancelled for: {user_email}")
+                raise
+            except Exception as e:
+                logger.error(f"Error in backend→client: {e}", exc_info=True)
+                raise
+
+        # STEP 5: Run both directions concurrently
+        tasks = [
+            asyncio.create_task(client_to_backend(), name=f"c2b-{user_email}"),
+            asyncio.create_task(backend_to_client(), name=f"b2c-{user_email}")
+        ]
+
+        done, pending = await asyncio.wait(
+            tasks,
+            return_when=asyncio.FIRST_EXCEPTION
+        )
+
+        # STEP 6: Cleanup - Cancel remaining tasks
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                logger.debug(f"Task {task.get_name()} cancelled during cleanup")
+
+        # STEP 7: Check for exceptions and close appropriately
+        for task in done:
+            exc = task.exception()
+            if exc and not isinstance(exc, (WebSocketDisconnect, ConnectionClosed)):
+                logger.error(f"Task {task.get_name()} failed: {exc}", exc_info=exc)
+                try:
+                    await websocket.close(
+                        code=status.WS_1011_INTERNAL_ERROR,
+                        reason="Proxy error"
+                    )
+                except Exception:
+                    pass
+
+        logger.info(f"WebSocket proxy closed cleanly for {user_email}")
+
+    except InvalidURI as e:
+        logger.error(f"Invalid KB Service URL: {kb_full_url} - {e}")
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Configuration error")
+
+    except WebSocketException as e:
+        logger.error(f"Failed to connect to KB Service: {e}")
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Backend unavailable")
+
+    except Exception as e:
+        logger.error(f"Unexpected WebSocket proxy error: {e}", exc_info=True)
+        try:
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Internal error")
+        except Exception:
+            pass
+
+    finally:
+        # Always cleanup backend connection
+        if backend_ws:
+            try:
+                await backend_ws.close()
+                logger.debug(f"Backend WebSocket closed for {user_email}")
+            except Exception as e:
+                logger.warning(f"Error closing backend WebSocket: {e}")
 
 # ========================================================================================
 # SERVICE COORDINATION AND LIFECYCLE

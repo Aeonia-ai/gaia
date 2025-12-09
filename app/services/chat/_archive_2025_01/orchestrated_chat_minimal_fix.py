@@ -55,7 +55,7 @@ async def process_chat(
         # FIX: Return standard format matching other endpoints
         return {
             "response": response.get("content", ""),
-            "model": response.get("model", "claude-3-5-sonnet-20241022"),
+            "model": response.get("model", "claude-sonnet-4-5"),
             "usage": response.get("usage", {}),
             "_metadata": {
                 "route": route,

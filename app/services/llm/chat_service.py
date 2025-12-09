@@ -53,6 +53,7 @@ class MultiProviderChatService:
         max_response_time_ms: Optional[int] = None,
         required_capabilities: Optional[List[ModelCapability]] = None,
         user_id: Optional[str] = None,
+        user_email: Optional[str] = None,
         enable_fallback: bool = True,
         force_provider: bool = False,
         temperature: float = 0.7,
@@ -174,46 +175,78 @@ class MultiProviderChatService:
                     "intelligence_disabled": False
                 })
             
-            # 2. Convert messages to LLM format
-            llm_messages = [
-                LLMMessage(
-                    role=msg["role"],
-                    content=msg["content"],
-                    tool_calls=msg.get("tool_calls"),
-                    tool_call_id=msg.get("tool_call_id")
+            # 2. Convert messages to LLM format / create request
+            def _invalid_message(detail: str) -> None:
+                instrumentation.complete_request(request_id, {
+                    "provider": provider.value if provider else None,
+                    "model": model,
+                    "success": False,
+                    "error": f"invalid_request_payload: {detail}"
+                })
+                raise HTTPException(status_code=400, detail=f"Invalid chat message format: {detail}")
+
+            llm_messages = []
+            for msg in messages:
+                if not isinstance(msg, dict):
+                    _invalid_message(f"Message must be a dict, received {type(msg).__name__}")
+
+                missing_fields = [field for field in ("role", "content") if field not in msg]
+                if missing_fields:
+                    _invalid_message(f"Missing fields: {', '.join(missing_fields)}")
+
+                content = msg["content"]
+                if not isinstance(content, str):
+                    _invalid_message(f"Message content must be a string, received {type(content).__name__}")
+
+                llm_messages.append(
+                    LLMMessage(
+                        role=msg["role"],
+                        content=content,
+                        tool_calls=msg.get("tool_calls"),
+                        tool_call_id=msg.get("tool_call_id")
+                    )
                 )
-                for msg in messages
-            ]
-            
-            # 3. Create LLM request
-            llm_request = LLMRequest(
-                messages=llm_messages,
-                model=model,
-                system_prompt=system_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                tools=tools,
-                tool_choice=tool_choice,
-                user_id=user_id,
-                metadata={
-                    "start_time": start_time,
-                    "request_id": request_id
-                }
-            )
-            
+
+            try:
+                llm_request = LLMRequest(
+                    messages=llm_messages,
+                    model=model,
+                    system_prompt=system_prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    user_id=user_id,
+                    user_email=user_email,
+                    metadata={
+                        "start_time": start_time,
+                        "request_id": request_id
+                    }
+                )
+            except (TypeError, ValueError) as e:
+                error_detail = f"Invalid LLM request payload: {str(e)}"
+                record_stage(request_id, "invalid_request_payload", metadata={"error": error_detail})
+                instrumentation.complete_request(request_id, {
+                    "provider": provider.value if provider else None,
+                    "model": model,
+                    "success": False,
+                    "error": error_detail
+                })
+                raise HTTPException(status_code=400, detail=error_detail)
+
             # 4. Get provider and make request
             provider_instance = await self.registry.get_provider(provider)
             record_stage(request_id, "provider_request_start", metadata={
                 "provider": provider.value,
                 "model": model
             })
-            
+
             response = await instrument_async_operation(
                 request_id,
                 "provider_api_call",
                 provider_instance.chat_completion(llm_request)
             )
-            
+
             # 5. Record success metrics
             self.registry.record_request(
                 provider=provider,
@@ -222,7 +255,7 @@ class MultiProviderChatService:
                 response_time_ms=response.response_time_ms or 0,
                 error=False
             )
-            
+
             # 6. Return formatted response
             final_response = {
                 "response": response.content,
@@ -236,7 +269,7 @@ class MultiProviderChatService:
                 "finish_reason": response.finish_reason,
                 "request_id": request_id
             }
-            
+
             # Complete instrumentation
             instrumentation.complete_request(request_id, {
                 "provider": provider.value,
@@ -245,7 +278,7 @@ class MultiProviderChatService:
                 "token_count": response.usage.get("total_tokens", 0),
                 "fallback_used": fallback_used
             })
-            
+
             return final_response
             
         except LLMProviderError as e:
@@ -263,7 +296,7 @@ class MultiProviderChatService:
             })
             
             # Try fallback if enabled
-            if enable_fallback and not fallback_used:
+            if enable_fallback and not fallback_used and e.error_code != "invalid_request_payload":
                 logger.info("Attempting fallback to alternative provider")
                 fallback_used = True
                 
@@ -330,8 +363,12 @@ class MultiProviderChatService:
             })
             
             # If all fallbacks failed, raise the original error
-            raise HTTPException(status_code=500, detail=f"Chat completion failed: {str(e)}")
-            
+            status_code = 400 if e.error_code == "invalid_request_payload" else 500
+            raise HTTPException(status_code=status_code, detail=f"Chat completion failed ({e.error_code or 'provider_error'}): {str(e)}")
+
+        except HTTPException:
+            raise
+
         except Exception as e:
             logger.error(f"Unexpected error in chat completion: {str(e)}")
             
@@ -355,6 +392,7 @@ class MultiProviderChatService:
         max_response_time_ms: Optional[int] = None,
         required_capabilities: Optional[List[ModelCapability]] = None,
         user_id: Optional[str] = None,
+        user_email: Optional[str] = None,
         enable_fallback: bool = True,
         force_provider: bool = False,
         temperature: float = 0.7,
@@ -473,6 +511,7 @@ class MultiProviderChatService:
                 tools=tools,
                 tool_choice=tool_choice,
                 user_id=user_id,
+                user_email=user_email, # Pass user_email here
                 metadata={
                     "start_time": start_time,
                     "request_id": request_id

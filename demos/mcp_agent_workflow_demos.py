@@ -75,7 +75,7 @@ class MCPAgentWorkflowDemos:
                     response = await llm.generate_str(
                         message=q,
                         request_params=RequestParams(
-                            model="claude-3-5-sonnet-20241022",
+                            model="claude-sonnet-4-5",
                             temperature=0.7,
                             maxTokens=150
                         )
@@ -138,7 +138,7 @@ class MCPAgentWorkflowDemos:
             result = await orchestrator.generate_str(
                 message=complex_task,
                 request_params=RequestParams(
-                    model="claude-3-5-sonnet-20241022",
+                    model="claude-sonnet-4-5",
                     maxTokens=2000,
                     max_iterations=5
                 )
@@ -203,7 +203,7 @@ class MCPAgentWorkflowDemos:
                     tasks.append(llm.generate_str(
                         message=task,
                         request_params=RequestParams(
-                            model="claude-3-5-sonnet-20241022",
+                            model="claude-sonnet-4-5",
                             maxTokens=300
                         )
                     ))

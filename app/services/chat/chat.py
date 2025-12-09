@@ -177,6 +177,9 @@ async def unified_chat_endpoint(
         
         from .unified_chat import unified_chat_handler
         
+        # Extract user_email from auth_principal
+        user_email = auth_principal.get("email")
+
         # Check for response format preference (can be in body or headers)
         response_format = body.get("response_format", request.headers.get("X-Response-Format", "openai")).lower()
         if response_format not in ["openai", "v0.3"]:
@@ -225,7 +228,8 @@ async def unified_chat_endpoint(
                     async for chunk in unified_chat_handler.process_stream(
                         message=message,
                         auth=auth_principal,
-                        context=context
+                        context=context,
+                        user_email=user_email # Pass user_email here
                     ):
                         # Format as SSE
                         yield f"data: {json.dumps(chunk)}\n\n"
@@ -261,7 +265,8 @@ async def unified_chat_endpoint(
             result = await unified_chat_handler.process(
                 message=message,
                 auth=auth_principal,
-                context=context
+                context=context,
+                user_email=user_email # Pass user_email here
             )
             
             # Convert to requested format if needed

@@ -21,7 +21,16 @@ from app.services.chat.lightweight_chat_hot import hot_chat_service
 from app.services.llm import LLMProvider
 import httpx
 from app.shared.config import settings
-from .kb_tools import KB_TOOLS, KBToolExecutor
+from .kb_tools import (
+    KB_TOOLS,
+    KBToolExecutor,
+    NPC_TOOLS,
+    EXPERIENCE_TOOLS,
+    KB_SEARCH_TOOLS,
+    GENERAL_KB_TOOLS
+)
+from app.shared.nats_client import NATSSubjects
+from app.shared.stream_utils import merge_async_streams
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +134,11 @@ class UnifiedChatHandler:
         # Pre-initialized services (hot-loaded)
         self.mcp_hot_service = hot_chat_service  # Already initialized at startup
         self.multiagent_orchestrator = None  # TODO: Initialize when available
-        
+        self.include_aux_tools = settings.CHAT_INCLUDE_AUX_TOOLS
+        self._experience_cache = {"timestamp": 0.0, "data": []}
+        self._experience_cache_ttl = settings.CHAT_EXPERIENCE_CACHE_TTL_SECONDS
+        self._current_persona_name = "default"  # Track current persona for tool filtering
+
         # Routing tools definition (for services that need routing)
         self.routing_tools = [
             {
@@ -204,8 +217,61 @@ class UnifiedChatHandler:
             "avg_routing_time_ms": 0,
             "avg_total_time_ms": 0
         }
-    
-    async def process(self, message: str, auth: dict, context: Optional[dict] = None) -> dict:
+
+    def _get_routing_tools_for_persona(self, persona_name: str) -> List[Dict]:
+        """
+        Get routing tools filtered by persona type.
+
+        Different personas have different access levels:
+        - NPCs (Louisa): No routing tools (in-game characters shouldn't access external systems)
+        - Game Master: Only use_asset_service (for generating game assets)
+        - Default: All routing tools (general assistant needs full access)
+        """
+        persona_lower = persona_name.lower()
+
+        if persona_lower == "louisa":
+            # NPCs get NO routing tools - they're in-game characters
+            return []
+
+        elif persona_lower in ["game master", "gamemaster"]:
+            # Game Master gets only asset service (for generating game content)
+            return [tool for tool in self.routing_tools
+                    if tool["function"]["name"] == "use_asset_service"]
+
+        else:
+            # Default: All routing tools
+            return self.routing_tools
+
+    def _get_kb_tools_for_persona(self, persona_name: str) -> List[Dict]:
+        """
+        Get KB tools filtered by persona type.
+
+        Different personas need different KB tools:
+        - NPCs (Louisa): NPC-specific tools (quest, inventory, rewards)
+        - Game Master: Experience tools + search tools (for game & lore lookup)
+        - Default: General KB tools (personal knowledge management)
+        """
+        persona_lower = persona_name.lower()
+
+        if persona_lower == "louisa":
+            # NPCs get only NPC-specific tools
+            return NPC_TOOLS
+
+        elif persona_lower in ["game master", "gamemaster"]:
+            # Game Master gets experience tools + search for lore lookup
+            return EXPERIENCE_TOOLS + KB_SEARCH_TOOLS
+
+        else:
+            # Default: General KB tools
+            return GENERAL_KB_TOOLS
+
+    async def process(
+        self,
+        message: str,
+        auth: dict,
+        context: Optional[dict] = None,
+        user_email: Optional[str] = None
+    ) -> dict:
         """
         Process message with intelligent routing.
 
@@ -270,8 +336,17 @@ class UnifiedChatHandler:
         # Update metrics
         self._routing_metrics["total_requests"] += 1
 
+        if not user_email:
+            user_email = (
+                auth.get("email")
+                or auth.get("user_email")
+                or auth.get("preferred_username")
+            )
+        if not user_email and context:
+            user_email = context.get("user_email")
+
         # Pre-create conversation_id for unified behavior (matches streaming)
-        conversation_id = await self._get_or_create_conversation_id(message, context, auth)
+        conversation_id = await self._get_or_create_conversation_id(message, context, auth, user_email)
 
         # Update context with the conversation_id for any future operations
         if context is None:
@@ -315,9 +390,12 @@ class UnifiedChatHandler:
             print(f"[PERSONA FIX] System prompt passed via parameter, not in messages")
             for i, msg in enumerate(messages):
                 print(f"[MESSAGES DEBUG] Message {i} - Role: {msg['role']}, Content preview: {msg['content'][:100]}...")
-            
-            # Combine routing tools with KB tools
-            all_tools = self.routing_tools + KB_TOOLS
+
+            # Filter tools based on persona type
+            routing_tools = self._get_routing_tools_for_persona(self._current_persona_name)
+            kb_tools = self._get_kb_tools_for_persona(self._current_persona_name)
+            all_tools = routing_tools + kb_tools
+            logger.info(f"[TOOL FILTERING] Persona '{self._current_persona_name}' gets {len(routing_tools)} routing tools + {len(kb_tools)} KB tools")
             
             # Use chat service with all available tools
             routing_response = await chat_service.chat_completion(
@@ -351,10 +429,23 @@ class UnifiedChatHandler:
                     # For Anthropic, tool results are included as user messages
                     tool_result_content = "\n\nTool Results:\n"
                     for result in tool_results:
-                        # Extract just the text content, not the full JSON to avoid formatting issues
-                        if result['result'].get('success') and result['result'].get('content'):
+                        # Extract text content based on tool type
+                        content = None
+
+                        # Game commands have 'narrative' field (extract regardless of success/failure)
+                        if 'narrative' in result['result']:
+                            content = result['result']['narrative']
+                            # Optionally include suggestions for successful commands
+                            if result['result'].get('success') and result['result'].get('next_suggestions'):
+                                suggestions = ", ".join(result['result']['next_suggestions'][:3])
+                                content += f"\n\n💡 Try: {suggestions}"
+                        # Other KB tools have 'content' field
+                        elif result['result'].get('content'):
+                            content = result['result']['content']
+
+                        if content:
                             # Clean the content of potential problematic characters
-                            content = result['result']['content'].replace('🔍', '[SEARCH]').replace('**', '')
+                            content = content.replace('🔍', '[SEARCH]').replace('**', '')
                             formatted_result = f"\n{result['tool']}:\n{content}\n"
                         else:
                             formatted_result = f"\n{result['tool']}:\nNo results found\n"
@@ -683,12 +774,19 @@ class UnifiedChatHandler:
         self,
         message: str,
         auth: dict,
-        context: Optional[dict] = None
+        context: Optional[dict] = None,
+        user_email: Optional[str] = None
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process message with intelligent routing and streaming response.
 
-        Yields OpenAI-compatible SSE chunks for streaming.
+        Integrates NATS world_update events for real-time game state changes.
+
+        NATS Integration: Subscribes to world.updates.user.{user_id} to receive
+        real-time state changes (location updates, inventory changes, world events).
+        These events are interleaved with LLM narrative chunks for immersive AR experiences.
+
+        Yields OpenAI-compatible SSE chunks for streaming, with NATS events prioritized.
 
         TODO: REFACTOR NEEDED - Code Duplication with process()
         ========================================================================
@@ -757,7 +855,7 @@ class UnifiedChatHandler:
         full_context = await self.build_context(auth, context)
 
         # Pre-create conversation_id for streaming
-        conversation_id = await self._get_or_create_conversation_id(message, context, auth)
+        conversation_id = await self._get_or_create_conversation_id(message, context, auth, user_email)
 
         # Update context with the conversation_id for any future operations
         if context is None:
@@ -766,6 +864,34 @@ class UnifiedChatHandler:
 
         # Track accumulated response for saving after streaming
         accumulated_response = ""
+
+        # NATS world_update subscription
+        # Subscribe to user-specific NATS subject for real-time state updates
+        nats_client = None
+        nats_subject = None
+        nats_queue = asyncio.Queue()
+
+        user_id = auth.get("user_id") or auth.get("sub")
+        if user_id:
+            try:
+                # Import global NATS client from main
+                from app.services.chat.main import nats_client as global_nats_client
+                nats_client = global_nats_client
+
+                if nats_client and nats_client.is_connected:
+                    nats_subject = NATSSubjects.world_update_user(user_id)
+
+                    # NATS callback: forward events to queue
+                    async def nats_event_handler(data):
+                        await nats_queue.put(data)
+
+                    await nats_client.subscribe(nats_subject, nats_event_handler)
+                    logger.info(f"[{request_id}] Subscribed to NATS: {nats_subject}")
+                else:
+                    logger.warning(f"[{request_id}] NATS client not connected, proceeding without world updates")
+            except Exception as e:
+                logger.warning(f"[{request_id}] Could not subscribe to NATS: {e}")
+                nats_client = None  # Graceful degradation
 
         try:
             # Emit conversation metadata as first event for V0.3 streaming
@@ -803,8 +929,11 @@ class UnifiedChatHandler:
                 "content": message
             })
 
-            # Combine routing tools with KB tools (matches non-streaming at line 320)
-            all_tools = self.routing_tools + KB_TOOLS
+            # Filter tools based on persona type (matches non-streaming)
+            routing_tools = self._get_routing_tools_for_persona(self._current_persona_name)
+            kb_tools = self._get_kb_tools_for_persona(self._current_persona_name)
+            all_tools = routing_tools + kb_tools
+            logger.info(f"[TOOL FILTERING STREAM] Persona '{self._current_persona_name}' gets {len(routing_tools)} routing tools + {len(kb_tools)} KB tools")
 
             # First, make routing decision (non-streaming)
             routing_response = await chat_service.chat_completion(
@@ -842,12 +971,31 @@ class UnifiedChatHandler:
                     # Execute KB tool
                     kb_executor = KBToolExecutor(auth)
                     kb_result = await kb_executor.execute_tool(tool_name, tool_args)
-                    
-                    # Format the response
-                    if kb_result.get('success') and kb_result.get('content'):
-                        content = kb_result['content']
+
+                    # Format the response based on tool type
+                    if kb_result.get('success'):
+                        # Game command responses have 'narrative' field
+                        if 'narrative' in kb_result:
+                            content = kb_result['narrative']
+
+                            # Optionally append next suggestions for guidance
+                            if kb_result.get('next_suggestions'):
+                                suggestions = ", ".join(kb_result['next_suggestions'][:3])
+                                content += f"\n\n💡 Try: {suggestions}"
+
+                        # Other KB tools have 'content' field
+                        elif kb_result.get('content'):
+                            content = kb_result['content']
+                        else:
+                            content = "Command executed successfully."
                     else:
-                        content = f"No results found for: {tool_args.get('query', 'your search')}"
+                        # Handle errors - prefer narrative over error message
+                        if 'narrative' in kb_result:
+                            content = kb_result['narrative']
+                        else:
+                            error = kb_result.get('error', {})
+                            error_msg = error.get('message', 'Unknown error')
+                            content = f"❌ {error_msg}"
 
                     # Track for saving after streaming
                     accumulated_response = content
@@ -1404,6 +1552,15 @@ class UnifiedChatHandler:
                 buffer = StreamBuffer(preserve_json=True, chunking_mode="phrase")
                 print(f"[TTFC DEBUG] Starting buffer.process() loop...")
                 async for chunk_text in buffer.process(content):
+                    # Check for NATS events first (prioritized over LLM chunks)
+                    while not nats_queue.empty():
+                        try:
+                            nats_event = nats_queue.get_nowait()
+                            logger.info(f"[{request_id}] Yielding NATS event: {nats_event.get('type', 'unknown')}")
+                            yield nats_event  # Yield NATS event directly
+                        except asyncio.QueueEmpty:
+                            break
+
                     print(f"[TTFC DEBUG] Got chunk from buffer, length: {len(chunk_text)}")
                     # Track first content chunk timing
                     if first_content_time is None:
@@ -1476,6 +1633,14 @@ class UnifiedChatHandler:
                 }
             }
         finally:
+            # Clean up NATS subscription
+            if nats_client and nats_subject:
+                try:
+                    await nats_client.unsubscribe(nats_subject)
+                    logger.info(f"[{request_id}] Unsubscribed from NATS: {nats_subject}")
+                except Exception as e:
+                    logger.warning(f"[{request_id}] Error unsubscribing from NATS: {e}")
+
             # Save conversation messages after streaming completes (success or error)
             if accumulated_response:
                 try:
@@ -1493,71 +1658,108 @@ class UnifiedChatHandler:
         """
         System prompt that helps LLM make routing decisions with persona.
         """
-        # Get persona prompt first
+        # Get persona prompt and name
         user_id = context.get('user_id', 'unknown')
         try:
             from app.shared.prompt_manager import PromptManager
-            persona_prompt = await PromptManager.get_system_prompt(user_id=user_id)
-            logger.info(f"[PERSONA DEBUG] Loaded persona for user {user_id}: {persona_prompt[:100]}...")
+            persona_prompt, persona_name = await PromptManager.get_system_prompt_and_persona(user_id=user_id)
+            self._current_persona_name = persona_name  # Store for tool filtering
+            logger.info(f"[PERSONA DEBUG] Loaded persona '{persona_name}' for user {user_id}: {persona_prompt[:100]}...")
         except Exception as e:
             logger.error(f"[PERSONA DEBUG] Failed to load persona for user {user_id}: {e}")
             persona_prompt = "You are a helpful AI assistant."
+            self._current_persona_name = "default"
         
-        # Build the tools/routing section
-        tools_section = f"""You can either respond directly or use specialized tools when needed.
+        experiences = await self._get_experience_catalog()
+        if experiences:
+            max_entries = 5
+            experience_lines = []
+            for exp in experiences[:max_entries]:
+                name = exp.get("name") or exp.get("id") or "unknown"
+                identifier = exp.get("id") or name
+                description = (exp.get("description") or "").strip()
+                if description and len(description) > 140:
+                    description = description[:140].rstrip() + "…"
+                capabilities = exp.get("capabilities") or []
+                cap_text = f" (capabilities: {', '.join(capabilities)})" if capabilities else ""
+                detail = description or ""
+                suffix = f" {detail}" if detail else ""
+                experience_lines.append(f"- **{name}** (`{identifier}`){cap_text}{suffix}")
+            experience_list = "\n".join(experience_lines)
+        else:
+            experience_list = "- Experiences are discovered dynamically. Say \"I want to play <experience>\" to select one."
 
-Current context:
+        tools_section = f"""### Experience Interaction
+- Always call `interact_with_experience` for gameplay, quests, NPC conversations, inventory, or admin commands.
+- Pass the player's natural-language instruction in `message`. The tool remembers the current experience for each user.
+- To switch experiences, send `message: \"I want to play <experience>\"` (optionally set `experience`).
+- Admin commands use the same tool but MUST start with `@` (e.g., `@list waypoints`). Never execute admin logic directly.
+- After the tool responds, summarize the narrative/state updates instead of fabricating outcomes.
+
+**Current context**
 - User: {context.get('user_id', 'unknown')}
 - Conversation: {context.get('conversation_id', 'new')}
 - Message count: {context.get('message_count', 0)}
 
-IMPORTANT: Always check conversation history FIRST before using any tools.
+**Available experiences**
+{experience_list}
 
-Direct responses (NO tools needed) for:
-- Questions about information mentioned in the current conversation
-- Conversation memory: "What did I tell you about X?", "What is my lucky number?", "Remember when I said..."
-- General knowledge: "What's the capital of France?" → "Paris"
-- Math: "What is 2+2?" → "4"
-- Explanations: "How does photosynthesis work?" → Direct explanation
-- Opinions: "What do you think about AI?" → Direct discussion
+**Discovery tips**
+- Ask the user what they want to do, then forward that request verbatim to `interact_with_experience`.
+- Call the tool with `message: \"help\"` or ask for available actions whenever you need the command list.
+- Use `force_experience_selection=true` when the user has not chosen an experience yet and needs the selection prompt.
+"""
 
-Knowledge Base (KB) tools should ONLY be used when:
-- Information is NOT available in conversation history AND
-- User explicitly asks for stored/archived knowledge: "find my notes on Y", "search my documents for X"
-- Work continuity: "continue where we left off", "what was I working on" → load_kos_context  
-- Thread management: "show active threads", "load project context" → load_kos_context
-- Cross-domain synthesis: "how does X relate to Y", "connect A with B" → synthesize_kb_information
+        if self.include_aux_tools:
+            tools_section += """
 
-Respond DIRECTLY (without tools) for:
-- Greetings and casual conversation ("Hello", "How are you?", "Thank you")
-- Simple arithmetic and math ("What is 2+2?", "Calculate 5*3")
-- General knowledge questions ("What's the capital of France?", "Who invented the telephone?")
-- Explanations and teaching ("Explain quantum computing", "How does photosynthesis work?")
-- Opinions, advice, and discussions ("What do you think about...", "Should I...")
-- Creative tasks ("Tell me a joke", "Write a poem", "Create a story")
-- Questions about yourself ("What's your name?", "What can you do?")
-- Hypotheticals and theoretical questions ("What if...", "Imagine...")
+### Auxiliary tools (enabled)
+- `search_knowledge_base` / `read_kb_file`: Only for documentation requests outside gameplay.
+- `use_mcp_agent`: Use exclusively for filesystem/web/system operations explicitly requested by the user.
+- `use_asset_service`: Generate new media assets when the user explicitly asks for images/audio/3D models.
+"""
 
-Use tools ONLY when the user explicitly asks for:
-- File system operations: "read file X", "create file Y", "list files in directory Z", "what files are in..."
-  → use_mcp_agent
-- Knowledge base operations are handled directly with KB tools (search_knowledge_base, read_kb_file, etc.)
-- Asset generation: "generate an image of...", "create a 3D model of...", "make audio of..."
-  → use_asset_service
-- Web searches: "search the web for...", "find online information about...", "what's the latest news on..."
-  → use_mcp_agent
-- System commands: "run command X", "execute script Y", "what's the current time/date"
-  → use_mcp_agent
-- Complex analysis requiring multiple perspectives: "analyze this from technical, business, and legal angles"
-  → use_multiagent_orchestration
+        # ═══════════════════════════════════════════════════════════════════════════
+        # ⚠️  MVP KLUDGE - NPC Interaction Tools Documentation
+        # ═══════════════════════════════════════════════════════════════════════════
+        # Add documentation for NPC-specific tools when this is an NPC persona
+        # This is part of the temporary MVP architecture for Phase 1 demo
+        # Future: Remove when NPC dialogue moves into KB service
+        # ═══════════════════════════════════════════════════════════════════════════
+        tools_section += """
 
-Key principles:
-1. If you can answer the question with your knowledge, respond directly
-2. Only use tools when the user explicitly asks for an external action
-3. "What is X?" or "Explain Y" are knowledge questions - answer directly
-4. "Find X in my files/KB" or "Search for X online" require tools
-5. When uncertain, prefer direct responses - tools add latency"""
-        
+### NPC Interaction Tools (for Louisa persona)
+Use these tools to interact with the game state when talking to players:
+
+**Quest Management:**
+- `check_quest_state`: Check player's quest progress before offering quests or accepting items
+  - Use when: Player asks about quests, or before accepting bottles
+  - Example: `check_quest_state(quest_id="find_dream_bottles")`
+
+**Item Handling:**
+- `accept_bottle_from_player`: Accept a dream bottle when player gives it to you
+  - Use when: Player says "here's the bottle" or "I'm giving you the [bottle name]"
+  - Example: `accept_bottle_from_player(bottle_id="bottle_mystery")`
+  - Bottle IDs: bottle_mystery, bottle_joy, bottle_energy, bottle_nature
+
+- `get_player_inventory`: Check what items the player is carrying
+  - Use when: You need to verify player has items before accepting them
+  - Example: `get_player_inventory()`
+
+**Rewards:**
+- `grant_quest_reward`: Give rewards when player completes tasks
+  - Use when: Player completes quest, returns all bottles, or earns trust
+  - Types: "trust" (increase relationship), "item" (give item), "quest_complete" (mark done)
+  - Example: `grant_quest_reward(reward_type="trust", reward_data={"amount": 10})`
+
+**Guidelines:**
+- Always check quest state BEFORE accepting bottles (verify quest is active)
+- Check inventory BEFORE accepting items (verify player actually has them)
+- Grant trust rewards naturally during conversation (small amounts: 2-5 points)
+- Only mark quest complete when ALL bottles have been returned
+- Stay in character - use tools naturally, don't mention them explicitly
+"""
+
         # Check for directive-enhanced context and add JSON-RPC directive instructions
         if self._is_directive_enhanced_context(context):
             directive_section = """
@@ -1596,6 +1798,33 @@ Guidelines:
             final_prompt = f"{persona_prompt}\n\n{tools_section}"
         
         return final_prompt
+
+    async def _get_experience_catalog(self) -> List[Dict[str, Any]]:
+        """Fetch and cache experience metadata for prompt construction."""
+        now = time.time()
+        if (
+            self._experience_cache["data"]
+            and (now - self._experience_cache["timestamp"] < self._experience_cache_ttl)
+        ):
+            return self._experience_cache["data"]
+
+        url = f"{settings.KB_SERVICE_URL.rstrip('/')}/experience/list"
+        headers = {"Content-Type": "application/json"}
+        if settings.API_KEY:
+            headers["X-API-Key"] = settings.API_KEY
+
+        experiences: List[Dict[str, Any]] = []
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, headers=headers)
+                response.raise_for_status()
+                payload = response.json()
+                experiences = payload.get("experiences", [])
+        except Exception as e:
+            logger.warning(f"Failed to fetch experience catalog: {e}")
+
+        self._experience_cache = {"timestamp": now, "data": experiences}
+        return experiences
     
     def _is_directive_enhanced_context(self, context: dict) -> bool:
         """
@@ -1726,7 +1955,13 @@ Guidelines:
         
         return context
     
-    async def _get_or_create_conversation_id(self, message: str, context: Optional[dict], auth: dict) -> str:
+    async def _get_or_create_conversation_id(
+        self,
+        message: str,
+        context: Optional[dict],
+        auth: dict,
+        user_email: Optional[str] = None
+    ) -> str:
         """Get existing conversation_id or create a new conversation.
 
         This method handles the conversation creation logic for streaming responses
@@ -1735,8 +1970,8 @@ Guidelines:
         Returns the conversation_id.
         """
         conversation_id = context.get("conversation_id") if context else None
+        logger.info(f"[_get_or_create] incoming conversation_id={conversation_id}")
         user_id = auth.get("user_id") or auth.get("sub") or "unknown"
-
         try:
             from .conversation_store import chat_conversation_store
 
@@ -1744,7 +1979,8 @@ Guidelines:
             if not conversation_id or conversation_id == "new":
                 conv = chat_conversation_store.create_conversation(
                     user_id=user_id,
-                    title=message[:50] + "..." if len(message) > 50 else message
+                    title=message[:50] + "..." if len(message) > 50 else message,
+                    user_email=user_email
                 )
                 conversation_id = conv["id"]
                 logger.info(f"Created new conversation: {conversation_id}")
@@ -1756,7 +1992,8 @@ Guidelines:
                     logger.warning(f"Conversation {conversation_id} not found, creating new conversation")
                     conv = chat_conversation_store.create_conversation(
                         user_id=user_id,
-                        title=message[:50] + "..." if len(message) > 50 else message
+                        title=message[:50] + "..." if len(message) > 50 else message,
+                        user_email=user_email
                     )
                     conversation_id = conv["id"]  # Use the new ID
                     logger.info(f"Created new conversation: {conversation_id} (requested ID was not found)")
@@ -1794,7 +2031,14 @@ Guidelines:
             logger.error(f"Error saving conversation messages: {e}")
             # Don't fail the whole request if conversation saving fails
 
-    async def _save_conversation(self, message: str, response: str, context: Optional[dict], auth: dict) -> str:
+    async def _save_conversation(
+        self,
+        message: str,
+        response: str,
+        context: Optional[dict],
+        auth: dict,
+        user_email: Optional[str] = None
+    ) -> str:
         """Save user message and AI response to conversation history.
 
         Returns the conversation_id (creates one if needed).
@@ -1806,7 +2050,19 @@ Guidelines:
             from .conversation_store import chat_conversation_store
 
             # Get or create conversation_id using the shared method
-            conversation_id = await self._get_or_create_conversation_id(message, context, auth)
+            if user_email is None:
+                user_email = (
+                    auth.get("email")
+                    or auth.get("user_email")
+                    or auth.get("preferred_username")
+                )
+
+            conversation_id = await self._get_or_create_conversation_id(
+                message,
+                context,
+                auth,
+                user_email
+            )
 
             # Save messages using the new method
             await self._save_conversation_messages(conversation_id, message, response)

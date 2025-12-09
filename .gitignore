@@ -174,7 +174,9 @@ cython_debug/
 .idea/
 
 # VSCode
-.vscode/
+.vscode/*
+!.vscode/*.example
+!.vscode/README.md
 
 # Docker
 .dockerignore
@@ -266,3 +268,4 @@ jason_api_key.txt
 jason_credentials.txt
 *_api_key.txt
 *_credentials.txt
+scripts/webui/.env

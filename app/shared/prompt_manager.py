@@ -11,22 +11,33 @@ class PromptManager:
         """
         Get system prompt for a user based on their persona.
         """
+        prompt, _ = await PromptManager.get_system_prompt_and_persona(user_id)
+        return prompt
+
+    @staticmethod
+    async def get_system_prompt_and_persona(user_id: str = None) -> tuple[str, str]:
+        """
+        Get system prompt and persona name for a user based on their persona.
+
+        Returns:
+            tuple: (system_prompt, persona_name)
+        """
         if not user_id:
-            return "You are a helpful AI assistant."
-        
+            return ("You are a helpful AI assistant.", "default")
+
         try:
             from app.services.chat.persona_service_postgres import PostgresPersonaService
             persona_service = PostgresPersonaService()
-            
+
             # Try user's persona first, then default
             persona = await persona_service.get_user_persona(user_id)
             if not persona:
                 persona = await persona_service.get_default_persona()
-            
+
             if persona and persona.system_prompt:
-                return persona.system_prompt
-                
+                return (persona.system_prompt, persona.name)
+
         except Exception:
             pass
-        
-        return "You are a helpful AI assistant."
+
+        return ("You are a helpful AI assistant.", "default")

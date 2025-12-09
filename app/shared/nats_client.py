@@ -18,6 +18,7 @@ class NATSClient:
         self.nats_url = nats_url or os.getenv('NATS_URL', 'nats://localhost:4222')
         self.nc: Optional[NATS] = None
         self._connected = False
+        self._subscriptions: Dict[str, Any] = {}  # Track subject -> subscription object mapping
     
     async def connect(self) -> None:
         """Connect to NATS server."""
@@ -54,27 +55,59 @@ class NATSClient:
             raise
     
     async def subscribe(
-        self, 
-        subject: str, 
-        callback: Callable[[str, Any], Awaitable[None]],
+        self,
+        subject: str,
+        callback: Callable[[Any], Awaitable[None]],
         queue: Optional[str] = None
     ) -> None:
-        """Subscribe to a NATS subject with a callback function."""
+        """Subscribe to a NATS subject with a callback function.
+
+        Args:
+            subject: NATS subject to subscribe to
+            callback: Async callback function that receives the message data
+            queue: Optional queue group name for load balancing
+        """
         if not self._connected:
             await self.connect()
-        
+
         async def message_handler(msg):
             try:
+                logger.warning(f"[NATS-CALLBACK-DEBUG] Message received on {subject}, size={len(msg.data)} bytes")
                 data = json.loads(msg.data.decode())
-                await callback(subject, data)
+                logger.warning(f"[NATS-CALLBACK-DEBUG] Decoded JSON, calling callback for {subject}")
+                await callback(data)
+                logger.warning(f"[NATS-CALLBACK-DEBUG] Callback completed successfully for {subject}")
             except Exception as e:
-                logger.error(f"Error processing message from {subject}: {e}")
-        
+                logger.error(f"Error processing message from {subject}: {e}", exc_info=True)
+
         try:
-            await self.nc.subscribe(subject, cb=message_handler, queue=queue)
+            subscription = await self.nc.subscribe(subject, cb=message_handler, queue=queue)
+            self._subscriptions[subject] = subscription  # Track subscription object
             logger.info(f"Subscribed to {subject}" + (f" (queue: {queue})" if queue else ""))
         except Exception as e:
             logger.error(f"Failed to subscribe to {subject}: {e}")
+            raise
+
+    async def unsubscribe(self, subject: str) -> None:
+        """Unsubscribe from a NATS subject.
+
+        Args:
+            subject: NATS subject to unsubscribe from
+        """
+        if subject not in self._subscriptions:
+            logger.warning(f"Attempted to unsubscribe from {subject} but no active subscription found")
+            return
+
+        try:
+            subscription = self._subscriptions[subject]
+            await subscription.unsubscribe()
+            del self._subscriptions[subject]
+            logger.info(f"Unsubscribed from {subject}")
+        except Exception as e:
+            logger.error(f"Failed to unsubscribe from {subject}: {e}")
+            # Clean up tracking even if unsubscribe fails
+            if subject in self._subscriptions:
+                del self._subscriptions[subject]
             raise
     
     async def request(self, subject: str, data: Any, timeout: float = 5.0) -> Any:
@@ -141,6 +174,19 @@ class NATSSubjects:
     AUTH_SERVICE_REQUEST = "gaia.service.auth.request"
     ASSET_SERVICE_REQUEST = "gaia.service.asset.request"
     CHAT_SERVICE_REQUEST = "gaia.service.chat.request"
+
+    # World updates (for MMOIRL real-time events)
+    @staticmethod
+    def world_update_user(user_id: str) -> str:
+        """Get the NATS subject for a specific user's world updates.
+
+        Args:
+            user_id: The user ID to subscribe to
+
+        Returns:
+            Subject string in format: world.updates.user.{user_id}
+        """
+        return f"world.updates.user.{user_id}"
 
 # Event data classes for type safety
 from pydantic import BaseModel

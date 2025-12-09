@@ -167,7 +167,7 @@ async def get_provider_performance(auth_data: dict = Depends(get_current_auth)):
             "error_rate": 0.64,
             "uptime_percentage": 99.8,
             "last_error": None,
-            "available_models": ["claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"],
+            "available_models": ["claude-sonnet-4-5", "claude-3-haiku-20240307"],
             "health_score": 98.5
         },
         "openai": {

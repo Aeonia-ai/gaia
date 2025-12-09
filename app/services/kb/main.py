@@ -41,7 +41,11 @@ from .kb_service import (
 from .kb_editor import kb_editor
 from .agent_endpoints import router as agent_router
 from .waypoints_api import router as waypoints_router
+from .game_commands_api import router as game_commands_router
+from .experience_endpoints import router as experience_router
 from .kb_agent import kb_agent
+from .websocket_experience import router as websocket_router
+import app.services.kb.websocket_experience as websocket_module
 from app.models.kb import WriteRequest, DeleteRequest, MoveRequest
 from .kb_semantic_search import semantic_indexer
 from .kb_semantic_endpoints import (
@@ -66,11 +70,12 @@ else:
 # Import FastMCP before lifespan definition
 try:
     from .kb_fastmcp_server import mcp
-    mcp_app = mcp.http_app(path="/", transport="streamable-http")
+    # Create MCP transport app - used in both lifespan and mounting
+    http_mcp_app = mcp.http_app(path="/", transport="streamable-http")
     HAS_FASTMCP = True
 except ImportError:
     HAS_FASTMCP = False
-    mcp_app = None
+    http_mcp_app = None
     logger.warning("FastMCP not available")
 
 @asynccontextmanager
@@ -78,10 +83,10 @@ async def lifespan(app: FastAPI):
     """Manage service lifecycle - includes FastMCP lifespan if available"""
 
     # If FastMCP is available, nest its lifespan with ours
-    if HAS_FASTMCP and mcp_app and hasattr(mcp_app, 'lifespan'):
-        async with mcp_app.lifespan(app):
-            # Run all our startup/shutdown inside FastMCP's lifespan context
-            async with kb_service_lifespan(app):
+    if HAS_FASTMCP and http_mcp_app and hasattr(http_mcp_app, 'lifespan'):
+        # Nest lifespans: KB service -> MCP transport
+        async with kb_service_lifespan(app):
+            async with http_mcp_app.lifespan(app):
                 yield
     else:
         # No FastMCP, just run our lifespan
@@ -94,10 +99,11 @@ async def kb_service_lifespan(app: FastAPI):
     log_service_startup("kb", "1.0", settings.SERVICE_PORT)
 
     # Initialize NATS connection for service coordination
+    nats_client = None  # Initialize to None in case connection fails
     try:
         nats_client = await ensure_nats_connection()
         logger.info("Connected to NATS for service coordination")
-        
+
         # Publish service startup event
         startup_event = ServiceHealthEvent(
             service_name="kb",
@@ -137,6 +143,55 @@ async def kb_service_lifespan(app: FastAPI):
     try:
         await kb_agent.initialize(kb_storage)
         logger.info("KB Intelligent Agent initialized and ready")
+
+        # Inject NATS client into state manager for real-time updates
+        if kb_agent.state_manager and nats_client:
+            kb_agent.state_manager.nats_client = nats_client
+            logger.info("NATS client injected into UnifiedStateManager - real-time updates enabled")
+
+        # Initialize WebSocket ExperienceConnectionManager
+        from .experience_connection_manager import ExperienceConnectionManager
+        websocket_module.experience_manager = ExperienceConnectionManager(nats_client=nats_client)
+        logger.info("ExperienceConnectionManager initialized for WebSocket connections")
+
+        # Inject connection manager into state manager for client version tracking
+        if kb_agent.state_manager and websocket_module.experience_manager:
+            kb_agent.state_manager.connection_manager = websocket_module.experience_manager
+            logger.info("Connection manager injected into UnifiedStateManager - client version tracking enabled")
+
+        # Initialize and register command handlers
+        from .command_processor import command_processor
+        from .handlers.collect_item import handle_collect_item
+        from .handlers.drop_item import handle_drop_item
+        from .handlers.examine import handle_examine
+        from .handlers.give_item import handle_give_item
+        from .handlers.go import handle_go
+        from .handlers.inventory import handle_inventory
+        from .handlers.use_item import handle_use_item
+
+        # ═══════════════════════════════════════════════════════════════════════════
+        # ⚠️  MVP KLUDGE - NPC Talk Handler (routes to Chat Service)
+        # ═══════════════════════════════════════════════════════════════════════════
+        # This is a TEMPORARY solution for Phase 1 demo.
+        # Refactor after demo to handle NPC dialogue directly in KB service.
+        # See: docs/scratchpad/npc-llm-dialogue-system.md for proper architecture
+        from .handlers.talk import handle_talk
+
+        # Register player commands (fast path)
+        command_processor.register("collect_item", handle_collect_item)
+        command_processor.register("drop_item", handle_drop_item)
+        command_processor.register("examine", handle_examine)
+        command_processor.register("give_item", handle_give_item)
+        command_processor.register("go", handle_go)
+        command_processor.register("inventory", handle_inventory)
+        command_processor.register("use_item", handle_use_item)
+        command_processor.register("talk", handle_talk)  # ⚠️  MVP KLUDGE - routes to Chat Service
+
+        # Note: Admin commands (@ prefix) are routed through admin_command_router
+        # See app/services/kb/command_processor.py and handlers/admin_command_router.py
+
+        logger.info("Command handlers registered with the processor")
+
     except Exception as e:
         logger.error(f"Failed to initialize KB Agent: {e}")
     
@@ -700,21 +755,21 @@ if kb_rbac_router:
 # Add KB Agent router
 app.include_router(agent_router)
 app.include_router(waypoints_router)
-logger.info("✅ KB Agent endpoints added")
+app.include_router(game_commands_router)
+app.include_router(experience_router)
+app.include_router(websocket_router)
+logger.info("✅ KB Agent, Waypoints, Game Commands, and WebSocket endpoints added")
 
-# Mount FastMCP endpoint for Claude Code integration
-try:
-    from .kb_fastmcp_server import mcp
-
-    # Use streamable-http transport (recommended over SSE)
-    # This transport handles lifespan internally without coordination
-    mcp_app = mcp.http_app(path="/", transport="streamable-http")
-    app.mount("/mcp", mcp_app)
-    logger.info("✅ FastMCP HTTP endpoint mounted at /mcp (8 KB tools available)")
-except ImportError as e:
-    logger.warning(f"FastMCP not available: {e}")
-except Exception as e:
-    logger.error(f"Failed to mount FastMCP endpoint: {e}", exc_info=True)
+# Mount FastMCP endpoint for Claude Code and Gemini CLI
+if HAS_FASTMCP:
+    try:
+        # Mount the pre-created transport app (same instance used in lifespan)
+        app.mount("/mcp", http_mcp_app)
+        logger.info("✅ FastMCP endpoint mounted at /mcp (9 KB tools available)")
+    except Exception as e:
+        logger.error(f"Failed to mount FastMCP endpoint: {e}", exc_info=True)
+else:
+    logger.warning("FastMCP not available - MCP endpoint not mounted")
 
 from datetime import datetime
 

@@ -1,0 +1,556 @@
+# GAIA Platform API Reference
+
+**Audience**: Platform developers building on advanced features  
+**Focus**: Complete API including personas, assets, and OpenAI compatibility  
+
+> **Quick Start?** See [CLIENT_API_REFERENCE.md](CLIENT_API_REFERENCE.md) for client SDK examples  
+> **Service Architecture?** See [GAIA_API_MAP.md](GAIA_API_MAP.md) for internal routing
+
+## API Versions
+
+The platform supports two API versions that use the **same underlying intelligent routing**:
+- **v1**: Full feature set with provider metadata (OpenAI-compatible)
+- **v0.3**: Simplified responses without provider details (recommended for new apps)
+
+Both versions support:
+- Intelligent chat routing (ultra-fast, simple, KB-enabled, multi-agent)
+- Streaming responses
+- Knowledge Base integration
+- Persona system
+
+**Version:** 1.0  
+**Base URL:** `https://gaia-gateway-{environment}.fly.dev`  
+**Environments:** `dev`, `staging`, `prod`
+
+## Authentication
+
+All endpoints except `/health` and auth endpoints require authentication.
+
+### API Key Authentication
+```bash
+curl -H "X-API-Key: YOUR_API_KEY" https://gaia-gateway-dev.fly.dev/api/v0.3/chat
+```
+
+### JWT Authentication
+```bash
+# 1. Login to get JWT
+curl -X POST https://gaia-gateway-dev.fly.dev/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "password"}'
+
+# 2. Use JWT in requests
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" https://gaia-gateway-dev.fly.dev/api/v0.3/chat
+```
+
+## Core Endpoints
+
+### Health Check
+```bash
+GET /health
+```
+No authentication required. Returns service status.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-08-20T22:07:26.387756",
+  "version": "0.2.0",
+  "services": {
+    "auth": {"status": "healthy", "response_time": 0.007},
+    "chat": {"status": "healthy", "response_time": 0.008},
+    "kb": {"status": "healthy", "response_time": 0.006},
+    "asset": {"status": "healthy", "response_time": 0.005}
+  }
+}
+```
+
+### Chat Completion
+
+#### Basic Chat (v0.3 - Recommended)
+```bash
+POST /api/v0.3/chat
+Content-Type: application/json
+
+{
+  "message": "What is the meaning of life?",
+  "conversation_id": "optional-conversation-id",
+  "stream": false
+}
+```
+
+**Response:**
+```json
+{
+  "response": "The meaning of life is...",
+  "conversation_id": "auto-generated-id",
+  "message": "What is the meaning of life?"
+}
+```
+
+#### Streaming Chat (v0.3)
+```bash
+POST /api/v0.3/chat
+Content-Type: application/json
+X-API-Key: YOUR_API_KEY
+
+{
+  "message": "Write a story about a robot",
+  "stream": true
+}
+```
+
+**Response:** Server-Sent Events (SSE) stream with `text/event-stream` content type
+```
+data: {"type": "start", "timestamp": "2025-01-01T00:00:00Z"}
+
+data: {"type": "content", "content": "Once upon a time"}
+
+data: {"type": "content", "content": " there was a robot"}
+
+data: {"type": "done", "finish_reason": "stop"}
+
+data: [DONE]
+```
+
+**Note**: Streaming works identically for both `/api/v0.3/chat` and `/api/v1/chat` endpoints.
+The `stream: true` parameter triggers SSE responses. See [Streaming API Guide](../streaming/streaming-api-guide.md) for implementation details.
+
+#### OpenAI-Compatible Chat (v1)
+```bash
+POST /api/v1/chat
+Content-Type: application/json
+
+{
+  "messages": [
+    {"role": "user", "content": "Hello, how are you?"}
+  ],
+  "stream": false
+}
+```
+
+**Response:** OpenAI-compatible format
+```json
+{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1733856000,
+  "model": "claude-3-5-haiku-20241022",
+  "choices": [{
+    "index": 0,
+    "message": {
+      "role": "assistant",
+      "content": "I'm doing well, thank you!"
+    },
+    "finish_reason": "stop"
+  }],
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 15,
+    "total_tokens": 25
+  }
+}
+```
+
+### Conversation Management (v0.3)
+
+#### List Conversations
+```bash
+GET /api/v0.3/conversations
+```
+
+**Response:**
+```json
+{
+  "conversations": [
+    {
+      "id": "conv-123",
+      "created_at": "2025-08-20T10:00:00Z",
+      "updated_at": "2025-08-20T11:30:00Z",
+      "title": "Discussion about AI",
+      "message_count": 5
+    }
+  ]
+}
+```
+
+#### Create Conversation
+```bash
+POST /api/v0.3/conversations
+Content-Type: application/json
+
+{
+  "title": "New Conversation"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "conv-456",
+  "created_at": "2025-08-20T12:00:00Z",
+  "title": "New Conversation"
+}
+```
+
+### AR/Location Endpoints
+
+#### Get Nearby Locations (v0.3)
+```bash
+GET /api/v0.3/locations/nearby?gps=37.906,-122.547&radius=1000&experience=wylding-woods
+```
+
+**Query Parameters:**
+- `gps` (required): GPS coordinates as "latitude,longitude"
+- `radius` (optional): Search radius in meters (default: 1000)
+- `experience` (optional): Experience name (default: "wylding-woods")
+
+**Response:**
+```json
+{
+  "locations": [
+    {
+      "id": "8_inter_gravity_car",
+      "name": "#8 INTER  Gravity Car",
+      "gps": [37.905696, -122.547701],
+      "waypoint_type": "vps",
+      "media": {
+        "audio": "8-gravity-car-sounds.wav",
+        "visual_fx": "spark_jump",
+        "interaction": "wheel_rotation",
+        "image_ref": "6-gravity-car.jpg",
+        "display_text": "The historic Gravity Car awaits your touch."
+      },
+      "asset_bundle_url": "https://cdn.aeonia.ai/assets/8_inter_gravity_car.unity3d"
+    }
+  ],
+  "count": 37
+}
+```
+
+**Use Cases:**
+- AR game waypoint loading
+- Location-based content delivery
+- Dynamic POI (Points of Interest) discovery
+- Server-driven AR experiences
+
+**Implementation Notes:**
+- Waypoints loaded from KB markdown files (server-authoritative)
+- GPS filtering uses Haversine formula
+- Supports multiple experiences at same coordinates
+- Mission ordering to be added in future updates
+
+---
+
+### Authentication Endpoints
+
+#### Login
+```bash
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "your-password"
+}
+```
+
+**Response:**
+```json
+{
+  "session": {
+    "access_token": "eyJ...",
+    "refresh_token": "eyJ...",
+    "expires_in": 3600,
+    "token_type": "bearer"
+  },
+  "user": {
+    "id": "user-123",
+    "email": "user@example.com",
+    "email_confirmed_at": "2025-08-20T10:00:00Z"
+  }
+}
+```
+
+#### Register
+```bash
+POST /api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "newuser@example.com",
+  "password": "secure-password"
+}
+```
+
+**Response:** Same as login
+
+#### Validate Token
+```bash
+POST /api/v1/auth/validate
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_OR_API_KEY
+
+{}
+```
+
+**Response:**
+```json
+{
+  "valid": true,
+  "user_id": "user-123",
+  "type": "jwt"
+}
+```
+
+### Persona Management
+
+#### Get Available Personas
+```bash
+GET /api/v1/chat/personas
+```
+
+**Response:**
+```json
+{
+  "personas": [
+    {
+      "id": "mu",
+      "name": "μ (Mu)",
+      "description": "Embodiment of unity consciousness",
+      "is_default": true
+    },
+    {
+      "id": "ava",
+      "name": "Ava",
+      "description": "Quantum mechanics and multiverse researcher"
+    }
+  ]
+}
+```
+
+#### Set User Persona
+```bash
+PUT /api/v1/chat/personas
+Content-Type: application/json
+
+{
+  "persona_id": "ava"
+}
+```
+
+### Asset Management
+
+#### List Assets
+```bash
+GET /api/v1/assets
+```
+
+**Response:**
+```json
+{
+  "assets": [
+    {
+      "id": "asset-123",
+      "filename": "image.png",
+      "content_type": "image/png",
+      "size": 102400,
+      "created_at": "2025-08-20T10:00:00Z"
+    }
+  ]
+}
+```
+
+#### Upload Asset
+```bash
+POST /api/v1/assets
+Content-Type: multipart/form-data
+
+file=@/path/to/file.png
+```
+
+**Response:**
+```json
+{
+  "id": "asset-456",
+  "filename": "file.png",
+  "url": "/api/v1/assets/asset-456"
+}
+```
+
+## Error Responses
+
+All errors follow this format:
+```json
+{
+  "detail": "Error message here",
+  "type": "error_type",
+  "status_code": 400
+}
+```
+
+Common errors:
+- `401 Unauthorized` - Missing or invalid authentication
+- `404 Not Found` - Resource doesn't exist
+- `400 Bad Request` - Invalid request format
+- `500 Internal Server Error` - Server error
+
+## Rate Limits
+
+- **Anonymous:** 10 requests/minute
+- **Authenticated:** 100 requests/minute
+- **Streaming:** Counts as 1 request regardless of duration
+
+## Code Examples
+
+### Python
+```python
+import requests
+
+# Setup
+api_key = "YOUR_API_KEY"
+base_url = "https://gaia-gateway-dev.fly.dev"
+headers = {"X-API-Key": api_key}
+
+# Simple chat
+response = requests.post(
+    f"{base_url}/api/v0.3/chat",
+    headers=headers,
+    json={"message": "Hello, AI!"}
+)
+print(response.json()["response"])
+
+# Streaming chat
+import sseclient
+
+response = requests.post(
+    f"{base_url}/api/v0.3/chat",
+    headers=headers,
+    json={"message": "Tell me a story", "stream": True},
+    stream=True
+)
+
+client = sseclient.SSEClient(response)
+for event in client.events():
+    if event.data != "[DONE]":
+        data = json.loads(event.data)
+        print(data.get("content", ""), end="", flush=True)
+```
+
+### JavaScript/TypeScript
+```typescript
+// Simple chat
+const response = await fetch('https://gaia-gateway-dev.fly.dev/api/v0.3/chat', {
+  method: 'POST',
+  headers: {
+    'X-API-Key': 'YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    message: 'Hello, AI!'
+  })
+});
+
+const data = await response.json();
+console.log(data.response);
+
+// Streaming chat
+const streamResponse = await fetch('https://gaia-gateway-dev.fly.dev/api/v0.3/chat', {
+  method: 'POST',
+  headers: {
+    'X-API-Key': 'YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    message: 'Tell me a story',
+    stream: true
+  })
+});
+
+const reader = streamResponse.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  
+  const chunk = decoder.decode(value);
+  const lines = chunk.split('\n');
+  
+  for (const line of lines) {
+    if (line.startsWith('data: ')) {
+      const data = line.slice(6);
+      if (data === '[DONE]') continue;
+      
+      const parsed = JSON.parse(data);
+      process.stdout.write(parsed.content || '');
+    }
+  }
+}
+```
+
+## Testing Your Integration
+
+### Quick Test
+```bash
+# Test health
+curl https://gaia-gateway-dev.fly.dev/health
+
+# Test chat (replace with your API key)
+curl -X POST https://gaia-gateway-dev.fly.dev/api/v0.3/chat \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Say hello"}'
+```
+
+### Available Environments
+- **Development:** `https://gaia-gateway-dev.fly.dev`
+- **Staging:** `https://gaia-gateway-staging.fly.dev`
+- **Production:** `https://gaia-gateway-prod.fly.dev`
+
+## Support
+
+- **Issues:** https://github.com/your-org/gaia/issues
+- **Status:** https://status.gaia.dev
+- **Contact:** support@gaia.dev
+
+---
+
+## Verification Status
+
+**Verified By:** Gemini
+**Date:** 2025-11-12
+
+The API endpoints described in this document have been verified against the gateway's routing implementation.
+
+-   **✅ Core Endpoints (v0.3 and v1 Chat):**
+    *   **Claim:** The document describes `POST /api/v0.3/chat` and `POST /api/v1/chat` for simple and OpenAI-compatible chat.
+    *   **Code Reference:** `app/gateway/main.py` (lines 909-955 for `v03_chat`, lines 501-532 for v1 `chat`).
+    *   **Verification:** This is **VERIFIED**. The gateway implements both endpoints and forwards them to the unified chat service.
+
+-   **✅ Conversation Management (v0.3):**
+    *   **Claim:** `GET` and `POST` endpoints exist at `/api/v0.3/conversations`.
+    *   **Code Reference:** `app/gateway/main.py` (lines 957-1011).
+    *   **Verification:** This is **VERIFIED**.
+
+-   **✅ AR/Location Endpoints:**
+    *   **Claim:** A `GET /api/v0.3/locations/nearby` endpoint is available for location-based queries.
+    *   **Code Reference:** `app/services/gateway/routes/locations_endpoints.py` (lines 16-148).
+    *   **Verification:** This is **VERIFIED**. The endpoint is implemented in a separate router included by the main gateway application.
+
+-   **✅ Authentication Endpoints:**
+    *   **Claim:** The document lists various authentication endpoints under `/api/v1/auth`.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1479-1575).
+    *   **Verification:** This is **VERIFIED**. All documented authentication endpoints are implemented and forwarded to the `auth` service.
+
+-   **⚠️ Persona Management:**
+    *   **Claim:** `GET /api/v1/chat/personas` to list and `PUT /api/v1/chat/personas` to set a persona.
+    *   **Code Reference:** `app/gateway/main.py` (lines 561-587).
+    *   **Verification:** This is **PARTIALLY VERIFIED**. The `GET` endpoint is correct. However, the code implements `POST /api/v1/chat/personas` for creating a persona, not `PUT` for setting one. This is a minor discrepancy.
+
+-   **⚠️ Asset Management:**
+    *   **Claim:** Endpoints for listing (`GET /api/v1/assets`), uploading (`POST /api/v1/assets`), and generating assets are available.
+    *   **Code Reference:** `app/gateway/main.py` (lines 1102-1150).
+    *   **Verification:** This is **PARTIALLY VERIFIED**. The endpoints for listing (`GET /api/v1/assets`), generating (`POST /api/v1/assets/generate`), and retrieving a single asset (`GET /api/v1/assets/{asset_id}`) are implemented. However, the endpoint for uploading an asset (`POST /api/v1/assets`) is **not present** in the gateway code.
+
+**Overall Conclusion:** This document provides a good overview of the advanced API features. While most endpoints are correctly documented, there are minor discrepancies in the Persona Management section and a missing endpoint in the Asset Management section.

@@ -134,6 +134,17 @@ except ImportError as e:
 # Create enhanced health endpoint with route discovery AFTER all routers are included
 create_service_health_endpoint(app, "chat", "0.2")
 
+# Add custom health check that includes NATS status
+@app.get("/health")
+async def health_check():
+    """Health check endpoint with NATS connection status."""
+    return {
+        "status": "healthy",
+        "service": "chat",
+        "version": "0.2",
+        "nats_connected": nats_client.is_connected if nats_client else False
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

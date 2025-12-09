@@ -24,7 +24,7 @@ logger = configure_logging_for_service("jwt_service")
 JWT_ALGORITHM = "RS256"
 JWT_ISSUER = "gaia-auth-service"
 JWT_AUDIENCE = "gaia-services"
-JWT_EXPIRY_HOURS = 1
+JWT_EXPIRY_HOURS = 24  # Extended for development/testing convenience
 
 # Key paths
 JWT_PRIVATE_KEY_PATH = os.getenv("JWT_PRIVATE_KEY_PATH", "/app/certs/jwt-signing.key")

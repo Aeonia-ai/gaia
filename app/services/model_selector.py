@@ -61,8 +61,8 @@ class ModelSelector:
                 "vr_suitable": False,
                 "best_for": ["newer_features", "simple_queries"]
             },
-            "claude-3-5-sonnet-20241022": {
-                "name": "Claude 3.5 Sonnet",
+            "claude-sonnet-4-5": {
+                "name": "Claude Sonnet 4.5",
                 "avg_ttft_ms": 1575,
                 "tokens_per_sec": 2.4,
                 "quality_score": 9,
@@ -90,12 +90,12 @@ class ModelSelector:
                 "reason": "Balanced quality/speed for normal chat"
             },
             ContextType.TECHNICAL: {
-                "primary": "claude-3-5-sonnet-20241022",
+                "primary": "claude-sonnet-4-5",
                 "fallback": "claude-3-sonnet-20240229",
                 "reason": "Technical queries need highest reasoning quality"
             },
             ContextType.CREATIVE: {
-                "primary": "claude-3-5-sonnet-20241022",
+                "primary": "claude-sonnet-4-5",
                 "fallback": "claude-3-sonnet-20240229", 
                 "reason": "Creative tasks benefit from advanced capabilities"
             },

@@ -25,7 +25,6 @@ Semantic search for the GAIA Knowledge Base using **pgvector** (PostgreSQL exten
 **Table: kb_semantic_index_metadata**
 ```sql
 CREATE TABLE kb_semantic_index_metadata (
-    id SERIAL PRIMARY KEY,
     relative_path TEXT NOT NULL,
     namespace TEXT NOT NULL,
     mtime DOUBLE PRECISION NOT NULL,
@@ -33,7 +32,7 @@ CREATE TABLE kb_semantic_index_metadata (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     embedding vector(384),  -- Document-level embedding (optional)
-    UNIQUE(relative_path, namespace)
+    PRIMARY KEY (namespace, relative_path)  -- Composite key for multi-namespace support
 );
 
 CREATE INDEX idx_semantic_namespace ON kb_semantic_index_metadata(namespace);
@@ -44,14 +43,21 @@ CREATE INDEX idx_semantic_mtime ON kb_semantic_index_metadata(mtime);
 ```sql
 CREATE TABLE kb_semantic_chunk_ids (
     id SERIAL PRIMARY KEY,
+    namespace TEXT NOT NULL,
     relative_path TEXT NOT NULL,
     chunk_id TEXT NOT NULL UNIQUE,
     chunk_index INTEGER NOT NULL,
     chunk_text TEXT NOT NULL,
     embedding vector(384) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (relative_path) REFERENCES kb_semantic_index_metadata(relative_path) ON DELETE CASCADE
+    FOREIGN KEY (namespace, relative_path)
+        REFERENCES kb_semantic_index_metadata(namespace, relative_path)
+        ON DELETE CASCADE
 );
+
+CREATE INDEX idx_semantic_chunk_namespace ON kb_semantic_chunk_ids(namespace);
+CREATE INDEX idx_semantic_chunk_namespace_path ON kb_semantic_chunk_ids(namespace, relative_path);
+```
 
 -- HNSW index for fast vector similarity search
 CREATE INDEX idx_chunk_embedding_hnsw
@@ -97,8 +103,11 @@ class SemanticSearchIndexer:
         """Search using pgvector cosine similarity"""
         await self.initialize()
 
-        # Generate query embedding
-        query_embedding = self.model.encode(query).tolist()
+        # Generate query embedding (offloaded to thread pool to avoid blocking event loop)
+        query_embedding = await asyncio.to_thread(
+            self.model.encode, query, convert_to_numpy=True
+        )
+        query_embedding = query_embedding.tolist()
 
         # Search using pgvector
         async with self.db.acquire() as conn:
@@ -352,6 +361,24 @@ async def search_semantic(
 **Problem**: Slow initial indexing
 - **Cause**: Normal for large KBs (sentence-transformers on CPU)
 - **Solution**: Use GPU for faster embedding generation (future)
+
+**Problem**: Service unresponsive during indexing (HTTP requests timeout)
+- **Cause**: `model.encode()` is synchronous and blocks async event loop
+- **Solution**: ✅ FIXED (Nov 2025) - Now uses `await asyncio.to_thread()` to offload to thread pool
+- **Impact**: Service remains responsive (~200ms response) even during active indexing
+- **Details**: See commit `b4be135` and `docs/scratchpad/semantic-search-pgvector-debugging-2025-11-03.md`
+
+**Problem**: Duplicate key violations across namespaces
+- **Cause**: Old schema used single-column PRIMARY KEY on `relative_path` instead of composite `(namespace, relative_path)`
+- **Solution**: ✅ FIXED (Nov 2025) - Migration 008 updated to composite primary key
+- **Impact**: Multiple namespaces can now have files with same relative paths (e.g., CLAUDE.md in root, users/*, teams/*)
+- **Details**: See migration `008_fix_semantic_metadata_primary_key.sql`
+
+**Problem**: pgvector package not installed despite being in requirements.txt
+- **Cause**: Docker layer caching prevents new package installation
+- **Solution**: Rebuild containers with `docker compose build --no-cache <service>`
+- **Verification**: `docker exec <container> python3 -c "import pgvector; print('✓')"`
+- **Symptom**: "pgvector.asyncpg not available" warning, "expected str, got list" errors
 
 ### Search Issues
 

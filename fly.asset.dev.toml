@@ -3,7 +3,7 @@
 # Organization: aeonia-dev
 
 app = 'gaia-asset-dev'
-primary_region = 'lax'
+primary_region = 'sjc'
 
 [build]
   dockerfile = "Dockerfile.asset"
@@ -30,20 +30,16 @@ primary_region = 'lax'
 
   [http_service.timeout]
     idle = "30m"
+  
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "15s"
 
 [[vm]]
-  memory = '1gb'  # Asset service needs more memory for image processing
-  cpu_kind = 'shared'
-  cpus = 1
+  size = 'performance-1x'
 
 [deploy]
   strategy = "rolling"
-
-# Health checks for asset service
-[[services.http_checks]]
-  interval = "10s"
-  grace_period = "5s"
-  method = "GET"
-  path = "/health"
-  protocol = "https"
-  timeout = "2s"

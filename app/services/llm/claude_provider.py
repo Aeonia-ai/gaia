@@ -200,6 +200,31 @@ class ClaudeProvider(LLMProviderInterface):
                 supports_system_prompt=True,
                 supports_temperature=True,
                 supports_streaming=True
+            ),
+            ModelInfo(
+                id="claude-sonnet-4-5",
+                name="Claude Sonnet 4.5",
+                provider=LLMProvider.CLAUDE,
+                capabilities=[
+                    ModelCapability.CHAT,
+                    ModelCapability.TOOL_CALLING,
+                    ModelCapability.VISION,
+                    ModelCapability.STREAMING,
+                    ModelCapability.CODE_GENERATION,
+                    ModelCapability.MULTIMODAL,
+                    ModelCapability.LONG_CONTEXT
+                ],
+                max_tokens=8192,
+                context_window=200000,
+                cost_per_input_token=0.000003,
+                cost_per_output_token=0.000015,
+                avg_response_time_ms=1500,
+                quality_score=1.0,
+                speed_score=0.5,
+                description="Claude Sonnet 4.5 - Latest high-performance model",
+                supports_system_prompt=True,
+                supports_temperature=True,
+                supports_streaming=True
             )
         ]
     

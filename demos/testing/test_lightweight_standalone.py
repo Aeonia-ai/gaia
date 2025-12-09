@@ -37,7 +37,7 @@ async def test_standalone():
     print("Test 1: Simple lightweight chat")
     request = ChatRequest(
         message="Hello! Tell me a short joke about Python programming.",
-        model="claude-3-5-sonnet-20241022"
+        model="claude-sonnet-4-5"
     )
     
     try:

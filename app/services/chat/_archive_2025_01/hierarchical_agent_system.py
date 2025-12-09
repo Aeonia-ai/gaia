@@ -61,7 +61,7 @@ class SubAgent:
         self,
         agent_type: AgentType,
         context: AgentContext,
-        llm_model: str = "claude-3-5-sonnet-20241022"
+        llm_model: str = "claude-sonnet-4-5"
     ):
         self.agent_type = agent_type
         self.context = context
@@ -307,7 +307,7 @@ Always explain your orchestration strategy."""
 
         # Process with spawning tools
         response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": message}
@@ -480,7 +480,7 @@ Always explain your orchestration strategy."""
         
         # Have the main agent synthesize
         synthesis_response = self.anthropic.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5",
             messages=[
                 {
                     "role": "system",

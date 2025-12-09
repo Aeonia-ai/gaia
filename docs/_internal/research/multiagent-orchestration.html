@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>multiagent-orchestration</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {  background-color: #f8f8f8; }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ef2929; } /* Alert */
+    code span.an { color: #8f5902; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #204a87; } /* Attribute */
+    code span.bn { color: #0000cf; } /* BaseN */
+    code span.cf { color: #204a87; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4e9a06; } /* Char */
+    code span.cn { color: #8f5902; } /* Constant */
+    code span.co { color: #8f5902; font-style: italic; } /* Comment */
+    code span.cv { color: #8f5902; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #8f5902; font-weight: bold; font-style: italic; } /* Documentation */
+    code span.dt { color: #204a87; } /* DataType */
+    code span.dv { color: #0000cf; } /* DecVal */
+    code span.er { color: #a40000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #0000cf; } /* Float */
+    code span.fu { color: #204a87; font-weight: bold; } /* Function */
+    code span.im { } /* Import */
+    code span.in { color: #8f5902; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #204a87; font-weight: bold; } /* Keyword */
+    code span.op { color: #ce5c00; font-weight: bold; } /* Operator */
+    code span.ot { color: #8f5902; } /* Other */
+    code span.pp { color: #8f5902; font-style: italic; } /* Preprocessor */
+    code span.sc { color: #ce5c00; font-weight: bold; } /* SpecialChar */
+    code span.ss { color: #4e9a06; } /* SpecialString */
+    code span.st { color: #4e9a06; } /* String */
+    code span.va { color: #000000; } /* Variable */
+    code span.vs { color: #4e9a06; } /* VerbatimString */
+    code span.wa { color: #8f5902; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#multiagent-orchestration-in-gaia"
+id="toc-multiagent-orchestration-in-gaia">Multiagent Orchestration in
+Gaia</a>
+<ul>
+<li><a href="#overview" id="toc-overview">Overview</a></li>
+<li><a href="#architecture" id="toc-architecture">Architecture</a>
+<ul>
+<li><a href="#core-components" id="toc-core-components">Core
+Components</a></li>
+<li><a href="#technical-implementation"
+id="toc-technical-implementation">Technical Implementation</a></li>
+</ul></li>
+<li><a href="#multiagent-scenarios"
+id="toc-multiagent-scenarios">Multiagent Scenarios</a>
+<ul>
+<li><a href="#game-master-orchestration-apiv1chatgamemaster"
+id="toc-game-master-orchestration-apiv1chatgamemaster">1. Game Master
+Orchestration (<code>/api/v1/chat/gamemaster</code>)</a></li>
+<li><a href="#collaborative-world-building-apiv1chatworldbuilding"
+id="toc-collaborative-world-building-apiv1chatworldbuilding">2.
+Collaborative World Building
+(<code>/api/v1/chat/worldbuilding</code>)</a></li>
+<li><a href="#multi-perspective-storytelling-apiv1chatstorytelling"
+id="toc-multi-perspective-storytelling-apiv1chatstorytelling">3.
+Multi-Perspective Storytelling
+(<code>/api/v1/chat/storytelling</code>)</a></li>
+<li><a href="#expert-problem-solving-apiv1chatproblemsolving"
+id="toc-expert-problem-solving-apiv1chatproblemsolving">4. Expert
+Problem Solving (<code>/api/v1/chat/problemsolving</code>)</a></li>
+</ul></li>
+<li><a href="#api-endpoints" id="toc-api-endpoints">API Endpoints</a>
+<ul>
+<li><a href="#enhanced-mcp-agent-endpoint"
+id="toc-enhanced-mcp-agent-endpoint">Enhanced MCP-Agent
+Endpoint</a></li>
+<li><a href="#specific-scenario-endpoints"
+id="toc-specific-scenario-endpoints">Specific Scenario
+Endpoints</a></li>
+<li><a href="#request-format" id="toc-request-format">Request
+Format</a></li>
+<li><a href="#response-format" id="toc-response-format">Response
+Format</a></li>
+</ul></li>
+<li><a href="#testing" id="toc-testing">Testing</a>
+<ul>
+<li><a href="#using-test-script" id="toc-using-test-script">Using Test
+Script</a></li>
+<li><a href="#example-test-commands"
+id="toc-example-test-commands">Example Test Commands</a></li>
+</ul></li>
+<li><a href="#technical-architecture"
+id="toc-technical-architecture">Technical Architecture</a>
+<ul>
+<li><a href="#agent-structure" id="toc-agent-structure">Agent
+Structure</a></li>
+<li><a href="#orchestrator-pattern"
+id="toc-orchestrator-pattern">Orchestrator Pattern</a></li>
+<li><a href="#scenario-detection" id="toc-scenario-detection">Scenario
+Detection</a></li>
+</ul></li>
+<li><a href="#performance-considerations"
+id="toc-performance-considerations">Performance Considerations</a>
+<ul>
+<li><a href="#response-times" id="toc-response-times">Response
+Times</a></li>
+<li><a href="#when-to-use-multiagent-vs-single-agent"
+id="toc-when-to-use-multiagent-vs-single-agent">When to Use Multiagent
+vs Single Agent</a></li>
+<li><a href="#optimization-strategies"
+id="toc-optimization-strategies">Optimization Strategies</a></li>
+</ul></li>
+<li><a href="#mmoirl-applications" id="toc-mmoirl-applications">MMOIRL
+Applications</a>
+<ul>
+<li><a href="#dynamic-npcs" id="toc-dynamic-npcs">Dynamic NPCs</a></li>
+<li><a href="#procedural-content-generation"
+id="toc-procedural-content-generation">Procedural Content
+Generation</a></li>
+<li><a href="#adaptive-gameplay" id="toc-adaptive-gameplay">Adaptive
+Gameplay</a></li>
+<li><a href="#educational-applications"
+id="toc-educational-applications">Educational Applications</a></li>
+</ul></li>
+<li><a href="#integration-with-existing-systems"
+id="toc-integration-with-existing-systems">Integration with Existing
+Systems</a>
+<ul>
+<li><a href="#chat-infrastructure" id="toc-chat-infrastructure">Chat
+Infrastructure</a></li>
+<li><a href="#gateway-routing" id="toc-gateway-routing">Gateway
+Routing</a></li>
+<li><a href="#mcp-agent-framework"
+id="toc-mcp-agent-framework">MCP-Agent Framework</a></li>
+</ul></li>
+<li><a href="#future-enhancements" id="toc-future-enhancements">Future
+Enhancements</a>
+<ul>
+<li><a href="#advanced-coordination-patterns"
+id="toc-advanced-coordination-patterns">Advanced Coordination
+Patterns</a></li>
+<li><a href="#performance-optimizations"
+id="toc-performance-optimizations">Performance Optimizations</a></li>
+<li><a href="#extended-scenarios" id="toc-extended-scenarios">Extended
+Scenarios</a></li>
+<li><a href="#consciousness-integration"
+id="toc-consciousness-integration">Consciousness Integration</a></li>
+</ul></li>
+<li><a href="#conclusion" id="toc-conclusion">Conclusion</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="multiagent-orchestration-in-gaia">Multiagent Orchestration in
+Gaia</h1>
+<h2 id="overview">Overview</h2>
+<p>Gaia implements sophisticated multiagent orchestration using the
+mcp-agent framework to enable complex AI coordination patterns for
+MMOIRL (Massively Multiplayer Online In Real Life) gaming experiences.
+This system goes beyond single-agent chat to create rich, coordinated
+interactions between multiple specialized AI agents.</p>
+<h2 id="architecture">Architecture</h2>
+<h3 id="core-components">Core Components</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────────┐
+│                    MULTIAGENT ORCHESTRATOR                     │
+│                                                                 │
+│  ┌─────────────────┐    ┌──────────────────────────────────┐   │
+│  │   USER INPUT    │───▶│    SCENARIO DETECTOR             │   │
+│  │                 │    │ - Analyzes message content       │   │
+│  │ &quot;A hooded       │    │ - Routes to appropriate team     │   │
+│  │  figure enters  │    │ - gamemaster/worldbuilding/etc   │   │
+│  │  tavern...&quot;     │    └──────────────────────────────────┘   │
+│  └─────────────────┘                    │                      │
+│                                         ▼                      │
+│  ┌─────────────────────────────────────────────────────────────┤
+│  │               ORCHESTRATOR PATTERN                          │
+│  │                                                             │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │  │   PLANNER    │  │   EXECUTOR   │  │  SYNTHESIZER │      │
+│  │  │              │  │              │  │              │      │
+│  │  │ - Breaks     │  │ - Runs       │  │ - Combines   │      │
+│  │  │   down task  │  │   agents in  │  │   all agent  │      │
+│  │  │ - Assigns    │  │   parallel   │  │   outputs    │      │
+│  │  │   to agents  │  │ - Manages    │  │ - Creates    │      │
+│  │  │              │  │   execution  │  │   final      │      │
+│  │  └──────────────┘  └──────────────┘  │   response   │      │
+│  │         │                    │       └──────────────┘      │
+│  │         ▼                    ▼                │            │
+│  │  ┌──────────────────────────────────────────┐ │            │
+│  │  │           AGENT TEAMS                    │ │            │
+│  │  └──────────────────────────────────────────┘ │            │
+│  └─────────────────────────────────────────────────┼────────────┘
+│                                                    ▼
+├─────────────────────────────────────────────────────────────────┤
+│                     AGENT TEAMS                                 │
+│                                                                 │
+│ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐     │
+│ │  GAMEMASTER     │ │ WORLDBUILDING   │ │  STORYTELLING   │     │
+│ │                 │ │                 │ │                 │     │
+│ │ ┌─────────────┐ │ │ ┌─────────────┐ │ │ ┌─────────────┐ │     │
+│ │ │ Bartender   │ │ │ │ Geography   │ │ │ │ Hero        │ │     │
+│ │ │ Agent       │ │ │ │ Specialist  │ │ │ │ Narrator    │ │     │
+│ │ └─────────────┘ │ │ └─────────────┘ │ │ └─────────────┘ │     │
+│ │ ┌─────────────┐ │ │ ┌─────────────┐ │ │ ┌─────────────┐ │     │
+│ │ │ Musician    │ │ │ │ Culture     │ │ │ │ Villain     │ │     │
+│ │ │ Agent       │ │ │ │ Specialist  │ │ │ │ Narrator    │ │     │
+│ │ └─────────────┘ │ │ └─────────────┘ │ │ └─────────────┘ │     │
+│ │ ┌─────────────┐ │ │ ┌─────────────┐ │ │ ┌─────────────┐ │     │
+│ │ │ Merchant    │ │ │ │ History     │ │ │ │ Commoner    │ │     │
+│ │ │ Agent       │ │ │ │ Specialist  │ │ │ │ Narrator    │ │     │
+│ │ └─────────────┘ │ │ └─────────────┘ │ │ └─────────────┘ │     │
+│ │ ┌─────────────┐ │ │ ┌─────────────┐ │ │ ┌─────────────┐ │     │
+│ │ │ Guard       │ │ │ │ Economics   │ │ │ │ Scholar     │ │     │
+│ │ │ Agent       │ │ │ │ Specialist  │ │ │ │ Narrator    │ │     │
+│ │ └─────────────┘ │ │ └─────────────┘ │ │ └─────────────┘ │     │
+│ └─────────────────┘ └─────────────────┘ └─────────────────┘     │
+│                                                                 │
+│ ┌─────────────────┐                                             │
+│ │ PROBLEMSOLVING  │                                             │
+│ │                 │                                             │
+│ │ ┌─────────────┐ │                                             │
+│ │ │ Game Design │ │                                             │
+│ │ │ Expert      │ │                                             │
+│ │ └─────────────┘ │                                             │
+│ │ ┌─────────────┐ │                                             │
+│ │ │ Technical   │ │                                             │
+│ │ │ Expert      │ │                                             │
+│ │ └─────────────┘ │                                             │
+│ │ ┌─────────────┐ │                                             │
+│ │ │ Narrative   │ │                                             │
+│ │ │ Expert      │ │                                             │
+│ │ └─────────────┘ │                                             │
+│ │ ┌─────────────┐ │                                             │
+│ │ │ Psychology  │ │                                             │
+│ │ │ Expert      │ │                                             │
+│ │ └─────────────┘ │                                             │
+│ └─────────────────┘                                             │
+└─────────────────────────────────────────────────────────────────┘</code></pre>
+<h3 id="technical-implementation">Technical Implementation</h3>
+<p><strong>Core Service</strong>:
+<code>app/services/chat/multiagent_orchestrator.py</code></p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MMOIRLMultiagentOrchestrator:</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;Advanced multiagent orchestration service for MMOIRL scenarios&quot;&quot;&quot;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.app <span class="op">=</span> MCPApp(name<span class="op">=</span><span class="st">&quot;gaia_mmoirl_multiagent&quot;</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.session_orchestrators: Dict[<span class="bu">str</span>, Any] <span class="op">=</span> {}</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> process_multiagent_request(</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        request: ChatRequest,</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        auth_principal: Dict[<span class="bu">str</span>, Any],</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        scenario_type: <span class="bu">str</span> <span class="op">=</span> <span class="st">&quot;auto&quot;</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> Dict[<span class="bu">str</span>, Any]:</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 1. Detect scenario type from message content</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 2. Create appropriate specialist agent team</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 3. Use Orchestrator pattern for coordination</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 4. Return synthesized response</span></span></code></pre></div>
+<h2 id="multiagent-scenarios">Multiagent Scenarios</h2>
+<h3 id="game-master-orchestration-apiv1chatgamemaster">1. Game Master
+Orchestration (<code>/api/v1/chat/gamemaster</code>)</h3>
+<p><strong>Purpose</strong>: Coordinate multiple NPCs for immersive
+interactive scenes</p>
+<p><strong>Agent Team</strong>: - <strong>Tavern Bartender</strong>
+(Grimjaw): Gruff, knows local gossip and rumors - <strong>Elvish
+Musician</strong> (Lyralei): Poetic, ancient lore and legends -
+<strong>Merchant Patron</strong> (Marcus): Well-traveled, political
+insider knowledge - <strong>City Guard</strong> (Captain Elena):
+Authority figure, law enforcement knowledge</p>
+<p><strong>Example Input</strong>: “A hooded figure enters the tavern
+and asks about missing merchants”</p>
+<p><strong>Agent Outputs</strong>:</p>
+<pre><code>BARTENDER (Grimjaw):
+&quot;*wipes down mug with dirty rag* 
+Missing merchants, eh? Aye, heard whispers about that. Northern road&#39;s been 
+dangerous lately - bandits or worse. But information like that... *taps bar* 
+...comes with a price. What&#39;s it worth to ya?&quot;
+
+MUSICIAN (Lyralei):
+&quot;*pauses mid-song, elvish eyes gleaming*
+🎵 &#39;Three wagons rolled at dawn&#39;s first light,
+   But none returned by fall of night...&#39; 🎵
+I sing of what the wind whispers, stranger. The old songs speak of cursed 
+paths where gold turns to dust...&quot;
+
+MERCHANT (Marcus):
+&quot;*leans in conspiratorially*
+Your brother, you say? Marcus knows every guard on every route. If he was 
+with Aldric&#39;s caravan... *shakes head grimly* That route&#39;s been hit three 
+times this month. Someone&#39;s got inside information.&quot;
+
+GUARD (Captain Elena):
+&quot;*straightens in chair, official tone*
+You&#39;re asking about an active investigation. I can&#39;t share details, but... 
+*glances around* Meet me by the old mill at midnight if you truly seek 
+justice, not just revenge.&quot;</code></pre>
+<p><strong>Orchestrator Result</strong>: Unified tavern scene where all
+NPCs respond naturally to create a living world experience.</p>
+<h3 id="collaborative-world-building-apiv1chatworldbuilding">2.
+Collaborative World Building
+(<code>/api/v1/chat/worldbuilding</code>)</h3>
+<p><strong>Purpose</strong>: Create rich, detailed game world content
+through expert collaboration</p>
+<p><strong>Agent Team</strong>: - <strong>Geography Specialist</strong>:
+Landscapes, climate, terrain, natural resources - <strong>Culture
+Specialist</strong>: Civilizations, customs, social structures,
+religions<br />
+- <strong>History Specialist</strong>: Timelines, events, conflicts,
+legends, current tensions - <strong>Economics Specialist</strong>: Trade
+networks, resources, markets, economic systems</p>
+<p><strong>Example Input</strong>: “Create a new fantasy region called
+The Crimson Reaches”</p>
+<p><strong>Agent Outputs</strong>:</p>
+<pre><code>GEOGRAPHY SPECIALIST:
+&quot;The Crimson Reaches span 200 miles of red sandstone canyons and mesas, 
+where ancient magical storms left crystalline formations. Three major rivers 
+converge here: the Ironflow (rich in minerals), the Whisperbrook (pure 
+mountain water), and the Bloodtide (tainted by old magic).
+
+Climate: Arid days, cold nights. Seasonal magical storms. Rich iron and 
+crystal deposits make it valuable but dangerous...&quot;
+
+CULTURE SPECIALIST:
+&quot;Three main peoples inhabit the Reaches:
+- The Stoneshapers: Dwarven-descended miners adapted to desert life
+- The Windwalkers: Nomadic tribes following magical storm patterns  
+- The Frontier Towns: Mixed settlements of prospectors and traders
+
+The Stoneshapers worship the Deep Forge, believing crystals are gods&#39; tears. 
+Windwalkers see storms as ancestral spirits. Constant tension over mining 
+rights vs sacred sites...&quot;
+
+HISTORY SPECIALIST:
+&quot;500 years ago, the Great Sundering cracked the earth here, releasing wild 
+magic that turned the stone red. The last Arcanum wars ended with the 
+Crimson Compact - a treaty limiting magical exploitation.
+
+Recent events: Discovery of &#39;singing crystals&#39; has broken old treaties. 
+The mining rush brought new conflicts. Ancient guardians awakening...&quot;
+
+ECONOMICS SPECIALIST:
+&quot;Primary exports: Iron ore, magical crystals, rare desert herbs
+Trade routes: Three major caravan paths converge at Redrock Crossing
+Currency: Iron tokens backed by the Miners&#39; Guild
+
+Economic tensions: Crystal mining vs traditional iron work, outside 
+corporations vs local guilds, water rights disputes...&quot;</code></pre>
+<p><strong>Orchestrator Result</strong>: Comprehensive region design
+that integrates all specialist perspectives into a cohesive, playable
+world area.</p>
+<h3 id="multi-perspective-storytelling-apiv1chatstorytelling">3.
+Multi-Perspective Storytelling
+(<code>/api/v1/chat/storytelling</code>)</h3>
+<p><strong>Purpose</strong>: Generate rich, layered narratives from
+multiple viewpoints</p>
+<p><strong>Agent Team</strong>: - <strong>Hero Narrator</strong>:
+Courage, justice, moral choices, sacrifice - <strong>Villain
+Narrator</strong>: Complex motivations, tragic backstory, twisted logic
+- <strong>Commoner Narrator</strong>: Survival-focused, practical
+concerns, daily impact - <strong>Scholar Narrator</strong>: Academic
+analysis, historical patterns, long-term view</p>
+<p><strong>Example Input</strong>: “Tell the story of a powerful
+artifact discovery from multiple perspectives”</p>
+<p><strong>Agent Outputs</strong>:</p>
+<pre><code>HERO NARRATOR:
+&quot;Sir Aldric knew the moment he saw the Sunward Crown that innocent lives 
+hung in the balance. The artifact&#39;s power could save the plague-stricken 
+villages, but only if he could resist its whispered promises of personal 
+glory. With trembling hands, he chose duty over desire...&quot;
+
+VILLAIN NARRATOR:
+&quot;They called me villain, but who among them understood true loss? When the 
+Crown spoke to me in my daughter&#39;s voice - the daughter their &#39;noble&#39; war 
+had taken - how could I not listen? If using its power makes me monster, 
+then I embrace monstrosity for love...&quot;
+
+COMMONER NARRATOR:
+&quot;All we wanted was to work our fields in peace. Then the lords came with 
+their magical crown and their grand quests. But while they fought over 
+ancient power, our children still went hungry. Magic don&#39;t put bread on 
+the table...&quot;
+
+SCHOLAR NARRATOR:
+&quot;The Sunward Crown represents the classic pattern of concentrated power 
+corrupting those who wield it. Historical precedent suggests artifacts of 
+this magnitude inevitably lead to societal upheaval - the Crown Wars of 
+the Third Age being the most relevant example...&quot;</code></pre>
+<p><strong>Orchestrator Result</strong>: Multi-layered narrative showing
+how the same events are perceived differently based on perspective and
+experience.</p>
+<h3 id="expert-problem-solving-apiv1chatproblemsolving">4. Expert
+Problem Solving (<code>/api/v1/chat/problemsolving</code>)</h3>
+<p><strong>Purpose</strong>: Collaborative analysis of complex
+challenges requiring multiple expertise areas</p>
+<p><strong>Agent Team</strong>: - <strong>Game Design Expert</strong>:
+Player engagement, balance, progression, fun factor - <strong>Technical
+Expert</strong>: Performance, scalability, networking, implementation -
+<strong>Narrative Expert</strong>: Story integration, character
+development, meaningful choices - <strong>Psychology Expert</strong>:
+Player behavior, social dynamics, psychological engagement</p>
+<p><strong>Example Input</strong>: “Design a complex multiplayer puzzle
+for 6-8 players called The Resonance Chamber”</p>
+<p><strong>Agent Outputs</strong>:</p>
+<pre><code>GAME DESIGN EXPERT:
+&quot;The Resonance Chamber should require 6-8 players with asymmetric roles:
+- 2 Frequency Controllers (set crystal resonance)
+- 2 Amplitude Modulators (control power levels)
+- 2 Timing Coordinators (synchronize pulses)
+- 1-2 Directors (coordinate overall strategy)
+
+Success requires precise teamwork - no single player can solve it alone. 
+Include backup mechanics for when teams get stuck...&quot;
+
+TECHNICAL EXPERT:
+&quot;Real-time synchronization requirements:
+- Sub-100ms latency for frequency adjustments
+- State validation every 50ms to prevent desync
+- Graceful degradation if players disconnect mid-puzzle
+- Visual feedback systems to show resonance states
+
+Implementation: WebSocket connections with heartbeat monitoring, 
+client-side prediction with server authority...&quot;
+
+NARRATIVE EXPERT:
+&quot;The Chamber houses an ancient AI that speaks in musical patterns. 
+Players must &#39;sing&#39; to it in harmony to unlock deeper chambers. 
+Each player discovers fragments of the AI&#39;s tragic history - 
+it was once the conductor of a great orchestra, now seeking 
+to recreate its lost symphony...&quot;
+
+PSYCHOLOGY EXPERT:
+&quot;Team dynamics considerations:
+- Natural leaders will emerge - design roles that support this
+- Include &#39;follower&#39; roles that are engaging, not just passive
+- Communication is key - require voice coordination
+- Failure states should encourage regrouping, not blame
+- Victory should feel earned by the entire team...&quot;</code></pre>
+<p><strong>Orchestrator Result</strong>: Comprehensive design solution
+that incorporates insights from all expert domains.</p>
+<h2 id="api-endpoints">API Endpoints</h2>
+<h3 id="enhanced-mcp-agent-endpoint">Enhanced MCP-Agent Endpoint</h3>
+<p><strong><code>POST /api/v1/chat/mcp-agent</code></strong> -
+<strong>Description</strong>: Enhanced with automatic multiagent
+orchestration - <strong>Behavior</strong>: Analyzes incoming messages
+and routes to appropriate agent teams - <strong>Scenarios</strong>:
+Auto-detects gamemaster, worldbuilding, storytelling, or problemsolving
+needs</p>
+<h3 id="specific-scenario-endpoints">Specific Scenario Endpoints</h3>
+<p><strong><code>POST /api/v1/chat/gamemaster</code></strong> -
+<strong>Description</strong>: Game Master orchestrating multiple NPCs -
+<strong>Use Case</strong>: Interactive scenes, character dialogues,
+immersive world interactions</p>
+<p><strong><code>POST /api/v1/chat/worldbuilding</code></strong> -
+<strong>Description</strong>: Collaborative world building with
+specialist agents - <strong>Use Case</strong>: Creating regions, cities,
+cultures, histories for game worlds</p>
+<p><strong><code>POST /api/v1/chat/storytelling</code></strong> -
+<strong>Description</strong>: Multi-perspective storytelling -
+<strong>Use Case</strong>: Rich narratives, character backstories, event
+descriptions</p>
+<p><strong><code>POST /api/v1/chat/problemsolving</code></strong> -
+<strong>Description</strong>: Expert team collaboration for complex
+challenges - <strong>Use Case</strong>: Game design problems, technical
+challenges, complex puzzles</p>
+<h3 id="request-format">Request Format</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Your request or scenario description&quot;</span><span class="fu">,</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;model&quot;</span><span class="fu">:</span> <span class="st">&quot;claude-sonnet-4-5&quot;</span><span class="fu">,</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;persona&quot;</span><span class="fu">:</span> <span class="st">&quot;optional_persona_context&quot;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="response-format">Response Format</h3>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="st">&quot;multiagent-{user_id}-{timestamp}&quot;</span><span class="fu">,</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;object&quot;</span><span class="fu">:</span> <span class="st">&quot;chat.completion&quot;</span><span class="fu">,</span> </span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;created&quot;</span><span class="fu">:</span> <span class="dv">1234567890</span><span class="fu">,</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;model&quot;</span><span class="fu">:</span> <span class="st">&quot;claude-sonnet-4-5&quot;</span><span class="fu">,</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;choices&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="fu">{</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;index&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="fu">,</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;role&quot;</span><span class="fu">:</span> <span class="st">&quot;assistant&quot;</span><span class="fu">,</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;content&quot;</span><span class="fu">:</span> <span class="st">&quot;Orchestrated response from multiple agents...&quot;</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;finish_reason&quot;</span><span class="fu">:</span> <span class="st">&quot;stop&quot;</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;usage&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;prompt_tokens&quot;</span><span class="fu">:</span> <span class="dv">150</span><span class="fu">,</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;completion_tokens&quot;</span><span class="fu">:</span> <span class="dv">800</span><span class="fu">,</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_tokens&quot;</span><span class="fu">:</span> <span class="dv">950</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;_multiagent&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;scenario_type&quot;</span><span class="fu">:</span> <span class="st">&quot;gamemaster&quot;</span><span class="fu">,</span></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;orchestrator&quot;</span><span class="fu">:</span> <span class="st">&quot;tavern_game_master&quot;</span><span class="fu">,</span> </span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;agent_count&quot;</span><span class="fu">:</span> <span class="dv">4</span><span class="fu">,</span></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;coordination_time_ms&quot;</span><span class="fu">:</span> <span class="dv">12500</span><span class="fu">,</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;agent_names&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;tavern_bartender&quot;</span><span class="ot">,</span> <span class="st">&quot;tavern_musician&quot;</span><span class="ot">,</span> <span class="st">&quot;merchant_patron&quot;</span><span class="ot">,</span> <span class="st">&quot;city_guard&quot;</span><span class="ot">]</span></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h2 id="testing">Testing</h2>
+<h3 id="using-test-script">Using Test Script</h3>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Test all multiagent scenarios</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/test.sh</span> <span class="at">--local</span> chat-all</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Test specific scenarios</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/test.sh</span> <span class="at">--local</span> gamemaster</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/test.sh</span> <span class="at">--local</span> worldbuilding  </span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/test.sh</span> <span class="at">--local</span> storytelling</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/test.sh</span> <span class="at">--local</span> problemsolving</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Test enhanced mcp-agent with auto-detection</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/test.sh</span> <span class="at">--local</span> mcp-agent <span class="st">&quot;Create a tavern scene with multiple characters&quot;</span></span></code></pre></div>
+<h3 id="example-test-commands">Example Test Commands</h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Game Master scenario</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/test.sh</span> <span class="at">--local</span> gamemaster <span class="st">&quot;A mysterious stranger enters asking about ancient ruins&quot;</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># World building scenario  </span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/test.sh</span> <span class="at">--local</span> worldbuilding <span class="st">&quot;Design the floating city of Aerion&quot;</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Storytelling scenario</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/test.sh</span> <span class="at">--local</span> storytelling <span class="st">&quot;The discovery of time magic from different perspectives&quot;</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Problem solving scenario</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/test.sh</span> <span class="at">--local</span> problemsolving <span class="st">&quot;Design a social deduction game for 12 players&quot;</span></span></code></pre></div>
+<h2 id="technical-architecture">Technical Architecture</h2>
+<h3 id="agent-structure">Agent Structure</h3>
+<p>Each agent is implemented as:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>Agent(</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">&quot;specific_role_name&quot;</span>,</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    instruction<span class="op">=</span><span class="st">&quot;Detailed personality and expertise description&quot;</span>, </span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    server_names<span class="op">=</span>[]  <span class="co"># No MCP servers for performance</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="orchestrator-pattern">Orchestrator Pattern</h3>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>Orchestrator(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    llm_factory<span class="op">=</span>llm_factory,</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    available_agents<span class="op">=</span>[agent1, agent2, agent3, agent4],</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    plan_type<span class="op">=</span><span class="st">&quot;iterative&quot;</span>,  <span class="co"># Dynamic, responsive planning</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">&quot;scenario_coordinator&quot;</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="scenario-detection">Scenario Detection</h3>
+<p>The system automatically detects appropriate scenarios based on
+message content:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _detect_scenario_type(<span class="va">self</span>, message: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">&quot;&quot;&quot;Detect appropriate multiagent scenario based on message content&quot;&quot;&quot;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    message_lower <span class="op">=</span> message.lower()</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Game master scenarios</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">any</span>(word <span class="kw">in</span> message_lower <span class="cf">for</span> word <span class="kw">in</span> [<span class="st">&#39;tavern&#39;</span>, <span class="st">&#39;npc&#39;</span>, <span class="st">&#39;character&#39;</span>, <span class="st">&#39;dialogue&#39;</span>]):</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">&quot;gamemaster&quot;</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># World building scenarios  </span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> <span class="bu">any</span>(word <span class="kw">in</span> message_lower <span class="cf">for</span> word <span class="kw">in</span> [<span class="st">&#39;world&#39;</span>, <span class="st">&#39;region&#39;</span>, <span class="st">&#39;geography&#39;</span>, <span class="st">&#39;culture&#39;</span>]):</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">&quot;worldbuilding&quot;</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># And so on...</span></span></code></pre></div>
+<h2 id="performance-considerations">Performance Considerations</h2>
+<h3 id="response-times">Response Times</h3>
+<ul>
+<li><strong>Single Agent</strong>: ~2-5 seconds</li>
+<li><strong>Multiagent Orchestration</strong>: ~10-30 seconds (due to
+coordination overhead)</li>
+<li><strong>Parallel Agent Processing</strong>: Agents run
+simultaneously, not sequentially</li>
+</ul>
+<h3 id="when-to-use-multiagent-vs-single-agent">When to Use Multiagent
+vs Single Agent</h3>
+<p><strong>Use Multiagent For</strong>: - Complex interactive scenes
+requiring multiple characters - Rich content creation needing multiple
+expertise areas - Sophisticated storytelling with multiple perspectives
+- Complex problem solving requiring diverse skills</p>
+<p><strong>Use Single Agent For</strong>: - Simple questions and direct
+responses - Real-time gaming interactions requiring &lt;500ms responses
+- Basic chat and conversational interactions - Performance-critical
+scenarios</p>
+<h3 id="optimization-strategies">Optimization Strategies</h3>
+<ol type="1">
+<li><strong>Scenario Pre-detection</strong>: Route simple queries to
+single-agent endpoints</li>
+<li><strong>Agent Caching</strong>: Keep frequently-used agent teams
+warm</li>
+<li><strong>Parallel Processing</strong>: All agents in a team run
+simultaneously</li>
+<li><strong>Response Streaming</strong>: Stream individual agent outputs
+as they complete</li>
+</ol>
+<h2 id="mmoirl-applications">MMOIRL Applications</h2>
+<h3 id="dynamic-npcs">Dynamic NPCs</h3>
+<ul>
+<li>Multiple characters responding simultaneously to player actions</li>
+<li>Coordinated NPC behavior that feels like a living world</li>
+<li>Rich interactive dialogues with multiple personality types</li>
+</ul>
+<h3 id="procedural-content-generation">Procedural Content
+Generation</h3>
+<ul>
+<li>Collaborative creation of game regions, cities, and cultures</li>
+<li>Multi-expert analysis for complex game design challenges</li>
+<li>Rich, multi-layered storytelling for dynamic narratives</li>
+</ul>
+<h3 id="adaptive-gameplay">Adaptive Gameplay</h3>
+<ul>
+<li>Intelligent routing based on interaction complexity</li>
+<li>Scalable from simple responses to sophisticated coordination</li>
+<li>Foundation for consciousness-like AI behavior patterns</li>
+</ul>
+<h3 id="educational-applications">Educational Applications</h3>
+<ul>
+<li>Multiple expert perspectives on complex topics</li>
+<li>Collaborative problem-solving demonstrations</li>
+<li>Rich, nuanced explanations from different viewpoints</li>
+</ul>
+<h2 id="integration-with-existing-systems">Integration with Existing
+Systems</h2>
+<h3 id="chat-infrastructure">Chat Infrastructure</h3>
+<ul>
+<li>Built on top of existing Gaia chat architecture</li>
+<li>Maintains authentication and response format compatibility</li>
+<li>Integrates with Redis caching and database conversation storage</li>
+</ul>
+<h3 id="gateway-routing">Gateway Routing</h3>
+<ul>
+<li>New endpoints automatically routed through Gaia gateway</li>
+<li>Maintains backward compatibility with existing clients</li>
+<li>Consistent API patterns with other chat endpoints</li>
+</ul>
+<h3 id="mcp-agent-framework">MCP-Agent Framework</h3>
+<ul>
+<li>Uses LastMile AI’s mcp-agent library for orchestration</li>
+<li>Leverages proven patterns for multiagent coordination</li>
+<li>Extensible architecture for adding new agent types and
+scenarios</li>
+</ul>
+<h2 id="future-enhancements">Future Enhancements</h2>
+<h3 id="advanced-coordination-patterns">Advanced Coordination
+Patterns</h3>
+<ul>
+<li><strong>Swarm Intelligence</strong>: Large numbers of simple agents
+working together</li>
+<li><strong>Hierarchical Orchestration</strong>: Multi-level agent
+management</li>
+<li><strong>Dynamic Team Formation</strong>: Agents chosen based on
+real-time needs</li>
+</ul>
+<h3 id="performance-optimizations">Performance Optimizations</h3>
+<ul>
+<li><strong>Hot-loaded Agent Teams</strong>: Pre-initialized specialist
+groups</li>
+<li><strong>Intelligent Caching</strong>: Cache common agent
+combinations</li>
+<li><strong>Streaming Coordination</strong>: Real-time agent output as
+it’s generated</li>
+</ul>
+<h3 id="extended-scenarios">Extended Scenarios</h3>
+<ul>
+<li><strong>Combat Coordination</strong>: Multiple AI characters in
+tactical scenarios</li>
+<li><strong>Economic Simulation</strong>: Agents representing different
+market forces</li>
+<li><strong>Social Dynamics</strong>: Complex interpersonal relationship
+modeling</li>
+</ul>
+<h3 id="consciousness-integration">Consciousness Integration</h3>
+<ul>
+<li><strong>Memory Systems</strong>: Agents that remember past
+interactions</li>
+<li><strong>Emotional States</strong>: Agents with persistent moods and
+relationships</li>
+<li><strong>Learning Behaviors</strong>: Agents that adapt based on
+player feedback</li>
+</ul>
+<h2 id="conclusion">Conclusion</h2>
+<p>Gaia’s multiagent orchestration system provides the foundation for
+sophisticated AI coordination required for MMOIRL experiences. By
+combining multiple specialized agents through intelligent orchestration,
+we can create rich, dynamic, and immersive interactions that go far
+beyond simple single-agent chat responses.</p>
+<p>This system enables: - <strong>Living World Experiences</strong>:
+Multiple AI characters working together - <strong>Rich Content
+Creation</strong>: Expert collaboration for complex game design -
+<strong>Sophisticated Storytelling</strong>: Multi-perspective narrative
+generation<br />
+- <strong>Complex Problem Solving</strong>: Diverse expertise applied to
+challenging scenarios</p>
+<p>The architecture is designed to scale from simple single-agent
+responses to complex multiagent coordination, providing the flexibility
+needed for diverse MMOIRL gaming and educational applications.</p>
+</body>
+</html>

@@ -197,7 +197,7 @@ class KBEnhancedMultiagentOrchestrator:
                 result = await orchestrator.generate_str(
                     message=enhanced_message,
                     request_params=RequestParams(
-                        model="claude-3-5-sonnet-20241022",
+                        model="claude-sonnet-4-5",
                         maxTokens=3000,
                         max_iterations=4
                     )
@@ -207,7 +207,7 @@ class KBEnhancedMultiagentOrchestrator:
                     "id": f"kb-multiagent-{scenario}-{int(time.time())}",
                     "object": "chat.completion",
                     "created": int(time.time()),
-                    "model": "claude-3-5-sonnet-20241022", 
+                    "model": "claude-sonnet-4-5", 
                     "choices": [{
                         "index": 0,
                         "message": {

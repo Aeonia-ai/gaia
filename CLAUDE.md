@@ -41,6 +41,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./scripts/test.sh --local chat "test message"  # Test functionality
 ```
 
+## 🚨 CRITICAL: Use Existing Scripts First!
+
+**BEFORE running any ad-hoc command, CHECK FOR EXISTING SCRIPTS:**
+
+```bash
+ls scripts/experience/        # Testing and admin command scripts
+ls scripts/                   # All automation scripts
+```
+
+**Common Scripts:**
+- `./scripts/experience/inspect-world.sh` - Check world state and bottle counts
+- `./scripts/experience/check-inventory.sh <user_id>` - Check player inventory
+- `./scripts/experience/reset-experience.sh` - Reset world to pristine state
+- `./scripts/experience/test-fast-*.sh` - Test fast commands (collect, drop, etc.)
+- `./scripts/experience/test-admin-*.sh` - Test admin commands
+
+**Complete Script Reference**: [WebSocket Fast Command Testing Scripts](docs/scratchpad/websocket-fast-command-testing-scripts.md)
+
+**Rules:**
+1. ✅ **USE SCRIPTS** - Always prefer existing scripts over manual commands
+2. ❌ **NO AD-HOC jq/grep** - If you catch yourself writing jq queries, there's probably a script
+3. 📝 **Suggest new scripts** - If you write the same command twice, propose a script
+
+**When user says "use the script" or "RTFM"** → Go read the scripts documentation immediately!
+
 ## 🚨 BEFORE YOU START: Required Reading
 
 1. **Database Setup** → MUST run [Database Initialization Guide](docs/current/development/database-initialization-guide.md) - Required for persona functionality
@@ -211,6 +236,8 @@ Claude: [reads message] → [analyzes question] → [checks codebase]
 - ✅ mTLS + JWT infrastructure (Phases 1-2, 100% backward compatible)
 - ✅ Redis caching (97% performance improvement)
 - ✅ AR Waypoints System - `/api/v0.3/locations/nearby` endpoint (AEO-10 partial)
+- ✅ Admin Command System - @ prefix commands for world building (<30ms response time)
+- ✅ NPC Interaction System - Natural language conversations with trust/relationship tracking
 
 **AR Waypoints Implementation** (AEO-10):
 - ✅ 37 waypoints loaded from KB markdown files (`/kb/experiences/wylding-woods/waypoints/`)
@@ -220,6 +247,25 @@ Claude: [reads message] → [analyzes question] → [checks codebase]
 - ⏸️ Mission parameters (deferred - to be added with full mission system)
 - ⏸️ Mission-based waypoint ordering (Unity expects array order)
 - ⚠️ Technical debt: Logic in Gateway (should be separate Locations service)
+
+**Admin Command System** (Complete):
+- ✅ Auto-discovery from `/kb/experiences/{exp}/admin-logic/` directory
+- ✅ @ prefix distinguishes admin from player commands
+- ✅ Zero LLM latency (<30ms response time vs 1-3s for player commands)
+- ✅ 8+ admin commands: @list-waypoints, @inspect-waypoint, @edit-waypoint, @create-waypoint, @delete-waypoint, @list-items, @inspect-item
+- ✅ Safety mechanisms: CONFIRM required for destructive operations
+- ✅ Metadata tracking: created_by, last_modified, timestamps
+- ⚠️ Permission enforcement: Placeholder only (future RBAC implementation)
+- 📚 See: [Admin Command System](docs/admin-command-system.md) for complete reference
+
+**NPC Interaction System** (Complete):
+- ✅ Natural language conversations via `talk` command
+- ✅ LLM-powered authentic, in-character dialogue
+- ✅ Per-player state tracking: trust level (0-100), conversation history (last 20 turns)
+- ✅ Relationship progression: trust gates content and quest availability
+- ✅ Quest integration foundation: NPCs can offer quests based on trust level
+- ✅ Tested with Louisa (Dream Weaver fairy) in wylding-woods
+- 📚 See: [NPC Interaction System](docs/npc-interaction-system.md) for complete reference
 
 **Active Development**:
 - 🔧 Getting Supabase service role key for full remote functionality
@@ -442,6 +488,7 @@ See [Testing Guide](docs/testing/TESTING_GUIDE.md) for comprehensive documentati
 ### 📚 API Reference
 - [API Contracts](docs/api/api-contracts.md) - Which endpoints require authentication
 - [Chat Endpoints](docs/api/chat-endpoints.md) - LLM interaction patterns
+- [WebSocket AOI Client Guide](docs/scratchpad/websocket-aoi-client-guide.md) - Real-time world state delivery for AR clients (design phase)
 - [API Authentication Guide](docs/api/api-authentication-guide.md) - API authentication patterns
 - [Redis Integration](docs/redis-integration.md) - Caching implementation
 

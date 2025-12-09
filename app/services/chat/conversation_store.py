@@ -33,8 +33,8 @@ class ChatConversationStore:
         from app.shared.database import SessionLocal
         return SessionLocal()
     
-    def _get_or_create_user(self, user_id: str) -> User:
-        """Get or create user by ID"""
+    def _get_or_create_user(self, user_id: str, user_email: Optional[str] = None) -> User:
+        """Get or create user by ID or email."""
         db = self._get_db()
         try:
             # Handle dev user special case - always use the existing dev user
@@ -43,67 +43,63 @@ class ChatConversationStore:
                 if user:
                     return user
                 # If dev user doesn't exist, create it with a proper UUID
-                user = User(
-                    email="dev@gaia.local",
-                    name="Local Development User"
-                )
+                user = User(id=uuid.uuid4(), email="dev@gaia.local", name="Local Development User")
                 db.add(user)
                 db.commit()
                 db.refresh(user)
                 logger.info(f"Created dev user: {user.id}")
                 return user
-            
-            # For other users, try to parse as UUID
+
+            # 1. Try to find user by email if provided
+            if user_email:
+                user = db.query(User).filter(User.email == user_email).first()
+                if user:
+                    return user
+
+            # 2. Try to find user by user_id (as UUID or email)
             try:
-                # Try to get user by UUID
                 user_uuid = uuid.UUID(user_id)
                 user = db.query(User).filter(User.id == user_uuid).first()
                 if user:
                     return user
             except ValueError:
-                # user_id is not a valid UUID, treat as email
                 user = db.query(User).filter(User.email == user_id).first()
                 if user:
                     return user
-            
-            # Create new user if not found - with duplicate handling
+
+            # 3. Create new user if not found
+            # Prioritize user_email for the new user's email
+            email_to_use = user_email
+            if not email_to_use and "@" in user_id:
+                email_to_use = user_id
+
+            if not email_to_use:
+                raise ValueError("Cannot create user without a valid email address.")
+
             try:
-                if "@" in user_id:
-                    # user_id looks like an email
-                    user = User(email=user_id, name="User")
-                else:
-                    # Create with generated email
-                    user = User(email=f"{user_id}@gaia.local", name="User")
-                
+                user = User(email=email_to_use, name="User")
                 db.add(user)
                 db.commit()
                 db.refresh(user)
-                logger.info(f"Created new user: {user.id}")
+                logger.info(f"Created new user with email: {email_to_use}")
                 return user
             except Exception as e:
-                # If creation fails (likely duplicate), try to find existing user
                 db.rollback()
-                logger.warning(f"User creation failed, trying to find existing: {e}")
-                
-                if "@" in user_id:
-                    user = db.query(User).filter(User.email == user_id).first()
-                else:
-                    user = db.query(User).filter(User.email == f"{user_id}@gaia.local").first()
-                
+                logger.warning(f"User creation failed, trying to find existing user with email: {email_to_use}")
+                user = db.query(User).filter(User.email == email_to_use).first()
                 if user:
-                    logger.info(f"Found existing user: {user.id}")
                     return user
                 else:
-                    logger.error(f"Could not find or create user for {user_id}")
+                    logger.error(f"Could not find or create user with email: {email_to_use}")
                     raise e
         finally:
             db.close()
     
-    def create_conversation(self, user_id: str, title: str = "New Conversation") -> Dict[str, Any]:
+    def create_conversation(self, user_id: str, title: str = "New Conversation", user_email: Optional[str] = None) -> Dict[str, Any]:
         """Create a new conversation"""
         db = self._get_db()
         try:
-            user = self._get_or_create_user(user_id)
+            user = self._get_or_create_user(user_id, user_email) # Pass user_email
             
             conversation = Conversation(
                 user_id=user.id,

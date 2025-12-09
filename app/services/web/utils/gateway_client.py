@@ -72,7 +72,7 @@ class GaiaAPIClient:
         self, 
         messages: list,
         jwt_token: str,
-        model: str = "claude-3-5-sonnet-20241022",
+        model: str = "claude-sonnet-4-5",
         conversation_id: Optional[str] = None,
         response_format: str = "openai"
     ):
@@ -126,7 +126,7 @@ class GaiaAPIClient:
         self, 
         messages: list,
         jwt_token: str,
-        model: str = "claude-3-5-sonnet-20241022",
+        model: str = "claude-sonnet-4-5",
         conversation_id: Optional[str] = None,
         response_format: str = "openai"
     ):
