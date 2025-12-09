@@ -1,5 +1,7 @@
 # KB Git Secrets Setup
 
+
+
 ## Issue Identified
 The KB service deployed successfully but never cloned the git repository because the required secrets are missing from the Fly.io deployment.
 

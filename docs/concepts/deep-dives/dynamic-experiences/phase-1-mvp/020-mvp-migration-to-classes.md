@@ -1,8 +1,35 @@
 # 020 - MVP Migration: From Dictionaries to Classes
 
-**Status:** Proposed
-**Version:** 1.0
+> **Status**: ⚠️ SUPERSEDED - This migration approach is no longer relevant
+> **Version:** 1.0
+> **Created**: ~2025-10
+> **Last Updated**: 2025-12-04
+> **Superseded By**: Unified State Model implementation (see `030-unified-state-model-implementation.md`)
+
+## ⚠️ Document Status
+
+**This document describes a migration path that was NOT taken.**
+
+**Why Superseded:**
+1. The "dictionary-based MVP" approach described here doesn't match current codebase
+2. The Unified State Model uses different patterns (SQLAlchemy models, not simple classes)
+3. File locations referenced (`app/services/kb/simulation/`) don't exist
+4. Current implementation uses database-backed state, not file-based dictionaries
+
+**Current Reality:**
+- State management via `UnifiedStateManager` (see `030-unified-state-model-implementation.md`)
+- Database models in `app/models/` (SQLAlchemy)
+- No `simulation/instances.py` or similar files exist
+
+**This document is kept for historical reference only.** Do not use as implementation guide.
+
+---
+
+## Original Purpose (Historical)
+
 **Purpose:** This document describes the process of migrating the file-based MVP from a simple, dictionary-based approach to a more robust, class-based design.
+
+**Note**: This migration was never executed. The system evolved differently.
 
 ## 1. The Two Approaches
 

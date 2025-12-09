@@ -1,5 +1,6 @@
 # GAIA CLI Client
 
+
 An interactive command-line interface for the GAIA platform, supporting v0.3 API endpoints with conversation management, persona switching, and rich text output.
 
 ## Features

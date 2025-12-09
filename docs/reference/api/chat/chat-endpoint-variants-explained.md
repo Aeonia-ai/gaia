@@ -1,6 +1,8 @@
 # Chat Endpoint Variants Explained
 
-**Created**: January 2025  
+
+
+**Created**: January 2025
 **Purpose**: Document the rationale behind the numerous chat endpoint variants in the Gaia platform
 
 ## Overview

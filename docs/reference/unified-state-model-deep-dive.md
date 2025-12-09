@@ -1,5 +1,6 @@
 # Unified State Model: Deep Dive & Debugging Guide
 
+
 **Purpose**: This document provides a deep architectural dive into the GAIA platform's dual state models (`shared` and `isolated`). It also serves as a critical debugging guide for common issues related to the Docker environment and content loading, based on real-world troubleshooting.
 
 ---

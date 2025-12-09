@@ -1,5 +1,7 @@
 # KB Remote Deployment Authentication Guide
 
+
+
 This guide covers how to handle Git authentication for KB sync in remote deployments (Fly.io, AWS, etc.).
 
 ## Authentication Challenge

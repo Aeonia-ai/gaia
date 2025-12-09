@@ -1,5 +1,6 @@
 # GAIA v0.3 API Documentation
 
+
 **The Clean, Simple AI Chat API**
 
 ## Overview

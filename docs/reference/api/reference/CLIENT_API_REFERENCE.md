@@ -1,5 +1,6 @@
 # GAIA v0.3 API Reference
 
+
 **Audience**: External developers integrating with GAIA  
 **Focus**: Client SDKs, code examples, practical implementation  
 **Recommended Version**: v0.3 for new integrations (cleaner responses)

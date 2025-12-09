@@ -1,8 +1,33 @@
 # Intelligent Chat Routing
 
-## Overview
+> **Status**: ⚠️ OUTDATED DOCUMENTATION - See `app/services/chat/unified_chat.py` for current implementation
+> **Created**: 2025-10
+> **Last Verified**: 2025-11-12 (marked outdated by Gemini)
+> **Current Implementation**: `app/services/chat/unified_chat.py` (UnifiedChatHandler)
+> **Archived Code**: `app/services/chat/_archive_2025_01/intelligent_router.py`
 
-The intelligent chat routing system automatically routes messages to the optimal endpoint based on complexity, eliminating the need for users to choose between different chat endpoints. This is **currently implemented** and operational in the GAIA platform.
+## ⚠️ Documentation Status
+
+**This document describes an OUTDATED architecture.** The files referenced here (`intelligent_router.py`, `intelligent_chat.py`) have been moved to `_archive_2025_01/`.
+
+**For current implementation, see:**
+- `app/services/chat/unified_chat.py` - Current unified chat handler
+- Lines 323-331: Single LLM call with `tool_choice="auto"` for routing decisions
+- KB tools integrated directly, not separate endpoints
+
+**Key Changes from this spec:**
+- ❌ No separate `/chat/direct`, `/chat/mcp-agent-hot`, `/chat/mcp-agent` endpoints
+- ❌ Routing doesn't forward to HTTP endpoints - calls services directly
+- ✅ Single LLM call architecture is correct
+- ✅ KB tools integration concept is correct
+
+**This document is kept for historical reference only.**
+
+---
+
+## Overview (Historical)
+
+The intelligent chat routing system automatically routes messages to the optimal endpoint based on complexity, eliminating the need for users to choose between different chat endpoints. This **WAS implemented** but has since been refactored.
 
 ## API Version Note
 

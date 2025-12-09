@@ -1,10 +1,20 @@
 # Database Migration Strategy (Future Implementation Plan)
 
+
+
+---
+**📋 DOCUMENT STATUS: DESIGN PROPOSAL**
+
+This is a **design proposal** for a future implementation. It is NOT currently implemented in the codebase.
+
+**Current State**: The system uses numbered migrations (001, 002, 003...) applied manually without tracking.
+
+**Proposed State**: Automated migration tracking with timestamp-based naming and rollback support.
+---
+
 ## Overview
 
 This document outlines a **proposed strategy** for keeping database schemas synchronized between local development and remote environments (dev, staging, production) for the Gaia Platform.
-
-**⚠️ Status**: This describes a future implementation plan. The current system uses numbered migrations (001, 002, 003...) applied manually without tracking.
 
 ## Current Issues
 

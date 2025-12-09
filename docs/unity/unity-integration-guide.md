@@ -5,8 +5,8 @@
 ## Essential Documentation
 
 1. **[Action Items](../unity-chatclient-feedback-action-items.md)** - Specific fixes needed for ChatClient
-2. **[Streaming API Guide](../api/streaming/streaming-api-guide.md)** - SSE implementation details
-3. **[Client API Reference](../api/reference/CLIENT_API_REFERENCE.md)** - Endpoint specifications
+2. **[Streaming API Guide](../reference/api/streaming/streaming-api-guide.md)** - SSE implementation details
+3. **[Client API Reference](../reference/api/reference/CLIENT_API_REFERENCE.md)** - Endpoint specifications
 
 ## Current Integration Status
 

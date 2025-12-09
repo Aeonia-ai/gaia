@@ -1,5 +1,7 @@
 # HTMX + FastHTML Debugging Guide
 
+
+
 ## Overview
 
 This guide documents critical lessons learned while debugging HTMX issues in the Gaia FastHTML web interface. These insights will save hours of debugging time.

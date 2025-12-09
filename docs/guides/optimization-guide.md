@@ -1,5 +1,7 @@
 # Gaia Platform Optimization Guide
 
+
+
 This document outlines performance optimization opportunities for the Gaia Platform, prioritized by implementation effort and impact.
 
 ## Overview

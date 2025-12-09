@@ -20,7 +20,7 @@
 Gaia Platform is a distributed microservices system that evolved from the monolithic "LLM Platform" to provide enterprise-grade AI capabilities with enhanced scalability, reliability, and maintainability. The platform maintains 100% backward compatibility while introducing modern cloud-native patterns.
 
 ### Key Characteristics
-- **Microservices Architecture**: 6 independent services with specific responsibilities
+- **Microservices Architecture**: 6 independent services (4 discoverable via SERVICE_REGISTRY + Gateway + Web)
 - **Cloud-Agnostic**: Deployable on Fly.io, AWS, GCP, or on-premise
 - **High Performance**: 97% improvement in auth performance via Redis caching
 - **Multi-Provider**: Supports OpenAI, Anthropic, and multiple asset generation providers
@@ -62,14 +62,16 @@ Gaia Platform is a distributed microservices system that evolved from the monoli
 
 ### Service Responsibilities
 
-| Service | Port | Responsibility |
-|---------|------|----------------|
-| Gateway | 8666 | API routing, authentication, rate limiting |
-| Auth | 8001 | JWT/API key validation, user management |
-| Asset | 8002 | Multi-provider asset generation and storage |
-| Chat | 8003 | LLM orchestration and conversation management |
-| KB | 8004 | Knowledge base with Git sync and search |
-| Web | 8080 | FastHTML web interface |
+| Service | Port | Responsibility | Registry |
+|---------|------|----------------|----------|
+| Gateway | 8666 | API routing, authentication, rate limiting | No (external entry point) |
+| Auth | 8001 | JWT/API key validation, user management | ✓ SERVICE_REGISTRY |
+| Asset | 8002 | Multi-provider asset generation and storage | ✓ SERVICE_REGISTRY |
+| Chat | 8003 | LLM orchestration and conversation management | ✓ SERVICE_REGISTRY |
+| KB | 8004 | Knowledge base with Git sync and search | ✓ SERVICE_REGISTRY |
+| Web | 8080 | FastHTML web interface | No (external web UI) |
+
+**Note**: Only the 4 backend services (Auth, Asset, Chat, KB) are registered in `SERVICE_REGISTRY` for smart service discovery. Gateway and Web services are external-facing and use static port/URL configuration.
 
 ## Service Architecture
 

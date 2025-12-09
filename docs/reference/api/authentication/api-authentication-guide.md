@@ -1,5 +1,7 @@
 # API Authentication Guide
 
+
+
 **STOP! READ THIS FIRST** to avoid breaking authentication again.
 
 ## 🚨 Critical Rules - NEVER BREAK THESE

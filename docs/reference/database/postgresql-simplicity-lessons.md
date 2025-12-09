@@ -1,5 +1,6 @@
 # PostgreSQL Simplicity Lessons
 
+
 ## 🧠 Meta-Learning from the RBAC/PostgreSQL Journey
 
 This document captures critical lessons learned from attempting to implement RBAC with PostgreSQL, where we initially overcomplicated a simple solution.

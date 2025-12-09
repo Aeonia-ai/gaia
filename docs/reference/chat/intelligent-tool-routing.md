@@ -1,5 +1,6 @@
 # Intelligent Tool Routing Architecture
 
+
 **Status**: 🟢 Production Ready  
 **Last Updated**: January 2025
 
@@ -335,8 +336,8 @@ full_content = await read_kb_file(search_results[0].path)
 
 ## See Also
 - [Chat Service Implementation](chat-service-implementation.md)
-- [KB Tools Reference](../../kb/reference/kb-http-api-reference.md)
-- [Intelligent Chat Routing](../../api/chat/intelligent-chat-routing.md)
+- [KB Tools Reference](../services/reference/kb-http-api-reference.md)
+- [Intelligent Chat Routing](../api/chat/intelligent-chat-routing.md)
 
 ---
 

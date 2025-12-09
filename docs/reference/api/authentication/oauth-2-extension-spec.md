@@ -1,13 +1,17 @@
 # OAuth 2.0 Extension Specification
 
-**Created**: July 2025  
-**Purpose**: Extend GAIA's authentication system with full OAuth 2.0 flows for third-party integrations and enterprise use cases  
-**Version**: 1.0  
-**Status**: Planning  
+
+
+**Created**: July 2025
+**Purpose**: Extend GAIA's authentication system with full OAuth 2.0 flows for third-party integrations and enterprise use cases
+**Version**: 1.0
+**Status**: ⚠️ **SPECIFICATION ONLY - NOT IMPLEMENTED**
+
+> **⚠️ IMPLEMENTATION STATUS**: This is a design specification for future OAuth 2.0 support. OAuth flows described in this document are **NOT currently implemented** in the Gaia Platform. The platform currently uses API key authentication and Supabase JWT tokens. See the [API Authentication Guide](./api-authentication-guide.md) for currently implemented authentication patterns.
 
 ## Overview
 
-GAIA currently implements a robust authentication system using the **Resource Owner Password Credentials Grant** (OAuth 2.0 Section 4.3) via Supabase. This specification defines extensions to support the complete OAuth 2.0 framework, enabling third-party applications, enterprise SSO integration, and a developer ecosystem.
+GAIA currently implements a robust authentication system using the **Resource Owner Password Credentials Grant** (OAuth 2.0 Section 4.3) via Supabase. This specification defines **planned extensions** to support the complete OAuth 2.0 framework, enabling third-party applications, enterprise SSO integration, and a developer ecosystem.
 
 The extension maintains **100% backward compatibility** with existing API key and JWT authentication while adding:
 - Authorization Code Flow for secure third-party app integration
@@ -31,6 +35,8 @@ GAIA's OAuth 2.0 extension follows the principle of **progressive enhancement**:
 The extension leverages GAIA's existing **dual authentication architecture** (API keys + JWT) as the foundation for OAuth 2.0 compliance.
 
 ## Implementation
+
+> **Note**: The code examples below are design specifications, not currently implemented features. Refer to the Migration Path section for implementation timeline.
 
 ### 1. Client Registration System
 

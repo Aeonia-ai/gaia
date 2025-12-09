@@ -10,4 +10,4 @@ Architectural patterns and decisions.
 - `deferred-initialization-pattern.md` - Fast startup patterns
 
 ## Parent
-[../+architecture.md](../+architecture.md)
+[../+reference.md](../+reference.md)

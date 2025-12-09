@@ -1,5 +1,7 @@
 # pgvector Migration Plan
 
+
+
 ## Executive Summary
 
 **Recommendation**: Switch from ChromaDB to pgvector for semantic search.

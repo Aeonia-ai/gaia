@@ -1,5 +1,6 @@
 # GAIA v0.3 Client Specification
 
+
 **Version**: 0.3.0  
 **Date**: 2025-08-15  
 **Status**: Stable

@@ -1,5 +1,7 @@
 # Gateway Authentication API Contract
 
+
+
 This document defines the expected HTTP status codes and response formats for authentication endpoints accessed through the Gateway service.
 
 ## API Versions

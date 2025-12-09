@@ -9,4 +9,4 @@ Database design and strategy.
 - `portable-database-architecture.md` - Portable database design patterns
 
 ## Parent
-[../+architecture.md](../+architecture.md)
+[../+reference.md](../+reference.md)

@@ -1,5 +1,6 @@
 # KB Service Quick Setup
 
+
 ## Aeonia Team Setup (Obsidian Vault)
 
 ### 1. Add to `.env`:

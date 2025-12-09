@@ -1,7 +1,7 @@
 # ADR-004: Enabling Personas in Gaia Chat Service with TDD
 
 ## Status
-Proposed
+Implemented
 
 ## Context
 - Persona code exists in gaia chat service but router is commented out

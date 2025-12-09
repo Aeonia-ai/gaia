@@ -24,7 +24,7 @@ Here is the step-by-step data flow for a typical user request:
 2.  **`UnifiedChatHandler` Initialization:** The `chat` method in `app/services/chat/main.py` instantiates `UnifiedChatHandler`.
 
 3.  **Prompt & Tool Aggregation:**
-    *   The handler retrieves the current persona's system prompt using `prompt_manager.get_routing_prompt()`.
+    *   The handler retrieves the current persona's system prompt using `UnifiedChatHandler.get_routing_prompt()`.
     *   It gathers all available tools:
         *   **KB Tools (`KB_TOOLS`):** Imported from `app/services/chat/kb_tools.py`. These are functions decorated with `@tool` that interact with the KB service (e.g., `get_kb_entry`, `search_kb`).
         *   **Routing Tools (`routing_tools`):** Defined directly within `UnifiedChatHandler`. These include tools for file operations, asset generation, and other non-KB tasks.

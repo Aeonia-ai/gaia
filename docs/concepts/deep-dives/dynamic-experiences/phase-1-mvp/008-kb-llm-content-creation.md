@@ -1,18 +1,37 @@
 # LLM-Powered KB Content Creation
 
-> **Status**: DEMO DEVELOPMENT (4-Day Sprint)
-> **Version**: 0.1
+> **Status**: ⚠️ DESIGN PROPOSAL - Not implemented, code does not exist
+> **Version**: 0.1 (Specification Only)
 > **Purpose**: Enable game designers to create KB content through natural conversation
 > **Created**: 2025-10-24
-> **Target Demo**: 2025-10-28
+> **Target Demo**: TBD (Not scheduled)
+> **Last Updated**: 2025-12-04
 > **Related**:
 > - [Game Command Developer Guide](../../api/game-command-developer-guide.md) - Runtime game system
 > - [KB Architecture Guide](./kb-architecture-guide.md) - KB infrastructure
 > - [KB Git Sync Learnings](./kb-git-sync-learnings.md) - Git integration patterns
 
-## Executive Summary
+## ⚠️ Important Notice
+
+**This document describes a PROPOSED system that has NOT been implemented.**
+
+The code described in this document does not exist. This is an architectural vision document created for planning purposes. Before implementing this system, verify:
+1. Current KB architecture still matches this design
+2. Requirements are still relevant
+3. Alternative approaches have been evaluated
+
+**Current Reality**: Game designers currently edit KB content directly using:
+- Obsidian markdown files (manual editing)
+- Git commits (manual version control)
+- Direct file system access
+
+**This Proposal**: Vision for conversational content creation through LLM tools.
+
+## Executive Summary (PROPOSED SYSTEM)
 
 **Vision:** Game designers create AR waypoints, text adventure rooms, and game items through natural conversation with an LLM, rather than filling out forms or editing YAML files directly.
+
+**Note**: This describes a future system that would need to be built.
 
 **Demo Value Proposition:**
 "Create AR game content through natural conversation - no forms, no code, just chat"

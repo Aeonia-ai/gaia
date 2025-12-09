@@ -2,8 +2,9 @@
 
 **Version:** 1.0.0
 **Last Updated:** 2025-10-27
+**Status:** Target Architecture (Not Currently Implemented)
 
-This document provides complete, production-ready config examples for different experience types, along with migration guidance from the current structure.
+This document provides examples of the target unified config architecture for different experience types. The migration scripts and unified config system described here are not yet implemented - this is a design specification for future work.
 
 ## Table of Contents
 
@@ -212,36 +213,37 @@ AR fairy tale adventure where multiple players explore real-world locations simu
 └── progress.json
 ```
 
-**Migration:**
+**Migration (TODO - Scripts Not Yet Created):**
 
 1. **Create config.json** (as shown above)
 
 2. **Merge instances into state/world.json:**
    ```bash
-   # Run migration script
+   # TODO: Create migration script
    python scripts/migrate_wylding_woods_state.py
    ```
 
-   This script:
-   - Reads `instances/manifest.json`
-   - Loads all instance files from `instances/npcs/` and `instances/items/`
-   - Merges into single `state/world.json` with unified schema
-   - Preserves all state data (bottles_returned, emotional_state, etc.)
+   This script would:
+   - Read `instances/manifest.json`
+   - Load all instance files from `instances/npcs/` and `instances/items/`
+   - Merge into single `state/world.json` with unified schema
+   - Preserve all state data (bottles_returned, emotional_state, etc.)
 
 3. **Convert progress.json to view.json:**
    ```bash
-   # For each player
+   # TODO: Create migration script
    python scripts/migrate_player_progress.py jason@aeonia.ai wylding-woods
    ```
 
-   This script:
-   - Reads `/players/{user}/wylding-woods/progress.json`
-   - Expands to full view.json schema
-   - Adds session tracking, metadata
-   - Maintains backward compatibility (inventory, quest_progress)
+   This script would:
+   - Read `/players/{user}/wylding-woods/progress.json`
+   - Expand to full view.json schema
+   - Add session tracking, metadata
+   - Maintain backward compatibility (inventory, quest_progress)
 
 4. **Verify migration:**
    ```bash
+   # TODO: Create validation script
    python scripts/validate_experience_config.py wylding-woods
    ```
 
@@ -611,12 +613,12 @@ python /scripts/validate_experience_config.py {experience-id}
 **For Shared Model (Wylding Woods):**
 
 ```bash
-# Run automated migration script
+# TODO: Create automated migration script
 python scripts/migrate_experience_state.py wylding-woods \
   --merge-instances \
   --keep-backup
 
-# This creates:
+# This would create:
 # - state/world.json (merged from instances/)
 # - state/backups/instances-backup-{timestamp}.tar.gz
 # - Keeps original instances/ directory until verified
@@ -629,19 +631,20 @@ python scripts/migrate_experience_state.py wylding-woods \
 cd /experiences/west-of-house/state
 mv session-template.json world.json
 
-# Validate
+# TODO: Create validation script
 python scripts/validate_experience_config.py west-of-house
 ```
 
 #### Phase 3: Migrate Player Data
 
 ```bash
+# TODO: Create player migration script
 # For shared model experiences only
 python scripts/migrate_player_views.py wylding-woods \
   --all-players \
   --keep-backup
 
-# This converts progress.json → view.json for all players
+# This would convert progress.json → view.json for all players
 ```
 
 #### Phase 4: Update Code References

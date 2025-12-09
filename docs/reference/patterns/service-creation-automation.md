@@ -1,5 +1,6 @@
 # Service Creation Automation Guide
 
+
 **Created**: January 2025  
 **Purpose**: Streamline the process of adding new microservices to Gaia Platform
 

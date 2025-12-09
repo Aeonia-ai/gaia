@@ -1,5 +1,7 @@
 # Branch: feat/auth-spa-improvements
 
+
+
 ## Summary
 This branch adds authentication protection and SPA-like navigation to the web UI.
 
@@ -36,8 +38,8 @@ After auth is working:
 TEST_EMAIL=your-email@example.com
 TEST_PASSWORD=your-password
 
-# Run tests:
-./scripts/test-spa-auth.sh
+# Run web UI tests:
+./scripts/pytest-for-claude.sh tests/web -v
 ```
 
 ## Next Steps

@@ -1,7 +1,12 @@
 # Streaming Chunk Boundary Test Strategy
 
-**Created**: January 2025  
+
+
+**Created**: January 2025
 **Purpose**: Define comprehensive testing approach for SSE streaming chunk boundary behavior
+**Status**: 📋 **DESIGN DOCUMENT** - Not yet implemented
+
+> **Note**: This is a test design and planning document. The test infrastructure described here (MockChunkingProvider, MockUnityClient, etc.) has not yet been implemented. This document serves as a blueprint for future testing work.
 
 ## The Testing Gap
 
@@ -18,9 +23,10 @@ Create a test-only LLM provider that can simulate various chunking patterns:
 
 ```python
 # tests/mocks/mock_llm_provider.py
+# TODO: IMPLEMENT - This mock provider has not been created yet
 class MockChunkingProvider(LLMProviderInterface):
     """Mock provider that chunks text in controlled ways for testing"""
-    
+
     def __init__(self, chunking_strategy: str = "word_split"):
         self.chunking_strategy = chunking_strategy
     
@@ -178,9 +184,10 @@ async def test_real_llm_chunking_behavior():
 ### 4. Client Simulation Tests
 
 ```python
+# TODO: IMPLEMENT - This mock client has not been created yet
 class MockUnityClient:
     """Simulates Unity ChatClient's buffer handling"""
-    
+
     def __init__(self):
         self.buffer = ""
         self.complete_message = ""

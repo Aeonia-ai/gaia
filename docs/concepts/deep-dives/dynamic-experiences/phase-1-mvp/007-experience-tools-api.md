@@ -1,9 +1,9 @@
 # Experience Tools API
 
+> **Status**: 🔵 DESIGN SPECIFICATION - Foundation implemented, 20 tools awaiting implementation
 > **Purpose**: LLM tools for conversational experience design
-> **Status**: DESIGN PHASE (Tools designed, awaiting implementation)
 > **Created**: 2025-10-24
-> **Updated**: 2025-10-27 (Added unified state model context)
+> **Last Updated**: 2025-12-04
 > **Related**:
 > - **[Unified State Model](./030-unified-state-model-implementation.md)** - ✅ Foundation implemented
 > - [Experience Platform Architecture](./005-experiences-overview.md) - Overall platform
@@ -11,21 +11,31 @@
 > - [Player Progress Storage](./storage/player-progress-storage.md) - Progress tracking
 > - [KB LLM Content Creation](../../kb/developer/kb-llm-content-creation.md) - Content creation workflow
 
-## Implementation Context
+## Implementation Status
 
-**The unified state model is now complete!** This provides the foundation for experience tools:
-- ✅ Experience configs loaded/validated via `UnifiedStateManager`
-- ✅ Player profiles persist experience selection
-- ✅ New `/experience/interact` endpoint operational
-- ✅ State management (shared & isolated models) working
+### ✅ Foundation Complete (December 2025)
+- **Unified State Model**: Experience configs loaded/validated via `UnifiedStateManager`
+- **Player Profiles**: Experience selection persisted across sessions
+- **Interaction Endpoint**: `/experience/interact` operational for gameplay
+- **State Management**: Shared & isolated models working
 
-**What tools can build on:**
-- Read/validate configs via `manager.load_config(experience)`
-- List experiences via `manager.list_experiences()`
-- Get experience metadata via `manager.get_experience_info(experience)`
-- Bootstrap players via `manager.bootstrap_player(experience, user)`
+**Available APIs:**
+- `manager.load_config(experience)` - Read/validate experience configs
+- `manager.list_experiences()` - List all available experiences
+- `manager.get_experience_info(experience)` - Get experience metadata
+- `manager.bootstrap_player(experience, user)` - Initialize player state
 
-**Next step:** Implement the 20 tools below using the UnifiedStateManager as foundation.
+### 📋 Pending Implementation
+- **20 Content Creation Tools** - Conversational tools for designers (this specification)
+- **Discovery Tools** (3) - `list_experiences`, `describe_experience`, `set_current_experience`
+- **Content Discovery Tools** (3) - `list_experience_content`, `describe_content_item`, `search_experience_content`
+- **Content Management Tools** (4) - `get_content_template`, `create_experience_content`, `edit_experience_content`, `clone_experience_content`
+- **Lifecycle Tools** (2) - `schedule_experience_content`, `version_experience_content`
+- **Player Progress Tools** (2) - `track_content_engagement`, `define_content_prerequisites`
+- **Quality Assurance Tools** (3) - `test_experience_flow`, `flag_content_for_review`, `validate_experience_content`
+- **Live Operations Tools** (3) - `patch_experience_content`, `rollback_experience_content`, `analyze_experience`
+
+**Next Step:** Implement these 20 tools using UnifiedStateManager as foundation.
 
 ## Overview
 

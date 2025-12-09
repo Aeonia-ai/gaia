@@ -1,17 +1,43 @@
 # AI Character Integration Architecture
 
+> **Status**: ⚠️ PARTIALLY IMPLEMENTED - Core NPC system operational, advanced features pending
 > **Purpose**: Integration between static KB content and dynamic AI character systems
-> **Status**: DESIGN PHASE
 > **Created**: 2025-10-24
+> **Last Updated**: 2025-12-04
 > **Related**:
 > - [Experience Platform Overview](./+experiences.md) - Platform architecture
 > - [Player Progress Storage](./player-progress-storage.md) - Relationship tracking database
 > - [Experience Tools API](./experience-tools-api.md) - Content creation tools
 > - Symphony room: `designer` - Multi-agent collaboration discussions
 
+## Implementation Status
+
+### ✅ Currently Implemented
+- **NPC Interaction System**: Natural language conversations via `talk` command
+- **Trust Level Tracking**: Per-player relationship progression (0-100 scale)
+- **Conversation History**: Last 20 turns stored per NPC-player pair
+- **Quest Integration Foundation**: NPCs can offer trust-gated content
+- **KB Template Loading**: NPC definitions loaded from KB markdown files
+
+### 🔄 In Progress
+- Multi-agent AI coordination (Game Master + Spatial + Emotional agents)
+- Hierarchical memory system (session/working/long-term layers)
+- Faction reputation tracking
+- World evolution layer (async state updates)
+
+### 📋 Planned
+- SimYou emotional modeling integration
+- Procedural dialogue generation
+- Cross-platform consistency (Unity/VR/Web)
+- Advanced caching strategies
+
+**See**: [NPC Interaction System](docs/npc-interaction-system.md) for current implementation details.
+
 ## Executive Summary
 
 This document describes how the GAIA Experience Platform's **static content infrastructure** (KB markdown, PostgreSQL, Redis) integrates with **dynamic AI character systems** (multi-agent AI, emotional modeling, procedural dialogue) to create believable, persistent NPCs that remember players and evolve relationships over time.
+
+**Note**: This is an architectural specification. Some features are implemented, others are design proposals for future phases.
 
 **Key Insight**: KB markdown files serve as "character sheets" that constrain and guide AI generation, while our database stores relationship memory that AI agents read to generate contextually appropriate, personalized responses.
 

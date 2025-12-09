@@ -1,5 +1,7 @@
 # SSE (Server-Sent Events) Streaming Gotchas
 
+
+
 ## The Problem
 
 When implementing SSE endpoints, it's critical to understand the connection lifecycle. A common bug pattern:

@@ -1,5 +1,6 @@
 # Deferred Initialization Pattern
 
+
 ## Problem Statement
 
 Services that need to fetch large datasets or perform time-consuming initialization tasks on startup face a dilemma:

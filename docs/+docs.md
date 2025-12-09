@@ -9,6 +9,7 @@ GAIA platform documentation root.
 - `reference/` - Technical Reference
 - `concepts/` - High-level Explanations
 - `_internal/` - Project Artifacts
+- `analysis/` - Codebase Analysis
 - `scratchpad/` - Temporary notes and architectural outlines
 
 ## Files

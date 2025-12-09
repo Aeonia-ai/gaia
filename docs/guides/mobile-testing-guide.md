@@ -1,5 +1,7 @@
 # Mobile Testing Guide for Gaia Web UI
 
+
+
 ## Overview
 This guide documents best practices and methods for testing the mobile-responsive features of the Gaia FastHTML web interface.
 

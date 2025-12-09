@@ -1,5 +1,7 @@
 # Troubleshooting Inter-Service Communication
 
+
+
 This guide covers common issues when services communicate with each other, especially in cloud environments where infrastructure layers may modify requests/responses.
 
 ## "Invalid JSON Response" Errors

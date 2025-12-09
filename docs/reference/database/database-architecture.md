@@ -1,5 +1,6 @@
 # Database Architecture
 
+
 This document explains the complete database architecture for the Gaia Platform across all environments.
 
 ## Overview
@@ -7,7 +8,7 @@ This document explains the complete database architecture for the Gaia Platform 
 The Gaia Platform uses a **simplified hybrid database architecture**:
 - **PostgreSQL**: Single shared database (`llm_platform`) containing all application data for all services
 - **Supabase**: Authentication only (shared across all environments) for JWT validation
-- **Redis**: Caching layer (isolated per environment) providing 97% performance improvement
+- **Redis**: Caching layer (isolated per environment) to provide performance improvements
 - **Certificate Storage**: Development certificates mounted as Docker volumes
 
 **Note**: All microservices (Auth, Chat, KB, Asset, Gateway) share the same PostgreSQL database for simplicity and consistency. This represents a simplified architecture where an unused secondary database (`gaia`) was removed in October 2025 to eliminate confusion and align documentation with implementation reality.
@@ -112,12 +113,12 @@ graph TD
 - `shared_resources` - Shared resource tracking
 - `permission_audit_log` - Permission change auditing
 
-**Experience Platform** (Planned - See [Experience Architecture](../experiences/)):
+**Experience Platform** (Planned):
 - `player_profiles` - Player stats across all experiences
 - `experience_progress` - Per-experience player progress
 - `player_progress_events` - Event log for analytics
 
-**Total: 29 tables serving all microservices** (32 with planned Experience Platform)
+**Total: 40 tables serving all microservices** (43 with planned Experience Platform)
 
 ### Supabase (Shared)
 - `auth.users` - Email, password hash, email verification

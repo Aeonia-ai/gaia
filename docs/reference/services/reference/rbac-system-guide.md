@@ -1,5 +1,7 @@
 # Role-Based Access Control (RBAC) System Guide
 
+
+
 ## Overview
 
 The Gaia Platform implements a flexible, extensible RBAC system that starts with Knowledge Base (KB) permissions but scales to control access across the entire platform. **While the core RBAC logic is implemented in code, its full activation and deployment are conditional on specific environment configurations.** This guide covers the architecture, implementation, and usage of the RBAC system.
@@ -191,7 +193,7 @@ async def write_kb(
 
 ## Current Deployment Status
 
-**The RBAC system is fully implemented in code but is not enabled by default in the current production environment.** Its activation, particularly for multi-user Knowledge Base features, is controlled by environment variables (e.g., `KB_MULTI_USER_ENABLED=true`). This aligns with the phased migration strategy outlined in the [KB Architecture Guide](../kb/developer/kb-architecture-guide.md), where multi-user features are progressively rolled out.
+**The RBAC system is fully implemented in code but is not enabled by default in the current production environment.** Its activation, particularly for multi-user Knowledge Base features, is controlled by environment variables (e.g., `KB_MULTI_USER_ENABLED=true`). This aligns with the phased migration strategy outlined in the [KB Architecture Guide](../developer/kb-architecture-guide.md), where multi-user features are progressively rolled out.
 
 ## Usage Examples
 

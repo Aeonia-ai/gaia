@@ -1,5 +1,7 @@
 # CRITICAL TESTING PRINCIPLE: Tests Define Truth, Not Current Behavior
 
+
+
 ## The Anti-Pattern: Kludging Tests to Pass
 
 ### What Goes Wrong

@@ -253,6 +253,6 @@ Ensure `iterate_louisa.sh update` includes the reload call (should be automatic 
 
 ## See Also
 
-- [Persona System Guide](../docs/architecture/services/persona-system-guide.md) - Complete persona architecture
+- [Persona System Guide](reference/services/persona-system-guide.md) - Complete persona architecture
 - [Chat Service Endpoints](../app/services/chat/chat.py) - Implementation details
-- [Testing Guide](../docs/testing/TESTING_GUIDE.md) - General testing practices
+- [Testing Guide](guides/TESTING_GUIDE.md) - General testing practices

@@ -1,5 +1,6 @@
 # Service Discovery Guide
 
+
 **Created**: January 2025  
 **Status**: Implemented and operational  
 **Scope**: Comprehensive guide covering pattern, implementation, and future roadmap

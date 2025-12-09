@@ -1,5 +1,7 @@
 # RBAC Role Examples for Gaia Platform
 
+
+
 This document showcases the flexibility of role definitions in our RBAC system.
 
 ## Core Concept: Infinitely Flexible Roles

@@ -1,5 +1,6 @@
 # Portable Database Architecture for Gaia Platform
 
+
 ## Overview
 
 This document defines the portable database architecture that enables consistent deployment across dev, staging, and production environments while maintaining flexibility for different cloud providers and scaling requirements.

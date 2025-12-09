@@ -1,5 +1,6 @@
 # Streaming API Guide
 
+
 **Created**: January 2025  
 **Purpose**: Document how to use GAIA's streaming API for real-time responses
 

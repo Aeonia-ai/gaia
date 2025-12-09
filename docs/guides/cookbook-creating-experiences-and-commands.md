@@ -1,5 +1,6 @@
 # Developer & Content Creator Cookbook
 
+
 **Purpose**: This is a practical, step-by-step guide for developers and content creators to extend the GAIA "dynamic experiences" platform. It provides actionable instructions for common tasks like creating new experiences and adding game commands.
 
 ---

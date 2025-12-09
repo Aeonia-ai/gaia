@@ -1,5 +1,6 @@
 # GAIA Platform API Reference
 
+
 **Audience**: Platform developers building on advanced features  
 **Focus**: Complete API including personas, assets, and OpenAI compatibility  
 

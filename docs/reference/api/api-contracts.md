@@ -1,5 +1,7 @@
 # API Contracts Documentation
 
+
+
 This document defines the API contracts for Gaia Platform services, clearly specifying which endpoints require authentication and which are public.
 
 ## API Versioning

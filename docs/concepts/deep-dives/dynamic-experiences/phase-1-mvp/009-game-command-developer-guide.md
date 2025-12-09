@@ -2,9 +2,10 @@
 title: "Game Command System Developer Guide"
 tags: ["game", "simulation", "game commands", "llm", "kb", "runtime", "developer guide", "architecture", "tool calling", "game logic", "yaml as llm training", "two-stage llm", "structured json response", "markdown as dsl"]
 feature: "Game Commands"
-status: "active development"
+status: "⚠️ PARTIALLY IMPLEMENTED - Infrastructure complete, core processor is stub"
 version: "0.1"
 created: "2025-10-22"
+last_updated: "2025-12-04"
 summary: "Practical guide to understanding and working with the KB-driven game command system, explaining how LLMs interpret natural language commands from Markdown to generate structured game responses."
 related_docs:
   - title: "KB-Driven Command Processing Spec"
@@ -14,17 +15,34 @@ related_docs:
 ---
 # Game Command System Developer Guide
 
-> **Status**: ACTIVE DEVELOPMENT
-> **Version**: 0.1
+> **Status**: ⚠️ PARTIALLY IMPLEMENTED - Infrastructure complete, core processor pending
+> **Version**: 0.1 (Specification + Stub Implementation)
 > **Purpose**: Practical guide to understanding and working with KB-driven game commands
 > **Created**: 2025-10-22
+> **Last Updated**: 2025-12-04
 > **Related**:
 > - [KB-Driven Command Processing Spec](./kb-driven-command-processing-spec.md) - Complete technical specification
 > - [KB Agent API](./kb-agent-api.md) - Agent endpoint documentation
 
+## ⚠️ Implementation Status Alert
+
+**What Works:**
+- ✅ Chat service integration (`app/services/chat/kb_tools.py`)
+- ✅ Tool calling infrastructure (LLM can detect game commands)
+- ✅ KB service API endpoint (`/game/command`)
+- ✅ Request/response models defined
+
+**What's Missing:**
+- ❌ Core game processor (`app/shared/tools/game_commands.py:execute_game_command()` returns "not_implemented" stub)
+- ❌ KB content loading logic
+- ❌ LLM interpretation of markdown rules
+- ❌ Structured response generation
+
+**Reality Check**: While this document describes the intended architecture, the actual implementation is incomplete. The code exists as infrastructure only - no actual game logic executes yet.
+
 ## Quick Overview
 
-The game command system processes natural language game commands by reading markdown files from the Knowledge Base and using an LLM to interpret them into structured responses. There are **two ways** to run games in GAIA:
+The game command system (when implemented) will process natural language game commands by reading markdown files from the Knowledge Base and using an LLM to interpret them into structured responses. There are **two planned ways** to run games in GAIA:
 
 ### Two Approaches to Game Commands
 

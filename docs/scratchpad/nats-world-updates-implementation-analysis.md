@@ -359,9 +359,16 @@ async def lifespan(app: FastAPI):
 
 ---
 
-## Critical Gaps: What We DON'T Have
+## ~~Critical Gaps~~: What We ~~DON'T~~ Now Have
 
-### Gap #1: NATS Subscriber in Chat Service 🔴 **CRITICAL - P0**
+> **✅ UPDATE 2025-12-04**: All three gaps below have been IMPLEMENTED. See:
+> - `app/services/chat/unified_chat.py` - NATS subscriber
+> - `app/services/kb/unified_state_manager.py` - NATS publisher
+> - `app/services/kb/experience_connection_manager.py` - WebSocket multiplexing
+>
+> This section preserved for historical context.
+
+### ~~Gap #1~~: NATS Subscriber in Chat Service ~~🔴 CRITICAL - P0~~ ✅ DONE
 
 **Impact**: Chat Service cannot receive world_update events from NATS
 
@@ -429,7 +436,7 @@ async def process_stream(
 
 ---
 
-### Gap #2: NATS Publisher in KB Service 🔴 **CRITICAL - P0**
+### ~~Gap #2~~: NATS Publisher in KB Service ~~🔴 CRITICAL - P0~~ ✅ DONE
 
 **Impact**: State changes don't trigger world_update events
 
@@ -546,7 +553,7 @@ async def startup():
 
 ---
 
-### Gap #3: Stream Multiplexing Utility 🔴 **CRITICAL - P0**
+### ~~Gap #3~~: Stream Multiplexing Utility ~~🔴 CRITICAL - P0~~ ✅ DONE
 
 **Impact**: Cannot combine LLM streaming with NATS events in real-time
 

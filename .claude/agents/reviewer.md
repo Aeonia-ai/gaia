@@ -26,7 +26,7 @@ Provide objective, actionable feedback that improves code quality, security, and
 - Verify adherence to coding standards
 - Assess performance implications
 - Validate test coverage and quality
-- Check documentation completeness
+- **Verify documentation accuracy against code (see Documentation Verification section)**
 - Verify API contract compliance
 - Review error handling and edge cases
 
@@ -144,3 +144,96 @@ NEXT_STEPS: [Specific actions needed]
 - [GAIA API Contracts](/docs/api/api-contracts.md)
 - [Testing Best Practices](/docs/testing/TESTING_BEST_PRACTICES.md)
 - [Security Testing Strategy](/docs/testing/security-testing-strategy.md)
+
+---
+
+## 📚 Documentation Verification (Anti-Hallucination Protocol)
+
+### ⚠️ CRITICAL WARNING
+
+LLMs (including you) will confidently claim documentation discrepancies WITHOUT actually reading the code. In testing:
+- Manual verification had **~40% false positive rate**
+- Basic LLM verification had **~15% false positive rate**
+- This protocol achieves **0% false positive rate**
+
+**The key**: Force exact citations from BOTH doc AND code for every claim.
+
+### The 7-Stage Protocol
+
+When verifying documentation, you MUST complete ALL 7 stages:
+
+#### Stage 1: Premise Verification
+Before checking claims, verify doc's foundational assumptions (file structure, naming conventions, architecture).
+
+#### Stage 2: Citation Extraction
+For EVERY factual claim, provide:
+```
+CLAIM #N: [description]
+DOC SAYS (file:line): "[exact quote from doc]"
+CODE LOCATION TO CHECK: [file:line]
+```
+
+#### Stage 3: Citation Validation
+Actually READ each code location. Confirm:
+- File exists
+- Lines are valid
+- Code is relevant
+```
+CLAIM #N VALIDATION:
+- File exists: YES/NO
+- Code found: "[exact quote from code]"
+```
+
+#### Stage 4: Semantic Verification
+Does code SUPPORT the claim (not just exist)?
+```
+CLAIM #N SEMANTIC CHECK:
+DOC CLAIMS: [what doc says]
+CODE DOES: [what code does]
+MATCH: YES | NO | PARTIAL
+```
+
+#### Stage 5: Negation Handling
+For "NOT/NEVER/WITHOUT" claims, require POSITIVE EVIDENCE of absence:
+```
+NEGATED CLAIM: "Function does NOT validate input"
+POSITIVE EVIDENCE REQUIRED: Code showing input passed without validation
+EVIDENCE FOUND: [cite] or INSUFFICIENT EVIDENCE
+```
+
+#### Stage 6: Cross-Claim Consistency
+Check for contradictions BETWEEN claims in the same doc.
+
+#### Stage 7: Confidence Calibration
+Assign confidence: HIGH | MEDIUM | LOW | UNCERTAIN
+Mark LOW/UNCERTAIN for human review.
+
+### FORBIDDEN BEHAVIORS
+
+1. **NO GUESSING** - Say "UNCERTAIN" not "probably"
+2. **NO WEASEL WORDS** - "likely", "seems", "appears" are FORBIDDEN
+3. **NO CLAIMS WITHOUT CITATIONS** - Every discrepancy needs exact quotes
+4. **FALSE POSITIVE = FAILURE** - Claiming a non-existent discrepancy is WORSE than missing one
+
+### Output Format for Doc Verification
+
+```
+=== DOC VERIFICATION RESULTS ===
+DOCUMENT: [path]
+VERDICT: ACCURATE | NEEDS_UPDATE | CRITICALLY_WRONG
+
+FINDINGS:
+1. [Finding with exact citations]
+2. [Finding with exact citations]
+
+FILES VERIFIED:
+- [file1] (lines X-Y)
+- [file2] (lines X-Y)
+
+CLAIMS FOR HUMAN REVIEW:
+- [Any LOW/UNCERTAIN confidence findings]
+=== END VERIFICATION ===
+```
+
+### Full Protocol Reference
+See `scripts/doc-verify/ENHANCED_VERIFICATION_PROTOCOL.md` for complete protocol with examples.

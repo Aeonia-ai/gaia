@@ -1,10 +1,31 @@
 # Tool Routing Improvement Specification with KOS Intelligence
 
-**Version**: 2.0  
-**Date**: July 26, 2025  
-**Status**: Planning  
+> **Status**: 🔵 FUTURE ROADMAP - Planning document for v0.3+ enhancements
+> **Version**: 2.0
+> **Date**: July 26, 2025 (Created)
+> **Last Updated**: December 4, 2025
+> **Implementation Target**: TBD (Post v0.2)
 
-## Overview
+## ⚠️ Document Purpose
+
+**This is a PLANNING DOCUMENT for future improvements, not current implementation.**
+
+**Current Reality (December 2025):**
+- `UnifiedChatHandler` in `app/services/chat/unified_chat.py` handles routing
+- Basic tool routing works via LLM `tool_choice="auto"`
+- ~60 chat endpoints exist (need consolidation)
+- No KOS intelligence integration yet
+- No domain orchestrators implemented
+
+**This Document Describes:**
+- Future v0.3+ architecture improvements
+- KOS (Knowledge Operating System) integration vision
+- Domain-specific orchestration goals
+- Endpoint consolidation strategy (60+ → 4)
+
+**Before Implementing:** Verify current architecture, reassess priorities, validate requirements against actual usage patterns.
+
+## Overview (PROPOSED FUTURE STATE)
 
 This specification outlines improvements to the Gaia platform's tool routing system to enhance performance, maintainability, and user experience while preserving scalability and backward compatibility. **Version 2.0** incorporates KOS (Knowledge Operating System) intelligence approaches from the consolidated intelligent chat spec, including domain orchestrators and adaptive user context loading.
 

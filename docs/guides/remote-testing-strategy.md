@@ -1,5 +1,7 @@
 # Remote Testing Strategy for Gaia Platform
 
+
+
 ## Overview
 
 This document outlines strategies for testing the Gaia Platform against remote deployments (dev, staging, production) rather than just local Docker containers.

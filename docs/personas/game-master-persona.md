@@ -120,7 +120,7 @@ ON CONFLICT (user_id) DO UPDATE SET persona_id = EXCLUDED.persona_id;
 
 ## Related Documentation
 
-- [Game Command Developer Guide](../features/dynamic-experiences/phase-1-mvp/009-game-command-developer-guide.md)
-- [Game Command Architecture](../features/dynamic-experiences/phase-1-mvp/029-game-command-architecture-comparison.md)
-- [Archival Report](../features/dynamic-experiences/phase-1-mvp/030-game-command-archival-report.md)
-- [Test Scripts](../../scripts/testing/game_commands/README.md)
+- [Game Command Developer Guide](../concepts/deep-dives/dynamic-experiences/phase-1-mvp/009-game-command-developer-guide.md)
+- [Game Command Architecture](../concepts/deep-dives/dynamic-experiences/phase-1-mvp/029-game-command-architecture-comparison.md)
+- [Archival Report](../concepts/deep-dives/dynamic-experiences/phase-1-mvp/030-game-command-archival-report.md)
+- Test Scripts: See `/Users/jasbahr/Development/Aeonia/server/gaia/scripts/experience/` directory

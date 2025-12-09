@@ -1,5 +1,7 @@
 # CSS Style Guide and Layout Patterns
 
+
+
 This guide documents our CSS class system and layout patterns to prevent UI breakages.
 
 ## 🚨 Critical Rules - NEVER BREAK THESE

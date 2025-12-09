@@ -1,5 +1,6 @@
 # Persona System Architecture Guide
 
+
 **Status**: 🟢 Implemented  
 **Last Updated**: January 2025
 
@@ -274,6 +275,8 @@ User Request → Check Redis Cache → Found? → Return
 
 ## Performance Considerations
 
+<!-- TODO: VERIFY_BY_RUNNING - These performance claims need validation via profiling -->
+
 ### Response Time Impact
 - Persona loading: ~50ms (cached) / ~200ms (database)
 - Prompt assembly: <10ms
@@ -283,6 +286,8 @@ User Request → Check Redis Cache → Found? → Return
 - Each cached persona: ~5KB
 - User preferences: ~200 bytes
 - Redis memory for 1000 users: ~5MB
+
+<!-- END TODO -->
 
 ## Future Enhancements
 

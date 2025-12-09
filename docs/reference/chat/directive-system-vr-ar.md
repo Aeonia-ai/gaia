@@ -1,5 +1,6 @@
 # Directive System for VR/AR Experiences
 
+
 **Status**: 🟢 Implemented (Pause method)  
 **Last Updated**: January 2025
 

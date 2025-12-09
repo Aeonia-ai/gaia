@@ -1,5 +1,7 @@
 # KB Content Editing Strategy
 
+
+
 ## Overview
 Strategy for safely editing Knowledge Base content while maintaining version control, security, and data integrity.
 

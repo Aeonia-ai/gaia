@@ -1,5 +1,7 @@
 # MCP-Agent Hot Loading Implementation
 
+
+
 ## Overview
 
 This document describes the hot loading implementation for mcp-agent in the Gaia chat service, which reduces response times from 5-10s per request to 1-3s after initialization.

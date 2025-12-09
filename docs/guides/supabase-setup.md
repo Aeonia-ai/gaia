@@ -1,5 +1,7 @@
 # Supabase Setup
 
+
+
 Authentication service configuration for the GAIA platform using Supabase.
 
 ## 📋 Overview

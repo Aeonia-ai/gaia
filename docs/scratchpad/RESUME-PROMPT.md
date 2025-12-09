@@ -1,6 +1,16 @@
 # Resume Prompt for NATS World Updates Implementation
 
+> **⚠️ OUTDATED RESUME PROMPT** - November 2025
+>
+> This resume prompt is for historical NATS work from early November 2025.
+> **Do not use this to resume current work.**
+>
+> For current session context, see:
+> - `/docs/_planning/PLAN.md` - Current goals and strategy
+> - `/docs/_planning/SESSION-LOG.md` - Recent session progress
+
 **If you are Claude Code with blank context, use this to resume work:**
+**⚠️ NOTE: This prompt is HISTORICAL - check PLAN.md and SESSION-LOG.md for current work**
 
 ---
 

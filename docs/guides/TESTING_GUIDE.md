@@ -1,8 +1,9 @@
 # GAIA Platform Testing Guide
 
+
 > **This is the canonical testing guide for the GAIA platform.** It consolidates all testing documentation into a single, authoritative source.
 
-> **🆕 Update**: A new testing strategy is being developed as part of web service standardization. See [Web Testing Strategy Post-Standardization](../web-testing-strategy-post-standardization.md) for upcoming improvements that will dramatically simplify web testing.
+> **🆕 Update**: A new testing strategy is being developed as part of web service standardization. See [Web Testing Strategy Post-Standardization](../reference/services/web-testing-strategy-post-standardization.md) for upcoming improvements that will dramatically simplify web testing.
 
 ## Table of Contents
 1. [Quick Start](#quick-start)
@@ -238,7 +239,7 @@ user_factory.cleanup_all()  # Clean up after tests
 - Ensure equivalent test coverage across all supported API versions
 - Document version-specific behaviors in test comments
 
-For more patterns, see [TESTING_BEST_PRACTICES.md](TESTING_BEST_PRACTICES.md).
+For more patterns on testing best practices, see the sections below and the [Test Infrastructure](TEST_INFRASTRUCTURE.md) documentation.
 
 ## Test Categories
 
@@ -465,7 +466,7 @@ echo "SUPABASE_SERVICE_KEY=your-key" >> .env
 
 ### Debugging Failed Tests
 
-**🚨 ALWAYS document findings in [APPEND-ONLY-TEST-FIXES-LOG.md](../../APPEND-ONLY-TEST-FIXES-LOG.md)**
+**🚨 ALWAYS document findings** - When debugging test failures, document your findings including root cause analysis, pattern recognition for similar failures, and framework-specific gotchas discovered.
 
 1. **Run with verbose output**:
    ```bash
@@ -494,7 +495,7 @@ echo "SUPABASE_SERVICE_KEY=your-key" >> .env
    ```
 
 5. **Document the fix**:
-   - Root cause analysis in APPEND-ONLY-TEST-FIXES-LOG.md
+   - Root cause analysis in code comments or commit messages
    - Pattern recognition for similar future failures
    - Framework-specific gotchas discovered
 

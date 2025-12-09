@@ -1,5 +1,7 @@
 # User Account & RBAC Integration Guide
 
+
+
 This document explains how user accounts are tied to access roles in our multi-user KB system.
 
 ## Authentication Flow

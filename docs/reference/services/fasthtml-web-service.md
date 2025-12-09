@@ -1,5 +1,7 @@
 # FastHTML Web Service Integration
 
+
+
 ## Overview
 The Web Service provides a FastHTML-based chat interface that integrates with all Gaia microservices while maintaining the visual design and functionality of the React client.
 

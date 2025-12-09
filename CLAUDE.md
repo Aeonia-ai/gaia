@@ -2,6 +2,117 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 📋 Session Startup
+
+At the start of each session, read these files to restore context:
+- `docs/_planning/PLAN.md` — Current goals, strategy, and progress
+- `docs/_planning/SESSION-LOG.md` — What happened in previous sessions
+
+Update SESSION-LOG.md at the end of significant sessions.
+
+## 🏥 Documentation Health (doc-health skill)
+
+**386 docs need verification and consolidation.** Use the **doc-health skill** for both tasks.
+
+### ⚠️ CRITICAL: Why This Protocol Exists
+
+In testing, we found:
+- **Manual verification**: ~40% false positive rate (claimed issues that didn't exist)
+- **Basic LLM verification**: ~15% false positive rate
+- **Enhanced 7-Stage Protocol**: **0% false positive rate**
+
+The problem: LLMs (including Claude) will confidently claim discrepancies without actually reading the code. The protocol forces citation of exact quotes from BOTH doc AND code.
+
+### Doc-Health Skill Location
+
+All protocols are in `.claude/skills/doc-health/`:
+
+| File | Purpose |
+|------|---------|
+| `SKILL.md` | Overview and when to use |
+| `verify-protocol.md` | 7-stage anti-hallucination verification |
+| `fix-protocol.md` | Apply approved fixes precisely |
+| `consolidate-protocol.md` | 5-phase doc merging process |
+| `conflict-resolution.md` | How to resolve conflicts between docs |
+
+### Complete Workflow: Verify → Review → Fix → Track
+
+```
+REVIEWER ──▶ HUMAN ──▶ CODER ──▶ TRACKER
+(verify)    (approve)  (fix)     (update)
+```
+
+**Step 1: Verify** (reviewer subagent)
+```python
+Task(
+    subagent_type="reviewer",
+    model="sonnet",
+    prompt="""
+    Read .claude/skills/doc-health/verify-protocol.md and follow it exactly.
+    Verify: docs/path/to/doc.md
+    Against code in: [list relevant code files]
+    Output: Markdown report + JSON issues
+    """
+)
+```
+
+**Step 2: Human Review** - User approves/rejects each issue in JSON
+
+**Step 3: Fix** (coder subagent)
+```python
+Task(
+    subagent_type="coder",
+    model="sonnet",
+    prompt="""
+    Read .claude/skills/doc-health/fix-protocol.md and follow it exactly.
+    Apply these approved fixes: [PASTE APPROVED JSON]
+    """
+)
+```
+
+**Step 4: Update Tracker** - Add entry to `docs/_planning/DOC-VERIFICATION-TRACKER.md`
+
+### How To Consolidate Docs
+
+```python
+Task(
+    subagent_type="reviewer",
+    model="sonnet",
+    prompt="""
+    [Use the full protocol from .claude/skills/doc-health/consolidate-protocol.md]
+
+    Consolidate docs related to: [topic]
+
+    Starting from: docs/reference/[area]/
+    """
+)
+```
+
+### The 7 Verification Stages (Summary)
+
+1. **Premise Verification** - Check doc's foundational assumptions first
+2. **Citation Extraction** - Identify ALL claims with exact doc quotes
+3. **Citation Validation** - Verify cited code EXISTS at stated locations
+4. **Semantic Verification** - Verify code SUPPORTS the claim (not just exists)
+5. **Negation Handling** - Special protocol for "NOT" claims (require positive evidence)
+6. **Cross-Claim Consistency** - Check for contradictions BETWEEN claims
+7. **Confidence Calibration** - Mark uncertain findings for human review
+
+### Key Rules
+
+- **NO CLAIMS WITHOUT CITATIONS**: Every discrepancy needs exact quotes from doc AND code
+- **NO GUESSING**: Say "UNCERTAIN" or "COULD NOT LOCATE" instead of fabricating
+- **NEGATION REQUIRES PROOF**: "Does NOT do X" requires evidence of absence, not absence of evidence
+- **FALSE POSITIVE = FAILURE**: Claiming a discrepancy that doesn't exist is WORSE than missing one
+- **NO EMBEDDED STATUS**: Track verification in `docs/_planning/DOC-VERIFICATION-TRACKER.md`, NOT in docs themselves
+
+### Progress Tracking
+
+- Tracker: `docs/_planning/DOC-VERIFICATION-TRACKER.md`
+- Full methodology: `DocProcessingMethod.md` (project root)
+
+See `docs/_planning/PLAN.md` for full strategy and progress.
+
 ## 🎮 Project Context: GAIA Platform
 
 **What you're building**: A distributed AI platform powering MMOIRL (Massively Multiplayer Online In Real Life) games that blend real-world data with gameplay. Think Pokémon GO + AI agents + persistent memory.

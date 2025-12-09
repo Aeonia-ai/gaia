@@ -1,5 +1,7 @@
 # 🔒 Security Testing Strategy
 
+
+
 📍 **Location:** [Home](../../README.md) → [Current](../README.md) → [Development](README.md) → Security Testing
 
 ## 🎯 Overview
@@ -413,13 +415,14 @@ jobs:
 
 ## 🔗 See Also
 
-- **[Authentication Guide](../authentication/)** - Current auth implementation
-- **[RBAC System Guide](../kb/rbac-system-guide.md)** - Role-based access control
-- **[API Contracts](../../api/api-contracts.md)** - Endpoint security requirements
-- **[Testing Improvement Plan](automated-testing-improvement-plan.md)** - Overall testing strategy
+- **[Authentication Guide](../reference/api/authentication/)** - Current auth implementation
+- **[RBAC System Guide](../reference/services/reference/rbac-system-guide.md)** - Role-based access control
+- **[API Contracts](../reference/api/api-contracts.md)** - Endpoint security requirements
 
 ---
 
-**Status**: 📋 **PLANNED** - Ready for implementation in Phase 1  
-**Priority**: 🔥 **CRITICAL** - Security foundation for production readiness  
+**Status**: 📋 **PLANNED** - Ready for implementation in Phase 1
+**Priority**: 🔥 **CRITICAL** - Security foundation for production readiness
 **Estimated Effort**: 1 week (Phase 1 of testing improvement plan)
+
+**Note**: The `tests/security/` directory does not yet exist. This document is a planning and design document for future implementation.
