@@ -95,6 +95,9 @@ Temporary notes and architectural outlines.
 - 📚 `CRITICAL-AOI-FIELD-NAME-ISSUE.md` - Analysis of a critical issue with field names in the AOI implementation.
 - 📋 `UNITY-LOCAL-TESTING-GUIDE.md` - Guide for testing the Unity client locally.
 
+### Web UI & Agent Interface
+- 📋 `aeo-72-single-chat-design.md` - **AEO-72: Single Chat UI Implementation** - Feature-flagged single conversation UI replacing multi-chat sidebar. See [Agent Interface Vision](../concepts/deep-dives/agent-interface/000-agent-interface-vision.md) for long-term direction.
+
 ### Game Content & Design
 - 📚 `wylding-woods-knowledge-base-inventory.md` - Inventory of the `wylding-woods` experience, including commands, NPCs, items, and quests.
 - 📋 `npc-llm-dialogue-system.md` - Design for an LLM-based dialogue system for NPCs.
