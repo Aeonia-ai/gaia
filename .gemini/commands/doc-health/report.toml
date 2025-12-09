@@ -1,0 +1,55 @@
+# Documentation Health Report Command
+# Invoked via: /doc-health:report
+# Example: /doc-health:report
+
+description = "Generate a summary report of documentation health status from the tracker"
+
+prompt = """
+# Documentation Health Report
+
+Generate a summary of documentation health status.
+
+## Instructions
+
+1. Read the tracker file at `docs/_planning/DOC-VERIFICATION-TRACKER.md`
+2. Summarize the current state
+
+## Report Format
+
+```markdown
+## Documentation Health Report
+
+### Summary
+- Total docs: [N]
+- Verified: [X] ([X/N]%)
+- Accurate (no issues): [Y]
+- Needs update: [Z]
+- Critically wrong: [W]
+
+### Recent Activity
+[Last 5 docs verified with their status]
+
+### Priority Queue
+[Next 5 docs that should be verified, based on:
+ 1. Core architecture docs
+ 2. API reference docs
+ 3. Most-linked docs]
+
+### Issue Breakdown
+| Severity | Count |
+|----------|-------|
+| Critical | [N] |
+| Moderate | [N] |
+| Minor | [N] |
+
+### Consolidation Candidates
+[Docs that appear to cover the same topics]
+
+### Recommendations
+1. [Most urgent action]
+2. [Second priority]
+3. [Third priority]
+```
+
+Now read the tracker and generate the report.
+"""

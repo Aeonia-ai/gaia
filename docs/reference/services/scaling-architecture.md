@@ -1,5 +1,7 @@
 # Gaia Platform Scaling Architecture
 
+
+
 ## 🚀 Scaling Advantages with Cluster-Per-Game
 
 The Gaia Platform combines microservices architecture with **cluster-per-game deployment** for MMOIRL, providing unmatched scaling flexibility. Each game scales independently based on its own success.
@@ -19,9 +21,9 @@ The Gaia Platform combines microservices architecture with **cluster-per-game de
 ```
 🏗️ Independent Scaling per Service
 ├─ Chat Service: 5 instances (high chat traffic)
-├─ Auth Service: 2 instances (stable auth load)  
+├─ Auth Service: 2 instances (stable auth load)
 ├─ Asset Service: 10 instances (heavy image generation)
-├─ Performance Service: 1 instance (monitoring only)
+├─ Monitoring: Prometheus + Grafana (infrastructure metrics)
 └─ Gateway: 3 instances (load balancing)
 ```
 
@@ -46,7 +48,7 @@ auth-service:
 - **Chat Service**: GPU instances for LLM inference
 - **Asset Service**: High-memory instances for image generation
 - **Auth Service**: Small, fast instances for JWT validation
-- **Performance Service**: Monitoring-optimized instances
+- **Monitoring**: Prometheus + Grafana for metrics and alerting
 
 ## MMOIRL Cluster-Per-Game Scaling
 
@@ -57,21 +59,22 @@ wizards-quest:
   players: 100-500
   deployment: Docker Compose
   monthly_cost: $50
-  
-# Growing Hit: "Zombie Survival"  
+
+# Growing Hit: "Zombie Survival"
 zombie-survival:
   players: 5,000-10,000
   deployment: Fly.io cluster
   monthly_cost: $500
   chat_replicas: 5
-  
+
 # Viral Success: "Fitness Warriors"
 fitness-warriors:
   players: 50,000+
-  deployment: Kubernetes multi-region
+  deployment: Fly.io multi-region with autoscaling
   monthly_cost: $5,000
   chat_replicas: 50
   regions: ["us-east", "eu-west", "asia-pac"]
+  # Note: Could migrate to Kubernetes for even larger scale if needed
 ```
 
 ### Scaling Independence Benefits
@@ -121,9 +124,9 @@ single_db = "All services fight for same connection pool"
 
 # Gaia: Service-specific optimization
 auth_db = "Fast SSD, optimized for auth queries"
-chat_db = "High-memory, optimized for conversation history"  
+chat_db = "High-memory, optimized for conversation history"
 asset_db = "Large storage, optimized for metadata"
-performance_db = "Time-series optimized for metrics"
+metrics_db = "Time-series database (Prometheus) for monitoring"
 ```
 
 ### Service-Specific Caching
@@ -189,9 +192,9 @@ Auto-restart: Asset service recovers in 30 seconds
 deploy_monolith: "Entire system down for 5 minutes"
 
 # Gaia: Zero-downtime rolling deployments
-kubectl rolling-update chat-service    # Chat users unaffected
-kubectl rolling-update asset-service   # Asset generation briefly slower  
-kubectl rolling-update auth-service    # New logins briefly delayed
+# Note: Actual deployment uses Fly.io - examples are illustrative of rolling strategy
+fly deploy --ha  # Chat users unaffected with high availability
+fly deploy --strategy rolling  # Rolling deployment across machines
 # Never full system downtime!
 ```
 
@@ -249,105 +252,62 @@ europe:
   auth_service: "GDPR compliance region"
   
 global:
-  performance_service: "Worldwide monitoring"
+  monitoring: "Prometheus + Grafana for worldwide metrics and alerting"
 ```
 
-## Cluster-Per-Game Kubernetes Configuration
+## Cluster-Per-Game Scaling Configuration
 
-### Game-Specific Namespaces
-```yaml
-# Each game gets its own namespace
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: gaia-zombies
-  labels:
-    game: zombie-survival
-    tier: production
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: gaia-fitness
-  labels:
-    game: fitness-warriors
-    tier: production
+> **Note**: Gaia Platform currently uses **Fly.io** for deployment. The Kubernetes examples below are provided for reference to illustrate scaling patterns. Actual implementation uses Fly.io apps and autoscaling features.
+
+### Game-Specific Fly.io Apps
+```bash
+# Each game gets its own Fly.io app namespace
+fly apps create gaia-zombies-chat --org zombie-survival
+fly apps create gaia-zombies-kb --org zombie-survival
+
+fly apps create gaia-fitness-chat --org fitness-warriors
+fly apps create gaia-fitness-kb --org fitness-warriors
+
+# Kubernetes namespace pattern (for reference only):
+# apiVersion: v1
+# kind: Namespace
+# Actual deployment uses separate Fly.io apps per game
 ```
 
-### Per-Game Auto-Scaling
-```yaml
-# Zombie Survival chat scaling
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: chat-service-hpa
-  namespace: gaia-zombies
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: gaia-zombies-chat
-  minReplicas: 2
-  maxReplicas: 20  # Moderate scaling for growing game
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
+### Per-Game Auto-Scaling (Fly.io)
+```bash
+# Zombie Survival chat scaling with Fly.io
+fly autoscale set gaia-zombies-chat min=2 max=20
+fly scale count gaia-zombies-chat=5
+
+# Kubernetes HPA pattern (for reference only):
+# apiVersion: autoscaling/v2
+# kind: HorizontalPodAutoscaler
+# Actual deployment uses: fly autoscale and fly scale commands
 ```
 
-### Vertical Pod Autoscaling (VPA)
-```yaml
-# Asset service resource optimization
-apiVersion: autoscaling.k8s.io/v1
-kind: VerticalPodAutoscaler
-metadata:
-  name: asset-service-vpa
-spec:
-  targetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: asset-service
-  updatePolicy:
-    updateMode: "Auto"
-  resourcePolicy:
-    containerPolicies:
-    - containerName: asset-service
-      maxAllowed:
-        cpu: 8
-        memory: 16Gi
-      minAllowed:
-        cpu: 100m
-        memory: 512Mi
+### Resource Scaling (Fly.io)
+```bash
+# Asset service resource optimization with Fly.io
+fly scale vm dedicated-cpu-4x --app gaia-fitness-asset
+fly scale memory 8192 --app gaia-fitness-asset
+
+# Kubernetes VPA pattern (for reference only):
+# apiVersion: autoscaling.k8s.io/v1
+# kind: VerticalPodAutoscaler
+# Actual deployment uses: fly scale vm and fly scale memory
 ```
 
 ### Service Mesh Configuration
-```yaml
-# Istio service mesh for advanced traffic management
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
-metadata:
-  name: chat-service-vs
-spec:
-  hosts:
-  - chat-service
-  http:
-  - match:
-    - headers:
-        priority:
-          exact: "high"
-    route:
-    - destination:
-        host: chat-service
-        subset: gpu-instances
-      weight: 100
-  - route:
-    - destination:
-        host: chat-service
-        subset: cpu-instances
-      weight: 100
+```bash
+# Fly.io provides built-in service mesh capabilities via Fly Proxy
+# Advanced traffic management example (Kubernetes Istio pattern for reference):
+# apiVersion: networking.istio.io/v1beta1
+# kind: VirtualService
+
+# Actual Fly.io implementation uses:
+fly deploy --strategy canary  # Canary deployments
+fly deploy --ha  # High availability routing
 ```
 
 ## Monitoring & Observability
@@ -465,186 +425,80 @@ scenarios:
 
 ## Deployment Strategies
 
-### Blue-Green Deployment
-```yaml
-# Blue-green deployment for zero downtime
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
-metadata:
-  name: chat-service-rollout
-spec:
-  replicas: 10
-  strategy:
-    blueGreen:
-      activeService: chat-service-active
-      previewService: chat-service-preview
-      autoPromotionEnabled: false
-      scaleDownDelaySeconds: 30
-      prePromotionAnalysis:
-        templates:
-        - templateName: success-rate
-        args:
-        - name: service-name
-          value: chat-service-preview
-  selector:
-    matchLabels:
-      app: chat-service
-  template:
-    metadata:
-      labels:
-        app: chat-service
-    spec:
-      containers:
-      - name: chat-service
-        image: chat-service:latest
+> **Note**: Deployment strategy examples use Kubernetes Argo Rollouts patterns for illustration. Actual Gaia Platform deployment uses Fly.io deployment strategies.
+
+### Blue-Green Deployment (Fly.io)
+```bash
+# Fly.io blue-green deployment pattern
+fly deploy --strategy bluegreen --app gaia-chat-dev
+fly deploy --auto-confirm  # Promote after validation
+
+# Kubernetes Argo Rollout pattern (for reference only):
+# apiVersion: argoproj.io/v1alpha1
+# kind: Rollout
+# Actual deployment uses: fly deploy --strategy
 ```
 
-### Canary Deployment
-```yaml
-# Canary deployment for gradual rollout
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
-metadata:
-  name: asset-service-rollout
-spec:
-  replicas: 20
-  strategy:
-    canary:
-      steps:
-      - setWeight: 10
-      - pause: {duration: 5m}
-      - setWeight: 20
-      - pause: {duration: 5m}
-      - setWeight: 50
-      - pause: {duration: 10m}
-      - setWeight: 100
-      canaryService: asset-service-canary
-      stableService: asset-service-stable
+### Canary Deployment (Fly.io)
+```bash
+# Fly.io canary deployment pattern
+fly deploy --strategy canary --app gaia-asset-dev
+
+# Kubernetes Argo Rollout pattern (for reference only):
+# apiVersion: argoproj.io/v1alpha1
+# kind: Rollout with canary steps
+# Actual deployment uses: fly deploy --strategy canary
 ```
 
 ## Security Scaling Considerations
 
 ### Network Policies
-```yaml
-# Restrict inter-service communication
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: chat-service-policy
-spec:
-  podSelector:
-    matchLabels:
-      app: chat-service
-  policyTypes:
-  - Ingress
-  - Egress
-  ingress:
-  - from:
-    - podSelector:
-        matchLabels:
-          app: gateway
-    ports:
-    - protocol: TCP
-      port: 8000
-  egress:
-  - to:
-    - podSelector:
-        matchLabels:
-          app: auth-service
-    ports:
-    - protocol: TCP
-      port: 8000
+```bash
+# Fly.io provides network isolation via Fly Private Networks
+# Kubernetes NetworkPolicy pattern (for reference only):
+# apiVersion: networking.k8s.io/v1
+# kind: NetworkPolicy
+
+# Actual Fly.io implementation:
+fly wireguard create  # Create private network
+fly ips private  # Allocate private IPv6 addresses for inter-service communication
 ```
 
 ### Secret Management
-```yaml
-# External secrets for API keys
-apiVersion: external-secrets.io/v1beta1
-kind: SecretStore
-metadata:
-  name: vault-backend
-spec:
-  provider:
-    vault:
-      server: "https://vault.company.com"
-      path: "secret"
-      version: "v2"
-      auth:
-        kubernetes:
-          mountPath: "kubernetes"
-          role: "gaia-platform"
----
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
-metadata:
-  name: chat-service-secrets
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    name: vault-backend
-    kind: SecretStore
-  target:
-    name: chat-service-secrets
-    creationPolicy: Owner
-  data:
-  - secretKey: openai-api-key
-    remoteRef:
-      key: gaia/chat-service
-      property: openai_api_key
-  - secretKey: anthropic-api-key
-    remoteRef:
-      key: gaia/chat-service
-      property: anthropic_api_key
+```bash
+# Fly.io secrets management
+fly secrets set OPENAI_API_KEY="sk-..." --app gaia-chat-dev
+fly secrets set ANTHROPIC_API_KEY="sk-ant-..." --app gaia-chat-dev
+
+# Kubernetes External Secrets pattern (for reference only):
+# apiVersion: external-secrets.io/v1beta1
+# kind: ExternalSecret
+# Actual deployment uses: fly secrets set and fly secrets list
 ```
 
 ## Cost Optimization Strategies
 
 ### Resource Quotas
-```yaml
-# Namespace resource quotas
-apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: gaia-quota
-spec:
-  hard:
-    requests.cpu: "100"
-    requests.memory: 200Gi
-    limits.cpu: "200"
-    limits.memory: 400Gi
-    persistentvolumeclaims: "10"
-    count/deployments.apps: "20"
+```bash
+# Fly.io resource management
+fly scale vm shared-cpu-1x --memory 256 --app gaia-small-service
+fly scale vm dedicated-cpu-8x --memory 16384 --app gaia-large-service
+
+# Kubernetes ResourceQuota pattern (for reference only):
+# apiVersion: v1
+# kind: ResourceQuota
+# Actual deployment uses: fly scale vm and organization limits
 ```
 
-### Spot Instance Configuration
-```yaml
-# Use spot instances for non-critical workloads
-apiVersion: v1
-kind: Node
-metadata:
-  labels:
-    node-type: spot
-    workload: batch-processing
-spec:
-  taints:
-  - key: spot-instance
-    value: "true"
-    effect: NoSchedule
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: asset-batch-processor
-spec:
-  template:
-    spec:
-      tolerations:
-      - key: spot-instance
-        operator: Equal
-        value: "true"
-        effect: NoSchedule
-      nodeSelector:
-        node-type: spot
+### Cost-Optimized Instance Configuration
+```bash
+# Fly.io automatic placement and resource optimization
+fly scale count 3  # Automatic distribution across regions
+fly autoscale set min=1 max=10  # Scale down during low traffic
+
+# Kubernetes spot instance pattern (for reference only):
+# node-type: spot
+# Actual deployment uses: Fly.io shared VMs for cost savings
 ```
 
 ## The Scaling Bottom Line

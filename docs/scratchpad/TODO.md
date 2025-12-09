@@ -1,5 +1,12 @@
 # GAIA Development TODO
 
+> **⚠️ HISTORICAL DOCUMENT** - Last updated 2025-11-06
+>
+> This document tracks work from early November 2025. For current status, see:
+> - `/docs/_planning/PLAN.md` - Current goals and strategy
+> - `/docs/_planning/SESSION-LOG.md` - Recent session progress
+> - `CURRENT-STATUS-2025-11-09.md` (scratchpad) - November snapshot
+
 **Last Updated**: 2025-11-06
 **Current Status**: State Management Refactored ✅ → Game Commands Gap Identified 🎯
 

@@ -1,5 +1,7 @@
 # LLM Module Documentation
 
+
+
 ## Overview
 
 The LLM module (`app/services/llm/`) is a provider-agnostic library that provides abstractions for interacting with multiple Large Language Model providers (Claude, OpenAI, etc.). It is NOT a standalone microservice but rather a shared library used by the Chat service.
@@ -9,7 +11,8 @@ The LLM module (`app/services/llm/`) is a provider-agnostic library that provide
 ### Core Components
 
 1. **Base Abstractions** (`base.py`)
-   - `LLMProvider`: Base class for all LLM providers
+   - `LLMProvider`: Enum identifying provider types (CLAUDE, OPENAI, GEMINI, MISTRAL)
+   - `LLMProviderInterface`: Abstract base class for all LLM provider implementations
    - `LLMRequest/Response`: Standardized request/response models
    - `ModelCapability`: Defines what each model can do
    - `StreamChunk`: Streaming response handling
@@ -17,7 +20,7 @@ The LLM module (`app/services/llm/`) is a provider-agnostic library that provide
 2. **Provider Registry** (`registry.py`)
    - Central registry for all available providers
    - Health monitoring and statistics tracking
-   - Provider failover and load balancing
+   - Provider selection and load balancing (by speed, cost, or reliability)
 
 3. **Provider Implementations**
    - `claude_provider.py`: Anthropic Claude integration
@@ -30,7 +33,7 @@ The LLM module (`app/services/llm/`) is a provider-agnostic library that provide
 
 5. **Chat Service Helper** (`chat_service.py`)
    - High-level chat interface used by the Chat microservice
-   - Session management
+   - Provider failover on errors (retries with alternative providers)
    - Response formatting
 
 ## Usage

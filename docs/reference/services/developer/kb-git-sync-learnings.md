@@ -1,5 +1,7 @@
 # KB Git Sync Implementation Learnings
 
+
+
 This document captures key learnings from implementing Git repository synchronization for the KB (Knowledge Base) service, including challenges faced and solutions discovered.
 
 ## Overview

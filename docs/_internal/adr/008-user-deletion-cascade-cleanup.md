@@ -1,7 +1,24 @@
 # ADR-008: User Deletion Cascade Cleanup
 
 ## Status
-Proposed - **CRITICAL ISSUE**
+**Partially Implemented** (Updated: 2025-12-04)
+
+### Implementation Status
+✅ **Completed**: Database CASCADE constraints (migrations 002, 005)
+❌ **Not Implemented**: Service-level UserCleanupService
+❌ **Not Implemented**: Admin deletion endpoint
+❌ **Not Implemented**: Production data migration
+
+### What Works
+- Database automatically cascades deletions: `users` → `conversations` → `messages`
+- Test fixtures clean up via database CASCADE
+- User preferences cascade correctly
+
+### What's Missing
+- No centralized UserCleanupService class
+- No admin API endpoint for user deletion
+- No comprehensive cleanup verification
+- Orphaned data from before CASCADE implementation not cleaned up
 
 ## Context
 During integration testing, we discovered a **critical data cleanup bug**: a single test user had accumulated **1697 orphaned conversations** in the database. This indicates that when users are deleted from Supabase, their associated conversations are not being cleaned up from our PostgreSQL database.
@@ -218,7 +235,19 @@ async def test_large_user_deletion_performance():
 - Potential production data privacy compliance issues
 
 ---
-*Created: 2025-08-11*  
-*Author: Integration Test Analysis*  
-*Status: Proposed - Requires immediate implementation*  
-*Priority: CRITICAL - Data privacy and system performance impact*
+*Created: 2025-08-11*
+*Updated: 2025-12-04*
+*Author: Integration Test Analysis*
+*Status: Partially Implemented - Database CASCADE complete, service layer pending*
+*Priority: MEDIUM - Core functionality working via database constraints*
+
+## Next Steps (Optional Enhancements)
+
+While database CASCADE provides the core functionality, these service-level improvements would add value:
+
+1. **Centralized UserCleanupService**: Useful for logging, auditing, and coordinating cleanup across services
+2. **Admin API endpoint**: Better than direct database access for user management
+3. **Cleanup verification tools**: Scripts to verify no orphaned data exists
+4. **Metrics and monitoring**: Track deletion performance and data growth
+
+These are **not urgent** since database constraints handle the critical requirement.

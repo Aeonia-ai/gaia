@@ -1,5 +1,7 @@
 # Auth Layout Isolation Rules
 
+
+
 ## 🚨 CRITICAL: Auth Page Layout Isolation
 
 **NEVER MIX AUTH CONTENT WITH LAYOUT ELEMENTS**

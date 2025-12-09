@@ -1,5 +1,7 @@
 # KB Container Storage Migration Guide
 
+
+
 ## Overview
 
 As of July 2025, the KB service has migrated from local volume mounts to container-only storage for true local-remote parity. This ensures that local Docker testing accurately reflects production behavior.

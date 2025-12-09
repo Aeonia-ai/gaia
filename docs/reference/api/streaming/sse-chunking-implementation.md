@@ -1,5 +1,6 @@
 # SSE Chunking Implementation in GAIA Chat Service
 
+
 **Created**: January 2025  
 **Purpose**: Document how Server-Sent Events (SSE) chunking is implemented in the GAIA chat service
 

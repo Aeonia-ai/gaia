@@ -14,13 +14,13 @@ An Architecture Decision Record captures:
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
-| [001](001-supabase-first-authentication.md) | Supabase-First Authentication | Implemented | Jan 2025 |
-| [002](002-microservice-automation.md) | Microservice Creation Automation | Implemented | Jan 2025 |
-| [003](003-postgresql-simplicity.md) | PostgreSQL Direct Usage Over ORM | Adopted | Jan 2025 |
-| [003](003-api-key-to-jwt-exchange.md) | API Key to JWT Exchange | Implemented | Aug 2025 |
-| [004](004-enabling-personas-with-tdd.md) | Enabling Personas with TDD | Implemented | Aug 2025 |
-| [008](adr-008-user-deletion-cascade-cleanup.md) | User Deletion Cascade Cleanup | Implemented | Aug 2025 |
-| [009](009-kb-ephemeral-storage.md) | **KB Ephemeral Container Storage** | **Implemented** | **Oct 2025** |
+| [001](001-supabase-first-authentication.md) | Supabase-First Authentication | Implemented | 2025-01 |
+| [002](002-microservice-automation.md) | Microservice Creation Automation | Implemented | 2025-01 |
+| [003](003-postgresql-simplicity.md) | PostgreSQL Direct Usage Over ORM | Implemented | 2025-01 |
+| [004](004-enabling-personas-with-tdd.md) | Enabling Personas with TDD | Implemented | 2025-08 |
+| [008](008-user-deletion-cascade-cleanup.md) | User Deletion Cascade Cleanup | Partially Implemented | 2025-08 |
+| [009](009-kb-ephemeral-storage.md) | KB Ephemeral Container Storage | Implemented | 2025-10 |
+| [010](010-api-key-to-jwt-exchange.md) | API Key to JWT Exchange | Partially Implemented | 2025-08 |
 
 ## ADR Template
 

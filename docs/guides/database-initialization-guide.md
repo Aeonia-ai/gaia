@@ -1,5 +1,7 @@
 # Database Initialization Guide
 
+
+
 This guide covers the complete database setup process for the Gaia Platform, including all required tables, migrations, and initial data.
 
 ## 🚨 Required for All Environments

@@ -1,14 +1,41 @@
 # Unified Intelligent Chat Specification
 
-**Created**: January 2025  
-**Purpose**: Define a single, intelligent chat endpoint that uses LLM tool-calling for routing decisions
+> **Status**: ✅ IMPLEMENTED - See `app/services/chat/unified_chat.py`
+> **Created**: January 2025
+> **Purpose**: Define a single, intelligent chat endpoint that uses LLM tool-calling for routing decisions
+> **Implementation**: `app/services/chat/unified_chat.py:UnifiedChatHandler`
+> **Last Updated**: 2025-12-04
 
-## Overview
+## Implementation Status
+
+**✅ This specification has been implemented** in `app/services/chat/unified_chat.py`.
+
+**Key Implementation Points:**
+- Single `UnifiedChatHandler` class consolidates all routing logic
+- LLM uses `tool_choice="auto"` to decide between direct response and tool routing
+- KB tools (`KB_TOOLS`) integrated directly into unified handler
+- Routing tools for MCP agent and multiagent orchestration
+- Services called directly (not via HTTP forwarding)
+
+**Verified Components:**
+- `app/services/chat/unified_chat.py` lines 271-331: Core routing logic
+- Routing tools: `use_kb_tools`, `route_to_mcp_agent` (actual names may vary)
+- KB tools integration working
+- Direct response path operational
+
+**Differences from Spec:**
+- Implementation calls services directly, not via HTTP endpoints
+- Some tool names/signatures may differ from this spec
+- Actual code is more evolved than this initial specification
+
+## Overview (As Designed)
 
 Replace multiple chat endpoints (`/chat/direct`, `/chat/mcp-agent-hot`, `/chat/intelligent`, etc.) with a single unified endpoint that lets the LLM decide whether to:
 1. Respond directly (no tools)
 2. Route to MCP agent (for tool use)
 3. Route to multi-agent orchestration (for complex analysis)
+
+**Note**: This design has been implemented. See code for actual implementation details.
 
 ## Core Design Principle
 

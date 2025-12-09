@@ -1,5 +1,7 @@
 # Web Service Standardization Specification
 
+
+
 ## Overview
 
 This specification outlines standardization improvements for the GAIA web service to enhance accessibility, testability, and user experience. These recommendations are based on integration test analysis and validated against FastHTML/HTMX best practices.

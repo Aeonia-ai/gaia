@@ -1,8 +1,17 @@
 # WebSocket Architecture Decision Document
 
+> **✅ DECISION MADE & SHIPPED** - November 5, 2025
+>
+> This document captured the architectural decision process. The decision was:
+> - **Shipped**: Option A (WebSocket in KB Service) for demo
+> - **Implemented**: Option B (Gateway WebSocket Proxy) as interim solution
+> - **Planned**: Option C (Dedicated Session Service) for future
+>
+> See verification notes at bottom for current implementation status.
+
 **Date**: 2025-11-05
-**Status**: Decision Required
-**Timeline**: Friday Demo Deadline (3 days)
+**Status**: ✅ SHIPPED (Option A + B hybrid approach)
+**Timeline**: Friday Demo Deadline (3 days) - MET
 
 ---
 

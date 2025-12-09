@@ -1,6 +1,12 @@
 # Markdown Command Format Specification
 
-## Overview
+## Implementation Status
+
+**Current Implementation:** The game command system uses hardcoded Python handlers with LLM fallback for natural language processing. Commands like `look`, `collect`, `talk`, etc. are implemented in Python code within the KB service.
+
+**Future Implementation:** This document describes a target architecture where commands would be defined in markdown files that LLMs can interpret directly. This would enable content creators to modify game logic without changing code.
+
+## Overview (Target Architecture)
 
 Game commands in the unified state model are defined as markdown files in `/experiences/{exp}/game-logic/`. Each command file defines how the system processes player input and updates state.
 
@@ -234,16 +240,16 @@ When a player sends a message:
 4. **Flexible**: Easy to add new commands without code changes
 5. **Documented**: Command file IS the documentation
 
-## Migration from Hardcoded
+## Migration from Hardcoded (Future)
 
-Old approach (hardcoded Python):
+**Current approach** (hardcoded Python):
 ```python
 async def _find_instances_at_location(self, experience, waypoint, sublocation):
     # 100+ lines of hardcoded logic
     pass
 ```
 
-New approach (markdown):
+**Target approach** (markdown):
 ```markdown
 ## Execution Logic
 1. Query world_state.locations[waypoint].items
@@ -251,4 +257,10 @@ New approach (markdown):
 3. Generate narrative from descriptions
 ```
 
-The LLM interprets the markdown and executes the logic dynamically.
+**Migration Status:** Not yet implemented. This would require:
+- LLM-powered markdown interpretation engine
+- State access abstraction for LLMs
+- Validation and security layers
+- Migration tooling for existing experiences
+
+The LLM would interpret the markdown and execute the logic dynamically.

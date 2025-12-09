@@ -1,5 +1,7 @@
 # KB Wiki Interface Design for FastHTML Web UI
 
+
+
 ## Overview
 
 The KB wiki interface will be integrated into the existing FastHTML web service as a new section alongside the chat interface. Users can seamlessly switch between chat and wiki modes.

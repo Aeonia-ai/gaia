@@ -1,5 +1,7 @@
 # KB-Driven Command Processing Tool Specification
 
+
+
 > **Status**: SPECIFICATION
 > **Version**: 0.5
 > **Purpose**: Define general-purpose game command processing tool that leverages KB content for any game system
@@ -8,8 +10,8 @@
 > **Implementation Status**: Infrastructure complete, core processor pending (see below)
 > **Related**:
 > - **[Game Command Developer Guide](./game-command-developer-guide.md)** - Practical guide with examples and current status
-> - [KB Architecture Guide](../kb/developer/kb-architecture-guide.md) - Knowledge Base infrastructure
-> - [RBAC System Guide](../kb/reference/rbac-system-guide.md) - Role-based access control
+> - [KB Architecture Guide](../services/developer/kb-architecture-guide.md) - Knowledge Base infrastructure
+> - [RBAC System Guide](../services/reference/rbac-system-guide.md) - Role-based access control
 > - [Chat API Documentation](./chat/) - LLM processing infrastructure  
 
 ## Executive Summary
@@ -904,11 +906,11 @@ async def test_cross_user_session_isolation():
 
 ## Related Documentation
 
-- **[KB Architecture Guide](../kb/developer/kb-architecture-guide.md)** - Knowledge Base infrastructure and content organization
-- **[RBAC System Guide](../kb/reference/rbac-system-guide.md)** - Role-based access control implementation  
+- **[KB Architecture Guide](../services/developer/kb-architecture-guide.md)** - Knowledge Base infrastructure and content organization
+- **[RBAC System Guide](../services/reference/rbac-system-guide.md)** - Role-based access control implementation
 - **[Chat API Documentation](./chat/)** - LLM processing and persona management
-- **[Authentication Guide](../authentication/authentication-guide.md)** - JWT and role-based authentication
-- **[Testing Guide](../testing/TESTING_GUIDE.md)** - Testing patterns and best practices
+- **[Authentication Guide](./authentication/api-authentication-guide.md)** - JWT and role-based authentication
+- **[Testing Guide](../../testing/TESTING_GUIDE.md)** - Testing patterns and best practices
 
 ## Conclusion
 

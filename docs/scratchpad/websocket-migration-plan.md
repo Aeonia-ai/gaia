@@ -1,7 +1,18 @@
 # WebSocket Migration Plan: SSE → WebSocket Real-Time Communication
 
+> **⚠️ HISTORICAL PLANNING DOCUMENT** - November 5, 2025
+>
+> This document outlined the migration plan from SSE to WebSocket.
+> **Status Update**: A WebSocket implementation was shipped (KB Service + Gateway proxy).
+> This full migration plan (dedicated Session Service) remains planned for future.
+>
+> For current WebSocket implementation, see:
+> - `websocket-architecture-decision.md` - What was actually shipped
+> - `app/services/kb/websocket_experience.py` - KB Service WebSocket
+> - `app/gateway/main.py` (line 1195) - Gateway WebSocket proxy
+
 **Date**: 2025-11-05
-**Status**: Planning Complete, Implementation Pending
+**Status**: 📋 PLANNING DOCUMENT - Partial implementation shipped, full migration pending
 **Estimated Effort**: 9-13 hours (server) + 3-4 hours (Unity client)
 
 ---

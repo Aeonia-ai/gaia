@@ -1,5 +1,7 @@
 # Command Reference: Correct Syntax & Versions
 
+
+
 This document ensures we always use the correct command syntax and versions. When in doubt, refer to this document to avoid command version errors.
 
 ## 🚀 Microservices Deployment Consistency

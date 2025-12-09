@@ -1,5 +1,7 @@
 # Chat-Based Game Testing Guide
 
+
+
 ## Overview
 
 This guide provides comprehensive testing procedures for the GAIA markdown command system integrated with the chat service. Use this when validating chat integration after code changes, new features, or debugging issues.

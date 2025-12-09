@@ -147,9 +147,8 @@ Migrated from monolith to microservices without breaking changes:
 ## Getting Started
 
 1. **For Developers**: Start with [CLAUDE.md](../CLAUDE.md) for operational guidance
-2. **Architecture Deep Dive**: See [Architecture Overview](architecture-overview.md)
-3. **Implementation Status**: Check [Implementation Status](implementation-status.md)
-4. **Local Development**: Follow [Dev Environment Setup](dev-environment-setup.md)
+2. **Architecture Deep Dive**: See [Architecture Overview](_internal/architecture-overview.md)
+3. **Local Development**: Follow [Dev Environment Setup](guides/dev-environment-setup.md)
 
 ## The Bigger Picture
 

@@ -1,5 +1,7 @@
 # Gaia Platform Client Usage Guide
 
+
+
 This guide explains how client applications interact with the Gaia Platform API.
 
 ## Overview

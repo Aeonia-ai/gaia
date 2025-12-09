@@ -1,5 +1,7 @@
 # Unified Chat Persistence Architecture
 
+
+
 ## Overview
 This document describes how conversation persistence works in the GAIA platform's unified chat system, including the relationship between the web UI, gateway, and chat service.
 

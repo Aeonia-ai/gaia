@@ -1,5 +1,6 @@
 # KB Storage Configuration Guide
 
+
 **Created**: January 2025  
 **Purpose**: How to configure and enable different KB storage backends
 

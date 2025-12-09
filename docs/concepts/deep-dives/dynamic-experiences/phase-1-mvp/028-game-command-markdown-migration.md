@@ -1,10 +1,40 @@
 # Migration Plan: Hardcoded Commands → Markdown Files
 
-## Goal
+> **Status:** 🔵 FUTURE PLAN - Migration NOT executed, hardcoded commands still in use
+> **Created:** ~2025-10
+> **Last Updated:** 2025-12-04
+> **Estimated Effort:** 24-27 days (~5-6 weeks)
+> **Priority:** Low (alternative approaches may be better)
+
+## ⚠️ Implementation Status
+
+**This migration has NOT been executed.**
+
+**Current Reality:**
+- Game commands are hardcoded in Python (see `app/services/kb/game_commands_legacy_hardcoded.py`)
+- No markdown-based command logic exists
+- Templates exist but aren't loaded at runtime for command processing
+- Command processing uses `execute_game_command()` stub (returns "not_implemented")
+
+**This Document Describes:**
+- Proposed migration from hardcoded Python to markdown-driven commands
+- 5-6 week effort estimate
+- Detailed implementation plan
+- Benefits and risks
+
+**Before Executing:** Evaluate if this approach is still desired. Consider:
+1. Is KB-driven command processing still the goal?
+2. Are there simpler alternatives (hybrid approach)?
+3. What's changed since this was written?
+
+## Goal (PROPOSED MIGRATION)
+
 Enable content-driven game command execution for wylding-woods and west-of-house by:
 1. Moving interaction logic from Python to markdown
 2. Keeping JSON for state management
 3. Loading markdown at runtime (like `/agent/interpret`)
+
+**Note**: This is a proposed migration plan, not executed work.
 
 ---
 

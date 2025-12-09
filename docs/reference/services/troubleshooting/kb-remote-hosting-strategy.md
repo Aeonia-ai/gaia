@@ -1,5 +1,7 @@
 # KB Remote Hosting Strategy
 
+
+
 ## Overview
 Strategy for hosting Knowledge Base content in production environments while maintaining security, performance, and ease of updates.
 

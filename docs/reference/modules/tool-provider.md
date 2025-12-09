@@ -1,5 +1,6 @@
 # Tool Provider Module
 
+
 ## Overview
 
 The Tool Provider (`app/shared/tool_provider.py`) is a simplified placeholder module that provides a framework for LLM tool/function calling capabilities. Currently, it returns empty tool lists but provides the infrastructure for future tool integration.

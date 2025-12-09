@@ -1,5 +1,7 @@
 # Layout Constraints and Critical CSS Rules
 
+
+
 This document defines the **MANDATORY** layout constraints that must NEVER be violated to prevent UI breakages.
 
 ## 🚨 CRITICAL: Layout Rules That Must Never Be Broken

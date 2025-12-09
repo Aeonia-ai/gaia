@@ -1,5 +1,7 @@
 # KB Git Clone Learnings
 
+
+
 ## Problem Evolution
 We went through several iterations to get git clone working properly for the KB service:
 

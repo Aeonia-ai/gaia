@@ -1,5 +1,7 @@
 # Microservices Scaling Architecture
 
+
+
 ## 🚀 Scaling Advantages Over Monolithic LLM Platform
 
 ### Independent Service Scaling
@@ -19,9 +21,9 @@ The Gaia Platform's microservices architecture provides significant scaling adva
 ```
 🏗️ Independent Scaling per Service
 ├─ Chat Service: 5 instances (high chat traffic)
-├─ Auth Service: 2 instances (stable auth load)  
+├─ Auth Service: 2 instances (stable auth load)
 ├─ Asset Service: 10 instances (heavy image generation)
-├─ Performance Service: 1 instance (monitoring only)
+├─ Monitoring: Prometheus + Grafana (infrastructure metrics)
 └─ Gateway: 3 instances (load balancing)
 ```
 
@@ -46,7 +48,7 @@ auth-service:
 - **Chat Service**: GPU instances for LLM inference
 - **Asset Service**: High-memory instances for image generation
 - **Auth Service**: Small, fast instances for JWT validation
-- **Performance Service**: Monitoring-optimized instances
+- **Monitoring**: Prometheus + Grafana for metrics and alerting
 
 ## Real-World Scaling Scenarios
 
@@ -86,9 +88,9 @@ single_db = "All services fight for same connection pool"
 
 # Gaia: Service-specific optimization
 auth_db = "Fast SSD, optimized for auth queries"
-chat_db = "High-memory, optimized for conversation history"  
+chat_db = "High-memory, optimized for conversation history"
 asset_db = "Large storage, optimized for metadata"
-performance_db = "Time-series optimized for metrics"
+metrics_db = "Time-series database (Prometheus) for monitoring"
 ```
 
 ### Service-Specific Caching
@@ -154,9 +156,9 @@ Auto-restart: Asset service recovers in 30 seconds
 deploy_monolith: "Entire system down for 5 minutes"
 
 # Gaia: Zero-downtime rolling deployments
-kubectl rolling-update chat-service    # Chat users unaffected
-kubectl rolling-update asset-service   # Asset generation briefly slower  
-kubectl rolling-update auth-service    # New logins briefly delayed
+# Note: Actual deployment uses Fly.io - kubectl examples are illustrative
+fly deploy --ha  # Chat users unaffected with high availability
+fly deploy --strategy rolling  # Rolling deployment across machines
 # Never full system downtime!
 ```
 
@@ -214,63 +216,34 @@ europe:
   auth_service: "GDPR compliance region"
   
 global:
-  performance_service: "Worldwide monitoring"
+  monitoring: "Prometheus + Grafana for worldwide metrics and alerting"
 ```
 
-## Kubernetes Scaling Configuration
+## Scaling Configuration
 
-### Horizontal Pod Autoscaling
-```yaml
-# Chat service auto-scaling
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: chat-service-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: chat-service
-  minReplicas: 2
-  maxReplicas: 50
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+> **Note**: Gaia Platform uses **Fly.io** for deployment, not Kubernetes. The examples below show scaling patterns using Kubernetes HPA for illustration. Actual implementation uses `fly scale` commands and Fly.io autoscaling features.
+
+### Horizontal Scaling (Fly.io Implementation)
+```bash
+# Chat service scaling with Fly.io
+fly scale count chat-service=5 --region ord,iad,lax
+fly autoscale set chat-service min=2 max=50
+
+# Example: Kubernetes HPA pattern (for reference only)
+# apiVersion: autoscaling/v2
+# kind: HorizontalPodAutoscaler
+# Actual deployment uses: fly scale and fly autoscale commands
 ```
 
-### Vertical Pod Autoscaling
-```yaml
-# Asset service resource optimization
-apiVersion: autoscaling.k8s.io/v1
-kind: VerticalPodAutoscaler
-metadata:
-  name: asset-service-vpa
-spec:
-  targetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: asset-service
-  updatePolicy:
-    updateMode: "Auto"
-  resourcePolicy:
-    containerPolicies:
-    - containerName: asset-service
-      maxAllowed:
-        cpu: 8
-        memory: 16Gi
-      minAllowed:
-        cpu: 100m
-        memory: 512Mi
+### Vertical Scaling (Fly.io Implementation)
+```bash
+# Asset service resource scaling with Fly.io
+fly scale vm dedicated-cpu-4x --memory 8192
+
+# Example: Kubernetes VPA pattern (for reference only)
+# apiVersion: autoscaling.k8s.io/v1
+# kind: VerticalPodAutoscaler
+# Actual deployment uses: fly scale vm and fly scale memory commands
 ```
 
 ## The Scaling Bottom Line

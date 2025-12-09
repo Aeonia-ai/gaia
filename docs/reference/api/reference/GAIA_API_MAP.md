@@ -1,5 +1,6 @@
 # GAIA Platform API Map
 
+
 This document provides a comprehensive mapping of all API endpoints through the GAIA platform services.
 
 ## Architecture Overview

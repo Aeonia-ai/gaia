@@ -1,5 +1,7 @@
 # KB Service HTTP API Reference
 
+
+
 **Service**: KB Service  
 **Base URL**: `http://kb-service:8000`  
 **Authentication**: X-API-Key header  

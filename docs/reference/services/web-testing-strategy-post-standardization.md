@@ -1,5 +1,7 @@
 # Web Testing Strategy Post-Standardization
 
+
+
 ## Overview
 
 This document outlines how web testing will be simplified and improved after implementing the [Web Service Standardization Specification](./web-service-standardization-spec.md). The standardization will transform our tests from brittle CSS/text-based selectors to robust, semantic testing patterns.

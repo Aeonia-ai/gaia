@@ -1,7 +1,7 @@
-# ADR-003: API Key to JWT Exchange Pattern
+# ADR-010: API Key to JWT Exchange Pattern
 
 ## Status
-Proposed
+Partially Implemented
 
 ## Context
 

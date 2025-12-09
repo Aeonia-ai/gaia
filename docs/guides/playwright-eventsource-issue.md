@@ -1,5 +1,7 @@
 # Playwright EventSource (SSE) Cookie Issue
 
+
+
 ## Problem Description
 
 EventSource (Server-Sent Events) in Playwright doesn't send cookies with requests, causing authentication failures in E2E tests.

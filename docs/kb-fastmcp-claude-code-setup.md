@@ -57,24 +57,9 @@ Add these MCP servers to your Claude Code configuration file (`~/.claude/config.
 }
 ```
 
-### Method 2: Using Claude Code CLI
+### Method 2: Manual Configuration
 
-```bash
-# Add kb-docs server
-claude code mcp add gaia-kb-docs \
-  --transport http \
-  --url http://localhost:8005/mcp \
-  --description "GAIA Documentation KB"
-
-# Add kb-service server
-claude code mcp add gaia-kb-game \
-  --transport http \
-  --url http://localhost:8001/mcp \
-  --description "GAIA Game Content KB"
-
-# Verify servers are added
-claude code mcp list
-```
+Edit your Claude Code configuration file directly at `~/.claude/config.json` and restart Claude Code for changes to take effect.
 
 ## Testing MCP Endpoints
 
@@ -239,15 +224,13 @@ docker compose restart kb-docs
 ### Tools Not Appearing in Claude Code
 
 ```bash
-# Verify MCP configuration
-claude code mcp list
-
-# Re-add servers if needed
-claude code mcp remove gaia-kb-docs
-claude code mcp add gaia-kb-docs --transport http --url http://localhost:8005/mcp
+# Verify MCP configuration exists
+cat ~/.claude/config.json | jq '.mcpServers'
 
 # Check Claude Code can reach endpoint
 curl http://localhost:8005/mcp/health
+
+# If needed, restart Claude Code after config changes
 ```
 
 ### Slow Search Results

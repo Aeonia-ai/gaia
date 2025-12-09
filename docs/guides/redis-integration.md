@@ -1,5 +1,7 @@
 # Redis Integration Guide
 
+
+
 This document covers the comprehensive Redis caching system implemented in the Gaia platform for performance optimization and scalability.
 
 ## Overview
@@ -107,7 +109,7 @@ Internet → Gateway Service
 
 ### 1. Docker Compose Configuration
 
-Redis service is included in `docker compose.yml`:
+Redis service is included in `docker-compose.yml`:
 
 ```yaml
 redis:
@@ -425,7 +427,6 @@ time curl http://localhost:8666/api/v1/chat/personas | jq '.total'
 
 ## Related Documentation
 
-- [n8n Integration Guide](./n8n-integration.md) - Workflow automation platform
 - [CLAUDE.md](../CLAUDE.md) - Main development guide
-- [Docker Configuration](../docker compose.yml) - Container setup
+- [Docker Configuration](../docker-compose.yml) - Container setup
 - [Fly.io Configuration](../fly.dev.toml) - Production deployment

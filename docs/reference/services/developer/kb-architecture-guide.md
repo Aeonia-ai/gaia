@@ -1,5 +1,6 @@
 # KB Architecture Guide
 
+
 **Created**: January 2025  
 **Purpose**: Comprehensive guide to KB storage architecture, from current Git implementation to future multi-user database design
 
@@ -342,7 +343,7 @@ CREATE INDEX idx_parent ON kb_documents(parent_path);
 
 - [KB Git Sync Guide](../guides/kb-git-sync-guide.md) - Current Git implementation
 - [Multi-User KB Guide](../guides/multi-user-kb-guide.md) - Multi-user features
-- [KB Deployment Checklist](../deployment/kb-deployment-checklist.md) - Production deployment
+- [KB Deployment Checklist](../troubleshooting/kb-deployment-checklist.md) - Production deployment
 
 ---
 

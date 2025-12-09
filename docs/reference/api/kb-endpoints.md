@@ -1,5 +1,7 @@
 # 📚 Knowledge Base (KB) API Endpoints
 
+
+
 📍 **Location:** [Home](../README.md) → [API](README.md) → KB Endpoints
 
 ## Overview

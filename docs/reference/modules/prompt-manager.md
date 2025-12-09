@@ -1,5 +1,6 @@
 # Prompt Manager Module
 
+
 ## Overview
 
 The Prompt Manager (`app/shared/prompt_manager.py`) manages system prompts for the chat service, integrating with the persona system to provide personalized AI behavior based on user preferences.

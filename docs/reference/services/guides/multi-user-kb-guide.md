@@ -1,5 +1,7 @@
 # Multi-User Knowledge Base Guide
 
+
+
 ## Overview
 
 The Gaia Platform's Knowledge Base (KB) system supports multi-user collaboration through user namespaces, teams, workspaces, and granular sharing controls. This guide covers the architecture, features, and implementation of the multi-user KB system.

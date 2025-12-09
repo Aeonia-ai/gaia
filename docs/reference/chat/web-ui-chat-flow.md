@@ -1,5 +1,7 @@
 # Web UI Chat Flow Architecture
 
+
+
 ## Overview
 
 This document describes how the web UI handles chat interactions, including the current implementation and opportunities for simplification.

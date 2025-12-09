@@ -1,8 +1,15 @@
 # GAIA Platform Current Status & Next Steps
 
+> **⚠️ HISTORICAL SNAPSHOT** - November 9, 2025
+>
+> This document is a point-in-time snapshot from early November 2025.
+> For current status, see:
+> - `/docs/_planning/PLAN.md` - Current goals and strategy
+> - `/docs/_planning/SESSION-LOG.md` - Recent session progress
+
 **Date**: 2025-11-09
 **Branch**: `feature/unified-experience-system`
-**Purpose**: Single source of truth for implementation status
+**Purpose**: Historical snapshot of implementation status (Nov 2025)
 
 ---
 

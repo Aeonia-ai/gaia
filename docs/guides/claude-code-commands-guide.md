@@ -1,5 +1,7 @@
 # Claude Code Commands Guide for GAIA Platform
 
+
+
 ## Overview
 
 Claude Code commands (slash commands) are reusable shortcuts that automate common tasks. They differ from agents by being single-action, stateless operations rather than interactive, stateful assistants.

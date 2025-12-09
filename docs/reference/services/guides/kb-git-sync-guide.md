@@ -1,5 +1,7 @@
 # KB Git Sync Guide
 
+
+
 This guide covers the Git synchronization functionality for the Knowledge Base (KB) service, enabling automatic sync between your local Git repository and the KB service.
 
 ## Overview

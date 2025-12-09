@@ -1,5 +1,7 @@
 # Dev Environment Setup: The Gold Standard
 
+
+
 This document captures the complete process for setting up a production-ready dev environment that serves as the **shining exemplar** for all future environments.
 
 ## 🏆 Architecture Overview
@@ -28,14 +30,19 @@ gaia-db-dev          → Shared PostgreSQL database
 
 ### 1. Database Initialization
 ```bash
-# Create the main database
+# Create the main database (using modern fly postgres or fly mpg command)
 fly postgres create --name gaia-db-dev --region lax --vm-size shared-cpu-1x --volume-size 10
+# OR for newer Fly.io CLI:
+# fly mpg create --name gaia-db-dev --region lax --vm-size shared-cpu-1x --volume-size 10
 
 # Initialize with users and API keys
 ./scripts/init-database.sh --env dev --user admin@gaia.dev
 
 # CRITICAL: Initialize persona tables (required for persona functionality)
 fly postgres connect -a gaia-db-dev < scripts/create_persona_tables.sql
+
+# Note: For complete database initialization including persona tables,
+# see the Database Initialization Guide for detailed setup instructions.
 ```
 
 **⚠️ IMPORTANT**: Persona functionality requires additional database setup. See [Database Initialization Guide](database-initialization-guide.md) for complete setup requirements.

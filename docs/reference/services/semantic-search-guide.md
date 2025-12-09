@@ -1,5 +1,7 @@
 # KB Semantic Search Guide
 
+
+
 ## Overview
 
 The GAIA Knowledge Base supports **semantic search** - an AI-powered natural language search capability that goes beyond traditional keyword matching. Using **pgvector** (PostgreSQL extension) with **sentence-transformers**, semantic search understands the meaning and context of your queries with persistent, incremental indexing.

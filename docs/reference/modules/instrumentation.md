@@ -1,5 +1,6 @@
 # Instrumentation Module
 
+
 ## Overview
 
 The Instrumentation module (`app/shared/instrumentation.py`) provides comprehensive performance monitoring and timing infrastructure for tracking request processing stages throughout the platform.

@@ -1,0 +1,184 @@
+# Documentation Consolidation Command
+# Invoked via: /doc-health:consolidate <topic-or-pattern>
+# Example: /doc-health:consolidate authentication
+# Example: /doc-health:consolidate docs/reference/api/**/*.md
+
+description = "Consolidate overlapping documentation by merging, resolving conflicts, and organizing"
+
+prompt = """
+# Documentation Consolidation Protocol
+
+You are consolidating documentation to reduce sprawl. The goal is to merge overlapping docs, resolve conflicts, and create a coherent structure.
+
+## Target Topic/Pattern
+{{args}}
+
+## 5-Phase Process
+
+### Phase 1: Discovery
+
+Find all docs related to this topic.
+
+Methods:
+- Search filenames for topic keywords
+- Search content for key terms
+- Check cross-references
+
+Output:
+```
+TOPIC: [topic name]
+
+RELATED DOCS:
+1. [path] - [one-line summary]
+2. [path] - [one-line summary]
+...
+
+RELATIONSHIP MAP:
+- [doc A] overlaps with [doc B] on: [topics]
+- [doc C] is outdated version of [doc D]
+- [doc E] is deep-dive of section in [doc F]
+```
+
+### Phase 2: Analysis
+
+For each group of related docs, analyze:
+
+#### Content Overlap
+```
+OVERLAP ANALYSIS:
+
+DUPLICATED CONTENT:
+- "[exact quote]" appears in: [doc A line X], [doc B line Y]
+
+UNIQUE CONTENT:
+- [doc A] uniquely covers: [topics]
+- [doc B] uniquely covers: [topics]
+```
+
+#### Freshness Assessment
+```
+FRESHNESS:
+| Doc | Last Modified | References Current Code? |
+|-----|---------------|-------------------------|
+| [path] | [date] | YES/NO/PARTIAL |
+```
+
+#### Conflict Detection
+```
+CONFLICTS DETECTED:
+
+CONFLICT #1:
+- Doc A says: "[quote]" (line X)
+- Doc B says: "[quote]" (line Y)
+- Type: FACTUAL | VERSION | OPINION | SCOPE
+- Resolution needed: [describe]
+```
+
+### Phase 3: Resolution
+
+Resolve each conflict before merging.
+
+| Conflict Type | Resolution Method |
+|---------------|-------------------|
+| Factual (doc vs doc) | Invoke verification - check code |
+| Version (old vs new) | Keep newer, archive older |
+| Scope (overview vs detail) | Hierarchical merge |
+| Opinion (approach A vs B) | Flag for human decision |
+| Duplicate (same content) | Keep one, delete others |
+
+Format:
+```
+CONFLICT #1 RESOLUTION:
+- Type: [type]
+- Method: [method used]
+- Winner: [which doc/content is correct]
+- Evidence: [if verification used, cite code]
+- Action: [what to do]
+```
+
+### Phase 4: Merge
+
+Choose a merge strategy:
+
+**1. Absorb** - One doc absorbs content from others
+```
+MERGE STRATEGY: ABSORB
+- Primary doc: [path] (most complete/current)
+- Absorbing from: [list of docs]
+- Sections to add: [list]
+```
+
+**2. Synthesize** - Create new doc from multiple sources
+```
+MERGE STRATEGY: SYNTHESIZE
+- New doc: [proposed path]
+- Sources: [list of docs]
+- Structure:
+  1. [section] - from [doc]
+  2. [section] - from [doc]
+```
+
+**3. Hierarchical** - Create overview + detail docs
+```
+MERGE STRATEGY: HIERARCHICAL
+- Overview doc: [path]
+- Detail docs:
+  - [path] - covers [topic]
+  - [path] - covers [topic]
+- Links: overview links to details
+```
+
+### Phase 5: Cleanup
+
+After merging:
+1. Archive originals - Move to `docs/_archive/` with date prefix
+2. Update links - Find and fix all references to old paths
+3. Update tracker - Record consolidation in tracker
+4. Verify result - Run verification on merged doc
+
+## Output Format
+
+```markdown
+## Consolidation Report: [topic]
+
+### Discovery
+[Phase 1 output]
+
+### Analysis
+[Phase 2 output]
+
+### Conflicts & Resolutions
+[Phase 3 output]
+
+### Merge Plan
+[Phase 4 strategy]
+
+### Cleanup Actions
+- [ ] Archive [doc A]
+- [ ] Archive [doc B]
+- [ ] Update links in [list of files]
+- [ ] Verify merged doc
+
+### Result
+- Docs before: [N]
+- Docs after: [M]
+- Reduction: [percentage]
+```
+
+## When to Invoke Verification
+
+When you encounter a FACTUAL conflict between docs:
+1. Stop consolidation
+2. Use /doc-health:verify on the relevant code
+3. Resume with verified answer
+
+## Anti-Patterns
+
+1. DON'T merge without resolving conflicts
+2. DON'T delete without archiving
+3. DON'T skip link updates
+4. DON'T merge unverified docs
+5. DON'T create mega-docs (keep docs focused)
+
+Now consolidate the documentation for the topic/pattern specified above.
+"""

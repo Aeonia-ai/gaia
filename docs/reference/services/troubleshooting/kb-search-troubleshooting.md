@@ -1,5 +1,7 @@
 # KB Search Troubleshooting Guide
 
+
+
 **Created**: September 2025
 **Purpose**: Quick reference for resolving KB search issues
 

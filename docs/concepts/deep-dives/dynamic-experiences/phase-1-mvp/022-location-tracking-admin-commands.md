@@ -1,13 +1,37 @@
 # Location Tracking & Admin Commands Design
 
-**Status:** 🔵 Spec
-**Version:** 1.0
-**Date:** October 27, 2025
-**Related:** [021-kb-command-processing-spec.md](./021-kb-command-processing-spec.md)
+> **Status:** 🔵 DESIGN SPECIFICATION - Detailed design, implementation TBD
+> **Version:** 1.0
+> **Date:** October 27, 2025 (Created)
+> **Last Updated:** December 4, 2025
+> **Related:** [021-kb-command-processing-spec.md](./021-kb-command-processing-spec.md)
 
-## Overview
+## ⚠️ Implementation Status
+
+**This is a DESIGN SPECIFICATION, not implemented code.**
+
+**Current Reality:**
+- Basic admin commands exist: `@list-waypoints`, `@inspect-waypoint`, etc. (see [Admin Command System](docs/admin-command-system.md))
+- Admin commands use @ prefix and operate on KB files
+- Response time < 30ms (zero LLM latency)
+- NO hierarchical location tracking (Waypoint → Location → Sublocation) implemented
+- NO session-based navigation graph implemented
+- NO MUD/MOO-style world building implemented
+
+**This Document Describes:**
+- Proposed hierarchical location model (3-tier structure)
+- Graph-based navigation system (not implemented)
+- Session state tracking (not implemented)
+- Comprehensive admin command set (only subset exists)
+- Player navigation commands (not implemented)
+
+**Before Implementing:** Verify this design still matches requirements, assess alternatives, validate with actual gameplay needs.
+
+## Overview (PROPOSED SYSTEM)
 
 This document specifies a hierarchical location tracking system and admin command set for creating a Zork-like AR MMO experience. Players navigate through a nested location hierarchy (Waypoint → Location → Sublocation), while admins can dynamically create and edit world content using MUD/MOO-style @ commands.
+
+**Note**: This is a detailed design proposal, not current implementation.
 
 **Design Goals:**
 - Natural language player commands for exploration and interaction

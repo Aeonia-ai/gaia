@@ -1,5 +1,7 @@
 # FastHTML FT Async Error Prevention Guide
 
+
+
 ## 🚨 CRITICAL: The "FT can't be used in 'await' expression" Error
 
 ### What is this error?

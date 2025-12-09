@@ -1,5 +1,7 @@
 # Chat Service V2: Clean Architecture Design
 
+
+
 ## Overview
 
 A ground-up rebuild of the chat service, keeping what works and fixing fundamental architectural issues.

@@ -1,5 +1,6 @@
 # Authentication and Security
 
+
 ## Overview
 This document provides a consolidated overview of the authentication and security mechanisms used in the Gaia Platform. It covers the primary authentication methods, security best practices, certificate management for service-to-service communication, and troubleshooting common issues.
 

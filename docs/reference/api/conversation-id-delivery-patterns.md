@@ -1,5 +1,7 @@
 # Conversation ID Delivery Patterns
 
+
+
 ## Overview
 
 This document explains how conversation IDs are delivered to clients in both streaming and non-streaming responses, why this dual-method approach exists, and how it aligns with industry best practices.

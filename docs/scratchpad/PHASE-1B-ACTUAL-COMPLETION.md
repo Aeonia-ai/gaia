@@ -129,19 +129,26 @@ Tests:
 - Foundation for Phase 2: persistent WebSocket connections
 - Graceful degradation: system works without NATS
 
-### 2. No KB Publishing Yet
-The original Phase 1A (KB Service publishing world updates) is NOT implemented.
+### 2. KB Publishing Status - OUTDATED INFORMATION
 
-**What This Means**:
-- KB Service does NOT publish to NATS when state changes
-- No events are being generated yet
-- NATS subscriptions work, but there's nothing to subscribe to
-- Unity client would need to publish events for testing
+> **⚠️ CORRECTION** (verified 2025-11-12):
+> This section stated "Phase 1A NOT implemented" but verification confirms it WAS implemented:
+> - ✅ `_publish_world_update()` method exists in `unified_state_manager.py`
+> - ✅ `WorldUpdateEvent` schema exists in `app/shared/events.py`
+> - ✅ NATS publishing is functional
+>
+> The confusion arose because the implementation approach differed from the original plan.
+> KB publishing exists and works as of November 2025.
 
-**Why This Is OK**:
-- Phase 1B proves the subscription/cleanup lifecycle works
-- Unity team can test by injecting events directly
-- KB publishing can be added later without client changes
+**Original Text (Now Known to be Incorrect)**:
+- ~~KB Service does NOT publish to NATS when state changes~~ ❌ FALSE
+- ~~No events are being generated yet~~ ❌ FALSE
+- ~~NATS subscriptions work, but there's nothing to subscribe to~~ ❌ FALSE
+
+**Actual Status**:
+- ✅ KB Service DOES publish to NATS after state changes
+- ✅ Events ARE being generated
+- ✅ Full end-to-end flow is functional
 
 ---
 

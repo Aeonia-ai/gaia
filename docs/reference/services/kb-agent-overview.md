@@ -1,5 +1,7 @@
 # KB Agent Overview
 
+
+
 **Date**: September 2025
 **Status**: Implemented and Production Ready
 **Version**: 1.0.0
@@ -34,6 +36,8 @@ The KB Agent transforms the Knowledge Base service from a static file repository
 - **Haiku (Fast)**: Used for validation and simple decision-making
 - **Sonnet (Powerful)**: Used for complex workflows and synthesis tasks
 - **Automatic Selection**: Based on query complexity and operation mode
+
+> ⚠️ **Code Issue**: `kb_agent.py` inconsistently uses both `claude-haiku-4-5` and `claude-3-5-haiku-20241022`. Should standardize on one Haiku version.
 
 ### Multi-mode Operation
 - **Decision Mode**: Make decisions based on available knowledge
@@ -123,7 +127,7 @@ The KB Agent complements the chat service by:
 
 ## Performance Characteristics
 
-- **Response Time**: 1-3 seconds for complex interpretations
+- **Response Time**: Typically 1-3 seconds for complex interpretations (varies by model load)
 - **Concurrency**: Handles multiple simultaneous agent requests
 - **Caching**: Intelligent caching of rule interpretations for repeated queries
 - **Model Efficiency**: Automatic model selection optimizes cost and performance
