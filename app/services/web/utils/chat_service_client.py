@@ -52,10 +52,15 @@ class ChatServiceClient:
     async def get_conversations(self, user_id: str, jwt_token: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all conversations for a user"""
         try:
+            headers = self._get_headers(jwt_token)
+            logger.debug(f"[CHAT_CLIENT] Calling {self.base_url}/conversations with headers: {list(headers.keys())}")
+            if 'Authorization' in headers:
+                logger.debug(f"[CHAT_CLIENT] Authorization header present: Bearer {headers['Authorization'][7:37]}...")
+
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"{self.base_url}/conversations",
-                    headers=self._get_headers(jwt_token)
+                    headers=headers
                 )
                 response.raise_for_status()
                 result = response.json()
@@ -63,7 +68,7 @@ class ChatServiceClient:
                 logger.info(f"Retrieved {len(conversations)} conversations for user {user_id}")
                 return conversations
         except Exception as e:
-            logger.error(f"Error getting conversations: {e}")
+            logger.error(f"[CHAT_CLIENT] Error getting conversations: {e}")
             raise
     
     async def get_conversation(self, user_id: str, conversation_id: str, 

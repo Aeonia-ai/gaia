@@ -285,6 +285,24 @@ class GaiaAPIClient:
             logger.error(f"Email confirmation error: {e}")
             raise
 
+    async def refresh_token(self, refresh_token: str) -> Dict[str, Any]:
+        """Refresh JWT access token using refresh token"""
+        try:
+            response = await self.client.post(
+                "/api/v1/auth/refresh",
+                json={"refresh_token": refresh_token}
+            )
+            response.raise_for_status()
+            result = response.json()
+            logger.info("Token refresh successful")
+            return result
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Token refresh failed: {e.response.status_code} - {e.response.text}")
+            raise
+        except Exception as e:
+            logger.error(f"Token refresh error: {e}")
+            raise
+
     async def health_check(self) -> Dict[str, Any]:
         """Check gateway health"""
         try:

@@ -193,7 +193,8 @@ async def unified_chat_endpoint(
             try:
                 from .conversation_store import chat_conversation_store
                 user_id = auth_principal.get("sub") or auth_principal.get("user_id") or auth_principal.get("key", "unknown")
-                conversation = chat_conversation_store.get_conversation(user_id, conversation_id)
+                # CRITICAL: Pass user_email so _get_or_create_user can find/create user properly
+                conversation = chat_conversation_store.get_conversation(user_id, conversation_id, user_email)
 
                 if conversation is None:
                     # For both streaming and non-streaming, return 404 for invalid conversation_id

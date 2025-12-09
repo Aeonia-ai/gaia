@@ -269,3 +269,6 @@ jason_credentials.txt
 *_api_key.txt
 *_credentials.txt
 scripts/webui/.env
+
+# Playwright MCP cache
+.playwright-mcp/
