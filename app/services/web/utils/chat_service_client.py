@@ -226,5 +226,50 @@ class ChatServiceClient:
             logger.error(f"Error getting conversation stats: {e}")
             raise
 
+    # Primary conversation title used for single-chat mode identification
+    PRIMARY_CONVERSATION_TITLE = "Agent Interface"
+
+    async def get_or_create_primary_conversation(self, user_id: str,
+                                                  jwt_token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get the user's primary conversation, or create one if none exists.
+
+        In SINGLE_CHAT_MODE, each user has exactly one conversation that serves as
+        their "agent interface". The primary conversation is identified by its title
+        being set to "Agent Interface".
+
+        Design Decision: Title-based identification was chosen over:
+        - Most recent: Fragile, any new conversation becomes primary
+        - Database flag: Requires schema migration
+        - User metadata: Requires user table changes
+
+        See: docs/scratchpad/aeo-72-single-chat-design.md for full rationale.
+
+        Returns the primary conversation with its metadata.
+        """
+        try:
+            # Get all conversations for this user
+            conversations = await self.get_conversations(user_id, jwt_token)
+
+            # Look for the explicitly marked primary conversation
+            for conv in conversations:
+                if conv.get("title") == self.PRIMARY_CONVERSATION_TITLE:
+                    logger.info(f"Found primary conversation {conv['id']} for user {user_id}")
+                    return conv
+
+            # No primary found - create new one (old conversations are ignored)
+            logger.info(f"No primary conversation found for user {user_id}, creating new one")
+            primary = await self.create_conversation(
+                user_id,
+                title=self.PRIMARY_CONVERSATION_TITLE,
+                jwt_token=jwt_token
+            )
+            logger.info(f"Created primary conversation {primary['id']} for user {user_id}")
+            return primary
+
+        except Exception as e:
+            logger.error(f"Error getting/creating primary conversation: {e}")
+            raise
+
 # Global instance
 chat_service_client = ChatServiceClient()

@@ -11,13 +11,129 @@ from app.services.web.components.gaia_ui import (
 from app.services.web.utils.gateway_client import GaiaAPIClient
 from app.services.web.utils.chat_service_client import chat_service_client
 from app.shared.logging import setup_service_logger
+from app.shared.config import settings
 
 logger = setup_service_logger("chat_routes")
 
 
+async def _render_single_chat_view(request, user, user_id, jwt_token):
+    """
+    Render the single-chat agent interface view.
+
+    In SINGLE_CHAT_MODE, each user has one "Agent Interface" conversation.
+    This function gets or creates that conversation and renders it directly.
+
+    See: docs/scratchpad/aeo-72-single-chat-design.md
+    """
+    from fasthtml.core import Script, NotStr
+
+    # Get or create the user's primary conversation
+    try:
+        conversation = await chat_service_client.get_or_create_primary_conversation(user_id, jwt_token)
+        conversation_id = conversation['id']
+        logger.info(f"Single-chat mode: loaded conversation {conversation_id} for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error getting primary conversation: {e}")
+        return gaia_layout(
+            main_content=gaia_error_message("Failed to load conversation. Please try again."),
+            show_sidebar=False,
+            user=user
+        )
+
+    # Load messages for this conversation
+    try:
+        messages_list = await chat_service_client.get_messages(conversation_id, jwt_token)
+        logger.info(f"Single-chat mode: loaded {len(messages_list)} messages")
+    except Exception as e:
+        logger.error(f"Error loading messages: {e}")
+        messages_list = []
+
+    # Build message content - show welcome if no messages, otherwise show messages
+    if not messages_list:
+        message_content = [
+            Div(
+                H2(f"Welcome, {user.get('name', 'User')}!",
+                   cls="text-lg text-white mb-2"),
+                Div("Start a conversation by typing below",
+                    cls="text-xs text-slate-400"),
+                cls="flex flex-col items-center justify-center text-center h-full",
+                id="welcome-message"
+            )
+        ]
+    else:
+        message_content = [
+            gaia_message_bubble(
+                msg["content"],
+                role=msg["role"],
+                timestamp=msg.get("created_at", "")
+            )
+            for msg in messages_list
+        ]
+
+    # Simplified script for single-chat mode (no sidebar updates needed)
+    single_chat_script = Script(NotStr('''
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('chat-form');
+            if (form) {
+                htmx.process(form);
+
+                document.body.addEventListener('htmx:afterRequest', function(evt) {
+                    if (evt.detail.elt && evt.detail.elt.id === 'chat-form') {
+                        const convInput = document.getElementById('conversation-id-input');
+                        const convId = convInput ? convInput.value : '';
+                        evt.detail.elt.reset();
+                        if (convInput && convId) {
+                            convInput.value = convId;
+                        }
+                        // Hide welcome message when first message is sent
+                        const welcome = document.getElementById('welcome-message');
+                        if (welcome) {
+                            welcome.style.display = 'none';
+                        }
+                    }
+                });
+            }
+
+            // Auto-scroll to bottom on load if there are messages
+            setTimeout(() => {
+                const messagesContainer = document.getElementById('messages');
+                if (messagesContainer) {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            }, 100);
+        });
+    '''))
+
+    # Main content with messages and input
+    main_content = Div(
+        Div(
+            *message_content,
+            id="messages",
+            cls="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar"
+        ),
+        gaia_chat_input(conversation_id=conversation_id),
+        single_chat_script,
+        gaia_toast_script(),
+        gaia_mobile_styles(),
+        cls="flex flex-col h-full",
+        id="main-content"
+    )
+
+    # For HTMX requests, return just the main content
+    if request.headers.get('hx-request'):
+        return main_content
+
+    # For full page loads, return layout WITHOUT sidebar
+    return gaia_layout(
+        main_content=main_content,
+        show_sidebar=False,
+        user=user
+    )
+
+
 def setup_routes(app):
     """Setup chat routes"""
-    
+
     @app.get("/api/session")
     async def get_session(request):
         """Get current session info"""
@@ -38,17 +154,23 @@ def setup_routes(app):
         """Main chat interface"""
         from fasthtml.core import Script
         from starlette.responses import RedirectResponse
-        
+
         # Check authentication
         jwt_token = request.session.get("jwt_token")
         user = request.session.get("user")
-        
+
         if not user or not jwt_token:
             # Redirect to login if not authenticated
             return RedirectResponse(url="/login", status_code=303)
-        
+
         user_id = user.get("id", "dev-user-id")
-        
+
+        # SINGLE_CHAT_MODE: Load the user's single "Agent Interface" conversation
+        if settings.SINGLE_CHAT_MODE:
+            logger.info(f"SINGLE_CHAT_MODE enabled for user {user_id}")
+            return await _render_single_chat_view(request, user, user_id, jwt_token)
+
+        # Multi-chat mode (legacy): Show sidebar with conversation list
         # Get user's conversations from chat service
         try:
             conversations = await chat_service_client.get_conversations(user_id, jwt_token)
@@ -56,7 +178,7 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error getting conversations: {e}")
             conversations = []
-        
+
         # Build simple sidebar content
         sidebar_content = Div(
             *[gaia_conversation_item(conv) for conv in conversations[:5]],  # Limit to 5 for debugging
@@ -425,9 +547,14 @@ def setup_routes(app):
             logger.info(f"Stored user message: {user_msg}")
             
             # Update conversation preview with first message
-            await chat_service_client.update_conversation(user_id, conversation_id, 
-                                                 title=message[:50] + "..." if len(message) > 50 else message,
-                                                 preview=message, jwt_token=jwt_token)
+            # In SINGLE_CHAT_MODE, preserve the "Agent Interface" title for persistence
+            if settings.SINGLE_CHAT_MODE:
+                await chat_service_client.update_conversation(user_id, conversation_id,
+                                                     preview=message, jwt_token=jwt_token)
+            else:
+                await chat_service_client.update_conversation(user_id, conversation_id,
+                                                     title=message[:50] + "..." if len(message) > 50 else message,
+                                                     preview=message, jwt_token=jwt_token)
             
             # For now, use a simple ID
             import uuid
