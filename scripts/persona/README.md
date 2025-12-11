@@ -169,6 +169,7 @@ CREATE TABLE personas (
 | Persona | UUID | File |
 |---------|------|------|
 | Game Master | `7b197909-8837-4ed5-a67a-a05c90e817f1` | `game-master-strict.txt` |
+| Zoe | `c96b087c-db2d-4072-83a3-54de910997fb` | `zoe.txt` |
 
 To find persona IDs:
 ```bash

@@ -145,7 +145,24 @@ else
     error "Database update failed:\n$UPDATE_RESULT"
 fi
 
-# Step 7: Verify update
+# Step 7: Clear Redis cache
+info "Clearing Redis cache..."
+
+# Get Redis password from chat service environment
+REDIS_PASSWORD=$(docker exec gaia-chat-service-1 printenv REDIS_PASSWORD 2>/dev/null)
+
+if [ -n "$REDIS_PASSWORD" ] && docker ps | grep -q gaia-redis-1; then
+    # Clear persona cache
+    docker exec gaia-redis-1 redis-cli -a "$REDIS_PASSWORD" DEL "persona:$PERSONA_UUID" 2>/dev/null || true
+    # Clear personas list caches
+    docker exec gaia-redis-1 redis-cli -a "$REDIS_PASSWORD" DEL "personas:list:active" 2>/dev/null || true
+    docker exec gaia-redis-1 redis-cli -a "$REDIS_PASSWORD" DEL "personas:list:all" 2>/dev/null || true
+    success "Redis cache cleared"
+else
+    warn "Could not clear Redis cache (Redis not running or no password found)"
+fi
+
+# Step 8: Verify database update
 info "Verifying update..."
 VERIFY_RESULT=$(docker exec gaia-db-1 psql -U postgres -d llm_platform -t -c \
     "SELECT name, updated_at, LENGTH(system_prompt) as prompt_length FROM personas WHERE id = '$PERSONA_UUID';")
@@ -157,7 +174,7 @@ echo "$VERIFY_RESULT"
 echo "════════════════════════════════════════════════════════════"
 echo ""
 
-# Step 8: Clean up temp files
+# Step 9: Clean up temp files
 info "Cleaning up temporary files..."
 rm -f "$ESCAPED_FILE" "$SQL_FILE"
 success "Cleanup complete"
@@ -167,7 +184,5 @@ echo ""
 success "Persona update complete!"
 info "Backup file: $BACKUP_FILE"
 info "Updated persona: $PERSONA_NAME"
-echo ""
-warn "Note: If changes don't appear in chat, restart chat service:"
-echo "  docker compose restart chat-service"
+info "Redis cache: cleared"
 echo ""

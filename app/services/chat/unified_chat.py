@@ -333,6 +333,48 @@ class UnifiedChatHandler:
         print(f"[AUTH DEBUG] Auth dict: {auth}")
         logger.info(f"[AUTH DEBUG] Auth dict: {auth}")
 
+        # =====================================================================
+        # SLASH COMMAND INTERCEPTION
+        # Check for user meta-commands (/persona, /help, etc.) before LLM
+        # Commands bypass LLM entirely for instant response (<30ms)
+        # =====================================================================
+        if message.startswith('/'):
+            from app.services.chat.commands import handle_command
+
+            # Extract user_id from auth
+            cmd_user_id = auth.get("sub") or auth.get("user_id") or auth.get("key", "unknown")
+
+            command_response = await handle_command(
+                message=message,
+                user_id=cmd_user_id,
+                user_email=user_email,
+                conversation_id=context.get("conversation_id") if context else None
+            )
+
+            if command_response:
+                logger.info(f"[COMMAND] Handled /{message.split()[0][1:]} for user {cmd_user_id} ({command_response.response_type})")
+                # Return in OpenAI chat completion format with command metadata
+                return {
+                    "id": f"cmd-{request_id}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": "command-handler",
+                    "choices": [{
+                        "index": 0,
+                        "message": {
+                            "role": "system",
+                            "content": command_response.message,
+                        },
+                        "finish_reason": "stop"
+                    }],
+                    "_metadata": {
+                        "command_type": command_response.response_type,
+                        "command_data": command_response.data,
+                        "response_time_ms": int((time.time() - start_time) * 1000)
+                    }
+                }
+        # =====================================================================
+
         # Update metrics
         self._routing_metrics["total_requests"] += 1
 
@@ -847,6 +889,49 @@ class UnifiedChatHandler:
         request_id = f"chat-{uuid.uuid4()}"
         first_content_time = None  # Track when first text content is sent
         time_to_first_chunk_ms = None  # Will be set when first chunk is sent
+
+        # =====================================================================
+        # SLASH COMMAND INTERCEPTION (STREAMING)
+        # Check for user meta-commands (/persona, /help, etc.) before LLM
+        # Commands bypass LLM entirely for instant response (<30ms)
+        # =====================================================================
+        if message.startswith('/'):
+            from app.services.chat.commands import handle_command
+
+            # Extract user_id from auth
+            cmd_user_id = auth.get("sub") or auth.get("user_id") or auth.get("key", "unknown")
+
+            command_response = await handle_command(
+                message=message,
+                user_id=cmd_user_id,
+                user_email=user_email,
+                conversation_id=context.get("conversation_id") if context else None
+            )
+
+            if command_response:
+                logger.info(f"[COMMAND STREAM] Handled /{message.split()[0][1:]} for user {cmd_user_id} ({command_response.response_type})")
+                # Yield single chunk with complete response for streaming compatibility
+                yield {
+                    "id": f"cmd-{request_id}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": "command-handler",
+                    "choices": [{
+                        "index": 0,
+                        "delta": {
+                            "role": "system",
+                            "content": command_response.message,
+                        },
+                        "finish_reason": "stop"
+                    }],
+                    "_metadata": {
+                        "command_type": command_response.response_type,
+                        "command_data": command_response.data,
+                        "response_time_ms": int((time.time() - start_time) * 1000)
+                    }
+                }
+                return  # Exit generator after command response
+        # =====================================================================
 
         # Update metrics
         self._routing_metrics["total_requests"] += 1
