@@ -1,10 +1,11 @@
 """Profile and account management routes"""
 from fasthtml.components import Div
-from starlette.responses import HTMLResponse, RedirectResponse
+from starlette.responses import HTMLResponse, RedirectResponse, JSONResponse
 from app.services.web.components.gaia_ui import (
-    gaia_profile_page, gaia_success_message, gaia_error_message
+    gaia_profile_page, gaia_success_message, gaia_error_message, gaia_settings_page
 )
 from app.services.web.utils.database_conversation_store import database_conversation_store
+from app.services.web.utils.chat_service_client import chat_service_client
 from app.shared.logging import setup_service_logger
 
 logger = setup_service_logger("profile_routes")
@@ -129,3 +130,46 @@ def setup_routes(app):
         except Exception as e:
             logger.error(f"Error updating preferences: {e}")
             return gaia_error_message("Failed to save preferences")
+
+    # =====================
+    # Settings Page Routes
+    # =====================
+
+    @app.get("/settings")
+    async def settings_page(request):
+        """Settings page for single-chat mode"""
+        jwt_token = request.session.get("jwt_token")
+        user = request.session.get("user", {})
+
+        if not jwt_token or not user:
+            logger.warning("Settings access denied - redirecting to login")
+            return RedirectResponse(url="/login", status_code=302)
+
+        return gaia_settings_page(user)
+
+    @app.post("/api/settings/clear-history")
+    async def clear_history(request):
+        """Clear user's chat history"""
+        jwt_token = request.session.get("jwt_token")
+        user = request.session.get("user", {})
+
+        if not jwt_token or not user:
+            return JSONResponse({"error": "Not authenticated"}, status_code=401)
+
+        user_id = user.get("id", "dev-user-id")
+
+        try:
+            # Get the user's primary conversation
+            conversation = await chat_service_client.get_or_create_primary_conversation(user_id, jwt_token)
+            conversation_id = conversation.get("id")
+
+            if conversation_id:
+                # Clear messages from the conversation
+                await chat_service_client.clear_messages(conversation_id, jwt_token)
+                logger.info(f"Cleared chat history for user {user_id}, conversation {conversation_id}")
+
+            return JSONResponse({"success": True})
+
+        except Exception as e:
+            logger.error(f"Error clearing chat history: {e}")
+            return JSONResponse({"error": str(e)}, status_code=500)

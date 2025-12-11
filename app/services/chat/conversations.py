@@ -220,6 +220,32 @@ async def get_messages(
         logger.error(f"Error getting messages: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.delete("/conversations/{conversation_id}/messages", status_code=204)
+async def clear_messages(
+    conversation_id: str,
+    auth: dict = Depends(get_current_auth_legacy)
+):
+    """Clear all messages from a conversation (keeps the conversation itself)"""
+    try:
+        user_id = auth.get("sub") or auth.get("user_id") or "unknown"
+        user_email = auth.get("email")
+        # Verify conversation exists and belongs to user
+        conversation = chat_conversation_store.get_conversation(user_id, conversation_id, user_email)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        # Clear messages
+        success = chat_conversation_store.clear_messages(conversation_id)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to clear messages")
+
+        logger.info(f"Cleared messages from conversation {conversation_id} for user {user_id}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error clearing messages: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/conversations/search/{query}", response_model=ConversationsListResponse)
 async def search_conversations(
     query: str,

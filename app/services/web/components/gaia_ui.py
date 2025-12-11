@@ -42,12 +42,12 @@ def gaia_logo(size="small", with_text=False):
     """Gaia butterfly logo component"""
     bg_class = GaiaDesign.LOGO_BG_SMALL if size == "small" else GaiaDesign.LOGO_BG_LARGE
     emoji_size = "text-sm" if size == "small" else "text-xl"
-    
+
     logo = Div(
         Span(GaiaDesign.LOGO_EMOJI, cls=emoji_size),
         cls=bg_class
     )
-    
+
     if with_text:
         return Div(
             logo,
@@ -55,6 +55,100 @@ def gaia_logo(size="small", with_text=False):
             cls="flex items-center"
         )
     return logo
+
+
+def gaia_chat_header(user=None):
+    """
+    Minimal chat header for single-chat mode.
+
+    Layout: [Logo + "Gaia"] -------- [User Dropdown]
+
+    The dropdown shows: Name (display only), Email (display only), Settings link, Logout button.
+    """
+    from fasthtml.core import Script, NotStr
+
+    # Get user display info
+    user_email = user.get('email', 'User') if user else 'User'
+    user_name = user.get('name', user_email.split('@')[0]) if user else 'User'
+    user_initial = user_name[0].upper() if user_name else 'U'
+
+    return Div(
+        # Left: Logo with text
+        A(
+            gaia_logo(with_text=True),
+            href="/chat",
+            cls="hover:opacity-80 transition-opacity"
+        ),
+
+        # Right: User dropdown
+        Div(
+            # Avatar button (triggers dropdown)
+            Button(
+                user_initial,
+                cls="w-9 h-9 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center text-white text-sm font-medium hover:scale-105 transition-transform shadow-md",
+                onclick="toggleChatUserMenu()",
+                title=f"Logged in as {user_email}",
+                id="chat-user-btn"
+            ),
+            # Dropdown menu
+            Div(
+                # User info section (display only)
+                Div(
+                    Div(user_name, cls="text-sm font-medium text-white truncate"),
+                    Div(user_email, cls="text-xs text-slate-400 truncate"),
+                    cls="px-4 py-3 border-b border-slate-700"
+                ),
+                # Settings link
+                A(
+                    Div(
+                        Span("⚙️", cls="mr-2"),
+                        "Settings",
+                        cls="flex items-center"
+                    ),
+                    href="/settings",
+                    cls="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                ),
+                # Logout button
+                A(
+                    Div(
+                        Span("🚪", cls="mr-2"),
+                        "Logout",
+                        cls="flex items-center"
+                    ),
+                    href="/logout",
+                    cls="block px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors",
+                    onclick="window.location.href='/logout'; return false;"
+                ),
+                id="chat-user-menu",
+                cls="absolute right-0 top-12 w-56 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden",
+                style="display: none;"
+            ),
+            cls="relative"
+        ),
+
+        # Script for dropdown toggle
+        Script(NotStr('''
+            function toggleChatUserMenu() {
+                const menu = document.getElementById('chat-user-menu');
+                if (!menu) return;
+
+                const isVisible = menu.style.display === 'block';
+                menu.style.display = isVisible ? 'none' : 'block';
+            }
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                const menu = document.getElementById('chat-user-menu');
+                const btn = document.getElementById('chat-user-btn');
+
+                if (menu && btn && !menu.contains(e.target) && !btn.contains(e.target)) {
+                    menu.style.display = 'none';
+                }
+            });
+        ''')),
+
+        cls="flex items-center justify-between px-4 py-3 border-b border-slate-700/50 bg-slate-900/50 backdrop-blur-sm relative z-50"
+    )
 
 
 def gaia_button(text, variant="primary", type="button", **kwargs):
@@ -91,25 +185,30 @@ def gaia_card(content, title=None):
     return Div(*children, cls=GaiaDesign.CARD)
 
 
-def gaia_message_bubble(content, role="user", timestamp=None):
+def gaia_message_bubble(content, role="user"):
     """Chat message bubble component with entrance animations"""
     bubble_cls = GaiaDesign.MSG_USER if role == "user" else GaiaDesign.MSG_ASSISTANT
-    
+
     # Add animation classes based on role
     animation_cls = "animate-slideInRight" if role == "user" else "animate-slideInLeft"
-    
-    children = [
-        Div(content, cls="whitespace-pre-wrap break-words")
-    ]
-    
-    if timestamp:
-        children.append(
-            Div(timestamp, cls="text-xs opacity-70 mt-1")
-        )
-    
+
     return Div(
-        Div(*children, cls=f"{bubble_cls} {animation_cls}"),
+        Div(
+            Div(content, cls="whitespace-pre-wrap break-words"),
+            cls=f"{bubble_cls} {animation_cls}"
+        ),
         cls=f"flex {'justify-end' if role == 'user' else 'justify-start'} mb-4"
+    )
+
+
+def gaia_date_divider(date_label):
+    """Date divider for separating messages by day (e.g., 'Today', 'Yesterday', 'Dec 10')"""
+    return Div(
+        Div(
+            Span(date_label, cls="px-3 py-1 bg-slate-700/50 rounded-full text-xs text-slate-400"),
+            cls="flex justify-center"
+        ),
+        cls="my-4"
     )
 
 
@@ -302,6 +401,7 @@ def gaia_chat_input(conversation_id=None):
                     cls="w-full bg-slate-800 border border-slate-600 text-white placeholder-slate-500 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/30 transition-all duration-300 resize-none",
                     autofocus=True,
                     required=True,
+                    autocomplete="off",
                     id="chat-message-input",
                     onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));}"
                 ),
@@ -837,6 +937,114 @@ def gaia_profile_page(user, stats=None):
         ),
         show_sidebar=False,
         user=user
+    )
+
+
+def gaia_settings_page(user):
+    """
+    Minimal settings page for single-chat mode.
+
+    Contains:
+    - Account info display
+    - Clear chat history button
+    - Back to chat link
+    """
+    from fasthtml.core import Script, NotStr
+
+    user_email = user.get('email', 'User') if user else 'User'
+    user_name = user.get('name', user_email.split('@')[0]) if user else 'User'
+
+    return Div(
+        # Simple header
+        Div(
+            A(
+                Div(
+                    Span("←", cls="mr-2"),
+                    "Back to Chat",
+                    cls="flex items-center"
+                ),
+                href="/chat",
+                cls="text-purple-400 hover:text-purple-300 transition-colors text-sm"
+            ),
+            H1("Settings", cls="text-2xl font-bold text-white mt-4"),
+            cls="p-6 border-b border-slate-700/50"
+        ),
+
+        # Settings content
+        Div(
+            # Account section (read-only display)
+            gaia_card(
+                Div(
+                    Div(
+                        Div(
+                            user_name[0].upper() if user_name else 'U',
+                            cls="w-12 h-12 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center text-white text-lg font-medium"
+                        ),
+                        Div(
+                            Div(user_name, cls="text-white font-medium"),
+                            Div(user_email, cls="text-slate-400 text-sm"),
+                            cls="ml-4"
+                        ),
+                        cls="flex items-center"
+                    ),
+                    cls="mb-4"
+                ),
+                title="Account"
+            ),
+
+            # Privacy section
+            gaia_card(
+                Div(
+                    Div(
+                        Div(
+                            Div("Clear Chat History", cls="text-white font-medium"),
+                            Div("Delete all messages from your conversation", cls="text-slate-400 text-sm"),
+                            cls="flex-1"
+                        ),
+                        Button(
+                            "Clear History",
+                            cls="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 hover:text-red-300 rounded-lg text-sm transition-colors border border-red-600/30",
+                            onclick="confirmClearHistory()"
+                        ),
+                        cls="flex items-center justify-between"
+                    ),
+                    # Clear history confirmation script
+                    Script(NotStr('''
+                        function confirmClearHistory() {
+                            if (confirm('Are you sure you want to clear all chat history? This cannot be undone.')) {
+                                fetch('/api/settings/clear-history', {
+                                    method: 'POST'
+                                }).then(response => {
+                                    if (response.ok) {
+                                        if (window.GaiaToast) {
+                                            GaiaToast.success('Chat history cleared!', 3000);
+                                        }
+                                    } else {
+                                        if (window.GaiaToast) {
+                                            GaiaToast.error('Failed to clear history', 3000);
+                                        }
+                                    }
+                                }).catch(() => {
+                                    if (window.GaiaToast) {
+                                        GaiaToast.error('Failed to clear history', 3000);
+                                    }
+                                });
+                            }
+                        }
+                    ''')),
+                    cls="space-y-4"
+                ),
+                title="Privacy"
+            ),
+
+            cls="p-6 space-y-6 max-w-2xl"
+        ),
+
+        # Toast container
+        Div(id="toast-container", cls="fixed top-4 right-4 z-50 space-y-2"),
+        gaia_toast_script(),
+
+        cls=f"min-h-screen {GaiaDesign.BG_MAIN}"
     )
 
 

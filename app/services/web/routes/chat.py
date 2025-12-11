@@ -6,7 +6,8 @@ from fasthtml.core import Script, NotStr
 from starlette.responses import HTMLResponse, JSONResponse
 from app.services.web.components.gaia_ui import (
     gaia_layout, gaia_conversation_item, gaia_message_bubble,
-    gaia_chat_input, gaia_loading_spinner, gaia_error_message, gaia_toast_script, gaia_mobile_styles
+    gaia_chat_input, gaia_loading_spinner, gaia_error_message, gaia_toast_script, gaia_mobile_styles,
+    gaia_chat_header, gaia_date_divider
 )
 from app.services.web.utils.gateway_client import GaiaAPIClient
 from app.services.web.utils.chat_service_client import chat_service_client
@@ -14,6 +15,63 @@ from app.shared.logging import setup_service_logger
 from app.shared.config import settings
 
 logger = setup_service_logger("chat_routes")
+
+
+def _get_date_label(timestamp_str: str) -> str:
+    """Convert ISO timestamp to human-readable date label (Today, Yesterday, or Mon Dec 10)
+
+    Note: Timestamps are stored in UTC. We convert to US Pacific for display since
+    that's the primary user timezone. A proper implementation would use user preferences.
+    """
+    from datetime import timedelta, timezone
+    try:
+        # Parse ISO timestamp (stored as UTC in database, but without timezone info)
+        msg_dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+
+        # If no timezone, assume UTC
+        if msg_dt.tzinfo is None:
+            msg_dt = msg_dt.replace(tzinfo=timezone.utc)
+
+        # Convert to Pacific Time (UTC-8, ignoring DST for simplicity)
+        pacific_offset = timezone(timedelta(hours=-8))
+        msg_local = msg_dt.astimezone(pacific_offset)
+        now_local = datetime.now(pacific_offset)
+
+        # Compare dates (not times)
+        msg_date = msg_local.date()
+        today_date = now_local.date()
+        yesterday_date = today_date - timedelta(days=1)
+
+        if msg_date == today_date:
+            return "Today"
+        elif msg_date == yesterday_date:
+            return "Yesterday"
+        else:
+            # Format as "Mon Dec 10"
+            return msg_local.strftime("%a %b %-d")
+    except Exception as e:
+        logger.warning(f"Error parsing timestamp {timestamp_str}: {e}")
+        return ""
+
+
+def _build_messages_with_date_dividers(messages_list: list) -> list:
+    """Build message bubbles with date dividers between different days"""
+    result = []
+    last_date_label = None
+
+    for msg in messages_list:
+        # Check if we need a date divider
+        timestamp = msg.get("created_at", "")
+        if timestamp:
+            date_label = _get_date_label(timestamp)
+            if date_label and date_label != last_date_label:
+                result.append(gaia_date_divider(date_label))
+                last_date_label = date_label
+
+        # Add the message bubble (no timestamp shown)
+        result.append(gaia_message_bubble(msg["content"], role=msg["role"]))
+
+    return result
 
 
 async def _render_single_chat_view(request, user, user_id, jwt_token):
@@ -61,14 +119,7 @@ async def _render_single_chat_view(request, user, user_id, jwt_token):
             )
         ]
     else:
-        message_content = [
-            gaia_message_bubble(
-                msg["content"],
-                role=msg["role"],
-                timestamp=msg.get("created_at", "")
-            )
-            for msg in messages_list
-        ]
+        message_content = _build_messages_with_date_dividers(messages_list)
 
     # Simplified script for single-chat mode (no sidebar updates needed)
     single_chat_script = Script(NotStr('''
@@ -104,8 +155,11 @@ async def _render_single_chat_view(request, user, user_id, jwt_token):
         });
     '''))
 
-    # Main content with messages and input
+    # Main content with header, messages and input
     main_content = Div(
+        # Chat header with user dropdown
+        gaia_chat_header(user=user),
+        # Messages area
         Div(
             *message_content,
             id="messages",
@@ -400,14 +454,7 @@ def setup_routes(app):
                     )
                 ]
             else:
-                message_content = [
-                    gaia_message_bubble(
-                        msg["content"],
-                        role=msg["role"],
-                        timestamp=msg.get("created_at", "")
-                    )
-                    for msg in messages_list
-                ]
+                message_content = _build_messages_with_date_dividers(messages_list)
             
             # Messages container
             messages_container = Div(
@@ -561,11 +608,7 @@ def setup_routes(app):
             message_id = str(uuid.uuid4())[:8]
             
             # Add user message to UI immediately
-            user_message = gaia_message_bubble(
-                message,
-                role="user",
-                timestamp=datetime.now().strftime("%I:%M %p")
-            )
+            user_message = gaia_message_bubble(message, role="user")
             
             # Enhanced loading indicator with typing animation
             loading_html = f'''<div id="loading-{message_id}" class="flex justify-start mb-4 assistant-message-placeholder animate-slideInLeft">
@@ -617,11 +660,6 @@ def setup_routes(app):
     // Update conversation list
     htmx.ajax('GET', '/api/conversations', {{target: '#conversation-list', swap: 'innerHTML'}});
     
-    // Show success notification
-    if (window.GaiaToast) {{
-        GaiaToast.success('Message sent successfully!', 2000);
-    }}
-    
     // Auto-scroll to bottom after adding user message
     const messagesContainer = document.getElementById('messages');
     if (messagesContainer) {{
@@ -657,9 +695,6 @@ def setup_routes(app):
             if (event.data === '[DONE]') {{
                 eventSource.close();
                 clearTimeout(timeoutId);
-                if (window.GaiaToast) {{
-                    GaiaToast.success('Response received!', 2000);
-                }}
                 return;
             }}
             
@@ -671,14 +706,9 @@ def setup_routes(app):
                     if (!responseStarted) {{
                         responseStarted = true;
                         clearTimeout(timeoutId);
-                        const timestamp = new Date().toLocaleTimeString('en-US', {{ hour: 'numeric', minute: '2-digit' }});
                         loadingEl.outerHTML = `<div id="response-{message_id}" class="flex justify-start mb-4 animate-slideInLeft">
                             <div class="bg-slate-700 text-white rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] shadow-lg hover:shadow-xl transition-all duration-300">
                                 <div id="response-content-{message_id}" class="whitespace-pre-wrap break-words"></div>
-                                <div class="flex items-center justify-between mt-2 text-xs opacity-70">
-                                    <span>Gaia</span>
-                                    <span>${{timestamp}}</span>
-                                </div>
                             </div>
                         </div>`;
                     }}
@@ -933,26 +963,14 @@ def setup_routes(app):
                                                      preview=response_content, jwt_token=jwt_token)
             
             # Return enhanced assistant message with entrance animation
-            assistant_bubble = gaia_message_bubble(
-                response_content,
-                role="assistant",
-                timestamp=datetime.now().strftime("%I:%M %p")
-            )
+            assistant_bubble = gaia_message_bubble(response_content, role="assistant")
             # Add entrance animation class
             assistant_html = str(assistant_bubble).replace(
                 'class="flex justify-start mb-4"',
                 'class="flex justify-start mb-4 animate-slideInLeft"'
             )
             
-            # Add a small script to show success toast
-            from fasthtml.core import Script, NotStr
-            success_script = Script(NotStr('''
-                if (window.GaiaToast) {
-                    GaiaToast.success('Response received!', 2000);
-                }
-            '''))
-            
-            return HTMLResponse(content=assistant_html + str(success_script))
+            return HTMLResponse(content=assistant_html)
             
         except Exception as e:
             logger.error(f"Error getting response: {e}", exc_info=True)

@@ -305,7 +305,41 @@ class ChatConversationStore:
             return result
         finally:
             db.close()
-    
+
+    def clear_messages(self, conversation_id: str) -> bool:
+        """Clear all messages from a conversation (keeps the conversation itself)"""
+        db = self._get_db()
+        try:
+            # Verify conversation exists
+            conversation = db.query(Conversation).filter(
+                Conversation.id == conversation_id,
+                Conversation.is_active == True
+            ).first()
+
+            if not conversation:
+                logger.warning(f"Conversation {conversation_id} not found for message clearing")
+                return False
+
+            # Delete all messages from this conversation
+            deleted_count = db.query(ChatMessage).filter(
+                ChatMessage.conversation_id == conversation_id
+            ).delete(synchronize_session=False)
+
+            # Reset conversation preview
+            conversation.preview = ""
+            conversation.updated_at = func.current_timestamp()
+
+            db.commit()
+
+            logger.info(f"Cleared {deleted_count} messages from conversation {conversation_id}")
+            return True
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error clearing messages from conversation {conversation_id}: {e}")
+            return False
+        finally:
+            db.close()
+
     def search_conversations(self, user_id: str, query: str) -> List[Dict[str, Any]]:
         """Search conversations by title or content"""
         db = self._get_db()

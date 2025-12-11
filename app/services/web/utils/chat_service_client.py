@@ -173,7 +173,7 @@ class ChatServiceClient:
             logger.error(f"Error adding message: {e}")
             raise
     
-    async def get_messages(self, conversation_id: str, 
+    async def get_messages(self, conversation_id: str,
                           jwt_token: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all messages for a conversation"""
         try:
@@ -189,6 +189,25 @@ class ChatServiceClient:
                 return messages
         except Exception as e:
             logger.error(f"Error getting messages: {e}")
+            raise
+
+    async def clear_messages(self, conversation_id: str,
+                            jwt_token: Optional[str] = None) -> bool:
+        """Clear all messages from a conversation (keeps the conversation itself)"""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.delete(
+                    f"{self.base_url}/conversations/{conversation_id}/messages",
+                    headers=self._get_headers(jwt_token)
+                )
+                if response.status_code == 404:
+                    logger.warning(f"Conversation {conversation_id} not found for message clearing")
+                    return False
+                response.raise_for_status()
+                logger.info(f"Cleared messages from conversation {conversation_id}")
+                return True
+        except Exception as e:
+            logger.error(f"Error clearing messages: {e}")
             raise
     
     async def search_conversations(self, user_id: str, query: str,

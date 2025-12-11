@@ -378,6 +378,111 @@ if message.startswith('/'):
 
 - ✅ Zoe persona in database (UUID: `c96b087c-db2d-4072-83a3-54de910997fb`)
 - ✅ `create_persona.sh` script
-- ✅ `scripts/persona/zoe.txt` prompt file
+- ✅ `scripts/persona/zoe.txt` prompt file (simplified for conversational brevity)
 - ✅ `persona_service` (PostgresPersonaService) exists
 - ✅ Database tables: `personas`, `user_persona_preferences`
+- ✅ `update_persona.sh` now clears Redis cache automatically
+
+## Learnings from Phase 2
+
+### Zoe Verbosity Fix
+**Problem**: Zoe was outputting walls of text with bullet points despite instructions to be brief.
+
+**Root causes**:
+1. Original prompt was ~6700 chars with extensive bullet-point structure - model mirrored format
+2. `update_persona.sh` updated database but didn't clear Redis cache (1-hour TTL)
+
+**Solutions**:
+1. Simplified prompt to ~1700 chars with conversational examples (show don't tell)
+2. Added Redis cache clearing to `update_persona.sh`
+
+### Persona Switching Limitation
+**Discovery**: Switching personas mid-conversation doesn't work well because conversation history contains messages in the old persona's style, which the LLM continues to mirror.
+
+**Decision**: Dropping `/persona` command for MVP. Single persona per deployment.
+
+---
+
+# Phase 3: Chat Header & Settings Page
+
+## Goal
+
+Add minimal UI chrome to the single-chat view: header with branding and user menu, settings page.
+
+## Design Decisions
+
+| Question | Decision | Rationale |
+|----------|----------|-----------|
+| Show persona name in header? | No | Single-persona app, redundant info |
+| Header content? | Logo left, user dropdown right | Minimal, follows best practices |
+| Settings location? | Separate `/settings` page | Simpler than slide-out panel |
+| What's in user dropdown? | Name, email (display only), Settings link, Logout | MVP essentials |
+
+## Architecture
+
+### Header Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [🦋 Gaia]                                          [👤▾]   │
+│  app branding                                       user    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### User Dropdown
+
+```
+┌─────────────────────┐
+│ Game Master         │  ← display name (not clickable)
+│ user@example.com    │  ← email (not clickable)
+├─────────────────────┤
+│ ⚙️ Settings         │  → navigates to /settings
+│ 🚪 Log out          │  → POST /logout, redirect to /login
+└─────────────────────┘
+```
+
+### Settings Page (`/settings`)
+
+```
+┌─ Settings ──────────────────────────────────────────────────┐
+│                                                             │
+│  ← Back to chat                                             │
+│                                                             │
+│  Theme                                                      │
+│  ○ Light  ● Dark  ○ System                                 │
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│  Privacy                                                    │
+│  [Clear conversation history]                               │
+│                                                             │
+│  ─────────────────────────────────────────────────────────  │
+│                                                             │
+│  Account                                                    │
+│  [Delete my account]  (danger zone)                         │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Phase 3 Implementation Tasks
+
+| # | Task | File(s) | Status |
+|---|------|---------|--------|
+| 1 | Create `gaia_chat_header()` component | `gaia_ui.py` | ⏳ TODO |
+| 2 | Create `gaia_user_dropdown()` component | `gaia_ui.py` | ⏳ TODO |
+| 3 | Add header to `_render_single_chat_view()` | `chat.py` | ⏳ TODO |
+| 4 | Create/simplify `/settings` page | `profile.py` or new `settings.py` | ⏳ TODO |
+| 5 | Add "Clear history" endpoint | `chat.py` or `settings.py` | ⏳ TODO |
+| 6 | Add dropdown toggle JavaScript | `gaia_ui.py` | ⏳ TODO |
+| 7 | Test end-to-end | Manual + browser | ⏳ TODO |
+
+## Phase 3 Acceptance Criteria
+
+- [ ] Header shows on chat page with Gaia logo
+- [ ] User dropdown opens on click, closes on click outside
+- [ ] Dropdown shows user name and email
+- [ ] Settings link navigates to `/settings`
+- [ ] Logout clears session and redirects to `/login`
+- [ ] Settings page has theme toggle (stored in session)
+- [ ] "Clear history" button deletes messages, keeps conversation
+- [ ] Back to chat link returns to `/chat`
