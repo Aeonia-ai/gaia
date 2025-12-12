@@ -2,13 +2,19 @@
 
 ## Purpose
 
-Verify documentation accuracy against source code with **zero false positives**.
+Verify documentation **accuracy AND completeness** against source code with **zero false positives**.
 
-This 7-stage protocol prevents LLM hallucination by forcing exact citations from BOTH doc AND code.
+This protocol has two phases:
+1. **Doc → Code**: Does what's documented actually exist? (Accuracy)
+2. **Code → Doc**: Is what exists actually documented? (Completeness)
+
+A doc can be 100% accurate but only 50% complete. We check BOTH.
 
 ---
 
-## The 7 Stages
+## Phase 1: Accuracy (Doc → Code)
+
+The 7 stages below verify that documented claims are correct.
 
 ### Stage 1: Premise Verification
 
@@ -108,8 +114,8 @@ For claims with negation words (not, never, doesn't, won't, cannot, without):
 **Special Rule:** Negated claims require POSITIVE EVIDENCE of absence.
 
 **Examples:**
-- "Function does NOT validate input" → Cite code showing input passed without validation
-- "This endpoint requires NO authentication" → Cite code handling unauthenticated requests
+- "Function does NOT validate input" → Must cite code showing input passed without validation
+- "This endpoint requires NO authentication" → Must cite code handling unauthenticated requests
 
 **Format:**
 ```
@@ -120,55 +126,133 @@ EVIDENCE FOUND: [cite specific code] or INSUFFICIENT EVIDENCE
 STATUS: VERIFIED | UNVERIFIED | CONTRADICTED
 ```
 
-If no positive evidence, mark as UNVERIFIED (not verified).
+If you cannot find positive evidence for a negated claim, mark as UNVERIFIED (not verified).
 
 ---
 
 ### Stage 6: Cross-Claim Consistency
 
-Check for contradictions BETWEEN claims in the same document.
+After verifying individual claims, check for contradictions BETWEEN claims:
 
-**Look for:**
+**Task:** Review all verified claims. Identify any pairs that contradict each other.
+
+**Look for**:
 - Function A "calls" function B, but function B is "never called"
 - Service X "requires" service Y, but service Y "is optional"
-- Parameter "must be" value A, but "defaults to" value B
+- Parameter "must be" value A in one place, "defaults to" value B elsewhere
+- Timing claims that conflict (sync vs async, immediate vs deferred)
 
 **Format:**
 ```
-CONSISTENCY CHECK: No contradictions detected.
+CONSISTENCY CHECK:
 ```
 OR
 ```
 POTENTIAL CONTRADICTION #[N]:
 - Claim A: [quote]
 - Claim B: [quote]
-- Conflict: [explain]
-- Resolution: ACTUAL CONTRADICTION | FALSE ALARM - [explain]
+- Conflict: [explain the contradiction]
+- Resolution: [ACTUAL CONTRADICTION | FALSE ALARM - explain]
+```
+
+If no contradictions found:
+```
+CONSISTENCY CHECK: No contradictions detected between verified claims.
 ```
 
 ---
 
 ### Stage 7: Confidence Calibration
 
-Assign confidence to each finding:
+For each finding, assign a confidence level:
 
-| Level | Meaning |
-|-------|---------|
-| HIGH | Citation exists, code clearly supports/contradicts, no ambiguity |
-| MEDIUM | Citation exists, interpretation required, reasonable confidence |
-| LOW | Citation unclear, multiple interpretations possible |
-| UNCERTAIN | Could not locate code, evidence is ambiguous |
+**Confidence Levels:**
+- HIGH: Citation exists, code clearly supports/contradicts claim, no ambiguity
+- MEDIUM: Citation exists, interpretation required, reasonable confidence
+- LOW: Citation unclear, multiple interpretations possible, or partial evidence
+- UNCERTAIN: Could not locate code, or evidence is ambiguous
 
-**Format:**
+**Format for final findings:**
 ```
 FINDING #[N]: [title]
 SEVERITY: CRITICAL | MODERATE | MINOR
 CONFIDENCE: HIGH | MEDIUM | LOW | UNCERTAIN
 EVIDENCE QUALITY: [brief assessment]
-RECOMMENDATION: [fix doc / verify with human / etc.]
+RECOMMENDATION: [what to do - fix doc, verify with human, etc.]
 ```
 
-**Critical Rule:** LOW and UNCERTAIN findings MUST be flagged for human review.
+**CRITICAL RULE**: LOW and UNCERTAIN findings MUST be flagged for human review. Do not present them as definitive.
+
+---
+
+## Phase 2: Completeness (Code → Doc)
+
+After verifying accuracy, check if the doc is COMPLETE.
+
+### Step 1: Inventory the Code
+
+Based on the doc's scope, inventory what EXISTS in code:
+
+**Examples by doc type:**
+- API doc → List ALL endpoints (grep for `@app.get`, `@app.post`, etc.)
+- Database doc → List ALL tables (query actual database)
+- Config doc → List ALL settings (grep for env vars, config classes)
+- Service doc → List ALL public methods/functions
+
+**Format:**
+```
+CODE INVENTORY for [scope]:
+Total items in code: [N]
+- item1
+- item2
+- ...
+```
+
+### Step 2: Compare Coverage
+
+Cross-reference code inventory against doc:
+
+```
+COMPLETENESS CHECK:
+- Items in code: [N]
+- Items documented: [M]
+- Coverage: [M/N]%
+
+UNDOCUMENTED ITEMS:
+- [item1] - [brief description of what it does]
+- [item2] - [brief description]
+...
+```
+
+### Step 3: Assess Significance
+
+Not every undocumented item is a problem. Categorize:
+
+```
+UNDOCUMENTED - CRITICAL (breaks developer understanding):
+- [item] - [why it matters]
+
+UNDOCUMENTED - MODERATE (should be added):
+- [item] - [why]
+
+UNDOCUMENTED - MINOR (nice to have):
+- [item] - [why]
+
+INTENTIONALLY OMITTED (internal/deprecated):
+- [item] - [why it's okay to omit]
+```
+
+### Step 4: Completeness Verdict
+
+```
+COMPLETENESS ASSESSMENT:
+- Accuracy: [X]% (Phase 1 result)
+- Completeness: [Y]%
+- Critical gaps: [N]
+- Recommendation: COMPLETE | NEEDS_EXPANSION | RENAME_SCOPE
+```
+
+If completeness < 70%, flag for major revision or scope clarification.
 
 ---
 
@@ -210,36 +294,70 @@ Read(file_path)  # ✅ Full file read (will truncate but shows all content)
 
 ## Output Structure
 
-Your output has TWO parts:
+Your response MUST follow this structure:
 
 ### Part 1: Human-Readable Report (Markdown)
 
 ```markdown
 ## Verification Report: [doc path]
 
-### Stage 1: Premises
+### Phase 1: Accuracy (Doc → Code)
+
+#### Stage 1: Premises
 [premise verification output]
 
-### Stage 2-3: Claims Identified & Validated
+#### Stage 2-3: Claims Identified & Validated
 [claims with citations]
 
-### Stage 4: Semantic Verification
+#### Stage 4: Semantic Verification
 [match analysis]
 
-### Stage 5: Negation Analysis
+#### Stage 5: Negation Analysis
 [negated claims if any]
 
-### Stage 6: Consistency Check
+#### Stage 6: Consistency Check
 [cross-claim analysis]
 
-### Stage 7: Findings
+#### Stage 7: Accuracy Findings
 
 | # | Issue | Severity | Confidence |
 |---|-------|----------|------------|
 | 1 | [issue] | [sev] | [conf] |
 
+**Accuracy Score: [X]%** (documented items that are correct)
+
+---
+
+### Phase 2: Completeness (Code → Doc)
+
+#### Code Inventory
+[what exists in code within doc's scope]
+
+#### Coverage Analysis
+- Items in code: [N]
+- Items documented: [M]
+- Coverage: [M/N]%
+
+#### Undocumented Items
+
+| Item | Significance | Description |
+|------|--------------|-------------|
+| [item] | CRITICAL/MODERATE/MINOR | [what it does] |
+
+**Completeness Score: [Y]%**
+
+---
+
+### Summary
+
+| Metric | Score |
+|--------|-------|
+| Accuracy | [X]% |
+| Completeness | [Y]% |
+| Recommendation | ACCURATE | NEEDS_FIXES | NEEDS_EXPANSION | MAJOR_REWRITE |
+
 ### Files Read
-[list every file actually read with line ranges]
+[list every file actually read]
 
 ### Human Review Required
 [LOW/UNCERTAIN findings]

@@ -114,3 +114,51 @@ docker compose up
 2. **Test async** - Use `./scripts/pytest-for-claude.sh`, not direct pytest
 3. **No curl** - Use test scripts that capture knowledge
 4. **Code is truth** - When doc disagrees with code, doc is wrong
+
+---
+
+- Core Mandate: The Aeonia Knowledge Base `+` Index System
+
+The Aeonia KB uses a `+` index system that functions as an **exhaustive, hierarchical site map**. It is the single source of truth for the documentation structure. My adherence to maintaining it is critical. My primary failure mode is **task fixation**, and I must actively counteract it.
+
+**1. The Exhaustive Principle:**
+
+Every file and subdirectory **must** be listed in its immediate parent's `+` index file. There are no exceptions. If a file or directory exists on the filesystem, it must have a corresponding entry in the parent `+` index.
+
+**2. Top-Down Search Strategy (My "Find" Workflow):**
+
+When asked to find information, my process must be:
+
+1. **Locate the Root Index:** Always begin by loading the root index (`docs/+docs.md`) as the main entry point.
+
+2. **Scan the Top-Level Categories:** Read the root index to understand the broad structure of the content. Choose the category that most closely matches the subject I am looking for.
+
+3. **Traverse the Hierarchy:** Follow the link or path for the chosen category to navigate to the next `+` index file. This new index will provide a more detailed breakdown of the topics within that category.
+
+4. **Search Within Indices:** At each level of the hierarchy, use keyword searches within the `+` index files to quickly pinpoint the most relevant path to follow.
+
+5. **Drill Down Until I Find the Document:** Continue following the links through the nested `+` indices. Each step should take me to a more specific and relevant subset of the content, until I am directed to a final content file.
+
+6. **Retrieve and Analyze the Content:** Once I have located the target document, read it to find the specific information needed.
+
+7. **Use Fallback Search if Necessary:** If the `+` index chain does not lead to the right place, or if I need to be exhaustive, perform a full-text search across the entire content collection. This ensures I can find information that may not be perfectly indexed.
+
+**3. Recursive Bottom-Up Update Strategy (My "Create/Modify" Workflow):**
+
+When I create or modify any file or directory, I have a non-negotiable responsibility to perform a **recursive bottom-up update** of the `+` index chain. My process must be:
+1.  **Update the Local Index:** Add a **specific entry for the new file/directory** to its immediate parent `+` index.
+2.  **Optional: Complete Refresh Mode:** If explicitly instructed to perform a "complete refresh" for a directory, I will:
+    *   Read the full content of *every file* in that directory.
+    *   Generate new, concise summaries for each file based on its content.
+    *   Completely overwrite the existing `+` index file with this new, fully re-summarized list.
+3.  **Ascend and Verify:** Move up to the parent directory. Check its `+` index to ensure the directory I just came from is listed. If not, add it.
+4.  **Repeat to Root:** Continue this verification process, ascending the entire directory tree up to `+docs.md`, ensuring every level of the hierarchy is correctly and exhaustively represented.
+
+**4. The Principle of Distilled Descriptions:**
+
+The level of detail in the **description** for an entry should be distilled at each level:
+*   **Leaf Index (e.g., `+phase-1-mvp.md`):** A link to a *file* gets a specific summary of that file's content.
+*   **Intermediate Index (e.g., `+dynamic-experiences.md`):** A link to a *subdirectory* gets a general summary of that directory's overall purpose.
+*   **Root Index (e.g., `+docs.md`):** A link to a top-level subdirectory gets a high-level summary of that entire section of the documentation.
+
+This ensures that while the index is exhaustive in its listings, the descriptions provide the right level of context for a user navigating at that specific level.

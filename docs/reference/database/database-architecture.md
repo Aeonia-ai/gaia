@@ -76,22 +76,23 @@ graph TD
 ## What's Stored Where
 
 ### PostgreSQL (`llm_platform` database)
-**Core Tables:**
+
+**Core Tables (6):**
 - `users` - User profiles linked to Supabase auth
 - `api_keys` - User API keys (hashed)
-- `conversations` - Chat conversations  
+- `conversations` - Chat conversations
 - `chat_messages` - Individual chat messages
 - `personas` - AI persona configurations
 - `user_persona_preferences` - User persona selections
 
-**Asset Management:**
+**Asset Management (5):**
 - `assets` - Generated asset metadata
 - `asset_generations` - Asset generation tracking
 - `asset_modifications` - Asset modification history
 - `asset_sources` - Asset source information
 - `asset_usage` - Asset usage analytics
 
-**Knowledge Base:**
+**Knowledge Base (6):**
 - `kb_documents` - Knowledge base document storage
 - `kb_search_index` - Search index for KB
 - `kb_activity_log` - KB activity tracking
@@ -99,26 +100,41 @@ graph TD
 - `kb_document_history` - KB document versioning
 - `kb_permissions` - KB access permissions
 
-**RBAC System:**
+**Semantic Search (2):**
+- `kb_semantic_chunk_ids` - ChromaDB chunk ID mappings
+- `kb_semantic_index_metadata` - Semantic search index metadata
+
+**Total: 19 tables currently deployed**
+
+---
+
+**Planned: RBAC System (13 tables):**
+
+Migrations exist in `migrations/003_add_rbac_tables.sql` and `migrations/004_create_rbac_tables.sql` but have not been applied.
+
 - `roles` - User roles definition
 - `permissions` - Permission definitions
-- `teams` - Team management
-- `workspaces` - Workspace organization
+- `role_permissions` - Role-permission mappings
 - `user_roles` - User-role assignments
 - `user_permissions` - Direct user permissions
-- `role_permissions` - Role-permission mappings
-- `resource_permissions` - Resource access control
+- `teams` - Team management
 - `team_members` - Team membership
+- `workspaces` - Workspace organization
 - `workspace_members` - Workspace membership
 - `shared_resources` - Shared resource tracking
+- `resource_permissions` - Resource access control
+- `resource_shares` - Resource sharing records
 - `permission_audit_log` - Permission change auditing
 
-**Experience Platform** (Planned):
+**Planned: Experience Platform (3 tables):**
+
+Not yet implemented.
+
 - `player_profiles` - Player stats across all experiences
 - `experience_progress` - Per-experience player progress
 - `player_progress_events` - Event log for analytics
 
-**Total: 40 tables serving all microservices** (43 with planned Experience Platform)
+**Future total: 35 tables** (19 deployed + 13 RBAC + 3 Experience)
 
 ### Supabase (Shared)
 - `auth.users` - Email, password hash, email verification
@@ -254,30 +270,13 @@ fly postgres connect -a gaia-db-production
 
 ## Verification Status
 
-**Verified By:** Gemini
-**Date:** 2025-11-12
+**Last Verified:** 2025-12-09
+**Method:** Direct database query (`\dt` on running PostgreSQL)
 
-The database architecture described in this document has been verified against the current codebase and configuration.
-
--   **✅ PostgreSQL Database:**
-    *   **Claim:** A single shared PostgreSQL database named `llm_platform` is used by all microservices.
-    *   **Code Reference:** `docker-compose.yml`, `app/shared/database.py`.
-    *   **Verification:** This is **VERIFIED**. The `DATABASE_URL` in the application's configuration and the `POSTGRES_DB` in `docker-compose.yml` both point to the `llm_platform` database.
-
--   **✅ Supabase Integration:**
-    *   **Claim:** A shared Supabase project (`gaia-platform-v2`) is used for authentication.
-    *   **Code Reference:** `docs/guides/supabase-setup.md` and various configuration files.
-    *   **Verification:** This is **VERIFIED**. The documentation consistently refers to the `gaia-platform-v2` project for authentication.
-
--   **✅ Core Tables:**
-    *   **Claim:** The `llm_platform` database contains tables for `users`, `api_keys`, `conversations`, `chat_messages`, `personas`, and `user_persona_preferences`.
-    *   **Code Reference:** `migrations/` directory.
-    *   **Verification:** This is **VERIFIED**. The migration scripts confirm the creation of these tables.
-
--   **✅ Authentication Flow:**
-    *   **Claim:** The authentication flow involves both Supabase for primary authentication and PostgreSQL for user profile data.
-    *   **Code Reference:** `app/services/auth/main.py`.
-    *   **Verification:** This is **VERIFIED**. The `register_user` and `login_user` functions in the auth service use the Supabase client, and other parts of the application reference the PostgreSQL `users` table.
-
-**Overall Conclusion:** This document provides an accurate and up-to-date overview of the database architecture.
-```
+| Check | Status | Notes |
+|-------|--------|-------|
+| PostgreSQL `llm_platform` database | ✅ Verified | Single shared database for all services |
+| 19 deployed tables | ✅ Verified | Queried actual database |
+| Supabase integration | ✅ Verified | `gaia-platform-v2` project |
+| RBAC tables | ⏳ Planned | Migrations exist, not yet applied |
+| Experience Platform tables | ⏳ Planned | Not yet implemented |

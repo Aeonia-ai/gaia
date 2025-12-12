@@ -1,126 +1,46 @@
-# docs
+# Gaia Platform Documentation
 
-GAIA platform documentation root.
+Welcome to the consolidated documentation for the Aeonia Gaia Platform. This guide is designed to help you navigate the various facets of the platform efficiently.
 
-## Subdirectories
+---
 
-- `designs/` - Design Documents
-- `guides/` - How-to's & Tutorials
-- `reference/` - Technical Reference
-- `concepts/` - High-level Explanations
-- `_internal/` - Project Artifacts
-- `analysis/` - Codebase Analysis
-- `scratchpad/` - Temporary notes and architectural outlines
+## Documentation Structure
 
-## Files
+*   **[guides/](guides/)**: Contains practical how-to guides and tutorials for common tasks and workflows. This section is ideal for users looking for step-by-step instructions on developing, deploying, testing, and troubleshooting the platform.
+*   **[reference/](reference/)**: Provides technical reference material, including API documentation, service specifics, and in-depth details on security policies. This section is for developers and architects seeking comprehensive technical specifications and explanations.
+*   **[concepts/](concepts/)**: Explains the high-level concepts and architectural patterns that underpin the Gaia platform. This section is designed for anyone who wants to understand the foundational ideas and design philosophy behind the system, including deep dives into complex topics.
+*   **[_internal/](_internal/)**: Houses internal project artifacts such as Architectural Decision Records (ADRs), post-mortems, reports, and other historical or administrative documents. This section is primarily for internal team members and contributors who need access to project-specific historical context.
 
-- `README.md` - Human-readable overview
-- `README-FIRST.md` - Quick start guide
+---
 
-## Key Documents
+## Core Documentation Files
 
-### Development & Debugging
-- `guides/cookbook-creating-experiences-and-commands.md` - **START HERE**: How to create new game content
-- `reference/unified-state-model-deep-dive.md` - State Model Deep Dive, Content Entity System, & Debugging Guide
+**[chat-routing-and-kb-architecture.md](chat-routing-and-kb-architecture.md)**
+*   **Summary**: This document provides a verified overview of the integrated chat routing and Knowledge Base (KB) architecture in the GAIA platform. It highlights the `UnifiedChatHandler` in `app/services/chat/unified_chat.py` as the core, implementing a single LLM call with `tool_choice="auto"` for intelligent routing. The data flow, tool aggregation (KB and routing tools), and response handling (direct or tool-driven) are detailed, emphasizing efficiency and architectural shift from multi-step chain-of-thought processing.
 
-### API
-- `reference/api/reference/CLIENT_API_REFERENCE.md` - v0.3 API for external devs
-- `reference/api/reference/GAIA_API_REFERENCE.md` - v1 API with advanced features
-- `concepts/deep-dives/dynamic-experiences/phase-1-mvp/011-intelligent-chat-routing.md` - Routing system documentation
+**[kb-fastmcp-claude-code-setup.md](kb-fastmcp-claude-code-setup.md)**
+*   **Summary**: This guide explains how to set up Claude Code to access the GAIA KB service via FastMCP, enabling automatic tool discovery. It outlines the architecture for connecting Claude Code to `kb-docs` (documentation) and `kb-service` (game content) MCP endpoints, detailing the nine available MCP tools (search_kb, search_semantic, read_file, load_context, etc.). The document provides configuration methods for Claude Code, instructions for testing MCP endpoints (health check, tool discovery, tool execution), and examples of using these tools in Claude Code.
 
-### Architecture
-- `reference/chat/chat-service-implementation.md` - Complete chat service architecture
-- `reference/chat/intelligent-tool-routing.md` - Tool routing with 70-80% optimization
-- `reference/chat/directive-system-vr-ar.md` - VR/AR directive system for immersive experiences
-- `reference/services/persona-system-guide.md` - AI persona system architecture
-- `chat-routing-and-kb-architecture.md` - **MISSING**: Complete routing and KB integration
-- `reference/patterns/service-discovery-guide.md` - Service discovery implementation
-- `reference/database/database-architecture.md` - Hybrid database design
+**[kb-fastmcp-integration-status.md](kb-fastmcp-integration-status.md)**
+*   **Summary**: This document details the completed and production-ready FastMCP integration with pgvector, replacing ChromaDB for semantic search. It lists resolved issues (ChromaDB's ephemeral storage, FastMCP lifespan initialization, asyncpg vector type registration) and highlights key integration code (FastMCP helper function, FastAPI mounting). The document provides test results for health, MCP, semantic search endpoints, outlines next steps (applying migrations, deployment), and summarizes architectural insights into why pgvector migration and FastMCP integration were valuable.
 
-### KB System
-- `reference/services/guides/kb-quick-setup.md` - Quick KB setup
-- `reference/services/guides/kb-storage-configuration.md` - Storage backend configuration
-- `reference/services/developer/kb-architecture-guide.md` - Technical architecture
+**[kb-fastmcp-mcp-client-config.md](kb-fastmcp-mcp-client-config.md)**
+*   **Summary**: This document provides instructions for configuring an MCP client (specifically Claude Code) to connect to a FastMCP server. It details two methods: manual configuration in `~/.claude/mcp_settings.json` or using an MCP HTTP client. The document explains how to verify the MCP endpoint, notes that FastMCP does not expose REST endpoints for health/tools (requiring JSON-RPC calls), lists the available tools, and offers troubleshooting tips for common issues like "Missing session ID" and timeouts.
 
-### Testing
-- `guides/TESTING_GUIDE.md` - Main testing documentation
-- `guides/TEST_INFRASTRUCTURE.md` - Test infrastructure
+**[kb-semantic-search-implementation.md](kb-semantic-search-implementation.md)**
+*   **Summary**: This guide details the implementation of semantic search for the GAIA Knowledge Base using `pgvector` and `sentence-transformers`. It covers key features (natural language queries, persistent storage, incremental updates), architectural components (PostgreSQL, embedding models, asyncpg), and database schema for metadata and chunks. The document provides implementation details for `SemanticSearchIndexer` (indexing and querying logic), critical implementation notes (asyncpg type registration, embedding conversion, mtime tolerance), and troubleshooting for indexing/search issues.
 
-### Features
+**[nats-realtime-integration-guide.md](nats-realtime-integration-guide.md)**
+*   **Summary**: This guide covers the GAIA Platform's NATS pub/sub messaging for real-time world state synchronization in AR/VR experiences. It details the Phase 1B architecture (per-request subscriptions with user-specific subjects), implementation specifics (NATS subjects, JSON event format), and server/client-side usage. The document also outlines testing procedures, known limitations (event loss between requests, no event replay) and their workarounds, and a migration path to Phase 2 (persistent WebSocket) and Phase 3 (JetStream event sourcing) for full real-time capabilities.
 
-- `concepts/deep-dives/dynamic-experiences/phase-1-mvp/000-admin-commands-quick-start.md` - Admin Commands Quick Start Guide
+**[persona-update-testing.md](persona-update-testing.md)**
+*   **Summary**: This guide details the solution to an issue where persona updates weren't immediately reflected in active conversations. The solution involves automatically calling a `/chat/reload-prompt` endpoint after a persona update, which fetches fresh system prompts and updates active in-memory chat histories. The document describes updated scripts (`iterate_louisa.sh`, `test_persona_update.sh`), typical workflows for iterating on persona prompts, technical details of the `/chat/reload-prompt` endpoint, cache invalidation flow, troubleshooting, and best practices.
 
-## Status
+**[README-FIRST.md](README-FIRST.md)**
+*   **Summary**: This document provides a foundational overview of the GAIA Platform, a distributed AI platform for MMOIRL games and AI-powered experiences. It outlines GAIA's vision (seamless blend of digital/physical realities), rationale (evolution from monolith, solving AI interaction challenges), and technical innovations (Cluster-Per-Game, Hot-Loading AI, KOS Patterns, Backward Compatibility). It details who should use GAIA (game developers, XR/AR/VR developers, enterprise AI, knowledge workers), its current state, roadmap, and how to get started, emphasizing a future where digital and physical boundaries dissolve.
 
-- **Production**: Gateway, Auth, Chat (with personas & directives), KB (Git mode)
-- **Implemented**: Persona system (Mu default), Tool routing intelligence, VR/AR directives
-- **Available**: Database storage, Hybrid storage, RBAC
-- **Development**: Web UI improvements, Advanced features
+**[README.md](README.md)**
+*   **Summary**: This document serves as the main entry point to the Aeonia Gaia Platform documentation. It outlines the documentation's structure, which is organized into four main sections: `guides/` (practical how-to guides), `reference/` (technical reference material), `concepts/` (high-level concepts and architectural patterns), and `_internal/` (internal project artifacts).
 
-## Implementation
-
-- **~231 files** - Organized documentation with comprehensive indexing
-- **7 microservices** - Gateway, Auth, Chat, KB, Asset, Web, Database
-- **2 API versions** - v0.3 (clean + directives), v1 (full metadata)
-- **3 storage modes** - Git (default), Database, Hybrid
-- **Persona system** - Mu (default cheerful robot) + custom personas
-- **9 tools** - 6 KB tools + 3 routing tools with intelligent instructions
-- **Directives** - JSON-RPC commands for VR/AR timing control
-
-## Verification Status
-
-The following documents have been verified against the codebase, with detailed verification notes appended to each document.
-
--   [`scratchpad/command-system-refactor-completion.md`](./scratchpad/command-system-refactor-completion.md#verification-status): **Core Claims Verified**
--   [`scratchpad/gateway-websocket-proxy-implementation-plan.md`](./scratchpad/gateway-websocket-proxy-implementation-plan.md#verification-status): **Core Claims Verified**
--   [`scratchpad/websocket-architecture-decision.md`](./scratchpad/websocket-architecture-decision.md#verification-status): **Core Claims Verified**
--   [`scratchpad/aoi-websocket-design-2025-11-10.md`](./scratchpad/aoi-websocket-design-2025-11-10.md#verification-status): **Core Claims Verified** (with noted discrepancy)
--   [`scratchpad/TEMPLATE-INSTANCE-IMPLEMENTATION-COMPLETE.md`](./scratchpad/TEMPLATE-INSTANCE-IMPLEMENTATION-COMPLETE.md#verification-status): **Core Claims Verified**
--   [`scratchpad/websocket-aoi-client-guide.md`](./scratchpad/websocket-aoi-client-guide.md#verification-status): **Partially Verified** (with noted discrepancy)
--   [`guides/cookbook-creating-experiences-and-commands.md`](./guides/cookbook-creating-experiences-and-commands.md#verification-status): **Partially Verified** (with noted discrepancy)
--   [`reference/unified-state-model-deep-dive.md`](./reference/unified-state-model-deep-dive.md#verification-status): **Partially Verified** (with noted discrepancies and unimplemented proposals)
--   [`reference/api/reference/CLIENT_API_REFERENCE.md`](./reference/api/reference/CLIENT_API_REFERENCE.md#verification-status): **Verified**
--   [`reference/api/reference/GAIA_API_REFERENCE.md`](./reference/api/reference/GAIA_API_REFERENCE.md#verification-status): **Partially Verified** (with noted discrepancies)
--   [`concepts/deep-dives/dynamic-experiences/phase-1-mvp/011-intelligent-chat-routing.md`](./concepts/deep-dives/dynamic-experiences/phase-1-mvp/011-intelligent-chat-routing.md#verification-status): **Outdated** (architecture has been refactored)
--   [`reference/chat/chat-service-implementation.md`](./reference/chat/chat-service-implementation.md#verification-status): **Verified**
--   [`reference/chat/intelligent-tool-routing.md`](./reference/chat/intelligent-tool-routing.md#verification-status): **Verified**
--   [`reference/chat/directive-system-vr-ar.md`](./reference/chat/directive-system-vr-ar.md#verification-status): **Verified**
--   [`reference/services/persona-system-guide.md`](./reference/services/persona-system-guide.md#verification-status): **Verified**
--   [`chat-routing-and-kb-architecture.md`](./chat-routing-and-kb-architecture.md#verification-status): **Verified**
--   [`reference/patterns/service-discovery-guide.md`](./reference/patterns/service-discovery-guide.md#verification-status): **Outdated** (Gateway not using service discovery)
--   [`reference/database/database-architecture.md`](./reference/database/database-architecture.md#verification-status): **Verified**
--   [`reference/services/guides/kb-quick-setup.md`](./reference/services/guides/kb-quick-setup.md#verification-status): **Verified**
--   [`reference/services/guides/kb-storage-configuration.md`](./reference/services/guides/kb-storage-configuration.md#verification-status): **Verified** (with minor discrepancy)
--   [`guides/TESTING_GUIDE.md`](./guides/TESTING_GUIDE.md#verification-status): **Partially Verified** (Test consolidation is incomplete)
--   [`guides/TEST_INFRASTRUCTURE.md`](./guides/TEST_INFRASTRUCTURE.md#verification-status): **Verified**
--   [`concepts/deep-dives/dynamic-experiences/phase-1-mvp/000-admin-commands-quick-start.md`](./concepts/deep-dives/dynamic-experiences/phase-1-mvp/000-admin-commands-quick-start.md#verification-status): **Verified**
--   [`scratchpad/+scratchpad.md`](./scratchpad/+scratchpad.md#verification-status): **Verified**
--   [`scratchpad/2025-11-03-1538-nats-implementation-progress.md`](./scratchpad/2025-11-03-1538-nats-implementation-progress.md#verification-status): **Partially Verified** (Minor discrepancies in WorldUpdateEvent version and unit test count)
--   [`scratchpad/2025-11-13-unity-bottle-fix-session.md`](./scratchpad/2025-11-13-unity-bottle-fix-session.md#verification-status): **Verified**
--   [`scratchpad/admin-command-system-comprehensive-design.md`](./scratchpad/admin-command-system-comprehensive-design.md#verification-status): **Partially Verified** (Discrepancies in command naming/syntax, property editing, and safety mechanisms)
--   [`scratchpad/admin-command-workflow-walkthrough.md`](./scratchpad/admin-command-workflow-walkthrough.md#verification-status): **Partially Verified** (Discrepancies in `@where` and `@examine` command behavior/output)
--   [`scratchpad/admin-commands-implementation-complete.md`](./scratchpad/admin-commands-implementation-complete.md#verification-status): **Partially Verified** (Markdown command specifications not found; NPC listing in `@where` is a TODO)
--   [`scratchpad/aoi-phase1-demo-guide.md`](./scratchpad/aoi-phase1-demo-guide.md#verification-status): **Verified**
--   [`scratchpad/command-bus-industry-references.md`](./scratchpad/command-bus-industry-references.md#verification-status): **Not Applicable** (Reference document)
--   [`scratchpad/command-system-refactor-proposal.md`](./scratchpad/command-system-refactor-proposal.md#verification-status): **Verified**
--   [`scratchpad/CURRENT-STATUS-2025-11-09.md`](./scratchpad/CURRENT-STATUS-2025-11-09.md#verification-status): **Verified** (with minor discrepancies noted)
--   [`scratchpad/documentation-update-plan.md`](./scratchpad/documentation-update-plan.md#verification-status): **Verified**
--   [`scratchpad/fast-commands-implementation-plan.md`](./scratchpad/fast-commands-implementation-plan.md#verification-status): **Not Applicable** (Implementation plan, not yet implemented)
--   [`scratchpad/fast-drop-command-complete.md`](./scratchpad/fast-drop-command-complete.md#verification-status): **Verified**
--   [`scratchpad/fast-go-command-complete.md`](./scratchpad/fast-go-command-complete.md#verification-status): **Verified**
--   [`scratchpad/gateway-websocket-proxy.md`](./scratchpad/gateway-websocket-proxy.md#verification-status): **Verified** (with minor discrepancy noted)
--   [`scratchpad/IMPLEMENTATION-UNIFIED-INSTANCE-ID.md`](./scratchpad/IMPLEMENTATION-UNIFIED-INSTANCE-ID.md#verification-status): **Verified**
--   [`scratchpad/intelligent-admin-introspection-design.md`](./scratchpad/intelligent-admin-introspection-design.md#verification-status): **Verified**
--   [`scratchpad/intelligent-admin-workflow-conceptual.md`](./scratchpad/intelligent-admin-workflow-conceptual.md#verification-status): **Partially Verified** (Discrepancies in `@where` command behavior/output)
--   [`scratchpad/kb-experience-architecture-deep-dive.md`](./scratchpad/kb-experience-architecture-deep-dive.md#verification-status): **Verified**
--   [`scratchpad/markdown-command-architecture.md`](./scratchpad/markdown-command-architecture.md#verification-status): **Verified**
--   [`scratchpad/nats-implementation-todo.md`](./scratchpad/nats-implementation-todo.md#verification-status): **Verified**
--   [`scratchpad/nats-world-updates-implementation-analysis.md`](./scratchpad/nats-world-updates-implementation-analysis.md#verification-status): **Verified**
--   [`scratchpad/npc-llm-dialogue-system.md`](./scratchpad/npc-llm-dialogue-system.md#verification-status): **Not Applicable** (Design proposal, not implemented)
--   [`scratchpad/PHASE-1B-ACTUAL-COMPLETION.md`](./scratchpad/PHASE-1B-ACTUAL-COMPLETION.md#verification-status): **Verified**
--   [`scratchpad/quest-driven-dynamic-spawning-system.md`](./scratchpad/quest-driven-dynamic-spawning-system.md#verification-status): **Not Applicable** (Design proposal, not implemented)
--   [`scratchpad/resume-prompt-doc-update.md`](./scratchpad/resume-prompt-doc-update.md#verification-status): **Not Applicable** (Meta-document)
--   [`scratchpad/RESUME-PROMPT.md`](./scratchpad/RESUME-PROMPT.md#verification-status): **Not Applicable** (Meta-document)
--   [`scratchpad/semantic-search-pgvector-debugging-2025-11-03.md`](./scratchpad/semantic-search-pgvector-debugging-2025-11-03.md#verification-status): **Verified**
--   [`scratchpad/simulation-architecture-overview.md`](./scratchpad/simulation-architecture-overview.md#verification-status): **Verified**
--   [`scratchpad/structured-command-parameters-proposal.md`](./scratchpad/structured-command-parameters-proposal.md#verification-status): **Verified**
+**[unity-chatclient-feedback-action-items.md](unity-chatclient-feedback-action-items.md)**
+*   **Summary**: This document summarizes feedback and action items for the Unity ChatClient integration with GAIA, highlighting critical issues and their resolutions. It details the success of the v3 StreamBuffer in addressing streaming incompatibilities (word boundary preservation, JSON directive preservation, phrase batching), making the backend production-ready. The document also lists remaining high and medium priority action items for the ChatClient (removing local history, adding message type identification, diagnostic endpoint, directive parser), along with revised time estimates and a testing strategy.

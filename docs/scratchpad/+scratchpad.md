@@ -1,137 +1,71 @@
-# scratchpad
+# Scratchpad
 
-Temporary notes and architectural outlines.
-
-## 🎯 Current Status (2025-11-10)
-
-**What's Complete Today**:
-- ✅ Template/Instance Architecture (eliminates data duplication in world.json)
-- ✅ WorldUpdate v0.4 (aligned with AOI - uses instance_id/template_id)
-- ✅ Version tracking (base_version/snapshot_version for delta validation)
-- ✅ Unity coordination via Symphony (real-time format validation)
-
-**Files Modified**:
-- `app/shared/events.py` - WorldUpdateEvent v0.4 model
-- `app/services/kb/unified_state_manager.py` - Template loading, version tracking
-- `app/services/kb/template_loader.py` - NEW (281 lines)
-- `docs/scratchpad/websocket-aoi-client-guide.md` - Section 3 updated
-- `Vaults/gaia-knowledge-base/experiences/wylding-woods/state/world.json` - Restructured
-
-**Next**: Local testing, deploy to dev Monday
+This directory is a collection of working documents, session notes, ad-hoc analyses, and temporary files used during the development of the Gaia platform. It represents the "work in progress" and contains raw, unfiltered insights and plans.
 
 ---
 
-## Previous Status (2025-11-09)
+## Key Documents
 
-**See**: **`CURRENT-STATUS-2025-11-09.md`** for **SINGLE SOURCE OF TRUTH**
+**Design & Implementation Plans**
+*   **[aoi-websocket-design-2025-11-10.md](aoi-websocket-design-2025-11-10.md)**: Outlines the design for the Area of Interest (AOI) WebSocket system, where the client sends its location and the server responds with nearby world objects.
+*   **[fast-commands-implementation-plan.md](fast-commands-implementation-plan.md)**: Proposes adding fast-path Python handlers for common game commands to bypass the slow LLM path, targeting a <100ms response time.
+*   **[command-system-refactor-proposal.md](command-system-refactor-proposal.md)**: Proposes a unified `ExperienceCommandProcessor` to centralize command handling for both HTTP and WebSocket endpoints, eliminating divergent logic.
+*   **[admin-command-system-comprehensive-design.md](admin-command-system-comprehensive-design.md)**: A design document and gap analysis for the Admin Command System, proposing a unified `@edit` command to provide full administrative control over all game objects.
+*   **[intelligent-admin-introspection-design.md](intelligent-admin-introspection-design.md)**: A design document for an intelligent admin command system. It proposes `@examine` to view the JSON structure of any game object and a powerful `@edit` command that uses dot-notation to modify any nested property with type inference and validation.
+*   **[npc-llm-dialogue-system.md](npc-llm-dialogue-system.md)**: A design document for a proper NPC dialogue system, proposing to move the LLM call directly into a fast-path `talk` handler within the KB service, eliminating the "MVP kludge".
+*   **[quest-driven-dynamic-spawning-system.md](quest-driven-dynamic-spawning-system.md)**: A design document proposing a system for dynamically showing or hiding items based on player quest status.
+*   **[structured-command-parameters-proposal.md](structured-command-parameters-proposal.md)**: Proposes adding support for structured parameters to the WebSocket protocol to enable a "fast path" that bypasses slow LLM processing for common commands.
+*   **[gateway-websocket-proxy-implementation-plan.md](gateway-websocket-proxy-implementation-plan.md)**: The design document for the Gateway WebSocket proxy, which was implemented to provide a single, secure entry point for all client WebSocket connections.
+*   **[testing-organization-plan.md](testing-organization-plan.md)**: A proposal to consolidate manual and scripted tests into a more organized structure under `tests/manual/`, categorized by feature (experience, infrastructure) rather than by protocol.
+*   **[websocket-migration-plan.md](websocket-migration-plan.md)**: A historical planning document that outlines the migration from SSE to WebSocket for real-time communication to enable persistent connections and autonomous world events.
+*   **[websocket-world-state-sync-proposal.md](websocket-world-state-sync-proposal.md)**: A design document proposing a complete world state synchronization protocol for WebSockets, including initial state delivery, delta updates with versioning, and a full Area of Interest (AOI) payload structure.
 
-**What's Working**:
-- ✅ Gateway WebSocket proxy (transparent tunneling to KB Service)
-- ✅ Unified command processing (HTTP + WebSocket route through same processor)
-- ✅ NATS Phase 1A (KB publishes world_update events)
-- ⚠️ NATS Phase 1B (SSE forwarding - partial, conversational flow only)
+**Completion Reports & Session Notes**
+*   **[2025-11-03-1538-nats-implementation-progress.md](2025-11-03-1538-nats-implementation-progress.md)**: Details the completed NATS implementation for real-time world updates, split into Phase 1A (KB publishing) and Phase 1B (Chat forwarding via SSE).
+*   **[IMPLEMENTATION-UNIFIED-INSTANCE-ID.md](IMPLEMENTATION-UNIFIED-INSTANCE-ID.md)**: Details the completed fix for a critical field name mismatch, normalizing item data to use `instance_id` and `template_id`.
+*   **[admin-commands-implementation-complete.md](admin-commands-implementation-complete.md)**: Reports the completion of the intelligent admin command system, including handlers for `@examine`, `@where`, and `@edit-item`.
+*   **[command-system-refactor-completion.md](command-system-refactor-completion.md)**: Summarizes the successful refactor to a unified `ExperienceCommandProcessor`, centralizing all command routing.
+*   **[fast-drop-command-complete.md](fast-drop-command-complete.md)**: Reports the completion of the `drop_item` fast handler, achieving a 6.7ms response time.
+*   **[fast-go-command-complete.md](fast-go-command-complete.md)**: Reports the completion of the `go` fast handler, achieving a 6ms response time and fixing a key terminology mismatch ("area" vs. "sublocation").
+*   **[PHASE-1B-ACTUAL-COMPLETION.md](PHASE-1B-ACTUAL-COMPLETION.md)**: Clarifies the *actual* implementation of the NATS integration, which involved creating per-request SSE subscriptions in the Chat service as a temporary step.
+*   **[TEMPLATE-INSTANCE-IMPLEMENTATION-COMPLETE.md](TEMPLATE-INSTANCE-IMPLEMENTATION-COMPLETE.md)**: Reports the completion of the `instance_id`/`template_id` refactor, resolving a critical Unity integration blocker.
+*   **[2025-11-13-unity-bottle-fix-session.md](2025-11-13-unity-bottle-fix-session.md)**: Documents the fix for a critical bug where the `build_aoi()` function was failing due to expecting item objects but receiving strings.
+*   **[gateway-websocket-proxy.md](gateway-websocket-proxy.md)**: Describes the implemented WebSocket proxy in the Gateway service, which acts as a single, secure entry point for all client WebSocket connections.
+*   **[semantic-search-pgvector-debugging-2025-11-03.md](semantic-search-pgvector-debugging-2025-11-03.md)**: A session log detailing the debugging of a pgvector semantic search issue caused by an incorrect schema name.
+*   **[visibility-toggle-system-implementation.md](visibility-toggle-system-implementation.md)**: Details the Phase 1 implementation of a system to dynamically show or hide items by toggling a `visible` flag, enabling quests to make items appear in the world.
 
-**Active Issues**:
-- ⚠️ World state discovery not implemented (client can't discover bottles without explicit commands)
-- 📝 Test script needs location ID updates (low priority - Unity client works correctly)
+**Analyses & Troubleshooting**
+*   **[CRITICAL-AOI-FIELD-NAME-ISSUE.md](CRITICAL-AOI-FIELD-NAME-ISSUE.md)**: Details a resolved critical issue caused by a mismatch between documented (`instance_id`) and implemented (`id`) field names for items in the AOI response.
+*   **[command-formats-comparison.md](command-formats-comparison.md)**: Analyzes the four distinct command/response formats used in GAIA: Player Commands, CommandResult, JSON-RPC Directives, and Symbolic NATS Directives.
+*   **[CURRENT-STATUS-2025-11-09.md](CURRENT-STATUS-2025-11-09.md)**: A historical snapshot of the platform's status, noting that world state discovery on client connection is a critical missing feature.
+*   **[nats-world-updates-implementation-analysis.md](nats-world-updates-implementation-analysis.md)**: An analysis document justifying the use of NATS for real-time world updates to decouple the KB and Chat services.
+*   **[npc-interaction-mvp-kludge.md](npc-interaction-mvp-kludge.md)**: This document details the temporary, demo-focused implementation for NPC dialogue, which uses a circular `KB -> Chat -> KB` HTTP call pattern.
+*   **[simulation-architecture-overview.md](simulation-architecture-overview.md)**: Outlines a high-level architecture where the GAIA server acts as the "symbolic" authority and the Unity client as the "concrete" authority.
+*   **[terminology-sublocation-vs-area-analysis.md](terminology-sublocation-vs-area-analysis.md)**: An analysis that identified and resolved a terminology mismatch between "area" and "sublocation" in the codebase.
+*   **[waypoint-to-location-architecture-analysis.md](waypoint-to-location-architecture-analysis.md)**: An analysis of the evolution from a linear waypoint system to a more flexible, location-based architecture with a 4-tier spatial hierarchy.
+*   **[websocket-and-kb-content-analysis.md](websocket-and-kb-content-analysis.md)**: Details the WebSocket authentication flow and the organization of game commands for the `wylding-woods` experience.
+*   **[websocket-world-state-discovery.md](websocket-world-state-discovery.md)**: A design document that explores the problem of initial world state synchronization for clients connecting via WebSocket and proposes different strategies for state delivery.
+*   **[WORLD-UPDATE-AOI-ALIGNMENT-ANALYSIS.md](WORLD-UPDATE-AOI-ALIGNMENT-ANALYSIS.md)**: Documents the resolution of a format mismatch between `world_update` messages and the `Area of Interest` (AOI) data structure, aligning them on the v0.4 `instance_id`/`template_id` standard.
+*   **[world-vs-locations-json-architecture.md](world-vs-locations-json-architecture.md)**: An architectural analysis clarifying the distinct roles of `world.json` (active, mutable game state) and `locations.json` (legacy, static waypoint templates), concluding that `world.json` is the source of truth for all gameplay logic.
 
-**Next Steps**:
-1. Implement world state discovery (2-3h) - Priority 1
-2. Enhance NATS coverage (2-3h, optional) - Priority 2
-3. Fix test script location IDs (30min, optional) - Priority 3
+**Testing & Workflow Guides**
+*   **[aoi-phase1-demo-guide.md](aoi-phase1-demo-guide.md)**: Provides a script and talking points for demonstrating the Area of Interest (AOI) system.
+*   **[command-line-testing-drop-collect.md](command-line-testing-drop-collect.md)**: Provides command-line scripts for testing the `drop` and `collect` fast commands.
+*   **[admin-command-workflow-walkthrough.md](admin-command-workflow-walkthrough.md)**: A conceptual walkthrough of using the proposed admin commands for various administrative tasks.
+*   **[live-demo-commands-unity-integration.md](live-demo-commands-unity-integration.md)**: A demo script showcasing real-time Unity integration with sub-second command responses.
+*   **[UNITY-LOCAL-TESTING-GUIDE.md](UNITY-LOCAL-TESTING-GUIDE.md)**: A guide for the Unity client team to connect to the local server for testing the v0.4 WorldUpdate implementation.
+*   **[websocket-aoi-client-guide.md](websocket-aoi-client-guide.md)**: A comprehensive guide for client developers on how to integrate with the WebSocket Area of Interest (AOI) system, detailing message formats, connection flow, and the template/instance architecture.
+*   **[websocket-fast-command-testing-scripts.md](websocket-fast-command-testing-scripts.md)**: A reference for the collection of bash scripts used to test WebSocket fast commands, including player actions and admin utilities.
+*   **[websocket-test-results-v04.md](websocket-test-results-v04.md)**: The test results for the v0.4 WebSocket implementation, confirming that the infrastructure is ready for Unity integration.
+*   **[websocket-test-results.md](websocket-test-results.md)**: Test results for the WebSocket experience endpoint, validating the protocol layer but identifying a blocker in the KB service's player view initialization logic.
 
----
-
-## Files
-
-### Architecture & Analysis
-- 📚 `simulation-architecture-overview.md` - Architectural Overview: KB's Distributed Simulation & State Management
-- 📚 `kb-experience-architecture-deep-dive.md` - KB Experience Endpoints and State Logic: An Architectural Deep Dive
-- 📚 `world-vs-locations-json-architecture.md` - Architectural analysis clarifying the roles of `world.json` and `locations.json`.
-- 📚 `command-formats-comparison.md` - Comparison of WebSocket commands, CommandResult responses, and JSON-RPC directives.
-- 📚 `command-bus-industry-references.md` - Industry references and validation for the Command Bus architecture pattern.
-- 📚 `waypoint-to-location-architecture-analysis.md` - Analysis of the refactoring from a "waypoint" to a "location" centric model.
-- 📚 `terminology-sublocation-vs-area-analysis.md` - Analysis of the inconsistent use of "sublocation" and "area" terminology.
-- 📚 `visibility-toggle-system-implementation.md` - Implementation details for the visibility toggle system.
-- ✅ `TEMPLATE-INSTANCE-IMPLEMENTATION-COMPLETE.md` - Completion summary for the Template/Instance architecture.
-- 📋 `testing-organization-plan.md` - A plan to reorganize the manual testing structure for better clarity and discoverability.
-- 📋 `IMPLEMENTATION-UNIFIED-INSTANCE-ID.md` - Plan for unifying instance IDs across the system.
-
-### NATS & WebSocket
-- 📚 `nats-world-updates-implementation-analysis.md` - **NATS-Based Real-Time World Updates: Implementation Analysis** (2025-11-02) - Codebase analysis, latency optimization focus, and 4-phase implementation roadmap for NATS pub/sub integration
-- 📚 `websocket-and-kb-content-analysis.md` - **WebSocket and KB Content Analysis for Wylding Woods** (2025-11-06) - Detailed trace of WebSocket authentication, message flow, game command organization, and experience capabilities for 'wylding-woods'.
-- ✅ `aoi-websocket-design-2025-11-10.md` - Design for the Area of Interest (AOI) WebSocket implementation.
-- ✅ `gateway-websocket-proxy-implementation-plan.md` - **Complete Gateway WebSocket proxy implementation** (Nov 9, 2025 - PRODUCTION READY)
-- ⚠️ `websocket-architecture-decision.md` - Architectural decision document for the WebSocket implementation (Status header outdated: says "Decision Required" but footer says "SHIPPED")
-- 📋 `websocket-migration-plan.md` - Migration plan from SSE to WebSocket for persistent connections (Not yet implemented - future Q1 2026)
-- 📋 `websocket-world-state-discovery.md` - Design document for world state discovery and synchronization over WebSocket (Open questions, needs implementation)
-- 📋 `websocket-world-state-sync-proposal.md` - **Proposal for synchronizing world state over WebSocket on initial connection** (Ready to implement - Priority 2)
-- 📋 `aoi-phase1-demo-guide.md` - Guide for demonstrating Phase 1 of the AOI implementation.
-- 📋 `WORLD-UPDATE-AOI-ALIGNMENT-ANALYSIS.md` - Analysis of the alignment between WorldUpdate events and the AOI model.
-- 🗄️ `gateway-websocket-proxy.md` - Earlier implementation notes (Nov 7, superseded by implementation-plan)
-- 📖 `websocket-aoi-client-guide.md` - Guide for clients to interact with the AOI WebSocket endpoint.
-
-### Command System
-- 📋 `command-system-refactor-proposal.md` - **Command System Refactor Proposal: Unified ExperienceCommandProcessor** (2025-11-06) - Proposal for a unified command processing architecture (historical context)
-- ✅ `command-system-refactor-completion.md` - **Completion summary** (Nov 6, 2025 - PRODUCTION READY) - ExperienceCommandProcessor implemented, HTTP + WebSocket both route through unified processor
-- 📋 `fast-commands-implementation-plan.md` - Implementation plan for "fast path" commands.
-- ✅ `fast-drop-command-complete.md` - Completion summary for the "fast path" drop command.
-- ✅ `fast-go-command-complete.md` - Completion summary for the "fast path" go command.
-- 📋 `structured-command-parameters-proposal.md` - Proposal for using structured parameters in commands.
-- 📚 `admin-command-system-comprehensive-design.md` - Comprehensive design for the admin command system.
-- 📋 `intelligent-admin-introspection-design.md` - Design for an intelligent admin introspection system.
-
-### Task Tracking & Progress
-- ✅ **`CURRENT-STATUS-2025-11-09.md`** - **SINGLE SOURCE OF TRUTH** for implementation status, verified by code, includes next steps
-- ✅ `2025-11-03-1538-nats-implementation-progress.md` - **NATS Phase 1A/1B Progress** (Nov 3-4, 2025) - Accurate implementation notes (Phase 1A WAS completed Nov 4)
-- ⚠️ `PHASE-1B-ACTUAL-COMPLETION.md` - Phase 1B completion notes (INACCURATE: says "Phase 1A NOT completed" but it was Nov 4)
-- 📋 `TODO.md` - Original NATS Phase 1A-3 Task Checklist (documents actual working code, not obsolete)
-- 📋 `nats-implementation-todo.md` - NATS task tracking (documents actual implementation)
-- 🗄️ `websocket-test-results.md` - Nov 5 WebSocket test run (outdated, new tests show different results)
-- 🗄️ `websocket-test-results-v04.md` - Test results for v0.4 of the WebSocket implementation.
-
-### Debugging & Testing
-- 📚 `semantic-search-pgvector-debugging-2025-11-03.md` - Debugging session notes for fixing pgvector semantic search issues.
-- 📚 `CRITICAL-AOI-FIELD-NAME-ISSUE.md` - Analysis of a critical issue with field names in the AOI implementation.
-- 📋 `UNITY-LOCAL-TESTING-GUIDE.md` - Guide for testing the Unity client locally.
-
-### Game Content & Design
-- 📚 `wylding-woods-knowledge-base-inventory.md` - Inventory of the `wylding-woods` experience, including commands, NPCs, items, and quests.
-- 📋 `npc-llm-dialogue-system.md` - Design for an LLM-based dialogue system for NPCs.
-- 📋 `quest-driven-dynamic-spawning-system.md` - Design for a system to dynamically spawn entities based on quest progression.
-
-### Documentation & Guides
-- 📋 `documentation-update-plan.md` - **Documentation Update Plan for `experience/interact` Endpoint** (2025-11-05)
-- 📋 `resume-prompt-doc-update.md` - **Resume Prompt: Documentation Update for GAIA Architecture**
-- 📋 `RESUME-PROMPT.md` - Simple prompt to restore context from progress file for future Claude sessions.
-
----
-
-## Legend
-
-- ✅ **COMPLETE & VERIFIED** - Implementation exists in codebase, tested
-- 📚 **REFERENCE** - Stable architectural documentation, accurate
-- 📋 **PROPOSAL/PLAN** - Future work, design document, or planning
-- ⚠️ **NEEDS UPDATE** - Contains outdated or conflicting information
-- 🗄️ **HISTORICAL** - Superseded by newer work, kept for context only
-
----
-
-## Verification Status
-
-**Verified By:** Gemini
-**Date:** 2025-11-12
-
-The claims in this index document have been verified against the current codebase.
-
--   **✅ Current Status (2025-11-10):**
-    *   **Claim:** The Template/Instance architecture, WorldUpdate v0.4, and version tracking are complete.
-    *   **Code References:** `app/shared/events.py`, `app/services/kb/unified_state_manager.py`, `app/services/kb/template_loader.py`.
-    *   **Verification:** This is **VERIFIED**. The `WorldUpdateEvent` model in `events.py` matches the v0.4 spec, and the `unified_state_manager.py` and `template_loader.py` files implement the Template/Instance architecture and version tracking.
-
--   **✅ Previous Status (2025-11-09):**
-    *   **Claim:** The Gateway WebSocket proxy, unified command processing, and NATS Phase 1A are implemented.
-    *   **Code References:** `app/gateway/main.py`, `app/services/chat/unified_chat.py`, `app/services/kb/unified_state_manager.py`.
-    *   **Verification:** This is **VERIFIED**. The gateway implements the WebSocket proxy, the chat service uses a unified command processor, and the KB service publishes world update events to NATS.
-
-**Overall Conclusion:** This index document provides an accurate snapshot of the project's status as of the dates listed. The claims are well-supported by the implementation.
+**Meta & Planning**
+*   **[documentation-update-plan.md](documentation-update-plan.md)**: Outlines the necessary documentation updates to reflect the new `POST /experience/interact` endpoint.
+*   **[command-bus-industry-references.md](command-bus-industry-references.md)**: A comprehensive reference guide validating the Command Bus architecture pattern.
+*   **[nats-implementation-todo.md](nats-implementation-todo.md)**: A historical task tracking document from early November 2025 for the NATS implementation.
+*   **[TODO.md](TODO.md)**: A high-level task list for ongoing development.
+*   **[RESUME-PROMPT.md](RESUME-PROMPT.md)**: A meta-document providing a "resume prompt" to help re-establish context for a new development session.
+*   **[wylding-woods-knowledge-base-inventory.md](wylding-woods-knowledge-base-inventory.md)**: A complete inventory of the `wylding-woods` experience, detailing all player commands, admin commands, world state structure, NPCs, items, and quests.
+*   **[websocket-architecture-decision.md](websocket-architecture-decision.md)**: Documents the decision to ship the AEO-65 demo with the WebSocket endpoint in the KB Service as a "fast path" with known technical debt, and to migrate to a dedicated Session Service post-demo.
+*   **[websocket-world-state-sync-proposal.md](websocket-world-state-sync-proposal.md)**: A design document proposing a complete world state synchronization protocol for WebSockets, including initial state delivery, delta updates with versioning, and a full Area of Interest (AOI) payload structure.
+*   **[resume-prompt-doc-update.md](resume-prompt-doc-update.md)**: A meta-document, likely for internal use, and does not contain project information.

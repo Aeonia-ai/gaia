@@ -858,19 +858,21 @@ python test_new_admin_commands.py
 
 **File:** `/app/services/kb/kb_agent.py`
 
-**New code:** ~940 lines (lines 1410-2350)
-
 **Methods added:**
-- `_admin_inspect()` - 288 lines (lines 1410-1698)
-- `_admin_edit()` - 227 lines (lines 1933-2160)
-- `_admin_delete()` - 192 lines (lines 2162-2354)
-- `_admin_where()` - 68 lines (lines 2364-2432)
-- `_admin_find()` - 89 lines (lines 2433-2522)
-- `_save_locations_atomic()` - 23 lines (lines 1699-1722)
+- `_admin_list()` - List waypoints, locations, sublocations, items, templates
+- `_admin_inspect()` - Detailed view of any entity
+- `_admin_create()` - Create waypoints, locations, sublocations
+- `_admin_edit()` - Modify entity fields
+- `_admin_delete()` - Remove entities (with CONFIRM)
+- `_admin_where()` - Search by ID or name
+- `_admin_find()` - Find template instances
+- `_admin_connect()` / `_admin_disconnect()` - Manage navigation graph
+- `_admin_reset()` - Reset instance, player, or experience state
+- `_admin_stats()` - World statistics
+- `_admin_spawn()` - Spawn from template (placeholder)
+- `_save_locations_atomic()` - Atomic file writes for data integrity
 
-**Router updates:**
-- Added routing for new commands
-- Total router: ~80 lines
+> **Note:** Line numbers are not included as they change frequently. Use your IDE's "Go to Symbol" feature to find these methods.
 
 ---
 
@@ -916,5 +918,5 @@ Admins can now build complete, navigable worlds using structured commands with i
 - CRUD Implementation: [024-crud-navigation-implementation.md](024-crud-navigation-implementation.md)
 - Design Document: [022-location-tracking-admin-commands.md](022-location-tracking-admin-commands.md)
 - Implementation Guide: [023-admin-commands-implementation-guide.md](023-admin-commands-implementation-guide.md)
-- KB Agent Code: `/app/services/kb/kb_agent.py` (lines 1410-2522)
+- KB Agent Code: `/app/services/kb/kb_agent.py` (search for `_admin_` methods)
 - Test Script: `/test_new_admin_commands.py`
