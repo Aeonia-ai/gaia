@@ -2,13 +2,19 @@
 
 ## Purpose
 
-Verify documentation accuracy against source code with **zero false positives**.
+Verify documentation **accuracy AND completeness** against source code with **zero false positives**.
 
-This 7-stage protocol prevents LLM hallucination by forcing exact citations from BOTH doc AND code.
+This protocol has two phases:
+1. **Doc → Code**: Does what's documented actually exist? (Accuracy)
+2. **Code → Doc**: Is what exists actually documented? (Completeness)
+
+A doc can be 100% accurate but only 50% complete. We check BOTH.
 
 ---
 
-## The 7 Stages
+## Phase 1: Accuracy (Doc → Code)
+
+The 7 stages below verify that documented claims are correct.
 
 ### Stage 1: Premise Verification
 
@@ -172,6 +178,77 @@ RECOMMENDATION: [fix doc / verify with human / etc.]
 
 ---
 
+## Phase 2: Completeness (Code → Doc)
+
+After verifying accuracy, check if the doc is COMPLETE.
+
+### Step 1: Inventory the Code
+
+Based on the doc's scope, inventory what EXISTS in code:
+
+**Examples by doc type:**
+- API doc → List ALL endpoints (grep for `@app.get`, `@app.post`, etc.)
+- Database doc → List ALL tables (query actual database)
+- Config doc → List ALL settings (grep for env vars, config classes)
+- Service doc → List ALL public methods/functions
+
+**Format:**
+```
+CODE INVENTORY for [scope]:
+Total items in code: [N]
+- item1
+- item2
+- ...
+```
+
+### Step 2: Compare Coverage
+
+Cross-reference code inventory against doc:
+
+```
+COMPLETENESS CHECK:
+- Items in code: [N]
+- Items documented: [M]
+- Coverage: [M/N]%
+
+UNDOCUMENTED ITEMS:
+- [item1] - [brief description of what it does]
+- [item2] - [brief description]
+...
+```
+
+### Step 3: Assess Significance
+
+Not every undocumented item is a problem. Categorize:
+
+```
+UNDOCUMENTED - CRITICAL (breaks developer understanding):
+- [item] - [why it matters]
+
+UNDOCUMENTED - MODERATE (should be added):
+- [item] - [why]
+
+UNDOCUMENTED - MINOR (nice to have):
+- [item] - [why]
+
+INTENTIONALLY OMITTED (internal/deprecated):
+- [item] - [why it's okay to omit]
+```
+
+### Step 4: Completeness Verdict
+
+```
+COMPLETENESS ASSESSMENT:
+- Accuracy: [X]% (Phase 1 result)
+- Completeness: [Y]%
+- Critical gaps: [N]
+- Recommendation: COMPLETE | NEEDS_EXPANSION | RENAME_SCOPE
+```
+
+If completeness < 70%, flag for major revision or scope clarification.
+
+---
+
 ## Forbidden Behaviors
 
 1. **NO GUESSING** - Say "UNCERTAIN" instead
@@ -217,29 +294,63 @@ Your output has TWO parts:
 ```markdown
 ## Verification Report: [doc path]
 
-### Stage 1: Premises
+### Phase 1: Accuracy (Doc → Code)
+
+#### Stage 1: Premises
 [premise verification output]
 
-### Stage 2-3: Claims Identified & Validated
+#### Stage 2-3: Claims Identified & Validated
 [claims with citations]
 
-### Stage 4: Semantic Verification
+#### Stage 4: Semantic Verification
 [match analysis]
 
-### Stage 5: Negation Analysis
+#### Stage 5: Negation Analysis
 [negated claims if any]
 
-### Stage 6: Consistency Check
+#### Stage 6: Consistency Check
 [cross-claim analysis]
 
-### Stage 7: Findings
+#### Stage 7: Accuracy Findings
 
 | # | Issue | Severity | Confidence |
 |---|-------|----------|------------|
 | 1 | [issue] | [sev] | [conf] |
 
+**Accuracy Score: [X]%** (documented items that are correct)
+
+---
+
+### Phase 2: Completeness (Code → Doc)
+
+#### Code Inventory
+[what exists in code within doc's scope]
+
+#### Coverage Analysis
+- Items in code: [N]
+- Items documented: [M]
+- Coverage: [M/N]%
+
+#### Undocumented Items
+
+| Item | Significance | Description |
+|------|--------------|-------------|
+| [item] | CRITICAL/MODERATE/MINOR | [what it does] |
+
+**Completeness Score: [Y]%**
+
+---
+
+### Summary
+
+| Metric | Score |
+|--------|-------|
+| Accuracy | [X]% |
+| Completeness | [Y]% |
+| Recommendation | ACCURATE | NEEDS_FIXES | NEEDS_EXPANSION | MAJOR_REWRITE |
+
 ### Files Read
-[list every file actually read with line ranges]
+[list every file actually read]
 
 ### Human Review Required
 [LOW/UNCERTAIN findings]

@@ -675,6 +675,11 @@ docker compose up
 # KB Git sync (Aeonia team)
 ./scripts/setup-aeonia-kb.sh               # Auto-configures Obsidian vault
 # → Full KB config details in docs/kb-git-sync-guide.md
+
+# Documentation generation
+python scripts/generate-admin-docs.py      # Regenerate admin command reference from code
+# → Output: docs/reference/api/admin-commands-reference.md
+# → See: docs/_planning/AUTO-DOC-GENERATION-SPEC.md for docstring format
 ```
 
 ### Long-Running Operations (Docker Builds & Deployments)

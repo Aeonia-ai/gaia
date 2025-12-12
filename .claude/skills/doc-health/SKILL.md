@@ -13,7 +13,9 @@ Manages documentation accuracy and organization through two core capabilities:
 ## Capabilities
 
 ### 1. Verification (`/doc-health verify`)
-Verify documentation claims against source code using the 7-stage anti-hallucination protocol.
+Verify documentation **accuracy AND completeness** using the bidirectional protocol:
+- **Phase 1 (Doc → Code)**: 7-stage accuracy check - does what's documented exist?
+- **Phase 2 (Code → Doc)**: Completeness check - is what exists documented?
 
 **When to use:**
 - User asks "is this doc accurate?"
@@ -180,7 +182,7 @@ Add entry to `docs/_planning/DOC-VERIFICATION-TRACKER.md`
 | File | Purpose | Used By |
 |------|---------|---------|
 | `SKILL.md` | Overview and workflow | Main Claude |
-| `verify-protocol.md` | 7-stage verification + JSON output | reviewer subagent |
+| `verify-protocol.md` | Bidirectional verification (7-stage accuracy + completeness) | reviewer subagent |
 | `fix-protocol.md` | Apply approved edits | coder subagent |
 | `consolidate-protocol.md` | Merge overlapping docs | reviewer subagent |
 | `conflict-resolution.md` | Handle doc conflicts | reviewer subagent |

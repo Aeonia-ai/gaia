@@ -1,8 +1,54 @@
 # API Contracts Documentation
 
-
-
 This document defines the API contracts for Gaia Platform services, clearly specifying which endpoints require authentication and which are public.
+
+---
+
+## ⚠️ Documentation Coverage
+
+**Last Verified:** 2025-12-09
+**Accuracy:** 100% (what's documented is correct)
+**Completeness:** ~15% (only ~28 of ~180 endpoints documented)
+
+This document currently covers **authentication-related endpoints only**. The following services have APIs that need to be documented:
+
+### TODO: Services Requiring Documentation
+
+| Service | File Location | Endpoints | Priority | Status |
+|---------|--------------|-----------|----------|--------|
+| **KB Service** | `app/services/kb/` | ~40 | HIGH | ❌ Not documented |
+| **Chat Service** | `app/services/chat/` | ~50 | HIGH | ❌ Not documented |
+| **Gateway (non-auth)** | `app/gateway/main.py` | ~18 | MEDIUM | ❌ Not documented |
+| **Web Service (protected)** | `app/services/web/` | ~20 | MEDIUM | ❌ Not documented |
+| **Asset Service** | `app/services/asset/` | ~8 | LOW | Partial |
+| **Auth Service (internal)** | `app/services/auth/` | ~7 | MEDIUM | ❌ Not documented |
+
+### Critical Undocumented APIs
+
+**KB Service** (`app/services/kb/`):
+- `/search`, `/search/semantic` - Full-text and AI-powered search
+- `/read`, `/write`, `/delete` - File operations
+- `/context`, `/synthesize` - AI context building
+- `/sync/to-git`, `/sync/from-git` - Git synchronization
+- `/agent/interpret` - AI agent command interpretation
+
+**Chat Service** (`app/services/chat/`):
+- `/chat/unified` - Unified intelligent routing
+- `/conversations/*` - Conversation CRUD operations
+- `/personas/*` - Persona management
+- `/stream` - Streaming chat responses
+
+**Experience/Game System** (via Gateway):
+- `/ws/experience` - WebSocket for real-time game state
+- `/api/v0.3/locations/nearby` - AR waypoint system
+- NPC interactions, quests, inventory management
+
+**Internal Endpoints** (service-to-service):
+- `/internal/validate` - Token validation
+- `/internal/service-token` - Service JWT generation
+- `/auth/api-key-login` - API key to JWT exchange
+
+---
 
 ## API Versioning
 

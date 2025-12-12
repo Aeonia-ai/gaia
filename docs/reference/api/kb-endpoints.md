@@ -4,9 +4,55 @@
 
 📍 **Location:** [Home](../README.md) → [API](README.md) → KB Endpoints
 
+---
+
+## ⚠️ Documentation Coverage
+
+**Last Verified:** 2025-12-10
+**Accuracy:** 93% (documented endpoints are correct)
+**Completeness:** ~33% (only ~15 of ~45 endpoints documented)
+
+This document currently covers **core KB operations only**. The following endpoint categories need to be documented:
+
+### TODO: Endpoint Categories Requiring Documentation
+
+| Category | File Location | Endpoints | Priority | Status |
+|----------|--------------|-----------|----------|--------|
+| **Semantic Search** | `kb_semantic_endpoints.py` | 4 | HIGH | ❌ Not documented |
+| **KB Agent Intelligence** | `agent_endpoints.py` | 5 | HIGH | ❌ Not documented |
+| **Experience System** | `experience_endpoints.py` | 8 | HIGH | ❌ Not documented |
+| **Game Commands** | `game_commands_api.py` | 3 | MEDIUM | ❌ Not documented |
+| **Waypoints** | `waypoints_api.py` | 1 | MEDIUM | ❌ Not documented |
+| **WebSocket Real-Time** | `websocket_experience.py` | 1 | HIGH | ❌ Not documented |
+| **RBAC Multi-User (v1)** | `kb_storage_with_rbac.py` | 5 | MEDIUM | ❌ Not documented |
+| **Advanced Features** | `main.py` | 5 | LOW | ❌ Not documented |
+
+### Critical Undocumented Endpoints
+
+**Semantic Search** (`kb_semantic_endpoints.py`):
+- `POST /search/semantic` - AI-powered semantic search
+- `POST /search/semantic/reindex` - Manual reindexing trigger
+- `GET /search/semantic/stats` - Index statistics
+- `GET /search/semantic/progress/{namespace}` - Indexing progress
+
+**KB Agent Intelligence** (`agent_endpoints.py`):
+- `POST /agent/interpret` - Natural language command interpretation
+- `POST /agent/workflow` - Multi-step workflow execution
+- `POST /agent/validate` - Rule validation
+- `GET /agent/status` - Agent status
+- `POST /agent/cache/clear` - Cache management
+
+**Experience/Game System** (`experience_endpoints.py`, `game_commands_api.py`):
+- `POST /experience/interact` - Experience interactions
+- `GET /experience/list` - Available experiences
+- `POST /game/command` - Game command processing
+- `WS /ws/experience` - Real-time WebSocket
+
+---
+
 ## Overview
 
-The KB service provides comprehensive knowledge base management through 25+ REST endpoints. All endpoints require authentication via API key or JWT token.
+The KB service provides comprehensive knowledge base management through 45+ REST endpoints across multiple API versions. All endpoints require authentication via API key or JWT token.
 
 ## 🔍 **Core KB Operations**
 
@@ -81,8 +127,10 @@ Create or update a document.
 }
 ```
 
-#### `DELETE /api/v0.2/kb/delete`
+#### `DELETE /delete`
 Delete a document from the KB.
+
+> **Note:** This endpoint uses the base path `/delete`, not the v0.2 API prefix.
 
 **Request:**
 ```json
@@ -329,6 +377,7 @@ curl -H "Authorization: Bearer your-jwt-token" \
 
 ---
 
-**Status**: ✅ **FULLY OPERATIONAL** - All endpoints implemented and tested  
-**Version**: v0.2 (stable), v1 (enhanced with AI)  
+**Status**: ⚠️ **DOCUMENTATION INCOMPLETE** - Core endpoints documented, 30+ endpoints need documentation
+**Version**: v0.2 (stable), v1 (RBAC), Agent, Experience, Game, WebSocket
 **Authentication**: Required for all endpoints
+**Last Verified**: 2025-12-10

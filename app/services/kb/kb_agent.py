@@ -1723,15 +1723,27 @@ Write a compelling narrative for the player that describes what just happened.
         args: List[str],
         experience: str
     ) -> Dict[str, Any]:
-        """
-        Handle @list commands.
+        """List entities in the game world.
 
-        Supported:
-        - @list waypoints
-        - @list locations <waypoint>
-        - @list sublocations <waypoint> <location>
-        - @list items [at <waypoint> <location> <sublocation>]
-        - @list templates [<type>]
+        Command: @list
+        Category: Read
+        Destructive: no
+
+        Syntax:
+            @list waypoints
+            @list locations <waypoint_id>
+            @list sublocations <waypoint_id> <location_id>
+            @list items
+            @list items at <waypoint_id> <location_id> <subloc_id>
+            @list templates [item|npc]
+
+        Examples:
+            @list waypoints
+            @list locations forest_01
+            @list sublocations forest_01 clearing
+            @list items at forest_01 clearing pond
+
+        Requires: None
         """
         kb_path = getattr(settings, 'KB_PATH', '/kb')
 
@@ -2042,14 +2054,28 @@ Write a compelling narrative for the player that describes what just happened.
         }
 
     async def _admin_inspect(self, target_type: Optional[str], args: List[str], experience: str) -> Dict[str, Any]:
-        """
-        Handle @inspect command - detailed inspection of game objects.
+        """View detailed information about a game entity.
 
-        Supported:
-        - @inspect waypoint <id>
-        - @inspect location <waypoint> <id>
-        - @inspect sublocation <waypoint> <location> <id>
-        - @inspect item <instance_id>
+        Command: @inspect
+        Category: Read
+        Destructive: no
+
+        Syntax:
+            @inspect waypoint <waypoint_id>
+            @inspect location <waypoint_id> <location_id>
+            @inspect sublocation <waypoint_id> <location_id> <subloc_id>
+            @inspect item <instance_id>
+
+        Examples:
+            @inspect waypoint forest_01
+            @inspect location forest_01 clearing
+            @inspect sublocation forest_01 clearing pond
+            @inspect item bottle_001
+
+        Returns:
+            Dict with full entity details including metadata, connections, and contents.
+
+        Requires: None
         """
         import os
         import json
@@ -2332,13 +2358,42 @@ Write a compelling narrative for the player that describes what just happened.
             }
 
     async def _admin_create(self, target_type: Optional[str], args: List[str], experience: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle @create command.
+        """Create a new entity in the game world.
 
-        Supported:
-        - @create waypoint <id> <name>
-        - @create location <waypoint> <id> <name>
-        - @create sublocation <waypoint> <location> <id> <name>
+        Command: @create
+        Category: CRUD
+        Destructive: no
+
+        Syntax:
+            @create waypoint <waypoint_id> "<name>"
+            @create location <waypoint_id> <location_id> "<name>"
+            @create sublocation <waypoint_id> <location_id> <subloc_id> "<name>"
+
+        Examples:
+            @create waypoint forest_01 "Dark Forest"
+            @create location forest_01 clearing "Forest Clearing"
+            @create sublocation forest_01 clearing pond "Small Pond"
+
+        Args:
+            target_type: Entity type - waypoint, location, or sublocation
+            args: Command arguments [id, name] or [parent_id, id, name]
+            experience: Experience slug (e.g., "wylding-woods")
+            user_context: Auth context containing user_email for audit trail
+
+        Returns:
+            Dict with keys:
+                - success: bool
+                - narrative: Human-readable result message
+                - created: Dict with entity details (on success)
+                - error: Dict with code/message (on failure)
+
+        Side Effects:
+            - Creates new entry in locations.json
+            - Sets metadata: created_at, created_by, last_modified, last_modified_by
+            - For locations: initializes empty sublocations list
+            - For sublocations: adds to parent location's sublocations list
+
+        Requires: None (non-destructive operation)
         """
         import os
         import json
@@ -2565,17 +2620,30 @@ Write a compelling narrative for the player that describes what just happened.
             raise e
 
     async def _admin_edit(self, target_type: Optional[str], args: List[str], experience: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle @edit command - modify properties of waypoint/location/sublocation.
+        """Modify properties of an existing game entity.
 
-        Supported:
-        - @edit waypoint <id> name <new_name>
-        - @edit waypoint <id> description <new_description>
-        - @edit location <waypoint> <id> name <new_name>
-        - @edit location <waypoint> <id> description <new_description>
-        - @edit sublocation <waypoint> <location> <id> name <new_name>
-        - @edit sublocation <waypoint> <location> <id> description <new_description>
-        - @edit sublocation <waypoint> <location> <id> interactable <true|false>
+        Command: @edit
+        Category: CRUD
+        Destructive: no
+
+        Syntax:
+            @edit waypoint <waypoint_id> name "<new_name>"
+            @edit waypoint <waypoint_id> description "<new_description>"
+            @edit location <waypoint_id> <location_id> name "<new_name>"
+            @edit location <waypoint_id> <location_id> description "<text>"
+            @edit sublocation <waypoint_id> <location_id> <subloc_id> name "<name>"
+            @edit sublocation <waypoint_id> <location_id> <subloc_id> interactable <true|false>
+
+        Examples:
+            @edit waypoint forest_01 name "Enchanted Forest"
+            @edit location forest_01 clearing description "A sun-dappled clearing"
+            @edit sublocation forest_01 clearing pond interactable true
+
+        Side Effects:
+            - Updates entity in locations.json
+            - Sets last_modified and last_modified_by metadata
+
+        Requires: None
         """
         import os
         import json
@@ -2794,15 +2862,29 @@ Write a compelling narrative for the player that describes what just happened.
             }
 
     async def _admin_delete(self, target_type: Optional[str], args: List[str], experience: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle @delete command - remove waypoint/location/sublocation.
+        """Remove an entity from the game world.
 
-        Supported:
-        - @delete waypoint <id> CONFIRM
-        - @delete location <waypoint> <id> CONFIRM
-        - @delete sublocation <waypoint> <location> <id> CONFIRM
+        Command: @delete
+        Category: CRUD
+        Destructive: yes
 
-        Requires CONFIRM to prevent accidental deletion.
+        Syntax:
+            @delete waypoint <waypoint_id> CONFIRM
+            @delete location <waypoint_id> <location_id> CONFIRM
+            @delete sublocation <waypoint_id> <location_id> <subloc_id> CONFIRM
+
+        Examples:
+            @delete waypoint abandoned_area CONFIRM
+            @delete location forest_01 old_clearing CONFIRM
+            @delete sublocation forest_01 clearing dried_pond CONFIRM
+
+        Side Effects:
+            - Removes entity from locations.json
+            - For waypoints: also removes all child locations and sublocations
+            - For locations: also removes all child sublocations
+            - Cleans up orphaned navigation edges
+
+        Requires: CONFIRM
         """
         import os
         import json
@@ -2988,7 +3070,22 @@ Write a compelling narrative for the player that describes what just happened.
             }
 
     async def _admin_spawn(self, target_type: Optional[str], args: List[str], experience: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle @spawn command (placeholder)."""
+        """Spawn a new instance from a template (NOT YET IMPLEMENTED).
+
+        Command: @spawn
+        Category: CRUD
+        Destructive: no
+
+        Syntax:
+            @spawn item <template_name> <waypoint_id> <location_id> <subloc_id>
+            @spawn npc <template_name> <waypoint_id> <location_id> <subloc_id>
+
+        Examples:
+            @spawn item dream_bottle forest_01 clearing pond
+            @spawn npc fairy_guide forest_01 clearing entrance
+
+        Requires: None
+        """
         return {
             "success": False,
             "error": {"code": "not_implemented", "message": "@spawn not yet implemented"},
@@ -2996,13 +3093,28 @@ Write a compelling narrative for the player that describes what just happened.
         }
 
     async def _admin_where(self, target_type: Optional[str], args: List[str], experience: str) -> Dict[str, Any]:
-        """
-        Handle @where command - find item/NPC location by instance ID or name.
+        """Find the location of an item or NPC by ID or name.
 
-        Supported:
-        - @where item <instance_id>
-        - @where npc <instance_id>
-        - @where <semantic_name>
+        Command: @where
+        Category: Search
+        Destructive: no
+
+        Syntax:
+            @where <instance_id>
+            @where item <instance_id>
+            @where npc <instance_id>
+            @where <semantic_name>
+
+        Examples:
+            @where 42
+            @where item 1
+            @where louisa
+            @where dream_bottle
+
+        Returns:
+            Location details (waypoint, location, sublocation) for matching entities.
+
+        Requires: None
         """
         if not args or len(args) < 1:
             return {
@@ -3075,10 +3187,24 @@ Write a compelling narrative for the player that describes what just happened.
         }
 
     async def _admin_find(self, args: List[str], experience: str) -> Dict[str, Any]:
-        """
-        Handle @find command - find all instances of a template.
+        """Find all instances spawned from a specific template.
 
-        Syntax: @find <template_name>
+        Command: @find
+        Category: Search
+        Destructive: no
+
+        Syntax:
+            @find <template_name>
+
+        Examples:
+            @find dream_bottle
+            @find fairy_npc
+            @find magic_sword
+
+        Returns:
+            List of all instances grouped by location.
+
+        Requires: None
         """
         if len(args) < 1:
             return {
@@ -3133,16 +3259,26 @@ Write a compelling narrative for the player that describes what just happened.
         }
 
     async def _admin_connect(self, args: List[str], experience: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle @connect command - add bidirectional edge between sublocations.
+        """Create a bidirectional navigation link between two sublocations.
 
-        Syntax: @connect <waypoint> <location> <from_subloc> <to_subloc> [direction]
+        Command: @connect
+        Category: Navigation
+        Destructive: no
 
-        Creates exits from both sublocations:
-        - from_subloc.exits includes to_subloc
-        - to_subloc.exits includes from_subloc
+        Syntax:
+            @connect <waypoint_id> <location_id> <from_subloc> <to_subloc>
+            @connect <waypoint_id> <location_id> <from_subloc> <to_subloc> <direction>
 
-        Optional direction (north/south/east/west) adds cardinal shortcuts.
+        Examples:
+            @connect forest_01 clearing entrance pond
+            @connect forest_01 clearing entrance pond north
+
+        Side Effects:
+            - Adds to_subloc to from_subloc.exits
+            - Adds from_subloc to to_subloc.exits (bidirectional)
+            - If direction specified, adds cardinal_exits with automatic opposite
+
+        Requires: None
         """
         import os
         import json
@@ -3249,12 +3385,24 @@ Write a compelling narrative for the player that describes what just happened.
         }
 
     async def _admin_disconnect(self, args: List[str], experience: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle @disconnect command - remove bidirectional edge between sublocations.
+        """Remove a navigation link between two sublocations.
 
-        Syntax: @disconnect <waypoint> <location> <from_subloc> <to_subloc>
+        Command: @disconnect
+        Category: Navigation
+        Destructive: no
 
-        Removes exits from both sublocations and cardinal directions.
+        Syntax:
+            @disconnect <waypoint_id> <location_id> <from_subloc> <to_subloc>
+
+        Examples:
+            @disconnect forest_01 clearing entrance pond
+
+        Side Effects:
+            - Removes to_subloc from from_subloc.exits
+            - Removes from_subloc from to_subloc.exits (bidirectional)
+            - Removes any cardinal_exits pointing between them
+
+        Requires: None
         """
         import os
         import json
@@ -3366,13 +3514,28 @@ Write a compelling narrative for the player that describes what just happened.
         experience: str,
         user_context: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Handle @reset command - reset instances or player progress.
+        """Reset game state to initial conditions.
 
-        Supported:
-        - @reset instance <instance_id> CONFIRM
-        - @reset player <user_id> CONFIRM
-        - @reset experience <experience> CONFIRM
+        Command: @reset
+        Category: Reset
+        Destructive: yes
+
+        Syntax:
+            @reset instance <instance_id> CONFIRM
+            @reset player <user_id> CONFIRM
+            @reset experience CONFIRM
+
+        Examples:
+            @reset instance 42 CONFIRM
+            @reset player user@example.com CONFIRM
+            @reset experience CONFIRM
+
+        Side Effects:
+            - instance: Resets single item/NPC to template defaults
+            - player: Clears player's inventory and progress
+            - experience: Resets entire world to pristine state (creates backup first)
+
+        Requires: CONFIRM
         """
         import os
         import json
@@ -3574,10 +3737,22 @@ Write a compelling narrative for the player that describes what just happened.
             }
 
     async def _admin_stats(self, experience: str) -> Dict[str, Any]:
-        """
-        Handle @stats command - show world statistics.
+        """Display statistics about the game world.
 
-        Returns counts of waypoints, locations, sublocations, items, NPCs, players.
+        Command: @stats
+        Category: Stats
+        Destructive: no
+
+        Syntax:
+            @stats
+
+        Examples:
+            @stats
+
+        Returns:
+            Counts of waypoints, locations, sublocations, items, NPCs, and active players.
+
+        Requires: None
         """
         import os
         import json

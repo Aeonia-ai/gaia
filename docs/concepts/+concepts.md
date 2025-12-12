@@ -4,4 +4,4 @@ This section explains the high-level concepts and architectural patterns that un
 
 ## Directories
 
-- `deep-dives/`: In-depth explanations of complex topics.
+- [[deep-dives/+deep-dives.md]]: Provides in-depth explanations of complex topics within the Gaia platform, including the dynamic experiences feature.

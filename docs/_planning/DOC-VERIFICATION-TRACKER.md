@@ -48,7 +48,7 @@ Task(
 
 | Directory | Total | Re-Verified | Accurate | NeedsUpdate | Critical |
 |-----------|-------|-------------|----------|-------------|----------|
-| reference/ | 98 | 5 | 0 | 5 | 0 |
+| reference/ | 98 | 8 | 0 | 8 | 0 |
 | _internal/ | 86 | 0 | 0 | 0 | 0 |
 | scratchpad/ | 58 | 0 | 0 | 0 | 0 |
 | concepts/ | 58 | 0 | 0 | 0 | 0 |
@@ -56,7 +56,7 @@ Task(
 | analysis/ | 11 | 0 | 0 | 0 | 0 |
 | root level | 11 | 0 | 0 | 0 | 0 |
 | other | 15 | 0 | 0 | 0 | 0 |
-| **TOTAL** | **390** | **5** | **0** | **5** | **0** |
+| **TOTAL** | **390** | **8** | **0** | **8** | **0** |
 
 ---
 
@@ -71,6 +71,17 @@ Task(
 | `reference/services/llm-service.md` | 2025-12-04 | 3 | Moderate | ✅ |
 | `reference/chat/chat-service-implementation.md` | 2025-12-06 | 2 | Minor | ✅ |
 | `reference/services/kb-agent-overview.md` | 2025-12-06 | 2 | Minor | ✅ |
+| `reference/database/database-architecture.md` | 2025-12-09 | 3 | Moderate | ✅ |
+| `reference/api/api-contracts.md` | 2025-12-09 | 0 (but 15% complete) | N/A | ✅ (added TODO) |
+| `reference/api/kb-endpoints.md` | 2025-12-10 | 2 (93% accurate, 33% complete) | Moderate | ✅ (added TODO) |
+
+#### kb-endpoints.md (2 accuracy issues + major completeness gap)
+1. **DELETE endpoint path wrong** - doc said `/api/v0.2/kb/delete`, code shows `/delete`
+2. **Endpoint count wrong** - doc said "25+ endpoints", code has 45+
+- **Completeness: 33%** - Only 15 of 45 endpoints documented
+- Missing: Semantic search (4), KB Agent (5), Experience (8), Game (3), WebSocket (1), RBAC (5), Advanced (5)
+- Added TODO section listing all undocumented endpoint categories
+- Lesson learned: KB service has grown significantly - need dedicated docs for each endpoint category
 
 #### persona-system-guide.md (8 issues)
 1. Missing NPC persona tools_section exception
@@ -101,11 +112,78 @@ Task(
 1. **Haiku model inconsistency** - code uses BOTH `claude-haiku-4-5` and `claude-3-5-haiku-20241022` - added warning note in doc, needs CODE FIX to standardize
 2. **Response time unqualified** - changed "1-3 seconds" to "Typically 1-3 seconds (varies by model load)"
 
+#### database-architecture.md (3 issues) - MAJOR REWRITE
+1. **Table count wrong** - doc said 29, then we wrongly changed to 40; actual DB has 19 tables
+2. **RBAC tables listed as existing** - 13 RBAC tables in migrations but never applied; moved to "Planned" section
+3. **Missing semantic search tables** - `kb_semantic_chunk_ids` and `kb_semantic_index_metadata` exist in DB but weren't documented
+- Lesson learned: Always verify against actual running database, not just migration files
+
+#### api-contracts.md (0 accuracy issues, major completeness gap)
+- **Accuracy: 100%** - All documented endpoints exist and auth requirements are correct
+- **Completeness: ~15%** - Only ~28 of ~180 endpoints documented
+- Added TODO section listing services needing documentation (KB, Chat, Gateway non-auth, etc.)
+- Lesson learned: Verification must be bidirectional (Doc→Code AND Code→Doc)
+
 ### ✅ ACCURATE (no changes needed)
 <!-- Add docs here as verified accurate with new protocol -->
 
 ### ❌ CRITICALLY_WRONG
 <!-- Add docs here if major architectural mismatches found -->
+
+---
+
+## Phase 2 Completeness Results (2025-12-10)
+
+All 8 previously verified docs were re-checked with bidirectional protocol (Code → Doc).
+
+| Doc | Accuracy | Completeness | Critical Gaps |
+|-----|----------|--------------|---------------|
+| `persona-system-guide.md` | ~92% | **65%** | Duplicate service implementations, chat integration unclear |
+| `prompt-manager.md` | ~90% | **50%** | Missing `get_system_prompt_and_persona()` method entirely |
+| `llm-service.md` | ~95% | **16%** | 0% config docs, 0% method docs, 138 items only 22 covered |
+| `chat-service-implementation.md` | ~95% | **45%** | 0/9 conversation endpoints, 0/14 streaming endpoints |
+| `kb-agent-overview.md` | ~95% | **30%** | Entire game engine undocumented (commands, NPCs, quests, state) |
+| `database-architecture.md` | ~95% | **68%** | Missing personas tables (critical!), 60+ indexes undocumented |
+| `api-contracts.md` | 100% | **15%** | Only 28 of 180 endpoints documented |
+| `kb-endpoints.md` | 93% | **33%** | 30 endpoints missing across 8 categories |
+
+### Key Insights from Phase 2
+
+1. **Pattern: High Accuracy, Low Completeness**
+   - Average accuracy: ~94% (docs are correct about what they cover)
+   - Average completeness: **40%** (docs only cover 40% of what exists)
+
+2. **Root Cause: Docs frozen at "Phase 0"**
+   - Documentation written when features were planned/basic
+   - Code evolved through multiple phases
+   - Docs never updated to match implementation growth
+
+3. **Most Critical Gaps**:
+   - **kb-agent-overview.md** (30%): Describes "knowledge interpreter" but code is a full game engine
+   - **llm-service.md** (16%): High-level overview, no configuration or usage details
+   - **api-contracts.md** (15%): Only auth endpoints documented
+
+4. **Architectural Issues Discovered**:
+   - Duplicate persona service implementations (which is canonical?)
+   - PromptManager not actually used in current chat flow?
+   - Two RBAC migrations (003 vs 004) - which is planned?
+
+### Recommended Actions
+
+**Tier 1 - Critical (affects production understanding)**:
+- [ ] Add personas tables to database-architecture.md
+- [ ] Document game command system in kb-agent (or create new doc)
+- [ ] Clarify which persona service implementation is canonical
+
+**Tier 2 - High (developer productivity)**:
+- [ ] Add llm-service.md configuration section
+- [ ] Document conversation management endpoints
+- [ ] Add streaming infrastructure docs
+
+**Tier 3 - Moderate (completeness)**:
+- [ ] Expand api-contracts.md per TODO section
+- [ ] Expand kb-endpoints.md per TODO section
+- [ ] Add index documentation to database-architecture.md
 
 ---
 
